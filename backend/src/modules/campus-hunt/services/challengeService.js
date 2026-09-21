@@ -366,7 +366,7 @@ function publicChallengeView(challenge, progress, {
           : n === 5
             ? 'Go to your 5th campus stop. Leader scans the red FIFTH SCAN QR once.'
             : n === 6
-              ? 'Go to MindSpark Lobby and enter the organizer finish code.'
+              ? 'Go to Mindspark Lobby and enter the organizer finish code.'
               : ''))
       : undefined,
     // Answer strings only after timer/attempt reveal (0 pts) — never on active timed clues
@@ -460,7 +460,7 @@ async function submitAnswer({
     throw err;
   }
 
-  // Clue 6 = MindSpark Lobby finish code → complete + lock (even if Clue 6 row is missing)
+  // Clue 6 = Mindspark Lobby finish code → complete + lock (even if Clue 6 row is missing)
   if (Number(challengeNumber) === 6) {
     const { submitOrganizerFinishCode, acceptedFinishCodes } = require('./finishService');
     const finishAccepted = await acceptedFinishCodes(team);
@@ -478,13 +478,13 @@ async function submitAnswer({
         attemptsLeft: 0,
         awardedPoints: 0,
         destinationInstruction:
-          'Score locked at MindSpark Lobby — check the leaderboard when it goes live.',
+          'Score locked at Mindspark Lobby — check the leaderboard when it goes live.',
         teamStage: finish.team?.currentStage,
         currentScore: finish.team?.currentScore,
         finalScore: finish.finalScore ?? finish.team?.finalScore,
         scoreLocked: true,
         message: finish.message
-          || 'Finish code accepted — score locked at MindSpark Lobby',
+          || 'Finish code accepted — score locked at Mindspark Lobby',
       };
     }
   }
@@ -884,16 +884,16 @@ async function submitAnswer({
     : Number(challengeNumber) === 5
       ? (
         challenge.destinationInstruction
-        || 'Go to your 5th stop — scan the red FIFTH SCAN QR once, then MindSpark Lobby.'
+        || 'Go to your 5th stop — scan the red FIFTH SCAN QR once, then Mindspark Lobby.'
       )
     : Number(challengeNumber) === 6
       ? (
         challenge.destinationInstruction
-        || 'Score locked at MindSpark Lobby — check the leaderboard when it goes live.'
+        || 'Score locked at Mindspark Lobby — check the leaderboard when it goes live.'
       )
       : (challenge.destinationInstruction || '');
 
-  // Clue 6 finish code → also lock Round 1 score at MindSpark Lobby
+  // Clue 6 finish code → also lock Round 1 score at Mindspark Lobby
   if (Number(challengeNumber) === 6 && updatedTeam) {
     try {
       const { markTeamReachedAtStart } = require('./finishService');
@@ -930,24 +930,24 @@ async function submitAnswer({
     message: Number(challengeNumber) === 2
       ? (
         lateOrRevealed
-          ? 'Correct (0 pts — time up). Go scan green SECOND SCAN, then enter team code → Clue 3.'
-          : 'Correct! Go to next place · shared green QR · scan + team code → Clue 3.'
+          ? 'Correct (0 pts — time up). Go scan green SECOND SCAN once → Clue 3.'
+          : 'Correct! Go to next place · shared green QR · scan once → Clue 3.'
       )
       : Number(challengeNumber) === 4
         ? (
           lateOrRevealed
-            ? 'Correct (0 pts — time up). Scan purple FOURTH SCAN here, then team code → Clue 5.'
-            : 'Correct! Scan the purple FOURTH SCAN QR here — leader scans once + team code → Clue 5.'
+            ? 'Correct (0 pts — time up). Scan purple FOURTH SCAN here once → Clue 5.'
+            : 'Correct! Scan the purple FOURTH SCAN QR here once → Clue 5.'
         )
       : Number(challengeNumber) === 5
         ? (
           lateOrRevealed
-            ? 'Correct (0 pts — time up). Go to your 5th stop — FIFTH SCAN QR + team code → Clue 6.'
-            : 'Correct! Go to your 5th campus stop — scan FIFTH SCAN QR, team code → destination clue.'
+            ? 'Correct (0 pts — time up). Go to your 5th stop — scan red FIFTH SCAN once → Clue 6.'
+            : 'Correct! Go to your 5th campus stop — scan red FIFTH SCAN once → Mindspark Lobby.'
         )
       : Number(challengeNumber) === 6
         ? (
-          'Finish code accepted — score locked at MindSpark Lobby. Check the leaderboard when live.'
+          'Finish code accepted — score locked at Mindspark Lobby. Check the leaderboard when live.'
         )
         : (lateOrRevealed
           ? 'Correct — but time expired. 0 points awarded. Continue to the next step.'
@@ -1571,6 +1571,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
         // eslint-disable-next-line no-await-in-loop
         const gridSession = await ensureRound1FieldTerminalGrid(teamFresh, {
           durationMinutes: 90,
+          preferredCompletionCode: ch.answer,
         });
         view.gridAccessCode = gridSession.accessCode;
         view.gridGameUrl = '/campus-hunt/grid';
@@ -1578,6 +1579,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
         view.gridCompleted = gridSession.status === 'completed';
       } catch (_) {
         view.gridGameUrl = '/campus-hunt/grid';
+        view.gridAccessCode = view.gridAccessCode || null;
       }
     }
     if (

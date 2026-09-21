@@ -385,7 +385,7 @@ export default function Clue2VariantManager({
         <p className="mt-1 text-xs text-white/50">
           Second stop = next campus place after Clue 1. Same shared plant join-word for every team
           at that place (set under Places → Plant fragments) — not a different code per team.
-          After they type the joined word they scan the shared green SECOND SCAN QR, then enter their team code.
+          After they type the joined word they scan the shared green SECOND SCAN QR once — Clue 3 unlocks.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {arrivalPlan.map((place) => (

@@ -44,6 +44,14 @@ export default function OfflineHuntBriefing({
           <p className="mt-2 text-sm text-white/70">
             One phone — answers and scans happen here. Teammates walk with you.
           </p>
+          <ul className="mt-3 space-y-1 text-xs text-white/50">
+            <li>1 · Type place → orange scan</li>
+            <li>2 · Plant join-word → green scan</li>
+            <li>3 · Lockbox → blue scan</li>
+            <li>4 · Borrow laptop · Zip Grid → purple scan</li>
+            <li>5 · Team word → red scan</li>
+            <li>6 · Mindspark Lobby finish code</li>
+          </ul>
           {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
           {isLeader ? (
             <button

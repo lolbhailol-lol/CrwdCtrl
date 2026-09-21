@@ -192,9 +192,9 @@ export default function FinishReturnBoard({
               {THEME.colorName} · FINALE CHECK-IN
             </span>
           </div>
-          <h3 className="mt-2 text-lg font-bold text-white">MindSpark Lobby check-in</h3>
+          <h3 className="mt-2 text-lg font-bold text-white">Mindspark Lobby check-in</h3>
           <p className="mt-1 text-sm text-white/65">
-            After Clue 6, teams come to MindSpark Lobby and type the finish code you tell them
+            After Clue 6, teams come to Mindspark Lobby and type the finish code you tell them
             ({teamCapacity} teams · {startCount} start{startCount === 1 ? '' : 's'}
             {' '}· ~{teamsPerWait}/start · {teamSize}/team).
             You can also mark them here by team number — score locks either way.

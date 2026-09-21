@@ -1082,8 +1082,7 @@ export function clue1ForPlace(placeOrStation, teamSize = 4) {
     acceptedAnswers: [name, catalog?.name].filter(Boolean)
       .filter((v, i, arr) => arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i),
     destinationInstruction:
-      `Go to ${name} together. Find ${people} written clues nearby, join them into one word, `
-      + 'type it on the leader phone, then scan the orange QR once and enter your team code.',
+      `Go to ${name} together. Leader scans the orange FIRST SCAN QR once to unlock Clue 2.`,
     hintText: riddle
       ? `Think of a landmark that matches the poem — then go to ${name}.`
       : `Ask staff for the way to ${name}.`,
@@ -1136,7 +1135,7 @@ export function routeClueDefaults(
         'Say every digit piece out loud in seat order. The code is digits only — no spaces.',
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
-        + `Leader scans once, then enters your team code to unlock Field Terminal.`,
+        + `Leader scans once to unlock Field Terminal.`,
       memberPrompts: pieces,
     };
   }
@@ -1145,13 +1144,13 @@ export function routeClueDefaults(
     return {
       prompt:
         `FIELD TERMINAL at ${place}.\n`
-        + 'Find the terminal card near the purple zone (or clear Zip Grid on a laptop if available). '
-        + 'Type your GRID completion code here — format GRID-XXXX (leader submits).',
+        + 'Borrow any laptop with internet. Open Zip Grid, type your device key from this phone, '
+        + 'clear the levels, then type the GRID-XXXX code the laptop shows (leader submits).',
       answer: '',
       hintText:
-        'Look for the terminal card / GRID sticker near the purple QR — eye / knee level.',
+        'Borrow a laptop → device key on this phone → Zip Grid → GRID-XXXX back here.',
       destinationInstruction:
-        `Terminal cleared — stay at ${place}. Leader scans the purple QR once, then team code to unlock Clue 5.`,
+        `GRID accepted — stay at ${place}. Leader scans the purple QR once to unlock Clue 5.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -1185,7 +1184,7 @@ export function routeClueDefaults(
     hintText: 'Say every fragment out loud in order — no spaces in the final word.',
     destinationInstruction:
       `Word solved — go to ${fifthStop}. Find the shared red FIFTH SCAN QR. `
-      + `Leader scans once, then enters your team code to unlock Clue 6.`,
+      + `Leader scans once to unlock Clue 6.`,
     memberPrompts: chunks,
   };
 }

@@ -25,7 +25,7 @@ export default function FirstStopPosterPrint({
       title={placeCount
         ? `Clue 1 shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
-      blurb={`One Orange FIRST SCAN QR per selected place — print all on one A3 cut sheet. Leader scans once at that spot, then enters their team code for the next clue. (~${teamSize} people walk together · one phone.)`}
+      blurb={`One Orange FIRST SCAN QR per selected place — print all on one A3 cut sheet. Leader scans once at that spot — next clue unlocks. (~${teamSize} people walk together · one phone.)`}
       needMoreHint="Save setup or Update Clue 1 for this setup — shared QRs appear after either step."
       skippedSummaryKey="skippedUnwanted"
       campusStations={campusStations}

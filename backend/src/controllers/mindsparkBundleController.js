@@ -7,7 +7,12 @@ const { FEST_ID, BUNDLE_COMPETITION_IDS, DISCOUNT_PERCENT, BUNDLE_SIZE, BUNDLE_G
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 const { assertCompetitionAcceptsRegistration } = require('../utils/competitionSlots');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
-const { createCashfreeOrder, verifyCashfreePayment, getCashfreeClientMode } = require('../services/cashfreeService');
+const {
+  createCashfreeOrder,
+  verifyCashfreePayment,
+  getCashfreeClientMode,
+  firstValidCustomerPhone,
+} = require('../services/cashfreeService');
 const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
 
 const TTL = 30 * 60 * 1000;
@@ -19,9 +24,32 @@ const FRONTEND = () => String(
 ).replace(/\/$/, '');
 const PAYABLE_RATIO = (100 - DISCOUNT_PERCENT) / 100;
 const ORDER_NOTE = `MindSpark Any ${BUNDLE_SIZE} Bundle (${DISCOUNT_PERCENT}% off)`;
+const PLACEHOLDER_PHONE = '9999999999';
 const clean = (v, n = 180) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, n);
 const phone = v => String(v || '').replace(/\D/g, '').slice(-10);
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(v).toLowerCase());
+const isRealPhone = (v) => {
+  const digits = phone(v);
+  return digits.length === 10 && digits !== PLACEHOLDER_PHONE;
+};
+
+/** Prefer form / roster WhatsApp over account placeholder (9999999999). */
+function resolveBundlePhone(bundle, user, extraPhone = '') {
+  const rosterPhones = (bundle?.items || []).flatMap((item) => {
+    const roster = item?.roster && typeof item.roster === 'object' ? item.roster : {};
+    const members = Array.isArray(roster.team_members) ? roster.team_members : [];
+    return [
+      roster.phone,
+      roster.mobile,
+      ...members.map((m) => m?.phone || m?.mobile),
+    ];
+  });
+  return firstValidCustomerPhone([
+    extraPhone,
+    ...rosterPhones,
+    user?.phoneNumber,
+  ]);
+}
 
 function serialize(bundle, order) {
   return {
@@ -203,11 +231,68 @@ exports.quote = async (req, res) => {
 };
 
 async function resolveCustomer(req, source) {
-  if (source === 'public') return User.findById(req.user.userId);
-  const name = clean(req.body.customer?.name, 100), mobile = phone(req.body.customer?.phone), email = clean(req.body.customer?.email).toLowerCase();
-  if (!name || mobile.length !== 10 || !validEmail(email)) { const e = new Error('Team leader name, valid WhatsApp number, and email are required.'); e.status = 400; throw e; }
-  let user = await User.findOne({ $or: [{ phoneNumber: mobile }, ...(email ? [{ email }] : [])] });
-  if (!user) user = await User.create({ name, phoneNumber: mobile, email, password: crypto.randomBytes(24).toString('hex'), isVerified: true, signupMethod: 'password' });
+  const name = clean(req.body.customer?.name, 100);
+  const mobile = phone(req.body.customer?.phone);
+  const email = clean(req.body.customer?.email).toLowerCase();
+
+  if (source === 'public') {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      const e = new Error('Please sign in again.');
+      e.status = 401;
+      throw e;
+    }
+    // Form WhatsApp wins over account placeholder / empty phone.
+    if (!isRealPhone(mobile) && !isRealPhone(user.phoneNumber)) {
+      const e = new Error('Team leader name, valid WhatsApp number, and email are required.');
+      e.status = 400;
+      throw e;
+    }
+    let dirty = false;
+    if (isRealPhone(mobile) && phone(user.phoneNumber) !== mobile) {
+      user.phoneNumber = mobile;
+      dirty = true;
+    }
+    if (name && user.name !== name) {
+      user.name = name;
+      dirty = true;
+    }
+    if (email && validEmail(email) && String(user.email || '').toLowerCase() !== email) {
+      user.email = email;
+      dirty = true;
+    }
+    if (dirty) await user.save();
+    return user;
+  }
+
+  if (!name || !isRealPhone(mobile) || !validEmail(email)) {
+    const e = new Error('Team leader name, valid WhatsApp number, and email are required.');
+    e.status = 400;
+    throw e;
+  }
+  let user = await User.findOne({ $or: [{ phoneNumber: mobile }, { email }] });
+  if (!user) {
+    user = await User.create({
+      name,
+      phoneNumber: mobile,
+      email,
+      password: crypto.randomBytes(24).toString('hex'),
+      isVerified: true,
+      signupMethod: 'password',
+    });
+    return user;
+  }
+  let dirty = false;
+  if (name && user.name !== name) {
+    user.name = name;
+    dirty = true;
+  }
+  // Email match can pull an old account still stuck on Cashfree placeholder phone.
+  if (!isRealPhone(user.phoneNumber) || phone(user.phoneNumber) !== mobile) {
+    user.phoneNumber = mobile;
+    dirty = true;
+  }
+  if (dirty) await user.save();
   return user;
 }
 
@@ -231,18 +316,50 @@ async function restoreBundleReservations(bundle) {
 }
 
 async function createOrderForBundle(bundle, user) {
+  const customerPhone = resolveBundlePhone(bundle, user);
+  if (!customerPhone) {
+    const e = new Error('A valid 10-digit WhatsApp number is required for Cashfree payment.');
+    e.status = 400;
+    throw e;
+  }
   let order;
   if (Number(bundle.totalAmount) <= 0) {
     order = await PaymentOrder.create({
       orderId: `msb_free_${bundle._id}`,
       entityType: 'competition_bundle', entityId: bundle._id, userId: user._id,
       ticketPrice: 0, amountBeforeDiscount: 0, amountAfterDiscount: 0, totalAmount: 0,
-      status: 'PAID', gateway: 'cashfree', customerEmail: user.email, customerPhone: user.phoneNumber,
+      status: 'PAID', gateway: 'cashfree', customerEmail: user.email, customerPhone,
       orderTags: { bundleId: String(bundle._id), festId: FEST_ID, zeroFee: true },
     });
   } else {
-    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` }, orderNote: ORDER_NOTE, orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
-    order = await PaymentOrder.create({ orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id, entityType: 'competition_bundle', entityId: bundle._id, userId: user._id, ticketPrice: bundle.subtotal, couponDiscount: bundle.discountAmount, amountBeforeDiscount: bundle.subtotal, amountAfterDiscount: bundle.totalAmount, totalAmount: bundle.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber, orderTags: { bundleId: String(bundle._id), festId: FEST_ID } });
+    const cashfree = await createCashfreeOrder({
+      orderAmount: bundle.totalAmount,
+      customerDetails: {
+        customerId: String(user._id),
+        customerName: user.name,
+        customerEmail: user.email,
+        customerPhone,
+      },
+      orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` },
+      orderNote: ORDER_NOTE,
+      orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+    });
+    order = await PaymentOrder.create({
+      orderId: cashfree.order_id,
+      paymentSessionId: cashfree.payment_session_id,
+      entityType: 'competition_bundle',
+      entityId: bundle._id,
+      userId: user._id,
+      ticketPrice: bundle.subtotal,
+      couponDiscount: bundle.discountAmount,
+      amountBeforeDiscount: bundle.subtotal,
+      amountAfterDiscount: bundle.totalAmount,
+      totalAmount: bundle.totalAmount,
+      status: 'PENDING',
+      customerEmail: user.email,
+      customerPhone,
+      orderTags: { bundleId: String(bundle._id), festId: FEST_ID },
+    });
   }
   bundle.activeOrderId = order.orderId;
   if (!bundle.orderIds.includes(order.orderId)) bundle.orderIds.push(order.orderId);
@@ -394,12 +511,42 @@ exports.reissue = async (req, res) => {
     const byId = new Map(docs.map(c => [String(c._id), c]));
     for (const item of bundle.items) reservations.push(await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user }));
     const user = await User.findById(bundle.user); const token = bundle.paymentToken;
-    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` }, orderNote: ORDER_NOTE, orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
-    const replacement = await PaymentOrder.create({ orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id, entityType: 'competition_bundle', entityId: bundle._id, userId: bundle.user, ticketPrice: bundle.subtotal, couponDiscount: bundle.discountAmount, amountBeforeDiscount: bundle.subtotal, amountAfterDiscount: bundle.totalAmount, totalAmount: bundle.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber, orderTags: { bundleId: String(bundle._id), festId: FEST_ID } });
+    const customerPhone = resolveBundlePhone(bundle, user);
+    if (!customerPhone) {
+      return res.status(400).json({ success: false, message: 'A valid 10-digit WhatsApp number is required for Cashfree payment.' });
+    }
+    const cashfree = await createCashfreeOrder({
+      orderAmount: bundle.totalAmount,
+      customerDetails: {
+        customerId: String(user._id),
+        customerName: user.name,
+        customerEmail: user.email,
+        customerPhone,
+      },
+      orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` },
+      orderNote: ORDER_NOTE,
+      orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+    });
+    const replacement = await PaymentOrder.create({
+      orderId: cashfree.order_id,
+      paymentSessionId: cashfree.payment_session_id,
+      entityType: 'competition_bundle',
+      entityId: bundle._id,
+      userId: bundle.user,
+      ticketPrice: bundle.subtotal,
+      couponDiscount: bundle.discountAmount,
+      amountBeforeDiscount: bundle.subtotal,
+      amountAfterDiscount: bundle.totalAmount,
+      totalAmount: bundle.totalAmount,
+      status: 'PENDING',
+      customerEmail: user.email,
+      customerPhone,
+      orderTags: { bundleId: String(bundle._id), festId: FEST_ID },
+    });
     bundle.items.forEach((item, i) => { item.reservationToken = reservations[i]?.token || ''; }); bundle.activeOrderId = replacement.orderId; bundle.orderIds.push(replacement.orderId); bundle.status = 'pending'; bundle.expiresAt = new Date(Date.now() + TTL); await bundle.save();
     await Promise.all(reservations.filter(Boolean).map(r => attachReservationToOrder(r.token, replacement.orderId)));
     res.json({ success: true, ...await serializeWithTickets(bundle, replacement) });
   } catch (e) { await Promise.all(reservations.filter(Boolean).map(r => releaseCompetitionSlot(r.token).catch(() => {}))); res.status(e.status || 500).json({ success: false, message: e.message || 'Could not create replacement payment.' }); }
 };
 
-exports._test = { validateItems, serialize };
+exports._test = { validateItems, serialize, resolveBundlePhone, isRealPhone };

@@ -126,9 +126,10 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   }, [desk, deskPay?.paymentToken, deskPay?.status]);
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    const accountPhone = String(user.phoneNumber || user.phone || '').replace(/\D/g, '').slice(-10);
     setCustomer(current => ({
       name: current.name || user.name || '',
-      phone: current.phone || user.phoneNumber || user.phone || '',
+      phone: current.phone || (accountPhone && accountPhone !== '9999999999' ? accountPhone : '') || '',
       email: current.email || user.email || '',
     }));
     setShowLogin(false);
@@ -163,6 +164,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   })), [selected, forms, customer]);
   const detailsValid = Boolean(customer.name.trim())
     && customer.phone.replace(/\D/g, '').length === 10
+    && customer.phone.replace(/\D/g, '').slice(-10) !== '9999999999'
     && EMAIL_RE.test(customer.email.trim());
   const selectionValid = selected.every(Boolean) && new Set(selected).size === 3;
   const formsValid = selectionValid && comps.every((c, i) => {

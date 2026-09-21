@@ -2,13 +2,13 @@
 
 /**
  * Round 1 play model: only the team leader carries a phone.
- * Teammates walk along; leader solves clues, scans posters, enters team codes.
+ * Teammates walk along; leader solves clues and scans posters (one scan unlocks).
  */
 const LEADER_ONLY_PHONE = true;
-/** Checkpoint scans needed before team-code claim (leader-only phone). */
+/** Checkpoint scans needed before unlock (leader-only phone = 1). */
 const CHECKPOINT_SCAN_REQUIRED = 1;
 const LEADER_SCAN_INSTRUCTION =
-  'Leader scans the shared QR once, then enters your team code.';
+  'Leader scans the shared QR once — next clue unlocks.';
 
 const EVENT_STATUSES = [
   'draft',
@@ -339,15 +339,16 @@ const CLUE_HOW_TO = {
       'Lockbox pieces appear on the leader phone — read them aloud in seat order.',
       'Rebuild the digit code together. Leader submits (limited attempts; hints cost points).',
       'Walk to that place together — leader finds the shared blue THIRD SCAN QR.',
-      'Leader scans once, enters your team code, then Field Terminal unlocks.',
+      'Leader scans once — Field Terminal unlocks.',
     ],
   },
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'Open the Zip Grid link on a laptop and enter the device key.',
-      'Clear all levels — take as long as you need in the game.',
-      'Leader types the GRID-XXXX code on this phone (50 pts).',
+      'Borrow any laptop with internet (friend / café / lab).',
+      'Open the Zip Grid link and type your device key from this phone.',
+      'Clear all levels — take as long as you need.',
+      'Laptop shows GRID-XXXX — leader types that code here (50 pts).',
       'Leader scans the purple FOURTH SCAN QR once — Clue 5 unlocks.',
     ],
   },
@@ -357,14 +358,14 @@ const CLUE_HOW_TO = {
       'Fragments appear on the leader phone — read them aloud in order and rebuild the one word.',
       'Leader submits the word. Faster = bonus points.',
       'If time runs out, the word is revealed (0 points) — type it to continue.',
-      'Walk to your 5th campus stop — leader scans the red place QR once and enters your team code.',
-      'That unlocks Clue 6 (destination) on the leader phone.',
+      'Walk to your 5th campus stop — leader scans the red FIFTH SCAN QR once.',
+      'That unlocks Clue 6 (Mindspark Lobby) on the leader phone.',
     ],
   },
   6: {
-    title: 'How to play — Destination',
+    title: 'How to play — Mindspark Lobby',
     steps: [
-      'After Clue 5, go to MindSpark Lobby as a full team.',
+      'After the red scan, go to Mindspark Lobby as a full team.',
       'Ask the organizer for the finish code.',
       'Leader types the finish code on this phone to lock your score.',
     ],

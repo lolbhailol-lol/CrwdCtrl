@@ -416,11 +416,11 @@ function LocationPlantCard({
                   />
                   <span className="mt-1 block text-white/80 print:text-black/80">
                     {col.key === 'purple'
-                      ? 'After prop CODE typed on phone · leader scans once + team code → Clue 5'
+                      ? 'After GRID typed on phone · leader scans purple once → Clue 5'
                       : col.key === 'green'
                         ? 'Hide shared plant slips near this green QR · leaders join the word · scan once'
                       : col.key === 'blue'
-                        ? 'No 3-digit mark here · teams solve Lockbox on phone · leader scans once + team code'
+                        ? 'No 3-digit mark here · teams solve Lockbox on phone · leader scans blue once'
                       : `After ${col.when.toLowerCase().replace(/^after /, '')} · unlocks ${col.unlocks}`}
                   </span>
                   {teams.length > 0 ? (
@@ -971,7 +971,7 @@ export default function DryRunHuddleChecklist({
                 {' '}
                 {people}
                 {' '}
-                shared written fragments → join into one word → type → scan poster once + team code → Clue 2.
+                shared written fragments → join into one word → type → scan poster once → Clue 2.
               </li>
               <li>
                 Same habit at

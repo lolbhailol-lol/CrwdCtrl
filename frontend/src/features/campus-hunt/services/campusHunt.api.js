@@ -292,7 +292,7 @@ export async function submitChallengeAnswer(teamId, challengeNumber, answer, req
   });
 }
 
-/** Leader types organizer finish code at MindSpark Lobby (after Clue 6). */
+/** Leader types organizer finish code at Mindspark Lobby (after Clue 6). */
 export async function submitFinishCode(teamId, finishCode) {
   return huntJson(`${BASE}/teams/${teamId}/finish`, {
     method: 'POST',

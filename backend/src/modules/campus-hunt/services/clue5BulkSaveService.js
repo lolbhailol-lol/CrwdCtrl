@@ -91,7 +91,7 @@ async function bulkSaveClue5({
       const defaults = routeClueDefaults(5, finishWord, teamSize);
       defaults.destinationInstruction =
         `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
-        + `Leader scans once, then enters your team code to unlock Clue 6.`;
+        + `Leader scans once to unlock Clue 6.`;
 
       const answer = String(row.answer || finishWord).trim().toUpperCase();
       const memberPrompts = Array.isArray(row.memberPrompts)

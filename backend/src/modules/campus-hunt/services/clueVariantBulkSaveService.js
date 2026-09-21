@@ -151,7 +151,7 @@ async function bulkSaveClue1({
             stationCode,
             publicInstruction:
               `Orange FIRST SCAN at ${place}. One shared QR for this place. `
-              + 'Leader scans once, then enters your team code to unlock Clue 2.',
+              + 'Leader scans once to unlock Clue 2.',
             sequence: 1,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -197,7 +197,7 @@ async function bulkSaveClue1({
             destinationInstruction:
               String(row.destinationInstruction || '').trim()
               || `Go to ${place}. Find the shared orange FIRST SCAN QR. `
-                + `Leader scans once, then enters your team code to unlock Clue 2.`,
+                + `Leader scans once to unlock Clue 2.`,
             hintText: String(row.hintText || '').trim() || `Ask staff for the way to ${place}.`,
             basePoints: clue1Scoring.basePoints,
             maxAttempts: clue1Scoring.maxAttempts,
@@ -314,7 +314,7 @@ async function bulkSaveClue3({
             stationCode,
             publicInstruction:
               `Blue THIRD SCAN at ${place}. One shared QR for this place. `
-              + 'Leader scans once, then enters your team code to unlock Field Terminal.',
+              + 'Leader scans once to unlock Field Terminal.',
             sequence: 3,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -366,7 +366,7 @@ async function bulkSaveClue3({
             acceptedAnswers: [answer],
             destinationInstruction:
               `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
-              + `Leader scans once, then enters your team code to unlock Field Terminal.`,
+              + `Leader scans once to unlock Field Terminal.`,
             memberPrompts: Array.isArray(row.memberPrompts) && row.memberPrompts.length
               ? row.memberPrompts
               : pieceDefaults.memberPrompts,

@@ -1035,6 +1035,24 @@ async function postOfflineProgress(req, res, next) {
   }
 }
 
+async function postOfflineGridEnsure(req, res, next) {
+  try {
+    const { ensureOfflineGridAccess } = require('../services/offlineExportService');
+    const eventId = req.params.eventId || req.body?.event;
+    const data = await ensureOfflineGridAccess(eventId, req.body);
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+      });
+    }
+    return next(err);
+  }
+}
+
 async function submitFinishCode(req, res, next) {
   try {
     const { submitOrganizerFinishCode } = require('../services/finishService');
@@ -1086,6 +1104,7 @@ module.exports = {
   getOfflineInstallPack,
   ackOfflineInstall,
   postOfflineProgress,
+  postOfflineGridEnsure,
   getMyTeam,
   getTeamProgress,
   streamTeamProgress,

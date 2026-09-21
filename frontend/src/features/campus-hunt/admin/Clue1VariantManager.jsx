@@ -330,7 +330,7 @@ export default function Clue1VariantManager({
         answer: (match.answer || pack.place).trim(),
         destinationInstruction: (
           match.destinationInstruction
-          || `Go to ${pack.place}. Leader scans the shared QR once, then enters your team code.`
+          || `Go to ${pack.place}. Leader scans the shared QR once to unlock Clue 2.`
         ).trim(),
       };
     });
@@ -439,7 +439,7 @@ export default function Clue1VariantManager({
             answer,
             destinationInstruction: (
               content.destinationInstruction
-            || `Go to ${place}. Leader scans the shared QR once, then enters your team code.`
+            || `Go to ${place}. Leader scans the shared QR once to unlock Clue 2.`
               ).trim(),
             place,
             stationCode: pack.code,
@@ -730,7 +730,7 @@ export default function Clue1VariantManager({
       <p className="text-[11px] text-white/40">
         Save binds all {teamCapacity} teams across {starts.length} start(s) → {stations.length} place(s).
         Then print the {stations.length} shared Orange QR{stations.length === 1 ? '' : 's'} below.
-        After the leader scans once and enters the team code, Clue 2 unlocks.
+        After the leader scans once, Clue 2 unlocks.
       </p>
       {message && <p className="text-sm text-[#0ECCEE]">{message}</p>}
       {error && <p className="text-sm text-amber-200">{error}</p>}

@@ -458,7 +458,7 @@ function clue1ForPlace(placeOrStation, teamSize = 4) {
     acceptedAnswers: [name, catalog?.name].filter(Boolean)
       .filter((v, i, arr) => arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i),
     destinationInstruction:
-      `Go to ${name}. Leader scans the shared QR once, then enters your team code.`,
+      `Go to ${name}. Leader scans the shared QR once to unlock Clue 2.`,
     hintText: riddle
       ? `Think of a landmark that matches the poem — then go to ${name}.`
       : `Ask staff for the way to ${name}.`,

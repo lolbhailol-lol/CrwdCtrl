@@ -156,7 +156,7 @@ async function bulkSaveClue4({
             stationCode,
             publicInstruction:
               `Purple FOURTH SCAN at ${place}. One shared QR for this place. `
-              + `Leader scans once, then enters your team code to unlock Clue 5.`,
+              + `Leader scans once to unlock Clue 5.`,
             sequence: 4,
             active: true,
             compensationPolicyKey: 'skip_and_continue',

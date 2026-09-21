@@ -41,8 +41,9 @@ const OFFLINE_CLUE_HOW_TO = {
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'Open Zip Grid on a laptop — no hunt timer; play until you finish.',
-      'Leader types GRID-XXXX → scan purple FOURTH SCAN once → Clue 5.',
+      'Borrow any laptop with internet (friend / café / lab).',
+      'Open Zip Grid, type your device key from this phone.',
+      'Clear the levels → get GRID-XXXX → type it here → scan purple.',
     ],
   },
   5: {
@@ -130,7 +131,7 @@ function buildRoster(team) {
   return roster;
 }
 
-function serializeChallenge(ch) {
+function serializeChallenge(ch, extra = {}) {
   if (!ch) return null;
   return {
     id: String(ch._id),
@@ -150,6 +151,8 @@ function serializeChallenge(ch) {
     speedBonusBands: ch.speedBonusBands || [],
     destinationInstruction: ch.destinationInstruction || '',
     howTo: OFFLINE_CLUE_HOW_TO[ch.challengeNumber] || CLUE_HOW_TO[ch.challengeNumber] || null,
+    ...(extra.gridAccessCode ? { gridAccessCode: extra.gridAccessCode } : {}),
+    ...(extra.gridGameUrl ? { gridGameUrl: extra.gridGameUrl } : {}),
   };
 }
 
@@ -354,6 +357,21 @@ async function exportOfflinePacks(eventId) {
     const clue5 = challengeById.get(String(team.clue5ChallengeId));
     const clue6 = challengeById.get(String(team.clue6ChallengeId));
 
+    let gridAccessCode = '';
+    try {
+      const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+      // eslint-disable-next-line no-await-in-loop
+      const gridSession = await ensureRound1FieldTerminalGrid(team, {
+        durationMinutes: 120,
+        preferredCompletionCode: clue4?.answer,
+      });
+      gridAccessCode = String(gridSession?.accessCode || '').toUpperCase();
+    } catch (err) {
+      warnings.push(
+        `${team.teamCode}: Field Terminal device key not created (${err.message || 'error'})`,
+      );
+    }
+
     const cp1 = checkpointById.get(String(team.firstCheckpointId));
     const cp2 = checkpointById.get(String(team.secondCheckpointId));
     const cp3 = checkpointById.get(String(team.thirdCheckpointId));
@@ -388,7 +406,7 @@ async function exportOfflinePacks(eventId) {
         organizerFinishCode: String(event.organizerFinishCode || 'MSFINISH').toUpperCase(),
         apiBase: process.env.PUBLIC_API_BASE
           || process.env.API_PUBLIC_URL
-          || '',
+          || 'https://crwdctrl-production-9c58.up.railway.app/api',
       },
       team: {
         id: String(team._id),
@@ -412,7 +430,10 @@ async function exportOfflinePacks(eventId) {
         clue1: serializeChallenge(clue1),
         clue2: serializeChallenge(clue2),
         clue3: serializeChallenge(clue3),
-        clue4: serializeChallenge(clue4),
+        clue4: serializeChallenge(clue4, {
+          gridAccessCode,
+          gridGameUrl: '/campus-hunt/grid',
+        }),
         clue5: serializeChallenge(clue5),
         clue6: serializeChallenge(clue6),
       },
@@ -420,7 +441,7 @@ async function exportOfflinePacks(eventId) {
       placePosters,
       opsNotes: {
         install: 'ONE pack per team — WhatsApp the leader only. Leader installs Hunt on their phone on Wi‑Fi before fest. Whole team walks with that one phone; works offline. Do not send packs to every member.',
-        checkpointFlow: 'At each of 5 stops: find plant fragments → join word → type → scan place poster once → team code. Clue 6 → Finale Assembly.',
+        checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks). Plant join-word is Clue 2 only. Clue 6 → Mindspark Lobby finish code.',
         posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage.',
       },
     };
@@ -681,9 +702,18 @@ async function ingestOfflineProgress(eventId, payload) {
     return { teamCode: team.teamCode, ignored: true, reason: 'SCORE_LOCKED' };
   }
 
+  const incomingSeq = Number(body.seq) || 0;
+  const storedSeq = Number(team.offlineProgressSeq) || 0;
+  if (incomingSeq < storedSeq) {
+    return { teamCode: team.teamCode, ignored: true, reason: 'STALE_SEQ' };
+  }
+
   const incomingDevice = String(body.deviceId || '').slice(0, 64);
   const bound = String(team.offlineDeviceId || '').slice(0, 64);
-  if (bound && incomingDevice && bound !== incomingDevice && !body.takeover) {
+  // Soft bind: allow takeover when score/stage advanced, or explicit takeover flag.
+  const advancing = incomingSeq > storedSeq
+    || Number(body.score) > Number(team.currentScore || 0);
+  if (bound && incomingDevice && bound !== incomingDevice && !body.takeover && !advancing) {
     const err = new Error(
       'Another phone is bound to this team. Restore a backup on this phone, then tap Take over.',
     );
@@ -693,17 +723,12 @@ async function ingestOfflineProgress(eventId, payload) {
     throw err;
   }
 
-  const incomingSeq = Number(body.seq) || 0;
-  const storedSeq = Number(team.offlineProgressSeq) || 0;
-  if (incomingSeq < storedSeq) {
-    return { teamCode: team.teamCode, ignored: true, reason: 'STALE_SEQ' };
-  }
-
   const score = Math.max(0, Number(body.score) || 0);
-  const maxPlausible = 100 + (6 * 80);
+  const startScore = 100;
+  const maxPlausible = startScore + (6 * 120);
   team.currentScore = Math.min(score, maxPlausible);
   if (body.stage) team.currentStage = String(body.stage);
-  team.offlineProgressSeq = incomingSeq;
+  team.offlineProgressSeq = Math.max(storedSeq, incomingSeq);
   if (incomingDevice) team.offlineDeviceId = incomingDevice;
   team.status = team.status === 'finished' ? team.status : 'active';
   await team.save();
@@ -717,6 +742,55 @@ async function ingestOfflineProgress(eventId, payload) {
   };
 }
 
+/**
+ * Best-effort: mint / return Field Terminal device key for an offline pack.
+ */
+async function ensureOfflineGridAccess(eventId, payload) {
+  const body = payload?.t ? payload : (payload?.data || payload);
+  if (body?.t !== 'campus_hunt_offline_grid') {
+    const err = new Error('Not an offline grid request');
+    err.status = 400;
+    throw err;
+  }
+  if (String(body.event) !== String(eventId)) {
+    const err = new Error('Grid request is for a different event');
+    err.status = 403;
+    throw err;
+  }
+  if (!verifyResultsSignature(eventId, body)) {
+    const err = new Error('Grid request signature is invalid');
+    err.status = 403;
+    throw err;
+  }
+
+  const team = await CampusHuntTeam.findOne({
+    eventId,
+    teamCode: String(body.team || '').toUpperCase(),
+  });
+  if (!team) {
+    const err = new Error(`Team ${body.team} not found`);
+    err.status = 404;
+    throw err;
+  }
+
+  const clue4 = team.clue4ChallengeId
+    ? await CampusHuntChallenge.findById(team.clue4ChallengeId).select('answer').lean()
+    : null;
+  const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+  const gridSession = await ensureRound1FieldTerminalGrid(team, {
+    durationMinutes: 120,
+    preferredCompletionCode: clue4?.answer || body.preferredCompletionCode || '',
+  });
+
+  return {
+    teamCode: team.teamCode,
+    gridAccessCode: gridSession.accessCode,
+    gridGameUrl: '/campus-hunt/grid',
+    gridStatus: gridSession.status,
+    gridCompleted: gridSession.status === 'completed',
+  };
+}
+
 module.exports = {
   exportOfflinePacks,
   importOfflineResults,
@@ -725,5 +799,6 @@ module.exports = {
   ackOfflineInstall,
   listOfflineInstallStatus,
   ingestOfflineProgress,
+  ensureOfflineGridAccess,
   bundleSigningKey,
 };

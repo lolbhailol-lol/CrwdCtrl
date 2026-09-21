@@ -90,7 +90,7 @@ function blankForm(number, takesTo, teamSize = 4) {
     hintText: defaults.hintText || '',
     destinationInstruction: defaults.destinationInstruction
       || (takesTo
-        ? `Go to ${takesTo}. Find the shared QR. Leader scans once, then enters your team code.`
+        ? `Go to ${takesTo}. Find the shared QR. Leader scans once to unlock the next clue.`
         : ''),
     basePoints: number === 3 || number === 5 ? 50 : 0,
     maxAttempts: 3,
@@ -269,7 +269,7 @@ export default function RouteClueEditor({
       if (number === 5) {
         blank.destinationInstruction =
           `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
-          + `Leader scans once, then enters your team code to unlock Clue 6.`;
+          + `Leader scans once to unlock Clue 6.`;
         blank.basePoints = 50;
       }
       setForm(blank);
@@ -288,28 +288,26 @@ export default function RouteClueEditor({
         existing.destinationInstruction
         || (number === 2
           ? (
-            'Go to your next location now. Find the shared green SECOND SCAN QR — '
-            + `leader scans once, then enters your team code to unlock Clue 3.`
+            'Word typed — stay at green. Leader scans the green QR once to unlock Clue 3.'
           )
           : number === 3
             ? (
               defaults.destinationInstruction
               || `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
-                + `Leader scans once, then enters your team code to unlock Field Terminal.`
+                + `Leader scans once to unlock Field Terminal.`
             )
           : number === 4
             ? (
               defaults.destinationInstruction
-              || `Terminal cleared — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
-                + `Leader scans once, then enters your team code to unlock Clue 5.`
+              || `GRID accepted — stay at ${place}. Leader scans the purple QR once to unlock Clue 5.`
             )
           : number === 5
             ? (
               `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
-              + `Leader scans once, then enters your team code to unlock Clue 6.`
+              + `Leader scans once to unlock Clue 6.`
             )
             : defaults.destinationInstruction
-              || `Go to ${place}. Find the shared QR. Leader scans once, then enters your team code.`),
+              || `Go to ${place}. Find the shared QR. Leader scans once to unlock the next clue.`),
       basePoints: existing.basePoints ?? (number === 3 || number === 5 ? 50 : 0),
       maxAttempts: existing.maxAttempts ?? 3,
       timerSeconds: existing.timerSeconds
@@ -377,8 +375,8 @@ export default function RouteClueEditor({
             hintText: form.hintText.trim(),
             destinationInstruction: (
               form.destinationInstruction
-              || `Prop found — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
-                + `Leader scans once, then enters your team code to unlock Clue 5.`
+              || `GRID accepted — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
+                + `Leader scans once to unlock Clue 5.`
             ).trim(),
             basePoints: Number(form.basePoints) || 0,
             maxAttempts: Number(form.maxAttempts) || 3,
@@ -430,7 +428,7 @@ export default function RouteClueEditor({
           || (number === 5
             ? (
               `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
-              + `Leader scans once, then enters your team code to unlock Clue 6.`
+              + `Leader scans once to unlock Clue 6.`
             )
             : `Go to ${takesTo}. Leader scans once there.`)
         ).trim(),

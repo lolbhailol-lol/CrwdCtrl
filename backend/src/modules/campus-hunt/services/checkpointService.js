@@ -820,7 +820,7 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
   // Finish is organizer-only online — players cannot self-lock via FINISH QR.
   if (progressionKey === 'FINISH') {
     const err = new Error(
-      'Go to Finale Assembly. Ask the organizer to mark your team reached — do not scan a finish QR.',
+      'Go to Mindspark Lobby. Ask the organizer to mark your team reached — do not scan a finish QR.',
     );
     err.status = 409;
     err.code = 'ORGANIZER_FINISH_ONLY';
@@ -1359,7 +1359,7 @@ async function confirmStationClaim({
     else if (stageStr.includes('CLUE_3')) unlockLabel = 'Lockbox unlocked';
     else if (stageStr.includes('CLUE_4')) unlockLabel = 'Field Terminal unlocked';
     else if (stageStr.includes('CLUE_5')) unlockLabel = 'Clue 5 unlocked';
-    else if (stageStr.includes('CLUE_6')) unlockLabel = 'MindSpark Lobby unlocked';
+    else if (stageStr.includes('CLUE_6')) unlockLabel = 'Mindspark Lobby unlocked';
     return {
       alreadyComplete: true,
       awaitingTeamCodeConfirm: false,
@@ -1428,7 +1428,7 @@ async function confirmStationClaim({
   else if (stageStr.includes('CLUE_3')) unlockLabel = 'Lockbox unlocked';
   else if (stageStr.includes('CLUE_4')) unlockLabel = 'Field Terminal unlocked';
   else if (stageStr.includes('CLUE_5')) unlockLabel = 'Clue 5 unlocked';
-  else if (stageStr.includes('CLUE_6')) unlockLabel = 'MindSpark Lobby unlocked';
+  else if (stageStr.includes('CLUE_6')) unlockLabel = 'Mindspark Lobby unlocked';
 
   return {
     alreadyComplete: Boolean(result.alreadyProcessed),

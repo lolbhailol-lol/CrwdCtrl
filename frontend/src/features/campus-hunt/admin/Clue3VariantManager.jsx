@@ -328,9 +328,9 @@ export default function Clue3VariantManager({
       </section>
 
       <p className="text-xs text-white/50">
-        After green SECOND SCAN + team code, teams get the Lockbox on their phone.
-        Digit pieces rebuild the code — then they scan the shared blue QR and enter
-        their team code to unlock Field Terminal.
+        After green SECOND SCAN, teams get the Lockbox on their phone.
+        Digit pieces rebuild the code — then they scan the shared blue QR once
+        to unlock Field Terminal.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

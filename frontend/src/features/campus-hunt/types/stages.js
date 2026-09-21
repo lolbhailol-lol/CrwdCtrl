@@ -21,7 +21,7 @@ export const STAGE_LABELS = {
   CLUE_5_COMPLETED: 'Scan Red',
   CLUE_5_FAILED: 'Scan Red',
   CHECKPOINT_5_COMPLETED: 'Finish unlocking…',
-  CLUE_6_ACTIVE: 'MindSpark Lobby',
+  CLUE_6_ACTIVE: 'Mindspark Lobby',
   CLUE_6_COMPLETED: 'Finish code',
   CLUE_6_FAILED: 'Finish code',
   FINISH_COMPLETED: 'Finished',
@@ -131,7 +131,7 @@ export function huntProgressFromStage(stage) {
     currentLabel = 'Scan Red once · then Finish';
   }
   if (['CLUE_6_ACTIVE', 'CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(s)) {
-    currentLabel = 'MindSpark Lobby — finish code';
+    currentLabel = 'Mindspark Lobby — finish code';
   }
 
   return { index, steps, currentLabel };

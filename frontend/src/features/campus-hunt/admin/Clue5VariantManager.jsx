@@ -59,7 +59,7 @@ function blankRouteForm(code, teamSize, startName) {
     answer: word,
     memberPrompts: [...(defaults.memberPrompts || [])],
     destinationInstruction:
-      `Go to your 5th campus stop. Leader scans the FIFTH SCAN QR once, then enters your team code to unlock Clue 6 (destination).`,
+      `Go to your 5th campus stop. Leader scans the FIFTH SCAN QR once to unlock Clue 6 (Mindspark Lobby).`,
   };
 }
 

@@ -37,7 +37,7 @@ function routeForStart(routes, point) {
 }
 
 /**
- * Clue 6 — MindSpark Lobby finish: teams type the organizer finish code.
+ * Clue 6 — Mindspark Lobby finish: teams type the organizer finish code.
  */
 export default function Clue6VariantManager({
   eventId,
@@ -138,7 +138,7 @@ export default function Clue6VariantManager({
         });
       }
 
-      setMessage('Saved — teams type this finish code at MindSpark Lobby.');
+      setMessage('Saved — teams type this finish code at Mindspark Lobby.');
       onChanged?.();
       await refresh();
     } catch (err) {
@@ -152,7 +152,7 @@ export default function Clue6VariantManager({
     <div className={`space-y-4 rounded-2xl border p-4 ${THEME.borderClass} ${THEME.bgClass}`}>
       <div>
         <p className={`text-[10px] font-bold uppercase tracking-wide ${THEME.textClass}`}>
-          Clue 6 · MindSpark Lobby
+          Clue 6 · Mindspark Lobby
         </p>
         <h3 className="mt-1 text-lg font-bold text-white">Finish code</h3>
         <p className="mt-1 text-sm text-white/60">

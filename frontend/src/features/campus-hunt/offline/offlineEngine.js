@@ -421,7 +421,7 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   if (dest && canTransition(next.currentStage, dest)) next.currentStage = dest;
   next.clueProgress[n] = row;
 
-  // Clue 6 finish code → lock score at MindSpark Lobby
+  // Clue 6 finish code → lock score at Mindspark Lobby
   if (n === 6) {
     if (canTransition(next.currentStage, 'FINISH_COMPLETED')) {
       next.currentStage = 'FINISH_COMPLETED';
@@ -453,7 +453,7 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
       awardedPoints: Number(row.awardedPoints) || 0,
       destinationInstruction: clue.destinationInstruction || destHint,
       message: n === 6
-        ? 'Finish code accepted — score locked at MindSpark Lobby.'
+        ? 'Finish code accepted — score locked at Mindspark Lobby.'
         : destHint,
       scoreLocked: next.currentStage === 'SCORE_LOCKED',
       finalScore: next.score,
@@ -686,7 +686,7 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
     state: next,
     localScanKey: String(key),
     meta: {
-      message: 'Poster scanned — enter your team code to continue',
+      message: 'Poster scanned — next clue unlocked',
       verifiedCount: Object.keys(cp.scans || {}).length,
       requiredCount: 1,
       checkpointId: expected?.id,
@@ -776,7 +776,7 @@ export function markReachedStart(bundle, session, state, finishCode = '', now = 
   assertLeader(session);
   const next = clone(state);
   if (!['CLUE_6_ACTIVE', 'CLUE_6_COMPLETED', 'CLUE_6_FAILED', 'FINISH_COMPLETED'].includes(next.currentStage)) {
-    throw huntError('Go to MindSpark Lobby after the red scan, then enter the finish code', 409, 'WRONG_STAGE');
+    throw huntError('Go to Mindspark Lobby after the red scan, then enter the finish code', 409, 'WRONG_STAGE');
   }
   const code = String(finishCode || '').trim();
   if (code) {
@@ -790,11 +790,11 @@ export function markReachedStart(bundle, session, state, finishCode = '', now = 
       'FINISH',
       'LOBBY',
       'MINDSPARK',
-      'MINDSPARK LOBBY',
-      'mindspark lobby',
+      'Mindspark Lobby',
+      'Mindspark Lobby',
     ].filter(Boolean);
     if (!matchesAnyAccepted(code, accepted)) {
-      throw huntError('Wrong finish code — ask the organizer at MindSpark Lobby', 400, 'BAD_FINISH_CODE');
+      throw huntError('Wrong finish code — ask the organizer at Mindspark Lobby', 400, 'BAD_FINISH_CODE');
     }
   } else if (next.currentStage === 'CLUE_6_ACTIVE') {
     throw huntError('Enter the organizer finish code', 400, 'NO_FINISH_CODE');
@@ -819,7 +819,7 @@ export function markReachedStart(bundle, session, state, finishCode = '', now = 
   return {
     state: next,
     meta: {
-      message: 'Score locked at MindSpark Lobby. Export results for the desk.',
+      message: 'Score locked at Mindspark Lobby. Export results for the desk.',
       finalScore: next.score,
       scoreLocked: true,
     },

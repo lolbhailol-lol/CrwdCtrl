@@ -5,6 +5,7 @@ import {
   teamSize,
 } from './offlineEngine';
 import { scoringForChallenge } from './scoring';
+import { sanitizePlayerCopy } from '../player/sanitizePlayerCopy';
 
 const HOW_TO = {
   1: {
@@ -33,8 +34,10 @@ const HOW_TO = {
   4: {
     title: 'How to play — Field Terminal',
     steps: [
-      'Open Zip Grid on a laptop — no hunt timer; play until you finish.',
-      'Leader types GRID-XXXX → scan purple FOURTH SCAN once → Clue 5.',
+      'Borrow any laptop that has internet (friend / café / lab).',
+      'Open Zip Grid, type your device key from this phone.',
+      'Clear the levels → you get a GRID-XXXX code.',
+      'Type that GRID code here → then scan purple.',
     ],
   },
   5: {
@@ -118,7 +121,7 @@ function challengeView(bundle, state, session, n, now) {
   const showDestination = row.state === 'COMPLETED'
     || (n === 1 && revealed);
 
-  return {
+  const view = {
     challengeNumber: n,
     type: clue.type,
     prompt,
@@ -126,7 +129,9 @@ function challengeView(bundle, state, session, n, now) {
     memberFragments,
     collaborative,
     howTo: clue.howTo || HOW_TO[n] || null,
-    destinationInstruction: showDestination ? (clue.destinationInstruction || '') : undefined,
+    destinationInstruction: showDestination
+      ? sanitizePlayerCopy(clue.destinationInstruction || '')
+      : undefined,
     revealedLocation: revealed && n === 1 ? (clue.answer || null) : undefined,
     revealedAnswer: revealed && n !== 1 ? (clue.answer || null) : undefined,
     state: row.state,
@@ -157,6 +162,17 @@ function challengeView(bundle, state, session, n, now) {
     scoringBands: n === 2 && row.state === 'ACTIVE' ? (cfg.speedBonusBands || null) : undefined,
     locked: false,
   };
+
+  // Field Terminal — device key to play Zip Grid on a laptop.
+  if (n === 4 && row.state === 'ACTIVE' && stage === 'CLUE_4_ACTIVE') {
+    view.gridAccessCode = String(
+      clue.gridAccessCode || bundle?.team?.gridAccessCode || '',
+    ).toUpperCase() || null;
+    view.gridGameUrl = clue.gridGameUrl || '/campus-hunt/grid';
+    view.gridCompleted = false;
+  }
+
+  return view;
 }
 
 function checkpointStatus(bundle, state, session, _now) {
@@ -197,10 +213,10 @@ function checkpointStatus(bundle, state, session, _now) {
     code: expected?.code || expected?.checkpointKey,
     locationName: expected?.locationName,
     posterLabel: { scanKind, sharedStation: true },
-    publicInstruction: joinWordOk
+    publicInstruction: sanitizePlayerCopy(joinWordOk
       ? (expected?.publicInstruction
         || `At ${expected?.locationName || 'this stop'}, leader scans the ${scanKind} QR once.`)
-      : `Find ${plantCount} clues written nearby. Join them into one word and type it — then scan.`,
+      : `Find ${plantCount} clues written nearby. Join them into one word and type it — then scan.`),
     plantFragmentCount: plantCount,
     joinedWordHint: needJoin && !joinWordOk
       ? `Find ${plantCount} fragments → join → type`

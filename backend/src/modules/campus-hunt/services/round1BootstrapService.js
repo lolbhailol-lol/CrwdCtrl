@@ -2,10 +2,10 @@
  * Round 1 simple layout: 20 teams · 20 campus stations · 5 path stops + destination.
  *
  * Clues 1–5 each use a unique stop on a coprime team path (PATH_STOP_COUNT = 5).
- * Clue 6 sends every team to MindSpark Lobby — ask organizer for the finish code.
+ * Clue 6 sends every team to Mindspark Lobby — ask organizer for the finish code.
  * Starting points are hold-only; prefer 1 gather when capacity ≤ 20.
  *
- * Each campus place has one shared QR per scan stage (1–5); teams scan then enter team code.
+ * Each campus place has one shared QR per scan stage (1–5); one leader-phone scan unlocks.
  */
 
 const CampusHuntEvent = require('../models/CampusHuntEvent');
@@ -304,7 +304,7 @@ function routeClueDefaults(
       answer: '',
       hintText: 'Look at eye level on posts, pillars, and notice boards — then join the pieces.',
       destinationInstruction:
-        'Word typed — stay at green. Leader scans the green QR once, then enter your team code to unlock Clue 3.',
+        'Word typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -326,7 +326,7 @@ function routeClueDefaults(
         'Say every digit piece out loud in seat order. The code is digits only — no spaces.',
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
-        + `Leader scans once, then enters your team code to unlock Field Terminal.`,
+        + `Leader scans once to unlock Field Terminal.`,
       memberPrompts: pieces,
     };
   }
@@ -336,14 +336,14 @@ function routeClueDefaults(
     return {
       prompt:
         `FIELD TERMINAL at ${place}.\n`
-        + 'Find the terminal card near the purple zone (or clear Zip Grid on a laptop if available). '
-        + 'Type your GRID completion code here — format GRID-XXXX (leader submits).',
+        + 'Borrow any laptop with internet. Open Zip Grid, type your device key from this phone, '
+        + 'clear the levels, then type the GRID-XXXX code the laptop shows (leader submits).',
       answer: '',
       hintText:
-        'Look for the terminal card / GRID sticker near the purple QR — eye / knee level.',
+        'Borrow a laptop → device key on this phone → Zip Grid → GRID-XXXX back here.',
       destinationInstruction:
-        `Terminal cleared — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
-        + `Leader scans once, then enters your team code to unlock Clue 5.`,
+        `GRID accepted — stay at ${place}. Find the shared purple FOURTH SCAN QR. `
+        + `Leader scans once to unlock Clue 5.`,
       memberPrompts: Array.from({ length: people }, () => ''),
     };
   }
@@ -359,7 +359,7 @@ function routeClueDefaults(
     hintText: 'Say every fragment out loud in order — no spaces in the final word.',
     destinationInstruction:
       `Word solved — go to ${fifthStop}. Find the shared FIFTH SCAN QR. `
-      + `Leader scans once, then enters your team code to unlock the destination clue.`,
+      + `Leader scans once to unlock Clue 6.`,
     memberPrompts: chunks,
   };
 }
@@ -591,8 +591,7 @@ async function ensureSharedStationCheckpoints(event, round, anchorRoute, station
             stationCode: station.code,
             publicInstruction:
               `${prog.label} at ${station.name}. One shared QR for this place. `
-              + `Leader scans once, `
-              + 'then enter your team code to unlock your allotted clue.',
+              + 'Leader scans once — next clue unlocks.',
             sequence: prog.seq,
             capacityGuidance: capacity,
             concurrencyGuidance:
@@ -800,7 +799,7 @@ async function ensureCheckpointsAndClues(
               .filter((v, i, arr) => (
                 arr.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i
               )),
-            destinationInstruction:
+      destinationInstruction:
               `Go to ${first.station.name}. Leader scans the shared orange QR once to unlock Clue 2.`,
             hintText: clue1.hintText,
             basePoints: scoring.clue1?.basePoints ?? DEFAULT_SCORING_CONFIG.clue1.basePoints ?? 50,
@@ -1551,8 +1550,8 @@ async function bootstrapRound1Defaults({
       model:
         'Simple layout: teams + clues + passwords + path bindings ready for Links. '
         + 'Open Links → Create team links. '
-        + `Leader scans once, then enters team code. `
-        + 'Clue 6 → MindSpark Lobby finish.',
+        + 'Leader scans once — next clue unlocks. '
+        + 'Clue 6 → Mindspark Lobby finish.',
     },
   };
 }

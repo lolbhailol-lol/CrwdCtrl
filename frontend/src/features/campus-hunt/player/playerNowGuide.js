@@ -3,6 +3,8 @@
  * Keep body short — no numbered steps (action UI is below).
  */
 
+import { sanitizePlayerCopy } from './sanitizePlayerCopy';
+
 export function buildPlayerNowGuide({
   waitingForRelease,
   released,
@@ -16,6 +18,7 @@ export function buildPlayerNowGuide({
   activeChallenge,
 }) {
   const startName = team?.startingPoint?.name || team?.startingPoint?.code || 'your starting point';
+  const onePhone = Boolean(checkpointStatus?.onePhoneMode ?? true);
 
   if (locked) {
     return {
@@ -32,7 +35,7 @@ export function buildPlayerNowGuide({
       tone: 'wait',
       eyebrow: 'Before start',
       title: `Meet at ${startName}`,
-      body: 'Clue 1 unlocks at the scheduled time. Leader phone only.',
+      body: 'Clue 1 unlocks when the hunt starts. Leader phone only.',
       steps: [],
     };
   }
@@ -40,7 +43,7 @@ export function buildPlayerNowGuide({
   if (atStartReport) {
     return {
       tone: 'final',
-      eyebrow: 'MindSpark Lobby',
+      eyebrow: 'Mindspark Lobby',
       title: 'Enter the finish code',
       body: 'Ask the organizer for the finish code to lock your score.',
       steps: [],
@@ -61,12 +64,14 @@ export function buildPlayerNowGuide({
             : 'Orange';
     const required = Number(checkpointStatus?.requiredCount || 1);
     const scanned = Boolean(checkpointStatus?.youScanned);
-    const awaitingClaim = Boolean(checkpointStatus?.awaitingTeamCodeConfirm)
+    const awaitingClaim = !onePhone && (
+      Boolean(checkpointStatus?.awaitingTeamCodeConfirm)
       || (
         Number(checkpointStatus?.verifiedCount || 0)
         >= required
         && checkpointStatus?.status !== 'complete'
-      );
+      )
+    );
     const done = checkpointStatus?.status === 'complete';
 
     if (done) {
@@ -79,11 +84,11 @@ export function buildPlayerNowGuide({
       };
     }
 
-    if (awaitingClaim || scanned) {
+    if (awaitingClaim || (!onePhone && scanned)) {
       return {
         tone: 'scan',
-        eyebrow: `${color} · team code`,
-        title: 'Enter team code',
+        eyebrow: `${color} · confirm`,
+        title: 'Confirm team code',
         body: `Confirm ${team?.teamCode || 'your code'} to unlock the next clue.`,
         steps: [],
       };
@@ -96,7 +101,10 @@ export function buildPlayerNowGuide({
         ? `Scan at ${place}`
         : `Scan ${color}`,
       body: checkpointStatus?.publicInstruction
-        || `Leader scans the ${color} poster once — next clue unlocks.`,
+        ? sanitizePlayerCopy(checkpointStatus.publicInstruction)
+        : (onePhone
+          ? `Leader scans the ${color} poster once — next clue unlocks.`
+          : `Leader scans the ${color} poster once.`),
       steps: [],
     };
   }
@@ -127,16 +135,16 @@ export function buildPlayerNowGuide({
       return {
         tone: 'clue',
         eyebrow: 'Clue 2',
-        title: 'Type the revealed answer',
-        body: '0 pts — type it, then scan green.',
+        title: 'Type the join-word',
+        body: '0 pts — type the revealed word, then scan green.',
         steps: [],
       };
     }
     return {
       tone: 'clue',
       eyebrow: 'Clue 2',
-      title: 'Find the number',
-      body: 'Faster = more points. At 0:00 the answer is shown for 0 pts.',
+      title: 'Join the plant word',
+      body: 'Find the plant slips at green, join into one word, type it. Faster = more points.',
       steps: [],
     };
   }
@@ -146,7 +154,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 3 · Lockbox',
       title: 'Open the lockbox',
-      body: 'Rebuild the digits in order, then submit.',
+      body: 'Rebuild the digits in order, submit, then scan blue.',
       steps: [],
     };
   }
@@ -155,8 +163,8 @@ export function buildPlayerNowGuide({
     return {
       tone: 'clue',
       eyebrow: 'Clue 4 · Field Terminal',
-      title: 'Clear Zip Grid',
-      body: 'No hunt timer — play Zip Grid on a laptop, then type GRID-XXXX here (50 pts).',
+      title: 'Borrow a laptop · play Zip Grid',
+      body: 'Device key on this phone → laptop with internet → Zip Grid → type GRID-XXXX here.',
       steps: [],
     };
   }
@@ -183,7 +191,7 @@ export function buildPlayerNowGuide({
   if (activeNum === 6) {
     return {
       tone: 'final',
-      eyebrow: 'MindSpark Lobby',
+      eyebrow: 'Mindspark Lobby',
       title: 'Type the finish code',
       body: 'Organizer gives the code — type it to lock your score.',
       steps: [],
@@ -203,8 +211,8 @@ export function buildPlayerNowGuide({
   return {
     tone: 'wait',
     eyebrow: 'Campus Hunt',
-    title: 'Getting ready',
-    body: 'Your next instruction will show here.',
+    title: 'Stay with your team',
+    body: 'Follow the leader phone.',
     steps: [],
   };
 }

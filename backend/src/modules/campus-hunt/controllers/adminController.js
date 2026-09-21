@@ -1304,7 +1304,7 @@ async function manualReleaseTeam(req, res, next) {
   }
 }
 
-/** After Clue 6: organizer marks team reached at Finale Assembly → score locked. */
+/** After Clue 6: organizer marks team reached at Mindspark Lobby → score locked. */
 async function markTeamStartReached(req, res, next) {
   try {
     const { markTeamReachedAtStart } = require('../services/finishService');
@@ -3007,8 +3007,8 @@ async function listStationQr(req, res, next) {
         },
         hint:
           'Clue 1: orange · Clue 2: green · Clue 3: blue · Clue 4: purple · Clue 5: red (FIFTH SCAN). '
-          + 'Each campus place gets 5 shared stage QRs (not per team). After scans, enter team code. '
-          + 'Clue 6 → Finale Assembly.',
+          + 'Each campus place gets 5 shared stage QRs (not per team). Leader scans once — next clue unlocks. '
+          + 'Clue 6 → Mindspark Lobby.',
       },
     });
   } catch (err) {

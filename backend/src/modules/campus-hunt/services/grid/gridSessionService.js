@@ -159,6 +159,7 @@ async function createGridSession({
   entryId,
   missionRunId,
   durationMinutes = 45,
+  preferredCompletionCode = '',
 }) {
   const team = await CampusHuntTeam.findById(teamId).select('teamCode teamName');
   if (!team) throw gridError('Team not found', 'TEAM_NOT_FOUND', 404);
@@ -177,6 +178,7 @@ async function createGridSession({
     attempts += 1;
   }
 
+  const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
   const sessionToken = crypto.randomBytes(16).toString('hex');
   const session = await CampusHuntGridSession.create({
     eventId,
@@ -204,6 +206,8 @@ async function createGridSession({
     score: 0,
     status: 'active',
     expiresAt,
+    // Round 1 / offline: finish Zip Grid with the team's planted GRID code.
+    ...(preferred.startsWith('GRID-') ? { completionCode: preferred } : {}),
   });
 
   return session;
@@ -540,10 +544,12 @@ async function getSessionForRun(missionRunId) {
  * Round 1 Clue 4 Field Terminal — Zip Grid session without a Finale mission run.
  * Reuses the team's latest open round-1 session (no missionRunId / entryId).
  */
-async function ensureRound1FieldTerminalGrid(team, { durationMinutes = 45 } = {}) {
+async function ensureRound1FieldTerminalGrid(team, { durationMinutes = 45, preferredCompletionCode = '' } = {}) {
   if (!team?._id || !team?.eventId) {
     throw gridError('Team required for Field Terminal grid', 'TEAM_REQUIRED', 400);
   }
+
+  const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
 
   const existing = await CampusHuntGridSession.findOne({
     teamId: team._id,
@@ -553,12 +559,19 @@ async function ensureRound1FieldTerminalGrid(team, { durationMinutes = 45 } = {}
     entryId: null,
   }).sort({ createdAt: -1 });
 
-  if (existing) return existing;
+  if (existing) {
+    if (preferred.startsWith('GRID-') && !existing.completionCode) {
+      existing.completionCode = preferred;
+      await existing.save();
+    }
+    return existing;
+  }
 
   return createGridSession({
     eventId: team.eventId,
     teamId: team._id,
     durationMinutes,
+    preferredCompletionCode: preferred,
   });
 }
 

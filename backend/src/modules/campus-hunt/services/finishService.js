@@ -1,5 +1,5 @@
 /**
- * Finish at MindSpark Lobby after Clue 5 / red scan unlocks Clue 6.
+ * Finish at Mindspark Lobby after Clue 5 / red scan unlocks Clue 6.
  * Organizers tell teams a finish code; leader types it → score locked.
  * Admin desk can still mark reached without the code.
  */
@@ -50,7 +50,7 @@ async function markTeamReachedAtStart({
 
   if (!FINISH_READY_STAGES.has(team.currentStage)) {
     const err = new Error(
-      'Team must reach MindSpark Lobby (Clue 6) first, then enter the finish code',
+      'Team must reach Mindspark Lobby (Clue 6) first, then enter the finish code',
     );
     err.status = 409;
     err.code = 'NOT_READY_FOR_FINISH';
@@ -97,7 +97,7 @@ async function markTeamReachedAtStart({
     action: 'mark_start_reached',
     targetType: 'team',
     targetId: team._id,
-    reason: reason || 'Organizer marked team reached at MindSpark Lobby',
+    reason: reason || 'Organizer marked team reached at Mindspark Lobby',
     before: { stage: fromStage },
     after: {
       stage: updated.currentStage,
@@ -112,7 +112,7 @@ async function markTeamReachedAtStart({
   return {
     alreadyProcessed: false,
     team: updated,
-    message: 'Team marked complete at MindSpark Lobby — score locked',
+    message: 'Team marked complete at Mindspark Lobby — score locked',
   };
 }
 
@@ -131,7 +131,7 @@ async function acceptedFinishCodes(team) {
     'FINISH',
     'LOBBY',
     'MINDSPARK',
-    'MINDSPARK LOBBY',
+    'Mindspark Lobby',
     'MINDSPARKLOBBY',
     'FINALE ASSEMBLY',
   ];
@@ -243,7 +243,7 @@ async function completeClue6ForFinish(team, { userId, now = new Date() } = {}) {
 }
 
 /**
- * Leader types organizer finish code at MindSpark Lobby.
+ * Leader types organizer finish code at Mindspark Lobby.
  * Works from CLUE_6_ACTIVE (complete + lock) or CLUE_6_COMPLETED (lock only).
  */
 async function submitOrganizerFinishCode({
@@ -272,7 +272,7 @@ async function submitOrganizerFinishCode({
 
   if (!FINISH_ENTRY_STAGES.has(team.currentStage)) {
     const err = new Error(
-      'Go to MindSpark Lobby after the red scan — then ask the organizer for the finish code',
+      'Go to Mindspark Lobby after the red scan — then ask the organizer for the finish code',
     );
     err.status = 409;
     err.code = 'NOT_READY_FOR_FINISH';
@@ -281,7 +281,7 @@ async function submitOrganizerFinishCode({
 
   const accepted = await acceptedFinishCodes(team);
   if (!matchesAnyAccepted(finishCode, accepted)) {
-    const err = new Error('Wrong finish code — ask the organizer at MindSpark Lobby');
+    const err = new Error('Wrong finish code — ask the organizer at Mindspark Lobby');
     err.status = 400;
     err.code = 'BAD_FINISH_CODE';
     throw err;
@@ -316,7 +316,7 @@ async function submitOrganizerFinishCode({
     scoreLocked: true,
     finalScore: result.team?.finalScore ?? result.team?.currentScore,
     message: result.message
-      || 'Finish code accepted — score locked at MindSpark Lobby',
+      || 'Finish code accepted — score locked at Mindspark Lobby',
   };
 }
 

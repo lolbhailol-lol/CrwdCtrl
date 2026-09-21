@@ -2,19 +2,26 @@
  * Best-effort live board sync — never blocks play.
  */
 
-import { OFFLINE_STORES } from './constants';
+import { getApiBaseCandidates } from '../../../config/apiBase';
+import { signPayload } from './offlineQr';
 
 const QUEUE_KEY = 'progress_queue';
 const DEVICE_KEY = 'device_id';
 
-function apiBase(bundle) {
+function resolveApiBases(bundle) {
   const fromBundle = String(bundle?.event?.apiBase || '').replace(/\/$/, '');
-  if (fromBundle) return fromBundle;
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    // Same-origin proxy or Vite env
-    return import.meta.env?.VITE_API_BASE_URL?.replace(/\/$/, '') || '';
-  }
-  return '';
+  const candidates = [];
+  if (fromBundle) candidates.push(fromBundle);
+  try {
+    candidates.push(...getApiBaseCandidates());
+  } catch { /* ignore */ }
+  // Same-origin relative fallback (www Caddy proxy)
+  if (typeof window !== 'undefined') candidates.push('');
+  return [...new Set(candidates.map((b) => String(b || '').replace(/\/$/, '')))];
+}
+
+function progressPath(eventId) {
+  return `/campus-hunt/events/${eventId}/offline-progress`;
 }
 
 export function getOfflineDeviceId() {
@@ -74,31 +81,18 @@ function saveQueue(items) {
   } catch { /* ignore */ }
 }
 
-async function signProgress(bundle, payload) {
-  const key = bundle.signingKey;
-  const { sig: _s, ...rest } = payload;
-  const body = JSON.stringify(rest);
-  // Prefer Web Crypto HMAC when available; fallback to embedding unsigned for queue retry with precomputed sig from offlineQr helper
-  if (typeof crypto !== 'undefined' && crypto.subtle && key) {
-    const enc = new TextEncoder();
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw',
-      enc.encode(key),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    );
-    const sigBuf = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(body));
-    const hex = [...new Uint8Array(sigBuf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-    return hex.slice(0, 20);
-  }
-  return '';
+function buildProgressUrl(base, eventId) {
+  const path = progressPath(eventId);
+  if (!base) return `/api${path}`;
+  if (base.endsWith('/api')) return `${base}${path}`;
+  if (base.includes('/api/')) return `${base.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+  return `${base}/api${path}`;
 }
 
 export async function enqueueOfflineProgress(bundle, state) {
   if (!bundle?.event?.id || !bundle?.team?.teamCode) return { queued: false };
   const takeover = consumeTakeoverFlag();
-  const payload = {
+  let payload = {
     t: 'campus_hunt_offline_progress',
     event: String(bundle.event.id),
     team: bundle.team.teamCode,
@@ -110,11 +104,14 @@ export async function enqueueOfflineProgress(bundle, state) {
     at: new Date().toISOString(),
   };
   try {
-    payload.sig = await signProgress(bundle, payload);
+    if (bundle.signingKey) {
+      payload = await signPayload(bundle.signingKey, payload);
+    }
   } catch {
-    payload.sig = '';
+    payload.sig = payload.sig || '';
   }
-  const queue = loadQueue();
+  // Keep only the latest snapshot per team (reduces lag + stale seq fights).
+  const queue = loadQueue().filter((item) => String(item.team) !== String(payload.team));
   queue.push(payload);
   saveQueue(queue);
   const result = await flushOfflineProgressQueue(bundle);
@@ -125,43 +122,53 @@ export async function flushOfflineProgressQueue(bundle) {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return { pending: loadQueue().length, synced: false };
   }
-  const base = apiBase(bundle);
-  if (!base && typeof window === 'undefined') {
-    return { pending: loadQueue().length, synced: false };
-  }
-  const origin = base || (typeof window !== 'undefined' ? '' : '');
   let queue = loadQueue();
+  if (!queue.length) return { pending: 0, synced: false, syncedOk: false };
+
+  const bases = resolveApiBases(bundle);
   const kept = [];
   let synced = 0;
+
   for (const item of queue) {
-    try {
-      const url = `${origin}/api/campus-hunt/events/${item.event}/offline-progress`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
-      });
-      if (res.status === 409) {
-        const data = await res.json().catch(() => null);
-        if (data?.code === 'DEVICE_BOUND') {
-          const rest = queue.slice(queue.indexOf(item));
-          saveQueue(rest);
-          return {
-            pending: rest.length,
-            synced: false,
-            deviceBound: true,
-            boundDeviceHint: data?.data?.boundDeviceHint,
-          };
+    let ok = false;
+    let deviceBound = false;
+    let boundHint;
+    for (const base of bases) {
+      try {
+        const url = buildProgressUrl(base, item.event);
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(item),
+        });
+        if (res.status === 409) {
+          const data = await res.json().catch(() => null);
+          if (data?.code === 'DEVICE_BOUND') {
+            deviceBound = true;
+            boundHint = data?.data?.boundDeviceHint;
+            break;
+          }
         }
+        if (res.ok) {
+          ok = true;
+          synced += 1;
+          break;
+        }
+      } catch {
+        /* try next base */
       }
-      if (!res.ok) {
-        kept.push(item);
-        continue;
-      }
-      synced += 1;
-    } catch {
-      kept.push(item);
     }
+    if (deviceBound) {
+      const rest = [item, ...queue.slice(queue.indexOf(item) + 1)];
+      saveQueue(rest);
+      return {
+        pending: rest.length,
+        synced: false,
+        deviceBound: true,
+        boundDeviceHint: boundHint,
+      };
+    }
+    if (!ok) kept.push(item);
   }
   saveQueue(kept);
   return { pending: kept.length, synced, syncedOk: synced > 0 };
@@ -169,4 +176,52 @@ export async function flushOfflineProgressQueue(bundle) {
 
 export function offlineBoardPendingCount() {
   return loadQueue().length;
+}
+
+/**
+ * Fetch / mint Field Terminal device key for Clue 4 (needs brief Wi‑Fi).
+ * Patches the in-memory pack clue4 so playData can show the key.
+ */
+export async function ensureOfflineGridKey(bundle) {
+  if (!bundle?.event?.id || !bundle?.team?.teamCode || !bundle?.signingKey) {
+    return null;
+  }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return null;
+
+  let payload = {
+    t: 'campus_hunt_offline_grid',
+    event: String(bundle.event.id),
+    team: bundle.team.teamCode,
+    preferredCompletionCode: bundle.clues?.clue4?.answer || '',
+    at: new Date().toISOString(),
+  };
+  try {
+    payload = await signPayload(bundle.signingKey, payload);
+  } catch {
+    return null;
+  }
+
+  const bases = resolveApiBases(bundle);
+  for (const base of bases) {
+    try {
+      const path = `/campus-hunt/events/${payload.event}/offline-grid-ensure`;
+      const url = !base
+        ? `/api${path}`
+        : base.endsWith('/api')
+          ? `${base}${path}`
+          : `${base}/api${path}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) continue;
+      const json = await res.json().catch(() => null);
+      const data = json?.data || json;
+      if (data?.gridAccessCode) return data;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }

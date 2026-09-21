@@ -46,7 +46,7 @@ export default function OfflineHuntTeamPage() {
         </div>
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
-          <p>One phone. Solve clues, scan posters, finish at MindSpark Lobby.</p>
+          <p>One phone. Solve clues, scan posters, finish at Mindspark Lobby.</p>
         </section>
 
         <button

@@ -25,7 +25,7 @@ export default function FourthStopPosterPrint({
       title={placeCount
         ? `FOURTH SCAN shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
-      blurb={`Small purple cards on one A3 cut sheet — tuck near the Field Terminal card. Finding them early does nothing until after Field Terminal. One shared QR per selected place; leader scans once, then enters team code for Clue 5.`}
+      blurb={`Small purple cards on one A3 cut sheet — tuck near the Field Terminal card. Finding them early does nothing until after Field Terminal. One shared QR per selected place; leader scans once → Clue 5.`}
       needMoreHint="Save setup or Update Clue 4 for this setup — shared QRs appear after either step."
       skippedSummaryKey="fourthSkipped"
       campusStations={campusStations}

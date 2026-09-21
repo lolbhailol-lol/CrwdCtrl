@@ -22,6 +22,7 @@ import {
 } from '../services/campusHunt.api';
 import PlayerInstructionBox from './PlayerInstructionBox';
 import { buildPlayerNowGuide } from './playerNowGuide';
+import { sanitizePlayerCopy } from './sanitizePlayerCopy';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { STAGE_THEMES } from '../types/stageTheme';
 
@@ -47,7 +48,7 @@ function needsStationScan(stage) {
 }
 
 function needsStartReport(stage) {
-  // After Clue 6 — type organizer finish code at MindSpark Lobby.
+  // After Clue 6 — type organizer finish code at Mindspark Lobby.
   return stage === 'CLUE_6_COMPLETED' || stage === 'CLUE_6_FAILED';
 }
 
@@ -170,7 +171,7 @@ export default function PlayerPlayScreen({
       const applied = onActionResult?.(resData);
       if (!applied) {
         void onRefresh?.({ force: true, burst: true });
-      } else {
+      } else if (!offlineMode) {
         window.setTimeout(() => {
           void onRefresh?.({ burst: true });
         }, 1100);
@@ -199,6 +200,7 @@ export default function PlayerPlayScreen({
     revealTimedChallengeFn,
     onRefresh,
     onActionResult,
+    offlineMode,
   ]);
 
   useEffect(() => {
@@ -319,8 +321,9 @@ export default function PlayerPlayScreen({
       void onRefresh?.({ force: true, burst: true });
       return;
     }
-    // Soft re-sync after the local pause — a force refresh at ~300ms was flashing
-    // the board for a second even when the answer/scan already passed.
+    // Offline: persist already wrote fresh playData. A delayed refresh used a stale
+    // closure and rewound the board back to the previous clue after solve/scan.
+    if (offlineMode) return;
     window.setTimeout(() => {
       void onRefresh?.({ burst: true });
     }, 1100);
@@ -460,22 +463,22 @@ export default function PlayerPlayScreen({
       } else if (activeNum === 4) {
         celebrate(
           pts > 0
-            ? `Prop found! +${pts} pts — purple scan next`
-            : 'Prop found — purple scan next',
+            ? `GRID cleared! +${pts} pts — purple scan next`
+            : 'GRID cleared — purple scan next',
         );
         setAwardedFlash(pts > 0 ? pts : null);
       } else if (activeNum === 5) {
         celebrate(
           pts > 0
-            ? `Correct! +${pts} pts — go scan red FIFTH SCAN, then MindSpark Lobby`
-            : 'Correct — go scan red FIFTH SCAN, then MindSpark Lobby',
+            ? `Correct! +${pts} pts — go scan red, then Mindspark Lobby`
+            : 'Correct — go scan red, then Mindspark Lobby',
         );
         setAwardedFlash(pts > 0 ? pts : null);
       } else if (activeNum === 6) {
         celebrate(
           result.payload?.scoreLocked
-            ? 'Finish code accepted — score locked at MindSpark Lobby'
-            : 'Finish code accepted — score locked at MindSpark Lobby',
+            ? 'Finish code accepted — score locked at Mindspark Lobby'
+            : 'Finish code accepted — score locked at Mindspark Lobby',
         );
         setAwardedFlash(pts > 0 ? pts : null);
       } else if (resData?.late) {
@@ -485,7 +488,7 @@ export default function PlayerPlayScreen({
         celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct!');
         setAwardedFlash(pts > 0 ? pts : null);
       }
-      setFeedback(resData.message || resData.destinationInstruction || '');
+      setFeedback(sanitizePlayerCopy(resData.message || resData.destinationInstruction || ''));
     } else if (resData?.revealed) {
       setAnswer('');
       celebrate('Location revealed — continue to scan');
@@ -558,7 +561,9 @@ export default function PlayerPlayScreen({
     } else if (!unlocked) {
       // Leader-only: scan should auto-unlock — refresh if stage hasn't moved yet
       celebrate(resData?.message || 'Poster scanned');
-      void onRefresh?.({ force: true, burst: true });
+      if (!offlineMode) {
+        void onRefresh?.({ force: true, burst: true });
+      }
     }
   };
 
@@ -760,7 +765,7 @@ export default function PlayerPlayScreen({
             <section className={`${panel} border border-amber-400/35 bg-amber-500/10`}>
               <p className="text-sm font-semibold text-amber-100">Station not assigned yet</p>
               <p className="mt-2 text-sm leading-relaxed text-amber-100/90">
-                {checkpointStatus.publicInstruction
+                {sanitizePlayerCopy(checkpointStatus.publicInstruction)
                   || 'Your scan station is not set up yet. Ask an organizer to update clues and regenerate the schedule.'}
               </p>
               <button
@@ -809,7 +814,9 @@ export default function PlayerPlayScreen({
               {checkpointExtra}
 
               {checkpointStatus.publicInstruction ? (
-                <p className="text-sm text-white/60">{checkpointStatus.publicInstruction}</p>
+                <p className="text-sm text-white/60">
+                  {sanitizePlayerCopy(checkpointStatus.publicInstruction)}
+                </p>
               ) : null}
 
               {!isLeader ? (
@@ -958,7 +965,7 @@ export default function PlayerPlayScreen({
                     const key = result.payload?.checkpointKey || checkpointStatus.checkpointKey;
                     celebrate(
                       key === '5'
-                        ? 'Dev: cleared → MindSpark Lobby'
+                        ? 'Dev: cleared → Mindspark Lobby'
                         : key === '4'
                           ? 'Dev: cleared → Clue 5'
                           : key === '3'
@@ -993,7 +1000,7 @@ export default function PlayerPlayScreen({
                 </div>
               )}
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-300/80">
-                MindSpark Lobby
+                Mindspark Lobby
               </p>
               <p className="font-mono text-4xl font-semibold tracking-wide">{team.teamCode || '—'}</p>
               <p className="text-sm text-white/60">
@@ -1145,16 +1152,21 @@ export default function PlayerPlayScreen({
                     className="text-[10px] font-bold uppercase tracking-[0.16em]"
                     style={{ color: clueTheme.hex }}
                   >
-                    Zip Grid · laptop
+                    Field Terminal · borrow a laptop
                   </p>
-                  <p className="text-sm text-white/60">
-                    No hunt timer — play the game, then type GRID-XXXX here.
-                  </p>
-                  {activeChallenge.gridAccessCode && (
-                    <div className="rounded-xl bg-black/35 px-3 py-3 text-center">
-                      <p className="text-[10px] uppercase tracking-wide text-white/40">Device key</p>
+                  <ol className="list-decimal space-y-1.5 pl-4 text-sm text-white/70">
+                    <li>Borrow any laptop that has internet</li>
+                    <li>Open Zip Grid → type the device key below</li>
+                    <li>Finish the game → laptop shows GRID-XXXX</li>
+                    <li>Type that GRID code on this phone</li>
+                  </ol>
+                  {activeChallenge.gridAccessCode ? (
+                    <div className="rounded-xl bg-black/35 px-3 py-4 text-center">
+                      <p className="text-[10px] uppercase tracking-wide text-white/40">
+                        Device key · type this on the laptop
+                      </p>
                       <p
-                        className="mt-1 font-mono text-xl font-bold tracking-[0.3em]"
+                        className="mt-2 font-mono text-2xl font-black tracking-[0.35em]"
                         style={{ color: clueTheme.hex }}
                       >
                         {activeChallenge.gridAccessCode}
@@ -1173,6 +1185,13 @@ export default function PlayerPlayScreen({
                         {copiedGrid === 'key' ? 'Copied' : 'Copy key'}
                       </button>
                     </div>
+                  ) : (
+                    <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">
+                      Device key not on this phone yet.
+                      {offlineMode
+                        ? ' Turn Wi‑Fi on for a few seconds, or ask the desk to Create leader packs again.'
+                        : ' Tap refresh, or ask the desk for your Field Terminal key.'}
+                    </div>
                   )}
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <a
@@ -1182,7 +1201,7 @@ export default function PlayerPlayScreen({
                       className="flex-1 rounded-xl py-3 text-center text-sm font-bold uppercase tracking-wide text-black"
                       style={{ background: clueTheme.hex }}
                     >
-                      Open Zip Grid
+                      Open Zip Grid (for laptop)
                     </a>
                     <button
                       type="button"
@@ -1196,9 +1215,12 @@ export default function PlayerPlayScreen({
                       }}
                       className="rounded-xl border border-white/15 px-4 py-3 text-sm text-white/70 hover:bg-white/5"
                     >
-                      {copiedGrid === 'link' ? 'Link copied' : 'Copy link'}
+                      {copiedGrid === 'link' ? 'Link copied' : 'Copy link for laptop'}
                     </button>
                   </div>
+                  <p className="text-xs text-white/45">
+                    After the laptop shows GRID-XXXX, enter it in the answer box below.
+                  </p>
                   {activeChallenge.gridCompleted && (
                     <p className="text-xs font-medium text-emerald-200/90">
                       Grid cleared — type GRID-XXXX below.
@@ -1288,7 +1310,9 @@ export default function PlayerPlayScreen({
               {activeChallenge.destinationInstruction && (
                 <div className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm text-emerald-50/90">
                   <p className="text-[10px] uppercase tracking-wide text-emerald-200/70">Next</p>
-                  <p className="mt-0.5 text-white">{activeChallenge.destinationInstruction}</p>
+                  <p className="mt-0.5 text-white">
+                    {sanitizePlayerCopy(activeChallenge.destinationInstruction)}
+                  </p>
                 </div>
               )}
 
@@ -1385,7 +1409,7 @@ export default function PlayerPlayScreen({
                   const ch = n
                     ? challenges.find((c) => c.challengeNumber === n)
                     : null;
-                  return ch?.destinationInstruction
+                  return sanitizePlayerCopy(ch?.destinationInstruction)
                     || 'Go to the place on your route. Leader scans the color poster once.';
                 })()}
               </p>
