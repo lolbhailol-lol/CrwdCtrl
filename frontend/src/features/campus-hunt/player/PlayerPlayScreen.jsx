@@ -1533,7 +1533,7 @@ export default function PlayerPlayScreen({
                       disabled={busy}
                       className="w-full rounded-xl border border-white/10 py-2.5 text-sm text-white/55"
                     >
-                      Use hint (−15 pts)
+                      Use hint (−{Number(activeChallenge.hintCost) || 20} pts)
                     </button>
                   )}
                 </form>
