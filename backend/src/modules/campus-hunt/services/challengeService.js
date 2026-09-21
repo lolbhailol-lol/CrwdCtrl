@@ -242,7 +242,7 @@ async function ensureChallengeActive(team, challengeNumber, now = new Date()) {
   // Round 1 Field Terminal — Zip Grid session (long window; no hunt timer)
   if (Number(challengeNumber) === 4 && progress?.state === 'ACTIVE') {
     try {
-      await ensureRound1FieldTerminalGrid(team, { durationMinutes: 90 });
+      await ensureRound1FieldTerminalGrid(team);
     } catch (_) {
       /* grid is best-effort — answer path still works with static GRID codes */
     }
@@ -1570,7 +1570,6 @@ async function buildPlayerProgress(team, userId, isLeader) {
       try {
         // eslint-disable-next-line no-await-in-loop
         const gridSession = await ensureRound1FieldTerminalGrid(teamFresh, {
-          durationMinutes: 90,
           preferredCompletionCode: ch.answer,
         });
         view.gridAccessCode = gridSession.accessCode;

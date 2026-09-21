@@ -34,6 +34,68 @@ function randomCompletionCode() {
   return `GRID-${suffix}`;
 }
 
+/** Round 1 Field Terminal — long window; Zip Grid has no hunt timer. */
+const ROUND1_GRID_DURATION_MINUTES = 24 * 60;
+
+function sessionTimedOut(session) {
+  if (!session) return true;
+  if (session.status === 'expired') return true;
+  if (session.status === 'completed') return false;
+  return Boolean(session.expiresAt && new Date(session.expiresAt).getTime() < Date.now());
+}
+
+function anyLevelCleared(session) {
+  return (session.levelProgress || []).some((lp) => lp?.completed || lp?.failed || lp?.timedOut);
+}
+
+/**
+ * Keep the same accessCode (printed on phone/pack) and reopen play time.
+ */
+async function reviveRound1GridSession(session, {
+  durationMinutes = ROUND1_GRID_DURATION_MINUTES,
+  preferredCompletionCode = '',
+} = {}) {
+  if (!session) throw gridError('Session not found', 'SESSION_NOT_FOUND', 404);
+  if (session.status === 'completed') return session;
+
+  const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
+  const resetProgress = !anyLevelCleared(session) || sessionTimedOut(session);
+  const now = new Date();
+
+  session.status = 'active';
+  session.expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
+
+  if (resetProgress) {
+    const puzzles = generateAllLevels();
+    session.puzzles = puzzles;
+    session.levelProgress = puzzles.map((_, i) => ({
+      levelIndex: i,
+      completed: false,
+      failed: false,
+      timedOut: false,
+      moves: 0,
+      pointsAwarded: 0,
+      hintsUsed: 0,
+      startedAt: i === 0 ? now : undefined,
+    }));
+    session.currentLevelIndex = 0;
+    session.scoreEarned = 0;
+    session.hintsUsed = 0;
+    session.score = 0;
+    session.markModified('puzzles');
+    session.markModified('levelProgress');
+  }
+
+  if (preferred.startsWith('GRID-')) {
+    session.completionCode = preferred;
+  } else if (!session.completionCode) {
+    session.completionCode = randomCompletionCode();
+  }
+
+  await session.save();
+  return session;
+}
+
 function getLevelStartedAt(session, levelIndex) {
   const progress = session.levelProgress?.[levelIndex];
   if (progress?.startedAt) return new Date(progress.startedAt);
@@ -215,11 +277,12 @@ async function createGridSession({
 
 function assertSessionActive(session) {
   if (!session) throw gridError('Session not found', 'SESSION_NOT_FOUND', 404);
-  if (session.status === 'expired' || session.expiresAt < new Date()) {
-    throw gridError('Session expired', 'SESSION_EXPIRED', 410);
-  }
+  // Completed Zip Grid must still show GRID-XXXX after wall-clock expiry.
   if (session.status === 'completed') {
     return { completed: true };
+  }
+  if (session.status === 'expired' || sessionTimedOut(session)) {
+    throw gridError('Session expired', 'SESSION_EXPIRED', 410);
   }
   return { completed: false };
 }
@@ -274,16 +337,37 @@ async function joinByAccessCode(accessCode) {
   const normalized = String(accessCode || '').trim().toUpperCase();
   if (!normalized) throw gridError('Enter your team access code', 'NO_CODE', 400);
 
-  const session = await CampusHuntGridSession.findOne({
+  let session = await CampusHuntGridSession.findOne({
     accessCode: normalized,
-    status: { $in: ['active', 'completed'] },
-  });
+    status: { $in: ['active', 'completed', 'expired'] },
+  }).sort({ createdAt: -1 });
+
+  if (!session) {
+    throw gridError('Unknown access code — check the device key on the leader phone', 'SESSION_NOT_FOUND', 404);
+  }
+
+  // Round 1: packs mint keys early — auto-revive so fest-day join still works.
+  if (
+    isRound1GridSession(session)
+    && session.status !== 'completed'
+    && (session.status === 'expired' || sessionTimedOut(session))
+  ) {
+    session = await reviveRound1GridSession(session);
+  }
 
   assertSessionActive(session);
   if (session.status === 'active' && applyTimeoutIfNeeded(session)) {
     await session.save();
-  } else {
+  } else if (session.status === 'active') {
     ensureLevelStarted(session, session.currentLevelIndex);
+    if (isRound1GridSession(session)) {
+      const remainingMs = session.expiresAt
+        ? new Date(session.expiresAt).getTime() - Date.now()
+        : 0;
+      if (remainingMs < 60 * 60 * 1000) {
+        session.expiresAt = new Date(Date.now() + ROUND1_GRID_DURATION_MINUTES * 60 * 1000);
+      }
+    }
     await session.save();
   }
   return sessionPublicView(session);
@@ -543,8 +627,12 @@ async function getSessionForRun(missionRunId) {
 /**
  * Round 1 Clue 4 Field Terminal — Zip Grid session without a Finale mission run.
  * Reuses the team's latest open round-1 session (no missionRunId / entryId).
+ * Auto-revives expired sessions so the same device key on the pack still works.
  */
-async function ensureRound1FieldTerminalGrid(team, { durationMinutes = 45, preferredCompletionCode = '' } = {}) {
+async function ensureRound1FieldTerminalGrid(team, {
+  durationMinutes = ROUND1_GRID_DURATION_MINUTES,
+  preferredCompletionCode = '',
+} = {}) {
   if (!team?._id || !team?.eventId) {
     throw gridError('Team required for Field Terminal grid', 'TEAM_REQUIRED', 400);
   }
@@ -554,16 +642,37 @@ async function ensureRound1FieldTerminalGrid(team, { durationMinutes = 45, prefe
   const existing = await CampusHuntGridSession.findOne({
     teamId: team._id,
     eventId: team.eventId,
-    status: { $in: ['active', 'completed'] },
+    status: { $in: ['active', 'completed', 'expired'] },
     missionRunId: null,
     entryId: null,
   }).sort({ createdAt: -1 });
 
   if (existing) {
-    if (preferred.startsWith('GRID-') && !existing.completionCode) {
-      existing.completionCode = preferred;
-      await existing.save();
+    if (existing.status === 'completed') {
+      if (preferred.startsWith('GRID-') && !existing.completionCode) {
+        existing.completionCode = preferred;
+        await existing.save();
+      }
+      return existing;
     }
+
+    if (existing.status === 'expired' || sessionTimedOut(existing)) {
+      return reviveRound1GridSession(existing, {
+        durationMinutes,
+        preferredCompletionCode: preferred,
+      });
+    }
+
+    if (preferred.startsWith('GRID-') && existing.completionCode !== preferred) {
+      existing.completionCode = preferred;
+    }
+    const remainingMs = existing.expiresAt
+      ? new Date(existing.expiresAt).getTime() - Date.now()
+      : 0;
+    if (remainingMs < 2 * 60 * 60 * 1000) {
+      existing.expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
+    }
+    await existing.save();
     return existing;
   }
 

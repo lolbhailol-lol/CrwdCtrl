@@ -31,7 +31,7 @@ export default function OfflineHuntLoginPage() {
         ]);
         if (cancelled) return;
         if (!pack) {
-          setError('No offline pack on this phone — load a team JSON first.');
+          setError('No Hunt pack on this phone — open your install link on Wi‑Fi.');
           setLoading(false);
           return;
         }
@@ -40,7 +40,7 @@ export default function OfflineHuntLoginPage() {
           navigate(CAMPUS_HUNT_PATHS.offlineTeam, { replace: true });
         }
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Could not read offline pack');
+        if (!cancelled) setError(err.message || 'Could not read Hunt pack');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -55,7 +55,7 @@ export default function OfflineHuntLoginPage() {
     try {
       const expected = String(bundle?.team?.password || '');
       if (!expected) {
-        setError('This pack has no password — re-export from admin after setting team passwords.');
+        setError('This pack has no password — ask the organizer to re-send your link.');
         return;
       }
       if (password.trim() !== expected) {
@@ -88,7 +88,7 @@ export default function OfflineHuntLoginPage() {
       });
       navigate(CAMPUS_HUNT_PATHS.offlineTeam);
     } catch (err) {
-      setError(err.message || 'Could not start offline session');
+      setError(err.message || 'Could not start');
     } finally {
       setBusy(false);
     }
@@ -97,24 +97,25 @@ export default function OfflineHuntLoginPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white/60">
-        Loading offline pack…
+        Loading…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-4 py-8 text-white">
+    <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
       <div className="mx-auto max-w-md">
-        <Link to={CAMPUS_HUNT_PATHS.offline} className="text-xs text-white/45 underline">
-          ← Change pack
+        <Link to={CAMPUS_HUNT_PATHS.offline} className="text-xs text-white/40">
+          ← Welcome
         </Link>
-        <h1 className="mt-4 text-xl font-bold">
-          {bundle?.team?.teamName || 'Team login'}
+        <h1 className="mt-4 text-3xl font-black tracking-tight">
+          {bundle?.team?.teamCode || 'Login'}
         </h1>
-        <p className="mt-1 font-mono text-sm text-[#0ECCEE]">{bundle?.team?.teamCode}</p>
-        <p className="mt-1 text-xs text-white/50">{bundle?.event?.name}</p>
-        <p className="mt-3 text-sm text-white/55">
-          One phone only — enter as Team Leader.
+        {bundle?.team?.teamName ? (
+          <p className="mt-1 text-sm text-white/50">{bundle.team.teamName}</p>
+        ) : null}
+        <p className="mt-4 text-sm text-white/60">
+          Enter the team password. One phone only.
         </p>
 
         {error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
@@ -126,22 +127,23 @@ export default function OfflineHuntLoginPage() {
           }}
           className="mt-6 space-y-3"
         >
-          <label className="block text-xs text-white/60">
+          <label className="block text-xs text-white/55">
             Team password
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-sm"
+              className="mt-1.5 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3.5 text-sm outline-none focus:border-[#0ECCEE]/50"
               autoComplete="off"
+              autoFocus
             />
           </label>
           <button
             type="submit"
             disabled={busy || !password.trim()}
-            className="w-full rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-black disabled:opacity-40"
+            className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
           >
-            {busy ? 'Entering…' : 'Enter as Team Leader'}
+            {busy ? 'Entering…' : 'Enter Hunt'}
           </button>
         </form>
       </div>

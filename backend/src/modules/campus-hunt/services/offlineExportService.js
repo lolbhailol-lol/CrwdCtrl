@@ -362,8 +362,7 @@ async function exportOfflinePacks(eventId) {
       const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
       // eslint-disable-next-line no-await-in-loop
       const gridSession = await ensureRound1FieldTerminalGrid(team, {
-        durationMinutes: 120,
-        preferredCompletionCode: clue4?.answer,
+        preferredCompletionCode: String(clue4?.answer || '').trim().toUpperCase(),
       });
       gridAccessCode = String(gridSession?.accessCode || '').toUpperCase();
     } catch (err) {
@@ -778,7 +777,6 @@ async function ensureOfflineGridAccess(eventId, payload) {
     : null;
   const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
   const gridSession = await ensureRound1FieldTerminalGrid(team, {
-    durationMinutes: 120,
     preferredCompletionCode: clue4?.answer || body.preferredCompletionCode || '',
   });
 

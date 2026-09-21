@@ -7,7 +7,6 @@ import {
   loadOfflineBundle,
   loadOfflineSession,
   loadOfflineTeamState,
-  resetOfflineHuntLocal,
   saveOfflineBundle,
   saveOfflineSession,
   saveOfflineTeamState,
@@ -15,6 +14,7 @@ import {
 } from '../offlineDb';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntBriefing from '../components/OfflineHuntBriefing';
+import { startOverHunt } from '../startOverHunt';
 import {
   confirmStation,
   ensureClueActive,
@@ -409,10 +409,13 @@ export default function OfflineHuntPlayPage() {
   };
 
   const onResetHunt = async () => {
-    if (!window.confirm('Reset this team’s hunt progress on this phone? (Pack stays installed.)')) {
+    if (!window.confirm('Start over? Clears progress and pulls the latest pack + app update when online.')) {
       return;
     }
-    await resetOfflineHuntLocal(session.teamCode);
+    await startOverHunt({
+      teamCode: session.teamCode,
+      reloadAppIfWaiting: true,
+    });
     navigate(CAMPUS_HUNT_PATHS.offlineLogin);
   };
 
@@ -590,7 +593,7 @@ export default function OfflineHuntPlayPage() {
               className="w-full rounded-lg border border-white/10 py-2 text-xs text-white/45"
               onClick={onResetHunt}
             >
-              Reset hunt on this phone
+              Start over · get latest
             </button>
           </div>
         </details>

@@ -186,7 +186,13 @@ export default function CampusHuntGridPage() {
                 maxLength={6}
               />
             </label>
-            {error && <p className="mt-3 text-center text-sm text-red-300">{error}</p>}
+            {error && (
+              <p className="mt-3 text-center text-sm text-red-300">
+                {/session expired/i.test(String(error))
+                  ? 'That key timed out — enter it again (it will reopen automatically).'
+                  : error}
+              </p>
+            )}
             <button
               type="submit"
               disabled={loading || accessCode.length < 4}
