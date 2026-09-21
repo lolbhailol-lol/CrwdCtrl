@@ -101,12 +101,19 @@ export default function OfflineHuntPlayPage() {
     }
 
     if (pack && nextSession.role === 'leader' && shouldBoardSync) {
-      void enqueueOfflineProgress(pack, nextState).then((r) => {
+      void enqueueOfflineProgress(pack, nextState).then(async (r) => {
         setBoardPending(offlineBoardPendingCount());
         if (r?.deviceBound) setDeviceBound(true);
         else if (r?.syncedOk) {
           setDeviceBound(false);
           setBoardPending(offlineBoardPendingCount());
+          // Keep local seq aligned after STALE recovery so future pushes stay ahead.
+          if (r?.seqRecovered && stateRef.current) {
+            const aligned = { ...stateRef.current, seq: Number(r.seqRecovered) };
+            stateRef.current = aligned;
+            setState(aligned);
+            await saveOfflineTeamState(nextSession.teamCode, aligned);
+          }
         }
       });
     }
@@ -191,9 +198,9 @@ export default function OfflineHuntPlayPage() {
           return;
         }
 
-        // Admin Start over on Wi‑Fi → reset this phone to match live board.
+        // Admin Start over + release time from Live (Wi‑Fi).
         const sync = await applyServerStartOverIfNeeded(pack).catch(() => null);
-        if (sync?.applied && sync.bundle) {
+        if (sync?.bundle) {
           pack = sync.bundle;
         }
 
@@ -377,11 +384,17 @@ export default function OfflineHuntPlayPage() {
     },
   }), [wrapEngine, persistState, persistSession]);
 
-  const onStartHunt = async () => {
+  const onStartHunt = async (goCode = '') => {
     setStartError('');
     setStarting(true);
     try {
-      const result = startHunt(bundleRef.current, sessionRef.current, stateRef.current);
+      const result = startHunt(
+        bundleRef.current,
+        sessionRef.current,
+        stateRef.current,
+        new Date(),
+        { goCode },
+      );
       await persistState(result.state, sessionRef.current);
     } catch (err) {
       setStartError(err.message || 'Could not start the hunt');
@@ -535,7 +548,8 @@ export default function OfflineHuntPlayPage() {
           </summary>
           <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
             <p className="text-[11px] text-white/45">
-              Live ranking updates whenever this phone gets network (auto). Score stays on the phone if offline.
+              Live ranking needs Wi‑Fi. If points look stuck, stay online and keep playing — sync retries automatically.
+              {boardPending > 0 ? ` (${boardPending} waiting to send)` : ''}
             </p>
             <div className="flex flex-wrap gap-2">
               <button

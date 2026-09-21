@@ -2,9 +2,8 @@ const STEPS = [
   'Places — 20 campus stops · plant join-words · 1 gather point',
   'Clues — Bootstrap, then open each color for hint + QR',
   'Teams — 20 leader packs · one phone + password each',
-  'Links — WhatsApp install link per leader only',
-  'Test — dry-run one leader phone (optional)',
-  'Live — Start the hunt on fest day',
+  'Links — WhatsApp install link ~1 day before (leaders download at home)',
+  'Fest day — shout start code at gather point · leaders type it · hunt starts',
   'Results — lock scores · finalize · finish at Mindspark Lobby',
 ];
 

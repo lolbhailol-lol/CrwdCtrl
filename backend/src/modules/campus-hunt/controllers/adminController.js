@@ -145,6 +145,7 @@ async function updateEvent(req, res, next) {
       'campusStarts',
       'destinationName',
       'organizerFinishCode',
+      'organizerStartCode',
       'startingScore',
       'featureNotes',
       'scoringConfig',
@@ -160,6 +161,11 @@ async function updateEvent(req, res, next) {
       allowed.organizerFinishCode = String(allowed.organizerFinishCode || '')
         .trim()
         .toUpperCase() || 'MSFINISH';
+    }
+    if (allowed.organizerStartCode !== undefined) {
+      allowed.organizerStartCode = String(allowed.organizerStartCode || '')
+        .trim()
+        .toUpperCase() || 'GO';
     }
     if (allowed.destinationName !== undefined) {
       allowed.destinationName = String(allowed.destinationName || '').trim() || 'Mindspark Lobby';
@@ -1300,6 +1306,38 @@ async function manualReleaseTeam(req, res, next) {
     });
     return res.json({ success: true, data: result });
   } catch (err) {
+    return next(err);
+  }
+}
+
+/** Offline Hunt: GO one team or everyone — unlocks Start without forcing Clue 1 online. */
+async function goUnlockStart(req, res, next) {
+  try {
+    const { goUnlockTeams } = require('../services/teamReleaseService');
+    const all = Boolean(req.body.all || req.body.everyone) || Boolean(req.params.eventId && !req.params.teamId);
+    let eventId = req.params.eventId || null;
+    let teamId = req.params.teamId || req.body.teamId || null;
+
+    if (!all && teamId && !eventId) {
+      const team = await CampusHuntTeam.findById(teamId).select('eventId');
+      if (!team) {
+        return res.status(404).json({ success: false, message: 'Team not found' });
+      }
+      eventId = team.eventId;
+    }
+
+    const result = await goUnlockTeams({
+      eventId,
+      teamId: all ? null : teamId,
+      all,
+      actor: adminActor(req),
+      reason: String(req.body.reason || '').trim() || (all ? 'GO everyone' : 'GO this team'),
+    });
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
     return next(err);
   }
 }
@@ -3460,6 +3498,18 @@ async function playtestResetTeam(req, res, next) {
       forceGridReset: true,
     });
 
+    // Playtest: unlock Start immediately on the next Wi‑Fi pull.
+    await CampusHuntTeam.updateOne(
+      { _id: team._id },
+      {
+        $set: {
+          scheduledStartAt: new Date(),
+          startStatus: 'RELEASED',
+        },
+      },
+    );
+    const unlocked = await CampusHuntTeam.findById(team._id);
+
     await writeAudit({
       eventId: team.eventId,
       ...adminActor(req),
@@ -3471,7 +3521,8 @@ async function playtestResetTeam(req, res, next) {
       after: {
         currentStage: result.stage,
         currentScore: result.score,
-        startStatus: result.team.startStatus,
+        startStatus: unlocked?.startStatus || 'RELEASED',
+        scheduledStartAt: unlocked?.scheduledStartAt,
         offlineResetAt: result.offlineResetAt,
       },
     });
@@ -3479,10 +3530,10 @@ async function playtestResetTeam(req, res, next) {
     return res.json({
       success: true,
       data: {
-        team: result.team,
+        team: unlocked || result.team,
         scoresResetTo: startScore,
         offlineResetAt: result.offlineResetAt,
-        message: 'Team reset on live board. Leader phone updates when it opens Hunt on Wi‑Fi.',
+        message: 'Team reset on live board. Leader phone updates when it opens Hunt on Wi‑Fi (Start unlocked for playtest).',
       },
     });
   } catch (err) {
@@ -4398,6 +4449,7 @@ module.exports = {
   setRoundReleasesPaused,
   setStartingPointPaused,
   manualReleaseTeam,
+  goUnlockStart,
   markTeamStartReached,
   getStartDashboard,
   createTeam,

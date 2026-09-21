@@ -209,7 +209,60 @@ export function isHuntWaiting(state) {
   return String(state?.currentStage || 'WAITING') === 'WAITING';
 }
 
-export function startHunt(bundle, session, state, now = new Date()) {
+/** Wave / go-time from pack (Live schedule). Null = no gate in pack yet. */
+export function getScheduledStartAt(bundle) {
+  const raw = bundle?.team?.scheduledStartAt;
+  if (!raw) return null;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * Offline start — one secret code only.
+ * Organizer says the word at the gather point; leaders type it; hunt starts.
+ * No release desk / wave unlock required on the phone.
+ */
+export function getHuntStartGate(bundle, now = new Date(), { goCode = '' } = {}) {
+  void now;
+  const expected = String(bundle?.event?.organizerStartCode || 'GO').trim().toUpperCase();
+  const got = String(goCode || '').trim().toUpperCase();
+
+  if (!expected) {
+    return {
+      open: true,
+      reason: 'OPEN',
+      openAt: null,
+      remainingMs: 0,
+      timeReached: true,
+      needsGoCode: false,
+      message: '',
+    };
+  }
+
+  if (got === expected) {
+    return {
+      open: true,
+      reason: 'OPEN',
+      openAt: null,
+      remainingMs: 0,
+      timeReached: true,
+      needsGoCode: true,
+      message: '',
+    };
+  }
+
+  return {
+    open: false,
+    reason: 'NEED_GO_CODE',
+    openAt: null,
+    remainingMs: 0,
+    timeReached: true,
+    needsGoCode: true,
+    message: 'Wait at the gather point. When the organizer says the start code, type it here.',
+  };
+}
+
+export function startHunt(bundle, session, state, now = new Date(), { goCode = '' } = {}) {
   assertLeader(session);
   let next = clone(state);
   if (next.currentStage === 'SCORE_LOCKED') {
@@ -221,6 +274,10 @@ export function startHunt(bundle, session, state, now = new Date()) {
       state: next,
       meta: { alreadyStarted: true, message: 'Hunt already started — continue on this leader phone.' },
     };
+  }
+  const gate = getHuntStartGate(bundle, now, { goCode });
+  if (!gate.open) {
+    throw huntError(gate.message, 403, gate.reason);
   }
   if (!canTransition(next.currentStage, 'CLUE_1_ACTIVE')) {
     throw huntError('Cannot start the hunt from this stage', 409, 'WRONG_STAGE');
@@ -678,7 +735,7 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
       state: claimed.state,
       localScanKey: String(key),
       meta: {
-        message: claimed.meta?.message || 'Poster scanned — next clue unlocked.',
+        message: 'Checkpoint passed',
         verifiedCount: 1,
         requiredCount: 1,
         awaitingTeamCodeConfirm: false,
@@ -693,7 +750,7 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
     state: next,
     localScanKey: String(key),
     meta: {
-      message: 'Poster scanned — next clue unlocked',
+      message: 'Checkpoint passed',
       verifiedCount: Object.keys(cp.scans || {}).length,
       requiredCount: 1,
       checkpointId: expected?.id,
@@ -772,9 +829,7 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
     state: activated,
     meta: {
       unlockedNext: true,
-      message: auto
-        ? 'Checkpoint complete — next clue unlocked.'
-        : 'Checkpoint complete.',
+      message: 'Checkpoint passed',
     },
   };
 }

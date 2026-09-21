@@ -11,6 +11,7 @@ import {
 import { CAMPUS_HUNT_PATHS } from '../config';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
 import UnlockHoldingCard from '../components/UnlockHoldingCard';
+import HuntScoringGuide from '../components/HuntScoringGuide';
 import {
   submitChallengeAnswer,
   requestChallengeHint,
@@ -25,6 +26,8 @@ import { buildPlayerNowGuide } from './playerNowGuide';
 import { sanitizePlayerCopy } from './sanitizePlayerCopy';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { STAGE_THEMES } from '../types/stageTheme';
+import ClueHowTo from '../components/ClueHowTo';
+import { OFFLINE_CLUE_HOW_TO } from '../offline/offlineHowTo';
 
 function activeChallengeNumber(stage) {
   const m = String(stage || '').match(/^CLUE_(\d)_ACTIVE$/);
@@ -111,7 +114,12 @@ export default function PlayerPlayScreen({
   const waitingForRelease = hasStartGate && !released;
 
   const activeChallenge = useMemo(
-    () => challenges.find((c) => c.challengeNumber === activeNum),
+    () => {
+      const raw = challenges.find((c) => c.challengeNumber === activeNum);
+      if (!raw) return undefined;
+      const appHowTo = OFFLINE_CLUE_HOW_TO[Number(raw.challengeNumber)];
+      return appHowTo ? { ...raw, howTo: appHowTo } : raw;
+    },
     [challenges, activeNum],
   );
 
@@ -205,7 +213,10 @@ export default function PlayerPlayScreen({
 
   useEffect(() => {
     if (!showSuccess) return undefined;
-    const t = setTimeout(() => setShowSuccess(false), 1400);
+    const t = setTimeout(() => {
+      setShowSuccess(false);
+      setAwardedFlash(null);
+    }, 1400);
     return () => clearTimeout(t);
   }, [showSuccess]);
 
@@ -553,16 +564,19 @@ export default function PlayerPlayScreen({
     setShowScanner(false);
     setShowPaste(false);
     setFeedbackTone('ok');
-    setFeedback(resData?.message || (unlocked ? 'Station cleared' : `Scanned (${count}/${required})`));
+    setAwardedFlash(null);
     if (unlocked) {
-      celebrate(resData?.message || 'Station cleared — next clue unlocked!');
+      setFeedback('Checkpoint passed');
+      celebrate('Checkpoint passed');
       setClaimCode('');
     } else if (awaiting && !checkpointStatus?.onePhoneMode && required > 1) {
+      setFeedback(resData?.message || 'Poster scanned — confirm team code');
       celebrate('Poster scanned — confirm team code');
       if (team?.teamCode) setClaimCode(String(team.teamCode).toUpperCase());
     } else if (!unlocked) {
       // Leader-only: scan should auto-unlock — refresh if stage hasn't moved yet
-      celebrate(resData?.message || 'Poster scanned');
+      setFeedback('Checkpoint passed');
+      celebrate('Checkpoint passed');
       if (!offlineMode) {
         void onRefresh?.({ force: true, burst: true });
       }
@@ -594,9 +608,10 @@ export default function PlayerPlayScreen({
       || String(resData?.teamStage || resData?.team?.currentStage || '').includes('CLUE_5')
       || String(resData?.teamStage || resData?.team?.currentStage || '').includes('CLUE_6'),
     );
-    setFeedback(resData?.message || (unlocked ? 'Unlocked' : 'Confirmed'));
+    setFeedback(resData?.message || (unlocked ? 'Checkpoint passed' : 'Confirmed'));
+    setAwardedFlash(null);
     if (unlocked || resData?.alreadyComplete) {
-      celebrate(resData?.message || (unlocked ? 'Clue unlocked!' : 'Station cleared'));
+      celebrate('Checkpoint passed');
       setClaimCode('');
       // Force a hard refresh so stuck claim UI clears after heal
       window.setTimeout(() => {
@@ -702,19 +717,25 @@ export default function PlayerPlayScreen({
           )}
 
           {waitingForRelease && (
-            <UnlockHoldingCard
-              accentHex={STAGE_THEMES.clue1.hex}
-              eyebrow="Clue 1 unlocks on"
-              unlockAt={team.scheduledStartAt}
-              meetLabel={team.startingPoint?.name}
-              meetHint="stay together"
-              steps={[]}
-              paused={Boolean(team.releasePaused)}
-              pausedText="Releases paused — stay at your start."
-              emptyText="Waiting for organizers to set your unlock time."
-              serverTime={serverTime}
-              onReady={() => onRefresh?.({ force: true })}
-            />
+            <div className="space-y-4">
+              <UnlockHoldingCard
+                accentHex={STAGE_THEMES.clue1.hex}
+                eyebrow="Clue 1 unlocks on"
+                unlockAt={team.scheduledStartAt}
+                meetLabel={team.startingPoint?.name}
+                meetHint="stay together"
+                steps={[]}
+                paused={Boolean(team.releasePaused)}
+                pausedText="Releases paused — stay at your start."
+                emptyText="Waiting for organizers to set your unlock time."
+                serverTime={serverTime}
+                onReady={() => onRefresh?.({ force: true })}
+              />
+              <HuntScoringGuide
+                startingScore={Number(team?.startingScore) || 100}
+                compact
+              />
+            </div>
           )}
 
           {locked && (
@@ -1130,6 +1151,14 @@ export default function PlayerPlayScreen({
                   />
                 )}
               </div>
+
+              <ClueHowTo
+                challenge={{
+                  ...activeChallenge,
+                  instructionPhase: inInstructionPhase,
+                }}
+                accentHex={clueTheme.hex}
+              />
 
               {activeChallenge.state === 'ACTIVE'
                 && [1, 2, 3, 5].includes(Number(activeChallenge.challengeNumber))

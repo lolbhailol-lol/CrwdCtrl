@@ -403,6 +403,7 @@ async function exportOfflinePacks(eventId) {
         scoringConfig: event.scoringConfig || DEFAULT_SCORING_CONFIG,
         destinationName: event.destinationName || 'Mindspark Lobby',
         organizerFinishCode: String(event.organizerFinishCode || 'MSFINISH').toUpperCase(),
+        organizerStartCode: String(event.organizerStartCode || 'GO').toUpperCase(),
         apiBase: process.env.PUBLIC_API_BASE
           || process.env.API_PUBLIC_URL
           || 'https://crwdctrl-production-9c58.up.railway.app/api',
@@ -438,8 +439,9 @@ async function exportOfflinePacks(eventId) {
       },
       checkpoints: stops.filter(Boolean),
       placePosters,
-      opsNotes: {
-        install: 'ONE pack per team — WhatsApp the leader only. Leader installs Hunt on their phone on Wi‑Fi before fest. Whole team walks with that one phone; works offline. Do not send packs to every member.',
+        opsNotes: {
+        install: 'Share install links ~1 day before. Leaders download Hunt + pack on Wi‑Fi at home, then arrive ready. Whole team walks with that one phone — play works with no campus network.',
+        startGate: 'One start code for everyone. Organizer says it at the gather point; leaders type it; hunt starts. No release desk needed on phones.',
         checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks). Plant join-word is Clue 2 only. Clue 6 → Mindspark Lobby finish code.',
         posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage.',
       },
@@ -822,15 +824,72 @@ async function ingestOfflineProgress(eventId, payload) {
       deviceId: result.team.offlineDeviceId,
       offlineResetAt: result.offlineResetAt,
       startOver: true,
+      accepted: true,
+    };
+  }
+
+  const incomingStage = String(body.stage || '');
+  const playingAgain = Boolean(
+    incomingStage
+    && incomingStage !== 'SCORE_LOCKED'
+    && incomingStage !== 'FINISH_COMPLETED',
+  );
+
+  // Phone re-started after a locked finish — unlock live board and accept score.
+  if (team.currentStage === 'SCORE_LOCKED' && playingAgain) {
+    const unlockScore = Math.min(Math.max(0, Number(body.score) || startScore), maxPlausible);
+    await CampusHuntTeam.updateOne(
+      { _id: team._id },
+      {
+        $set: {
+          status: 'active',
+          currentStage: incomingStage || 'WAITING',
+          currentScore: unlockScore,
+          offlineProgressSeq: Math.max(storedSeq, incomingSeq),
+          ...(incomingDevice ? { offlineDeviceId: incomingDevice } : {}),
+        },
+        $unset: {
+          finalScore: 1,
+          scoreLockedAt: 1,
+          finishedAt: 1,
+        },
+      },
+    );
+    const unlocked = await CampusHuntTeam.findById(team._id);
+    try {
+      const { publishTeamProgress } = require('./teamProgressBus');
+      publishTeamProgress(unlocked._id);
+    } catch (_) { /* best-effort */ }
+    return {
+      teamCode: unlocked.teamCode,
+      score: unlocked.currentScore,
+      stage: unlocked.currentStage,
+      seq: unlocked.offlineProgressSeq,
+      deviceId: unlocked.offlineDeviceId,
+      offlineResetAt: unlocked.offlineResetAt || null,
+      unlocked: true,
+      accepted: true,
     };
   }
 
   if (team.currentStage === 'SCORE_LOCKED') {
-    return { teamCode: team.teamCode, ignored: true, reason: 'SCORE_LOCKED' };
+    return {
+      teamCode: team.teamCode,
+      ignored: true,
+      reason: 'SCORE_LOCKED',
+      accepted: false,
+      seq: storedSeq,
+    };
   }
 
   if (incomingSeq < storedSeq) {
-    return { teamCode: team.teamCode, ignored: true, reason: 'STALE_SEQ' };
+    return {
+      teamCode: team.teamCode,
+      ignored: true,
+      reason: 'STALE_SEQ',
+      accepted: false,
+      seq: storedSeq,
+    };
   }
 
   const bound = String(team.offlineDeviceId || '').slice(0, 64);
@@ -848,20 +907,41 @@ async function ingestOfflineProgress(eventId, payload) {
   }
 
   const score = Math.max(0, Number(body.score) || 0);
-  team.currentScore = Math.min(score, maxPlausible);
-  if (body.stage) team.currentStage = String(body.stage);
-  team.offlineProgressSeq = Math.max(storedSeq, incomingSeq);
-  if (incomingDevice) team.offlineDeviceId = incomingDevice;
-  team.status = team.status === 'finished' ? team.status : 'active';
-  await team.save();
+  const nextScore = Math.min(score, maxPlausible);
+  const nextStage = body.stage ? String(body.stage) : team.currentStage;
+  const nextSeq = Math.max(storedSeq, incomingSeq);
+  const $set = {
+    currentScore: nextScore,
+    currentStage: nextStage,
+    offlineProgressSeq: nextSeq,
+    status: 'active',
+  };
+  if (incomingDevice) $set.offlineDeviceId = incomingDevice;
+
+  await CampusHuntTeam.updateOne(
+    { _id: team._id },
+    {
+      $set,
+      ...(playingAgain
+        ? { $unset: { finalScore: 1, scoreLockedAt: 1 } }
+        : {}),
+    },
+  );
+
+  const fresh = await CampusHuntTeam.findById(team._id);
+  try {
+    const { publishTeamProgress } = require('./teamProgressBus');
+    publishTeamProgress(fresh._id);
+  } catch (_) { /* best-effort */ }
 
   return {
-    teamCode: team.teamCode,
-    score: team.currentScore,
-    stage: team.currentStage,
-    seq: team.offlineProgressSeq,
-    deviceId: team.offlineDeviceId,
-    offlineResetAt: team.offlineResetAt || null,
+    teamCode: fresh.teamCode,
+    score: fresh.currentScore,
+    stage: fresh.currentStage,
+    seq: fresh.offlineProgressSeq,
+    deviceId: fresh.offlineDeviceId,
+    offlineResetAt: fresh.offlineResetAt || null,
+    accepted: true,
   };
 }
 
@@ -890,12 +970,27 @@ async function pullOfflineBoardState(eventId, payload) {
     eventId,
     teamCode: String(body.team || '').toUpperCase(),
   }).select(
-    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt',
+    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt scheduledStartAt startStatus',
   );
   if (!team) {
     const err = new Error(`Team ${body.team} not found`);
     err.status = 404;
     throw err;
+  }
+
+  // If admin already released this team, phone may start immediately.
+  let scheduledStartAt = team.scheduledStartAt || null;
+  if (
+    ['RELEASED', 'ACTIVE'].includes(String(team.startStatus || ''))
+    && scheduledStartAt
+    && new Date(scheduledStartAt).getTime() > Date.now()
+  ) {
+    scheduledStartAt = new Date();
+  } else if (
+    ['RELEASED', 'ACTIVE'].includes(String(team.startStatus || ''))
+    && !scheduledStartAt
+  ) {
+    scheduledStartAt = new Date();
   }
 
   return {
@@ -907,6 +1002,8 @@ async function pullOfflineBoardState(eventId, payload) {
     seq: Number(team.offlineProgressSeq) || 0,
     offlineResetAt: team.offlineResetAt || null,
     scoreLocked: team.currentStage === 'SCORE_LOCKED' || Boolean(team.scoreLockedAt),
+    scheduledStartAt: scheduledStartAt ? new Date(scheduledStartAt).toISOString() : null,
+    startStatus: team.startStatus || 'WAITING',
   };
 }
 

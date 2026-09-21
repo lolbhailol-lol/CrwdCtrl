@@ -125,6 +125,11 @@ const campusHuntEventSchema = new mongoose.Schema(
      * Players type this as Clue 6 / finish (not a QR).
      */
     organizerFinishCode: { type: String, default: 'MSFINISH', trim: true, uppercase: true },
+    /**
+     * Short word organizers shout when the hunt may begin (delay-safe).
+     * Offline Start needs wave time + this code. Empty = time-only gate.
+     */
+    organizerStartCode: { type: String, default: 'GO', trim: true, uppercase: true },
     /** Custom names for hunt scan places (codes S01–S20). */
     campusStations: {
       type: [{

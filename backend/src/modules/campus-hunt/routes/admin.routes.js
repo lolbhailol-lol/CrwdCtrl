@@ -59,6 +59,8 @@ router.post('/rounds/:roundId/releases/resume', adminController.setRoundReleases
 router.post('/starting-points/:startingPointId/pause', adminController.setStartingPointPaused);
 router.post('/starting-points/:startingPointId/resume', adminController.setStartingPointPaused);
 router.post('/teams/:teamId/release', adminController.manualReleaseTeam);
+router.post('/teams/:teamId/go', adminController.goUnlockStart);
+router.post('/events/:eventId/go-everyone', adminController.goUnlockStart);
 router.post('/teams/:teamId/mark-start-reached', adminController.markTeamStartReached);
 
 router.post('/events/:eventId/teams', adminController.createTeam);

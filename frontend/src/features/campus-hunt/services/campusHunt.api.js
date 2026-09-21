@@ -812,6 +812,22 @@ export async function adminReleaseTeam(teamId, body = {}) {
   });
 }
 
+/** Offline Hunt GO — unlock Start for one team (phones pull / type start word). */
+export async function adminGoTeam(teamId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/go`, {
+    method: 'POST',
+    body: JSON.stringify({ reason: body.reason || 'GO this team', ...body }),
+  });
+}
+
+/** Offline Hunt GO everyone — unlock Start for all teams together. */
+export async function adminGoEveryone(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/go-everyone`, {
+    method: 'POST',
+    body: JSON.stringify({ all: true, reason: body.reason || 'GO everyone', ...body }),
+  });
+}
+
 /** Organizer marks team reached at their start after Clue 4 → score locked. */
 export async function adminMarkTeamStartReached(teamId, body = {}) {
   return adminFetchJSON(`${BASE}/admin/teams/${teamId}/mark-start-reached`, {

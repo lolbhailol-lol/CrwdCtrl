@@ -6,58 +6,55 @@
 
 export const OFFLINE_CLUE_HOW_TO = {
   1: {
-    title: 'How to play — Clue 1',
+    title: 'Clue 1 · place',
     steps: [
-      'All teammates walk together. One phone (leader).',
-      'Read the sentence and type the campus location (3 attempts).',
-      'After 3 wrong tries the answer is shown (0 pts) — type it to continue.',
-      'Go there. Leader scans the orange FIRST SCAN QR once → Clue 2.',
+      'Type the campus place (3 tries).',
+      'Miss all 3 → answer shown (0 pts) — type it.',
+      'Walk there · scan orange once.',
     ],
   },
   2: {
-    title: 'How to play — Clue 2',
+    title: 'Clue 2 · plant word',
     steps: [
-      'Go to the green stop. Find the plant slips, join into one word.',
-      'Type that word on this phone (3 attempts). Faster = more points.',
-      'If time runs out or 3 wrong tries, the word is shown (0 pts) — type it.',
-      'Leader scans the green SECOND SCAN QR once → Clue 3.',
+      'At green: join plant slips into one word.',
+      'Type it (3 tries · faster = more pts).',
+      'Time up or 3 misses → word shown (0 pts).',
+      'Scan green once.',
     ],
   },
   3: {
-    title: 'How to play — Lockbox',
+    title: 'Clue 3 · lockbox',
     steps: [
-      'Lockbox pieces are on the leader phone — read aloud and rebuild the digit code.',
-      'Submit the code (3 attempts). After 3 wrong tries it is shown (0 pts) — type it.',
-      'Go to that place, scan the blue THIRD SCAN QR once.',
+      'Rebuild the digit code on this phone.',
+      'Submit (3 tries). Miss all → code shown (0 pts).',
+      'Go there · scan blue once.',
     ],
   },
   4: {
-    title: 'How to play — Field Terminal',
+    title: 'Clue 4 · Zip Grid',
     steps: [
-      'Borrow any laptop that has internet (friend / café / lab).',
-      'Open Zip Grid, type your device key from this phone.',
-      'Clear the levels → you get a GRID-XXXX code.',
-      'Type that GRID code here → then scan purple.',
+      'Borrow a laptop with internet.',
+      'Open Zip Grid · type the device key from this phone.',
+      'Type GRID-XXXX here · scan purple once.',
     ],
   },
   5: {
-    title: 'How to play — Clue 5',
+    title: 'Clue 5 · word',
     steps: [
-      'Fragments are on this phone — read them aloud in order and rebuild the word.',
-      'Leader types the word (3 attempts). Faster = bonus points.',
-      'If time runs out or 3 wrong tries, the word is shown (0 pts) — type it.',
-      'Then scan the red FIFTH SCAN QR once → Clue 6 (Mindspark Lobby).',
+      'Rebuild the word from fragments (3 tries).',
+      'Time up or 3 misses → word shown (0 pts).',
+      'Scan red once · then Mindspark Lobby.',
     ],
   },
   6: {
-    title: 'How to play — Mindspark Lobby',
+    title: 'Finish · lobby',
     steps: [
-      'Go to Mindspark Lobby as a full team.',
-      'Ask the organizer for the finish code.',
-      'Leader types it to lock your score.',
+      'Go to Mindspark Lobby together.',
+      'Ask organizer for the finish code.',
+      'Type it to lock your score.',
     ],
   },
 };
 
-/** Bump when HOW_TO or destination sanitize rules change — triggers one pack rewrite on phone. */
-export const OFFLINE_PLAYER_COPY_REVISION = 3;
+/** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
+export const OFFLINE_PLAYER_COPY_REVISION = 4;

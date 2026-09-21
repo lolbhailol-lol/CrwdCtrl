@@ -68,6 +68,13 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
   const filled = path.length;
   const need = freeCellCount(puzzle);
 
+  // Never carry a drawn trail into the next level / fresh puzzle.
+  useEffect(() => {
+    setPath([]);
+    setHintCell(null);
+    timeoutSent.current = false;
+  }, [puzzle?.puzzleId]);
+
   useEffect(() => {
     if (!puzzle?.timeSeconds || data?.completed) return undefined;
     timeoutSent.current = false;

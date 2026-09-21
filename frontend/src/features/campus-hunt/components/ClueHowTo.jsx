@@ -1,75 +1,44 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-
 /**
- * Collapsible How-to — quiet secondary help under the clue.
+ * Always-visible clue steps — short, action-first.
+ * Scoring notes stay behind “More”.
  */
-export default function ClueHowTo({ challenge }) {
-  const [open, setOpen] = useState(false);
+export default function ClueHowTo({ challenge, accentHex = '#0ECCEE' }) {
   if (!challenge) return null;
 
   const howTo = challenge.howTo;
-  const n = challenge.challengeNumber;
-  const scoringBands = challenge.scoringBands || [];
-  const maxAttempts = challenge.maxAttempts || 3;
-  const showAttempts = [1, 2, 3, 5].includes(Number(n)) && challenge.state === 'ACTIVE';
+  const n = Number(challenge.challengeNumber);
+  const steps = Array.isArray(howTo?.steps) ? howTo.steps.slice(0, 4) : [];
+
+  if (!steps.length) return null;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-black/20">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-2.5 text-left"
+    <div
+      className="rounded-xl border px-3 py-3"
+      style={{
+        borderColor: `${accentHex}33`,
+        background: `${accentHex}0d`,
+      }}
+    >
+      <p
+        className="text-[10px] font-semibold uppercase tracking-[0.16em]"
+        style={{ color: accentHex }}
       >
-        <span className="text-[11px] font-medium text-white/45">
-          {howTo?.title || `How to · Clue ${n}`}
-        </span>
-        <span className="text-[11px] text-white/30">{open ? 'Hide' : 'Show'}</span>
-      </button>
+        {howTo?.title || `Clue ${n} · steps`}
+      </p>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="space-y-2.5 border-t border-white/[0.06] px-3 py-3 text-xs text-white/60">
-              {howTo?.steps?.length > 0 && (
-                <ol className="list-decimal space-y-1 pl-4">
-                  {howTo.steps.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              )}
-
-              {showAttempts && (
-                <p>
-                  {maxAttempts} attempts.
-                  {challenge.revealedAnswer || challenge.failureReason === 'REVEALED_ZERO_POINTS'
-                    ? ' Answer shown (0 pts) — type it to continue.'
-                    : ` ${challenge.attemptsLeft ?? '—'} left. Miss all → answer shown (0 pts), type it to continue.`}
-                </p>
-              )}
-
-              {n === 1 && (
-                <p>
-                  Correct = <span className="text-[#0ECCEE]">50 pts</span>.
-                </p>
-              )}
-
-              {n === 2 && scoringBands.length > 0 && (
-                <p>≤1:00 → 50 · ≤2:00 → 30 · ≤3:00 → 10 · later → 0</p>
-              )}
-
-              {n === 3 && <p>Correct decode = 50 pts. Hints cost points.</p>}
-              {n === 4 && <p>Clear Zip Grid, then type GRID-XXXX (50 pts).</p>}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ol className="mt-2 space-y-1.5">
+        {steps.map((step, i) => (
+          <li key={`${n}-${i}`} className="flex gap-2 text-sm leading-snug text-white/75">
+            <span
+              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-black"
+              style={{ background: accentHex }}
+            >
+              {i + 1}
+            </span>
+            <span>{step}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

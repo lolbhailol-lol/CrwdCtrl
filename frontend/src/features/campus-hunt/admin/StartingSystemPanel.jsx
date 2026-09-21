@@ -8,6 +8,8 @@ import {
   adminLockStartSchedule,
   adminPreviewStartSchedule,
   adminReleaseTeam,
+  adminGoTeam,
+  adminGoEveryone,
   adminSetRoundReleasesPaused,
   adminSetStartingPointPaused,
   adminUpdateStartingPoint,
@@ -1125,30 +1127,48 @@ export default function StartingSystemPanel({
             <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
               Live release desk
             </p>
-            <h2 className="mt-1 text-lg font-bold text-white">Release teams at each start</h2>
+            <h2 className="mt-1 text-lg font-bold text-white">GO desk (offline hunt)</h2>
             <p className="mt-1 text-sm text-white/55">
-              {teamCapacity} teams · {startCount} start{startCount === 1 ? '' : 's'}
-              {' '}· auto-releases on schedule · tap Release for early / stuck teams
+              Tap <span className="font-semibold text-white">GO everyone</span> to unlock all teams together,
+              or <span className="font-semibold text-white">GO</span> on one team.
+              Then shout the start word for phones with no Wi‑Fi.
             </p>
           </div>
-          <button
-            type="button"
-            disabled={Boolean(busy) || !roundId}
-            onClick={() => run(
-              'round-pause',
-              () => adminSetRoundReleasesPaused(roundId, !releasesPaused, {
-                reason: `${releasesPaused ? 'Resumed' : 'Paused'} from event control`,
-              }),
-              releasesPaused ? 'All releases resumed' : 'All releases paused',
-            )}
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-40 ${
-              releasesPaused
-                ? 'bg-emerald-400 text-black'
-                : 'border border-rose-400/40 bg-rose-500/20 text-rose-100'
-            }`}
-          >
-            {releasesPaused ? '▶ Resume all' : '⏸ Pause all'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={Boolean(busy) || !eventId}
+              onClick={() => {
+                if (!window.confirm('GO everyone? All waiting teams can Start.')) return;
+                run(
+                  'go-everyone',
+                  () => adminGoEveryone(eventId, { reason: 'GO everyone from live desk' }),
+                  'GO everyone — shout the start word for offline phones',
+                );
+              }}
+              className="rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-black text-black disabled:opacity-40"
+            >
+              {busy === 'go-everyone' ? '…' : 'GO everyone'}
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(busy) || !roundId}
+              onClick={() => run(
+                'round-pause',
+                () => adminSetRoundReleasesPaused(roundId, !releasesPaused, {
+                  reason: `${releasesPaused ? 'Resumed' : 'Paused'} from event control`,
+                }),
+                releasesPaused ? 'All releases resumed' : 'All releases paused',
+              )}
+              className={`rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-40 ${
+                releasesPaused
+                  ? 'bg-white/15 text-white'
+                  : 'border border-rose-400/40 bg-rose-500/20 text-rose-100'
+              }`}
+            >
+              {releasesPaused ? '▶ Resume auto' : '⏸ Pause auto'}
+            </button>
+          </div>
         </div>
 
         {releasesPaused && (
@@ -1299,10 +1319,10 @@ export default function StartingSystemPanel({
                       busy={busy}
                       onRelease={() => run(
                         `release-${entityId(team)}`,
-                        () => adminReleaseTeam(entityId(team), {
-                          reason: 'Manual release from live desk',
+                        () => adminGoTeam(entityId(team), {
+                          reason: 'GO this team from live desk',
                         }),
-                        `${team.teamCode || team.teamName} released`,
+                        `${team.teamCode || team.teamName} — GO`,
                       )}
                     />
                   ))}
@@ -1341,10 +1361,10 @@ export default function StartingSystemPanel({
                       busy={busy}
                       onRelease={() => run(
                         `release-${entityId(team)}`,
-                        () => adminReleaseTeam(entityId(team), {
-                          reason: 'Manual release from live desk',
+                        () => adminGoTeam(entityId(team), {
+                          reason: 'GO this team from live desk',
                         }),
-                        `${team.teamCode || team.teamName} released`,
+                        `${team.teamCode || team.teamName} — GO`,
                       )}
                     />
                   ))}
@@ -1392,9 +1412,9 @@ function TeamReleaseRow({ team, busy, onRelease }) {
           type="button"
           disabled={Boolean(busy)}
           onClick={onRelease}
-          className="shrink-0 rounded-lg bg-[#0ECCEE] px-3 py-2 text-xs font-bold text-black disabled:opacity-40"
+          className="shrink-0 rounded-lg bg-emerald-400 px-3 py-2 text-xs font-black text-black disabled:opacity-40"
         >
-          Release
+          GO
         </button>
       )}
     </div>

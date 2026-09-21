@@ -46,12 +46,14 @@ export default function Clue6VariantManager({
   onChanged,
   destinationName = DESTINATION_PLACE.name,
   organizerFinishCode = DEFAULT_FINISH,
+  organizerStartCode = 'GO',
 }) {
   const starts = useMemo(() => resolveStarts(campusStarts), [campusStarts]);
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [startWord, setStartWord] = useState(String(organizerStartCode || 'GO').toUpperCase());
   const [form, setForm] = useState({
     prompt:
       `Your path is done. Go to ${destinationName} as a full team.\n`
@@ -83,7 +85,8 @@ export default function Clue6VariantManager({
         hintText: existing.hintText || `Meet at ${destinationName}. The organizer will tell you the finish code.`,
       });
     }
-  }, [eventId, destinationName, organizerFinishCode]);
+    setStartWord(String(organizerStartCode || 'GO').toUpperCase());
+  }, [eventId, destinationName, organizerFinishCode, organizerStartCode]);
 
   useEffect(() => {
     refresh().catch(() => {});
@@ -94,9 +97,11 @@ export default function Clue6VariantManager({
     setMessage('');
     try {
       const finish = String(form.answer || DEFAULT_FINISH).trim().toUpperCase();
+      const go = String(startWord || 'GO').trim().toUpperCase() || 'GO';
       await adminUpdateEvent(eventId, {
         destinationName,
         organizerFinishCode: finish,
+        organizerStartCode: go,
       });
 
       const targets = points.length
@@ -169,6 +174,19 @@ export default function Clue6VariantManager({
           onChange={(e) => setForm((f) => ({ ...f, prompt: e.target.value }))}
           className={inputClass}
         />
+      </label>
+
+      <label className="block space-y-1 text-sm text-white/70">
+        Start code (tell everyone this at the gather point)
+        <input
+          value={startWord}
+          onChange={(e) => setStartWord(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))}
+          className={`${inputClass} font-mono tracking-wider`}
+          placeholder="GO"
+        />
+        <span className="block text-xs text-white/40">
+          Same code for all teams. They type it on the phone → Start. Change it before sharing install links.
+        </span>
       </label>
 
       <label className="block space-y-1 text-sm text-white/70">

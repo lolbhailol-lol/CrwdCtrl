@@ -81,6 +81,45 @@ async function refreshPackIfPossible(pack, token) {
 }
 
 /**
+ * Soft-update release time from live board (Wi‑Fi). Keeps offline Start gated
+ * without forcing a full pack reinstall when Live schedule changes.
+ */
+export async function applyScheduledStartFromServer(bundle) {
+  const pack = bundle || await loadOfflineBundle().catch(() => null);
+  if (!pack?.event?.id || !pack?.team?.teamCode) {
+    return { updated: false, bundle: pack };
+  }
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { updated: false, bundle: pack };
+  }
+
+  const remote = await pullOfflineBoardState(pack);
+  if (!remote) return { updated: false, bundle: pack };
+
+  const nextAt = remote.scheduledStartAt
+    ? new Date(remote.scheduledStartAt).toISOString()
+    : null;
+  const prevAt = pack.team?.scheduledStartAt
+    ? new Date(pack.team.scheduledStartAt).toISOString()
+    : null;
+
+  if (nextAt === prevAt) {
+    return { updated: false, bundle: pack, remote };
+  }
+
+  const next = {
+    ...pack,
+    team: {
+      ...pack.team,
+      scheduledStartAt: nextAt,
+      startStatus: remote.startStatus || pack.team.startStatus,
+    },
+  };
+  await saveOfflineBundle(next);
+  return { updated: true, bundle: next, remote };
+}
+
+/**
  * If admin (or another phone) Start over'd on the server, wipe local progress to match.
  * Call when Hunt opens on Wi‑Fi.
  */
@@ -93,24 +132,47 @@ export async function applyServerStartOverIfNeeded(bundle) {
     return { applied: false, bundle: pack };
   }
 
-  const remote = await pullOfflineBoardState(pack);
-  if (!remote?.offlineResetAt) return { applied: false, bundle: pack };
+  // Always refresh wave / release time when online.
+  const schedule = await applyScheduledStartFromServer(pack).catch(() => null);
+  let working = schedule?.bundle || pack;
+
+  const remote = schedule?.remote || await pullOfflineBoardState(working);
+  if (!remote?.offlineResetAt) {
+    return { applied: false, bundle: working, scheduleUpdated: Boolean(schedule?.updated) };
+  }
 
   const remoteAt = new Date(remote.offlineResetAt).getTime();
-  if (!Number.isFinite(remoteAt)) return { applied: false, bundle: pack };
+  if (!Number.isFinite(remoteAt)) {
+    return { applied: false, bundle: working, scheduleUpdated: Boolean(schedule?.updated) };
+  }
 
-  const localAt = new Date(readAppliedResetAt(pack.team.teamCode) || 0).getTime();
-  if (remoteAt <= localAt) return { applied: false, bundle: pack };
+  const localAt = new Date(readAppliedResetAt(working.team.teamCode) || 0).getTime();
+  if (remoteAt <= localAt) {
+    return { applied: false, bundle: working, scheduleUpdated: Boolean(schedule?.updated) };
+  }
 
   pauseOfflineBoardSync();
   try {
-    const code = pack.team.teamCode;
+    const code = working.team.teamCode;
     await resetOfflineHuntLocal(code);
     clearOfflineProgressQueue(code);
 
-    const token = readRememberedInstallToken(pack);
-    const refreshed = await refreshPackIfPossible(pack, token);
-    const nextPack = refreshed.pack;
+    const token = readRememberedInstallToken(working);
+    const refreshed = await refreshPackIfPossible(working, token);
+    let nextPack = refreshed.pack;
+
+    // Keep the freshest release time after pack refresh.
+    if (remote.scheduledStartAt) {
+      nextPack = {
+        ...nextPack,
+        team: {
+          ...nextPack.team,
+          scheduledStartAt: remote.scheduledStartAt,
+          startStatus: remote.startStatus || nextPack.team?.startStatus,
+        },
+      };
+      await saveOfflineBundle(nextPack);
+    }
 
     const freshState = createInitialTeamState(nextPack);
     freshState.seq = Math.max(Number(remote.seq) || 0, 1);
@@ -125,6 +187,7 @@ export async function applyServerStartOverIfNeeded(bundle) {
     return {
       applied: true,
       packUpdated: refreshed.packUpdated,
+      scheduleUpdated: true,
       bundle: nextPack,
       message: refreshed.packUpdated
         ? 'Admin Start over applied — pack + progress reset.'

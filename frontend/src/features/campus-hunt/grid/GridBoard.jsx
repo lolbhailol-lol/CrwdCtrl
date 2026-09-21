@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { cellKey, isValidNext, pathHue } from './gridUtils';
 
 export default function GridBoard({
@@ -9,26 +9,43 @@ export default function GridBoard({
   hintCell = null,
 }) {
   const drawing = useRef(false);
+  // Keep path in a ref so fast pointer moves never apply an older trail
+  // (stale React closures were snapping the draw back to a previous entry).
+  const pathRef = useRef(path);
+  pathRef.current = path;
+
+  useEffect(() => {
+    drawing.current = false;
+    pathRef.current = [];
+  }, [puzzle?.puzzleId]);
 
   const tryAddCell = useCallback((r, c) => {
     if (disabled || !puzzle) return;
     const cell = { r, c };
-    if (!isValidNext(path, cell, puzzle)) return;
-    onPathChange([...path, cell]);
-  }, [disabled, onPathChange, path, puzzle]);
+    const current = pathRef.current || [];
+    if (!isValidNext(current, cell, puzzle)) return;
+    const next = [...current, cell];
+    pathRef.current = next;
+    onPathChange(next);
+  }, [disabled, onPathChange, puzzle]);
 
   const handlePointerDown = (r, c) => {
-    if (disabled) return;
+    if (disabled || !puzzle) return;
     drawing.current = true;
-    if (path.length === 0) {
+    const current = pathRef.current || [];
+    if (current.length === 0) {
       if (r === puzzle.start.r && c === puzzle.start.c) {
-        onPathChange([{ r, c }]);
+        const next = [{ r, c }];
+        pathRef.current = next;
+        onPathChange(next);
       }
       return;
     }
     // Allow restart from start if tapping 1 again
-    if (r === puzzle.start.r && c === puzzle.start.c && path.length > 1) {
-      onPathChange([{ r, c }]);
+    if (r === puzzle.start.r && c === puzzle.start.c && current.length > 1) {
+      const next = [{ r, c }];
+      pathRef.current = next;
+      onPathChange(next);
       return;
     }
     tryAddCell(r, c);
@@ -82,7 +99,7 @@ export default function GridBoard({
 
       cells.push(
         <button
-          key={key}
+          key={`${puzzle.puzzleId}-${key}`}
           type="button"
           disabled={disabled || isWall}
           onPointerDown={(e) => { e.preventDefault(); handlePointerDown(r, c); }}
@@ -132,6 +149,7 @@ export default function GridBoard({
       }}
       onPointerLeave={handlePointerUp}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
     >
       {cells}
       <style>{`

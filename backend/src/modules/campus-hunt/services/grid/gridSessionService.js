@@ -93,6 +93,15 @@ async function reviveRound1GridSession(session, {
     session.sessionToken = crypto.randomBytes(16).toString('hex');
     session.markModified('puzzles');
     session.markModified('levelProgress');
+  } else {
+    // Mid-session revive: stamp a fresh startedAt on the current open level so
+    // an old clock does not instantly fail and flash prior level results.
+    ensureLevelStarted(session, session.currentLevelIndex || 0);
+    const lp = session.levelProgress?.[session.currentLevelIndex || 0];
+    if (lp && !lp.completed && !lp.failed) {
+      lp.startedAt = now;
+      session.markModified('levelProgress');
+    }
   }
 
   if (preferred.startsWith('GRID-')) {
@@ -109,7 +118,8 @@ async function reviveRound1GridSession(session, {
 function getLevelStartedAt(session, levelIndex) {
   const progress = session.levelProgress?.[levelIndex];
   if (progress?.startedAt) return new Date(progress.startedAt);
-  if (session.createdAt) return new Date(session.createdAt);
+  // Never fall back to session.createdAt — that instantly times out later levels
+  // and resurfaces old failed/completed entries mid-play.
   return new Date();
 }
 
@@ -337,8 +347,11 @@ function sessionPublicView(session) {
 async function loadActiveSession(sessionToken) {
   const session = await CampusHuntGridSession.findOne({ sessionToken });
   assertSessionActive(session);
-  if (session.status === 'active' && applyTimeoutIfNeeded(session)) {
-    await session.save();
+  if (session.status === 'active') {
+    ensureLevelStarted(session, session.currentLevelIndex);
+    if (applyTimeoutIfNeeded(session)) {
+      await session.save();
+    }
   }
   return session;
 }
@@ -366,19 +379,21 @@ async function joinByAccessCode(accessCode) {
   }
 
   assertSessionActive(session);
-  if (session.status === 'active' && applyTimeoutIfNeeded(session)) {
-    await session.save();
-  } else if (session.status === 'active') {
+  if (session.status === 'active') {
     ensureLevelStarted(session, session.currentLevelIndex);
-    if (isRound1GridSession(session)) {
-      const remainingMs = session.expiresAt
-        ? new Date(session.expiresAt).getTime() - Date.now()
-        : 0;
-      if (remainingMs < 60 * 60 * 1000) {
-        session.expiresAt = new Date(Date.now() + ROUND1_GRID_DURATION_MINUTES * 60 * 1000);
+    if (applyTimeoutIfNeeded(session)) {
+      await session.save();
+    } else {
+      if (isRound1GridSession(session)) {
+        const remainingMs = session.expiresAt
+          ? new Date(session.expiresAt).getTime() - Date.now()
+          : 0;
+        if (remainingMs < 60 * 60 * 1000) {
+          session.expiresAt = new Date(Date.now() + ROUND1_GRID_DURATION_MINUTES * 60 * 1000);
+        }
       }
+      await session.save();
     }
-    await session.save();
   }
   return sessionPublicView(session);
 }

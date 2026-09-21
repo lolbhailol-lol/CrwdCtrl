@@ -46,7 +46,9 @@ async function buildLeaderboard(eventId, { includeUnfinished = true } = {}) {
     teamId: String(row.team._id),
     teamCode: row.team.teamCode,
     teamName: row.team.teamName,
-    score: row.team.finalScore ?? row.team.currentScore,
+    score: row.team.currentStage === 'SCORE_LOCKED'
+      ? (row.team.finalScore ?? row.team.currentScore)
+      : (row.team.currentScore ?? row.team.finalScore),
     currentStage: row.team.currentStage,
     startStatus: row.team.startStatus,
     scheduledStartAt: row.team.scheduledStartAt,

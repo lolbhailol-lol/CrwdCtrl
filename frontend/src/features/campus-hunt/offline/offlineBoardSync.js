@@ -151,7 +151,33 @@ export async function enqueueOfflineProgress(bundle, state, { startOver = false 
   const queue = loadQueue().filter((item) => String(item.team) !== String(payload.team));
   queue.push(payload);
   saveQueue(queue);
-  const result = await flushOfflineProgressQueue(bundle);
+  let result = await flushOfflineProgressQueue(bundle);
+
+  // Seq behind server after a prior run — jump ahead and retry once.
+  if (
+    !result?.syncedOk
+    && result?.ignoredReason === 'STALE_SEQ'
+    && result?.seq != null
+    && !startOver
+  ) {
+    let retry = {
+      ...payload,
+      seq: Number(result.seq) + 1,
+      at: new Date().toISOString(),
+      sig: undefined,
+    };
+    try {
+      if (bundle.signingKey) retry = await signPayload(bundle.signingKey, retry);
+    } catch { /* keep */ }
+    const q2 = loadQueue().filter((item) => String(item.team) !== String(retry.team));
+    q2.push(retry);
+    saveQueue(q2);
+    result = await flushOfflineProgressQueue(bundle);
+    if (result?.syncedOk) {
+      result.seqRecovered = retry.seq;
+    }
+  }
+
   return { queued: true, ...result };
 }
 
@@ -168,6 +194,7 @@ export async function flushOfflineProgressQueue(bundle) {
   let lastSeq = null;
   let lastStartOver = false;
   let lastResetAt = null;
+  let lastIgnoreReason = null;
 
   for (const item of queue) {
     let ok = false;
@@ -190,10 +217,17 @@ export async function flushOfflineProgressQueue(bundle) {
           }
         }
         if (res.ok) {
-          ok = true;
-          synced += 1;
           const data = await res.json().catch(() => null);
           const body = data?.data || data;
+          // Server may return 200 with ignored:true (old SCORE_LOCKED / STALE_SEQ) — not a real sync.
+          if (body?.ignored || body?.accepted === false) {
+            ok = false;
+            lastIgnoreReason = String(body?.reason || 'IGNORED');
+            if (body?.seq != null) lastSeq = Number(body.seq);
+            break;
+          }
+          ok = true;
+          synced += 1;
           if (body?.seq != null) lastSeq = Number(body.seq);
           if (body?.startOver) lastStartOver = true;
           if (body?.offlineResetAt) lastResetAt = body.offlineResetAt;
@@ -224,6 +258,7 @@ export async function flushOfflineProgressQueue(bundle) {
     seq: lastSeq,
     startOver: lastStartOver || undefined,
     offlineResetAt: lastResetAt || undefined,
+    ignoredReason: lastIgnoreReason || undefined,
   };
 }
 

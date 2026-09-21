@@ -91,37 +91,70 @@ function buildCoveringPath(rows, cols, walls, rng) {
 
 function placeWalls(rows, cols, wallCount, rng) {
   if (wallCount <= 0) return [];
-  // Only punch corner/edge pairs that serpentine can skip while staying connected —
-  // safest: place walls at opposite corners so row-serpentine still works? It doesn't.
-  // Keep walls empty for reliable fill-all Zip; difficulty comes from size + numbers.
-  void rows;
-  void cols;
-  void rng;
-  void wallCount;
+  // Punch a few edge cells that row/column serpentines can still skip.
+  // Prefer far edges so the fill path stays a single corridor.
+  const candidates = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const edge = r === 0 || c === 0 || r === rows - 1 || c === cols - 1;
+      const corner = (r === 0 || r === rows - 1) && (c === 0 || c === cols - 1);
+      if (edge && !corner) candidates.push({ r, c });
+    }
+  }
+  const picked = shuffle(candidates, rng).slice(0, Math.min(wallCount, candidates.length));
+  // Only keep walls if at least one serpentine variant still covers the rest.
+  const wallSet = picked;
+  const probe = buildCoveringPath(rows, cols, wallSet, rng);
+  const freeCount = rows * cols - wallSet.length;
+  if (probe.length === freeCount) return wallSet;
   return [];
 }
 
-function pickNumberCells(solutionPath, numberCount) {
+/**
+ * Jitter number indices so two plays at different times land markers differently
+ * on the same covering path (not always even spacing).
+ */
+function pickNumberCells(solutionPath, numberCount, rng = Math.random) {
   const n = Math.max(2, Math.min(numberCount, solutionPath.length));
-  const indices = [];
-  for (let i = 0; i < n; i += 1) {
-    const idx = Math.round((i * (solutionPath.length - 1)) / (n - 1));
-    indices.push(idx);
+  const indices = new Set([0, solutionPath.length - 1]);
+  const midSlots = Math.max(0, n - 2);
+  if (midSlots > 0 && solutionPath.length > 2) {
+    const span = solutionPath.length - 2;
+    for (let i = 1; i <= midSlots; i += 1) {
+      const base = Math.round((i * span) / (midSlots + 1));
+      const jitter = Math.floor((rng() - 0.5) * Math.max(2, span / (midSlots + 2)));
+      let idx = Math.min(solutionPath.length - 2, Math.max(1, base + jitter));
+      let guard = 0;
+      while (indices.has(idx) && guard < 12) {
+        idx = Math.min(solutionPath.length - 2, Math.max(1, idx + 1));
+        guard += 1;
+      }
+      indices.add(idx);
+    }
   }
-  const unique = [];
-  for (const idx of indices) {
-    if (!unique.includes(idx)) unique.push(idx);
+  const ordered = [...indices].sort((a, b) => a - b).slice(0, n);
+  if (ordered[0] !== 0) ordered.unshift(0);
+  if (ordered[ordered.length - 1] !== solutionPath.length - 1) {
+    ordered.push(solutionPath.length - 1);
   }
-  if (unique[0] !== 0) unique.unshift(0);
-  if (unique[unique.length - 1] !== solutionPath.length - 1) {
-    unique.push(solutionPath.length - 1);
-  }
+  const unique = [...new Set(ordered)].sort((a, b) => a - b);
 
   return unique.map((idx, i) => ({
     r: solutionPath[idx].r,
     c: solutionPath[idx].c,
     n: i + 1,
   }));
+}
+
+/** Time-bucketed seed so replays at different minutes get different boards. */
+function timeSeed(base = Date.now()) {
+  const d = new Date(base);
+  return (
+    Number(base)
+    + d.getUTCHours() * 3600_000
+    + d.getUTCMinutes() * 60_000
+    + Math.floor(Math.random() * 1e9)
+  );
 }
 
 function generatePuzzle(levelIndex, seed = Date.now()) {
@@ -131,9 +164,13 @@ function generatePuzzle(levelIndex, seed = Date.now()) {
   const rng = mulberry32(Number(seed) + (levelIndex + 1) * 9973);
   const { rows, cols, wallCount, numberCount, timeSeconds, points, label } = template;
 
+  // Slight timer drift per generation so each play feels different by time.
+  const timeJitter = Math.floor((rng() - 0.5) * 20); // ±10s
+  const timed = Math.max(45, Number(timeSeconds) + timeJitter);
+
   const walls = placeWalls(rows, cols, wallCount, rng);
   const solutionPath = buildCoveringPath(rows, cols, walls, rng);
-  const numbers = pickNumberCells(solutionPath, numberCount);
+  const numbers = pickNumberCells(solutionPath, numberCount, rng);
   const start = { r: numbers[0].r, c: numbers[0].c };
   const end = { r: numbers[numbers.length - 1].r, c: numbers[numbers.length - 1].c };
 
@@ -148,7 +185,7 @@ function generatePuzzle(levelIndex, seed = Date.now()) {
     numbers,
     required: numbers.map(({ r, c }) => ({ r, c })),
     walls,
-    timeSeconds,
+    timeSeconds: timed,
     points,
     maxMoves: solutionPath.length,
     fillAll: true,
@@ -156,7 +193,7 @@ function generatePuzzle(levelIndex, seed = Date.now()) {
   };
 }
 
-function generateAllLevels(seedBase = Date.now() + Math.floor(Math.random() * 1e9)) {
+function generateAllLevels(seedBase = timeSeed()) {
   return LEVEL_TEMPLATES.map((_, i) => generatePuzzle(i, seedBase + i * 7919));
 }
 
