@@ -49,26 +49,37 @@ if (!shouldShowBootSplash()) {
 // NEVER auto-reload on SW update: onNeedRefresh + controllerchange caused infinite
 // reload loops (WhatsApp / Chrome stuck on “Loading event…” forever after deploys).
 if (import.meta.env.PROD && !isNativeApp() && 'serviceWorker' in navigator) {
+  const pathNow = (() => {
+    try {
+      return window.location.pathname || '';
+    } catch {
+      return '';
+    }
+  })();
+  // Offline Hunt MUST keep its SW + precache. Treating /campus-hunt as a
+  // "deep link" used to unregister on every open → airplane mode crash.
+  const offlineHunt = pathNow.startsWith('/campus-hunt/offline');
   const deepLink = (() => {
     try {
-      return isSharedContentDeepLink(window.location.pathname || '');
+      return isSharedContentDeepLink(pathNow);
     } catch {
       return false;
     }
   })();
-  const homeHub = (() => {
-    try {
-      const p = window.location.pathname || '';
-      return p === '/' || p === '/dashboard';
-    } catch {
-      return false;
-    }
-  })();
+  const homeHub = pathNow === '/' || pathNow === '/dashboard';
   const inApp = isInAppBrowser();
+  const standaloneHunt = (() => {
+    try {
+      return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+    } catch {
+      return false;
+    }
+  })();
 
   // Google / in-app / home / shared links: drop controlling SW so a stale
-  // index.html cannot reload-loop the boot splash
-  if (deepLink || inApp || homeHub) {
+  // index.html cannot reload-loop the boot splash — EXCEPT Offline Hunt / installed PWA.
+  if (!offlineHunt && !standaloneHunt && (deepLink || inApp || homeHub)) {
     navigator.serviceWorker.getRegistrations?.()
       .then((registrations) => {
         registrations.forEach((registration) => {

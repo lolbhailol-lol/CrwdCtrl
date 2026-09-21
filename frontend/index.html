@@ -12,6 +12,15 @@
       try {
         var ua = navigator.userAgent || '';
         var p = location.pathname || '';
+        // Campus Hunt offline pack + Add-to-Home-Screen MUST keep SW/precache.
+        // Wiping here made Enter Hunt crash offline ("something unexpected happened").
+        var offlineHunt = /^\/campus-hunt\/offline(\/|$)/.test(p);
+        var standalone = false;
+        try {
+          standalone = window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true;
+        } catch (e2) {}
+        if (offlineHunt || standalone) return;
         var phoneOrInApp = /Android|iPhone|iPad|iPod|Mobile|Instagram|FBAN|FBAV|WhatsApp|GSA\/|GoogleApp/i.test(ua);
         var home = (p === '/' || p === '/dashboard');
         var fromSearch = /google\.|bing\.com/i.test(document.referrer || '');
@@ -609,6 +618,11 @@
             sessionStorage.removeItem('crwdctrl_chunk_reload');
             sessionStorage.removeItem('crwdctrl_stale_recover_at');
           } catch (e) {}
+          var keepHuntShell = /^\/campus-hunt\/offline(\/|$)/.test(location.pathname || '');
+          if (keepHuntShell) {
+            reloadFresh();
+            return;
+          }
           var cleanup = ('caches' in window)
             ? caches.keys().then(function (keys) {
                 return Promise.all(keys.map(function (key) { return caches.delete(key); }));

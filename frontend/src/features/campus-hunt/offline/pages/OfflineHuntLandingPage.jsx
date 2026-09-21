@@ -56,10 +56,6 @@ export default function OfflineHuntLandingPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap"
-      />
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -69,23 +65,14 @@ export default function OfflineHuntLandingPage() {
         }}
       />
 
-      <div
-        className="relative mx-auto max-w-md px-5 py-10"
-        style={{ fontFamily: 'Outfit, Poppins, sans-serif' }}
-      >
+      <div className="relative mx-auto max-w-md px-5 py-10">
         <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]/90">
           CrwdCtrl × Mindspark
         </p>
-        <h1
-          className="mt-3 text-[3.1rem] leading-[0.9] tracking-wide text-white"
-          style={{ fontFamily: '"Bebas Neue", Impact, sans-serif' }}
-        >
+        <h1 className="mt-3 text-[3.1rem] font-black uppercase leading-[0.9] tracking-tight text-white">
           Campus Hunt
         </h1>
-        <p
-          className="mt-1 text-xl tracking-[0.08em] text-[#0ECCEE]"
-          style={{ fontFamily: '"Bebas Neue", Impact, sans-serif' }}
-        >
+        <p className="mt-1 text-xl font-bold tracking-wide text-[#0ECCEE]">
           Challenge
         </p>
         <p className="mt-3 text-sm text-white/50">
