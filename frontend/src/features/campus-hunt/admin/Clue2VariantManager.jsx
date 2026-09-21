@@ -19,7 +19,6 @@ import {
   TARGET_TEAMS_PER_STATION,
   TEAMS_PER_WAIT,
   buildTeamSlots,
-  globalTeamNumber,
   resolveStations,
   resolveStarts,
   secondStopArrivalPlan,
@@ -165,13 +164,11 @@ export default function Clue2VariantManager({
           String(v.variantKey || '').toUpperCase()
           === variantKeyFor(row.startingPointCode, `T${row.localTeamNumber}`)
         ));
-    nextCodes[key] = (() => {
-      const plant = String(place.joinedWord || '').replace(/\D/g, '').slice(0, 3);
-      const saved = String(existing?.answer || '').replace(/\D/g, '').slice(0, 3);
-      if (plant.length >= 3) return plant;
-      if (saved.length >= 3) return saved;
-      return threeDigitCodeForTeam(wait, row.localTeamNumber, teamsPerWait);
-    })();
+        const plant = String(place.joinedWord || '').replace(/\D/g, '').slice(0, 3);
+        const saved = String(existing?.answer || '').replace(/\D/g, '').slice(0, 3);
+        if (plant.length >= 3) nextCodes[key] = plant;
+        else if (saved.length >= 3) nextCodes[key] = saved;
+        else nextCodes[key] = threeDigitCodeForTeam(wait, row.localTeamNumber, teamsPerWait);
       });
     });
     setCodes(nextCodes);
