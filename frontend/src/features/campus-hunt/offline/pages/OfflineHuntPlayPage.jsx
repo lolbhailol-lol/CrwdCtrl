@@ -71,6 +71,7 @@ export default function OfflineHuntPlayPage() {
   const [backupPayload, setBackupPayload] = useState('');
   const [restoreMsg, setRestoreMsg] = useState('');
   const [deviceBound, setDeviceBound] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const stateRef = useRef(null);
   const sessionRef = useRef(null);
   const bundleRef = useRef(null);
@@ -431,15 +432,39 @@ export default function OfflineHuntPlayPage() {
   };
 
   const onResetHunt = async () => {
-    if (!window.confirm('Start over? Clears progress and live ranking.')) {
-      return;
+    const ok = window.confirm(
+      'START OVER?\n\n'
+      + '• Clears this phone’s hunt progress\n'
+      + '• You will need the start code again\n'
+      + '• Live ranking may reset (needs Wi‑Fi)\n'
+      + '• Zip Grid progress resets\n\n'
+      + 'Only use for a retest / dry run — not after a real finish unless organizers say so.',
+    );
+    if (!ok) return;
+    setResetting(true);
+    try {
+      const result = await startOverHunt({
+        teamCode: session.teamCode,
+        reloadAppIfWaiting: false,
+        clearSession: false,
+      });
+      if (result.bundle) {
+        setBundle(result.bundle);
+        bundleRef.current = result.bundle;
+      }
+      if (result.state) {
+        await saveOfflineTeamState(session.teamCode, result.state);
+        setState(result.state);
+        stateRef.current = result.state;
+        setPlayData(buildPlayData(result.bundle || bundle, session, result.state));
+      }
+      window.alert(result.message || 'Started over.');
+      // Stay on play route — briefing shows because stage is WAITING.
+    } catch (err) {
+      window.alert(err.message || 'Start over failed');
+    } finally {
+      setResetting(false);
     }
-    const result = await startOverHunt({
-      teamCode: session.teamCode,
-      reloadAppIfWaiting: false,
-    });
-    window.alert(result.message || 'Started over.');
-    navigate(CAMPUS_HUNT_PATHS.offline, { replace: true });
   };
 
   const onRestoreBackup = async (raw) => {
@@ -511,6 +536,8 @@ export default function OfflineHuntPlayPage() {
         roundLabel="The Hunt · Offline"
         backTo={CAMPUS_HUNT_PATHS.offline}
         backLabel="← Home"
+        onStartOver={session.role === 'leader' ? onResetHunt : null}
+        startOverBusy={resetting}
         checkpointExtra={
           session.role === 'leader' && cp?.needJoinWord ? (
             <div className="mt-3 space-y-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0a1218] p-3 text-left">
@@ -614,10 +641,11 @@ export default function OfflineHuntPlayPage() {
 
             <button
               type="button"
-              className="mt-2 w-full rounded-lg border border-white/10 py-2 text-xs text-white/45"
+              disabled={resetting}
+              className="mt-2 w-full rounded-lg border border-white/10 py-2 text-xs text-white/45 disabled:opacity-40"
               onClick={onResetHunt}
             >
-              Start over
+              {resetting ? 'Starting over…' : 'Start over'}
             </button>
           </div>
         </details>

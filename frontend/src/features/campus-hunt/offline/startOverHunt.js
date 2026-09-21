@@ -154,7 +154,7 @@ export async function applyServerStartOverIfNeeded(bundle) {
   pauseOfflineBoardSync();
   try {
     const code = working.team.teamCode;
-    await resetOfflineHuntLocal(code);
+    await resetOfflineHuntLocal(code, { clearSession: false });
     clearOfflineProgressQueue(code);
 
     const token = readRememberedInstallToken(working);
@@ -205,6 +205,7 @@ export async function startOverHunt({
   teamCode,
   installToken,
   reloadAppIfWaiting = false,
+  clearSession = false,
 } = {}) {
   let pack = await loadOfflineBundle();
   const code = String(teamCode || pack?.team?.teamCode || '').trim();
@@ -224,7 +225,7 @@ export async function startOverHunt({
     const prevState = await loadOfflineTeamState(code).catch(() => null);
     const prevSeq = Math.max(0, Number(prevState?.seq) || 0);
 
-    await resetOfflineHuntLocal(code);
+    await resetOfflineHuntLocal(code, { clearSession });
     clearOfflineProgressQueue(code);
 
     const token = String(installToken || readRememberedInstallToken(pack) || '').trim();
@@ -240,7 +241,9 @@ export async function startOverHunt({
     }
 
     const freshState = createInitialTeamState(pack || { team: { teamCode: code } });
-    freshState.seq = prevSeq + 1;
+    freshState.seq = Math.max(prevSeq + 1, 1);
+    freshState.currentStage = 'WAITING';
+    freshState.huntStartedAt = null;
     await saveOfflineTeamState(code, freshState);
 
     let boardReset = false;
@@ -265,6 +268,9 @@ export async function startOverHunt({
             code,
             result?.offlineResetAt || new Date().toISOString(),
           );
+        } else {
+          // Still stamp locally so admin pull does not instantly re-apply an old lock.
+          writeAppliedResetAt(code, new Date().toISOString());
         }
       } catch { /* best-effort */ }
 
@@ -294,20 +300,20 @@ export async function startOverHunt({
       } catch { /* best-effort */ }
 
       await warmupOfflineHunt().catch(() => {});
+    } else {
+      writeAppliedResetAt(code, new Date().toISOString());
     }
 
     if (reloadAppIfWaiting && updateWaiting) {
       await applyWaitingHuntUpdate();
     }
 
-    const bits = ['Progress cleared.'];
+    const bits = ['Progress cleared — back to start screen.'];
     if (boardReset) bits.push('Live ranking reset.');
-    else if (online) bits.push('Live ranking sync failed — stay on Wi‑Fi and Start over again.');
-    else bits.push('Go online briefly so live ranking can reset.');
+    else if (online) bits.push('Live ranking may still show old score until Wi‑Fi sync works.');
+    else bits.push('Offline — live ranking updates when you get Wi‑Fi.');
     if (gridReset) bits.push('Zip Grid reset.');
     if (packUpdated) bits.push('Latest pack downloaded.');
-    else if (!online) bits.push('Offline — pack on phone kept.');
-    if (updateWaiting && !reloadAppIfWaiting) bits.push('App update ready — reload when asked.');
 
     return {
       ok: true,
@@ -317,6 +323,7 @@ export async function startOverHunt({
       updateWaiting,
       message: bits.join(' '),
       bundle: pack,
+      state: freshState,
     };
   } finally {
     resumeOfflineBoardSync();

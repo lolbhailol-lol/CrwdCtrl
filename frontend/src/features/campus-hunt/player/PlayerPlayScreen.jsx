@@ -89,6 +89,8 @@ export default function PlayerPlayScreen({
   roundLabel = null,
   backTo = null,
   backLabel = '← Hunt hub',
+  onStartOver = null,
+  startOverBusy = false,
 }) {
   const submitChallengeAnswerFn = actions?.submitChallengeAnswer || submitChallengeAnswer;
   const requestChallengeHintFn = actions?.requestChallengeHint || requestChallengeHint;
@@ -752,6 +754,26 @@ export default function PlayerPlayScreen({
               <p className="mt-2 text-sm text-white/60">
                 {finalsHint}
               </p>
+
+              {offlineMode && isLeader && typeof onStartOver === 'function' ? (
+                <div className="mt-5 rounded-xl border border-amber-400/30 bg-black/25 px-3 py-3 text-left">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-200/80">
+                    Disclaimer
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-white/55">
+                    Start over wipes this phone’s progress and may reset live ranking / Zip Grid.
+                    Use only for a retest or if organizers ask. After reset you must enter the start code again.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={startOverBusy}
+                    onClick={onStartOver}
+                    className="mt-3 w-full rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-bold text-white disabled:opacity-40"
+                  >
+                    {startOverBusy ? 'Starting over…' : 'Start over'}
+                  </button>
+                </div>
+              ) : null}
             </section>
           )}
 

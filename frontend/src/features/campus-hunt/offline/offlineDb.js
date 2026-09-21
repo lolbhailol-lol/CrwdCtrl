@@ -184,9 +184,10 @@ export async function clearOfflineTeamState(teamCode) {
   return true;
 }
 
-export async function resetOfflineHuntLocal(teamCode) {
+export async function resetOfflineHuntLocal(teamCode, { clearSession = false } = {}) {
   if (teamCode) await clearOfflineTeamState(teamCode);
-  await clearOfflineSession();
+  // Keep leader login by default — clearing session made Start over look broken.
+  if (clearSession) await clearOfflineSession();
   return true;
 }
 
