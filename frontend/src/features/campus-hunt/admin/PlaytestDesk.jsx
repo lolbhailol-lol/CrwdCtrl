@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   adminRevealTeamAccess,
-  adminReleaseTeam,
   adminMarkTeamStartReached,
   adminPlaytestCompleteScan,
   adminPlaytestResetTeam,
@@ -210,23 +209,6 @@ export default function PlaytestDesk({
     return () => { cancelled = true; };
   }, [teamId]);
 
-  const releaseNow = async () => {
-    if (!teamId) return;
-    setBusy('release');
-    setNote('');
-    try {
-      await adminReleaseTeam(teamId, {
-        reason: 'Playtest desk — manual early release',
-      });
-      setNote('Released — Clue 1 unlocked on leader phone.');
-      await onChanged?.();
-    } catch (err) {
-      setNote(err.message || 'Release failed — is the hunt live & schedule locked?');
-    } finally {
-      setBusy('');
-    }
-  };
-
   const completeScan = async (scan) => {
     if (!teamId) return;
     setBusy(`scan-${scan}`);
@@ -313,8 +295,7 @@ export default function PlaytestDesk({
           </p>
           <h2 className="mt-1 text-lg font-bold text-white">One team · tap in order</h2>
           <p className="mt-1 text-sm text-white/55">
-            Release → Orange → Green → Blue → Purple → Red → Clue 6 → Lobby
-            (real play still needs join-word on the leader phone)
+            Go live → phone start code → Orange → Green → Blue → Purple → Red → Clue 6 → Lobby
           </p>
         </div>
         {roundStatus && (
@@ -326,7 +307,8 @@ export default function PlaytestDesk({
 
       {roundStatus !== 'live' && (
         <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Round must be <strong>live</strong> first (Schedule → Lock → Start the hunt).
+          Round must be <strong>live</strong> first — use <strong>Go live</strong> above (or Live tab).
+          Offline phones unlock with the start code (Clues → Clue 6).
         </p>
       )}
 
@@ -369,21 +351,8 @@ export default function PlaytestDesk({
         </button>
       </div>
 
-      {/* Setup row */}
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <button
-          type="button"
-          disabled={Boolean(busy) || !teamId || roundStatus !== 'live'}
-          onClick={releaseNow}
-          className="rounded-xl bg-emerald-400 px-3 py-3 text-left disabled:opacity-40"
-        >
-          <p className="text-[11px] font-semibold uppercase text-black/60">Step 1</p>
-          <p className="text-sm font-bold text-black">
-            {busy === 'release' ? 'Releasing…' : 'Release team'}
-          </p>
-          <p className="mt-0.5 text-[11px] text-black/55">Unlock Clue 1 now</p>
-        </button>
-
+      {/* Setup row — no schedule / release (offline = start code on phone) */}
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {teamLoginPath ? (
           <a
             href={teamLoginPath}
@@ -391,9 +360,9 @@ export default function PlaytestDesk({
             rel="noreferrer"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:bg-white/10"
           >
-            <p className="text-[11px] font-semibold uppercase text-white/40">Step 2</p>
+            <p className="text-[11px] font-semibold uppercase text-white/40">Step 1</p>
             <p className="text-sm font-bold text-white">Open team link ↗</p>
-            <p className="mt-0.5 text-[11px] text-white/45">Password → tap name</p>
+            <p className="mt-0.5 text-[11px] text-white/45">Password → leader phone</p>
           </a>
         ) : (
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 opacity-40">
@@ -407,9 +376,9 @@ export default function PlaytestDesk({
             target="_blank"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:bg-white/10"
           >
-            <p className="text-[11px] font-semibold uppercase text-white/40">Step 3</p>
+            <p className="text-[11px] font-semibold uppercase text-white/40">Step 2</p>
             <p className="text-sm font-bold text-white">Open play ↗</p>
-            <p className="mt-0.5 text-[11px] text-white/45">Leader dashboard</p>
+            <p className="mt-0.5 text-[11px] text-white/45">Or use offline install pack</p>
           </Link>
         ) : (
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 opacity-40">
@@ -540,7 +509,7 @@ export default function PlaytestDesk({
                   className={`mt-2 block w-full break-all rounded-lg bg-black/35 px-2 py-2 text-left font-mono text-xs ${card.codeClass} disabled:opacity-40`}
                   title="Tap to copy"
                 >
-                  {code || 'No code — save clues / schedule'}
+                  {code || 'No code — save clues / places first'}
                 </button>
                 <button
                   type="button"

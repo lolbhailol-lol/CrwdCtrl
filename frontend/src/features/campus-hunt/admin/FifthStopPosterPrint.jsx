@@ -26,7 +26,7 @@ export default function FifthStopPosterPrint({
         ? `FIFTH SCAN shared QRs · ${placeCount} place${placeCount === 1 ? '' : 's'}`
         : undefined}
       blurb={`Small red cards on one A3 cut sheet — plant after Clue 5 word is solved. One shared QR per place; leader scans once → Clue 6 (Mindspark Lobby).`}
-      needMoreHint="Save setup / Generate schedule first — fifth-stop shared QRs appear after stations exist."
+      needMoreHint="Save Places / Clues first — fifth-stop shared QRs appear after stations exist."
       skippedSummaryKey="fifthSkipped"
       campusStations={campusStations}
       stationCount={stationCount}

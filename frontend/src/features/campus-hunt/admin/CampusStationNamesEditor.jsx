@@ -271,7 +271,7 @@ export default function CampusStationNamesEditor({
           Starting point names · {activeStarts.length} active
         </h3>
         <p className="mt-0.5 text-[11px] text-white/40">
-          Teams gather here before release. Unused starts stay hidden after bootstrap.
+          Teams gather here before the start code. Unused starts stay hidden after bootstrap.
         </p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {activeStarts.map((row, index) => (

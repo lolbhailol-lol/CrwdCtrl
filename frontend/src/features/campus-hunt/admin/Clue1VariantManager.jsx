@@ -475,7 +475,7 @@ export default function Clue1VariantManager({
       } else {
         setMessage(
           `Saved ${saved} Clue 1 assignments in one request · bound ${bound} teams.`
-          + ' Next: Schedule → lock if needed.',
+          + ' Next: export offline packs / send links.',
         );
         setError(failures[0] || (apiErrors[0]?.message ? `${apiErrors.length} warnings` : ''));
       }

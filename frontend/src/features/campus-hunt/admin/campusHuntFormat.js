@@ -304,7 +304,7 @@ export const WAIT_POINTS = [
   {
     code: 'A',
     name: 'Library',
-    description: 'Gather point — teams wait here until release.',
+    description: 'Gather point — teams wait here for the start code.',
   },
   {
     code: 'B',

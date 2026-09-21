@@ -349,7 +349,7 @@ export default function FinishReturnBoard({
 
       {!points.length && !loading && (
         <p className="text-sm text-white/50">
-          No active starts yet — Save setup (starts & places), then Schedule.
+          No active starts yet — Save Places (starts & stations) first.
         </p>
       )}
     </div>

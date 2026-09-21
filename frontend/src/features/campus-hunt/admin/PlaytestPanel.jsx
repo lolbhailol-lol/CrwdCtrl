@@ -2,6 +2,7 @@ import PlaytestDesk from './PlaytestDesk';
 
 /**
  * Dry-run tools only — prep lives in the other tabs.
+ * Offline teams start with the shared start code (not schedule / release).
  */
 export default function PlaytestPanel({
   eventId,
@@ -24,7 +25,7 @@ export default function PlaytestPanel({
       <div>
         <h2 className="text-xl font-bold">Dry run</h2>
         <p className="mt-1 text-sm text-white/55">
-          Start the hunt, then force leader scans from the desk. Fest day uses Live.
+          Mark the round live for the board, then cheat-scan one team. Fest day: shout the start code — phones unlock themselves.
         </p>
       </div>
 
@@ -50,8 +51,8 @@ export default function PlaytestPanel({
             {roundStatus === 'locked'
               ? 'Reopen'
               : roundStatus === 'live'
-                ? 'Sync releases'
-                : 'Start hunt'}
+                ? 'Already live'
+                : 'Go live'}
           </button>
           {roundStatus ? (
             <span className="text-xs text-white/45">{roundStatus}</span>

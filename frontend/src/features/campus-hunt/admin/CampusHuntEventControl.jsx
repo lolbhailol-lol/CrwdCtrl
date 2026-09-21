@@ -199,7 +199,7 @@ export default function CampusHuntEventControl() {
           durationMinutes,
           reason: 'Admin reopened the hunt',
         }),
-        'Hunt reopened — tap Start hunt again',
+        'Hunt reopened — tap Go live again',
       );
       return;
     }
@@ -225,8 +225,8 @@ export default function CampusHuntEventControl() {
       });
       setMsg(
         alreadyLive
-          ? `Synced releases · ${durationMinutes} min window from now`
-          : 'Hunt is live',
+          ? `Still live · ${durationMinutes} min window from now`
+          : 'Hunt is live — shout the start code when teams are ready',
       );
       await refresh();
     } catch (err) {
@@ -248,7 +248,7 @@ export default function CampusHuntEventControl() {
     }
     if (round1.status === 'scheduled') {
       setMsg(
-        'Round is already scheduled (not live). Create links when passwords + clues are ready, then Start hunt.',
+        'Round is not live yet. Create links when passwords + clues are ready, then Go live.',
       );
       return;
     }
@@ -829,7 +829,7 @@ export default function CampusHuntEventControl() {
                 </div>
                 <p className="mt-3 text-xs text-white/45">
                   Testing again? Use <strong className="text-white/70">Reset hunt to zero</strong>,
-                  then Schedule Preview → Generate → Lock → Start. Do not Finalize until the real event ends.
+                  then Live → Go live. Phones unlock with the start code. Do not Finalize until the real event ends.
                 </p>
               </section>
 
