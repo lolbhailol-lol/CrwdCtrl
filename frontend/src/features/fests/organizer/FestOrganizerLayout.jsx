@@ -3,43 +3,58 @@ import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
     Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag, ScanLine,
+    Lock,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../utils/festOrganizerSession';
 import { getFestPlugin } from '../plugins/registry';
+import { useDialog } from '../../../context/DialogContext';
 
+const SIMPLE_PORTAL_UNLOCKED = new Set(['Overview', 'Competitions', 'Participants']);
+
+/** Full cultural-fest nav (Aarohan-style) — showcaseAll shows locked teaser catalog */
 const navForFest = (festId, {
     hideStallLeads = false,
     hideProShow = false,
     showFestDayDesk = false,
     hideLiveNav = false,
     hideFestInfoNav = false,
-} = {}) => [
-    { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },
-    { label: 'Edit fest & comps', path: `/fest-organizer/fests/${festId}/edit-listing`, icon: Pencil, short: 'Edit', group: 'edit' },
-    ...(!hideLiveNav
-        ? [{ label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'ops' }]
-        : []),
-    ...(showFestDayDesk
-        ? [{ label: 'Fest Day Desk', path: `/fest-organizer/fests/${festId}/fest-day-desk`, icon: ScanLine, short: 'Desk', group: 'ops' }]
-        : []),
-    ...(!hideStallLeads
-        ? [{ label: 'Stall / Leads', path: `/fest-organizer/fests/${festId}/leads`, icon: ClipboardList, short: 'Leads', group: 'ops' }]
-        : []),
-    { label: 'Competitions', path: `/fest-organizer/fests/${festId}/competitions`, icon: Trophy, short: 'Comps', group: 'ops' },
-    ...(!hideProShow
-        ? [{ label: 'Pro Show', path: `/fest-organizer/fests/${festId}/pro-show`, icon: Mic2, short: 'Pro', group: 'ops' }]
-        : []),
-    { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'ops' },
-    { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'ops' },
-    ...(hideProShow
-        ? [{ label: 'Coupons', path: `/fest-organizer/fests/${festId}/coupons`, icon: Tag, short: 'Codes', group: 'ops' }]
-        : []),
-    { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
-    { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'ops' },
-    ...(!hideFestInfoNav
-        ? [{ label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'ops' }]
-        : []),
-];
+    showcaseAll = false,
+} = {}) => {
+    const showLive = showcaseAll || !hideLiveNav;
+    const showLeads = showcaseAll || !hideStallLeads;
+    const showPro = showcaseAll || !hideProShow;
+    const showDesk = !showcaseAll && showFestDayDesk;
+    const showCoupons = !showcaseAll && hideProShow;
+    const showInfo = showcaseAll || !hideFestInfoNav;
+
+    return [
+        { label: 'Overview', path: `/fest-organizer/fests/${festId}`, icon: LayoutDashboard, end: true, short: 'Home', group: 'ops' },
+        { label: 'Edit fest & comps', path: `/fest-organizer/fests/${festId}/edit-listing`, icon: Pencil, short: 'Edit', group: 'edit' },
+        ...(showLive
+            ? [{ label: 'Live', path: `/fest-organizer/fests/${festId}/live`, icon: Radio, short: 'Live', group: 'ops' }]
+            : []),
+        ...(showDesk
+            ? [{ label: 'Fest Day Desk', path: `/fest-organizer/fests/${festId}/fest-day-desk`, icon: ScanLine, short: 'Desk', group: 'ops' }]
+            : []),
+        ...(showLeads
+            ? [{ label: 'Stall / Leads', path: `/fest-organizer/fests/${festId}/leads`, icon: ClipboardList, short: 'Leads', group: 'ops' }]
+            : []),
+        { label: 'Competitions', path: `/fest-organizer/fests/${festId}/competitions`, icon: Trophy, short: 'Comps', group: 'ops' },
+        ...(showPro
+            ? [{ label: 'Pro Show', path: `/fest-organizer/fests/${festId}/pro-show`, icon: Mic2, short: 'Pro', group: 'ops' }]
+            : []),
+        { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'ops' },
+        { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'ops' },
+        ...(showCoupons
+            ? [{ label: 'Coupons', path: `/fest-organizer/fests/${festId}/coupons`, icon: Tag, short: 'Codes', group: 'ops' }]
+            : []),
+        { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
+        { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'ops' },
+        ...(showInfo
+            ? [{ label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'ops' }]
+            : []),
+    ];
+};
 
 function pathIsActive(pathname, to, end = false) {
     if (end) return pathname === to;
@@ -67,7 +82,22 @@ function OrgNavButton({ to, end = false, className, onNavigate, children, ...res
     );
 }
 
-function NavItem({ item, onNavigate, accent = false }) {
+function NavItem({ item, onNavigate, accent = false, locked = false, onLockedClick }) {
+    if (locked) {
+        return (
+            <button
+                type="button"
+                onClick={() => onLockedClick?.(item)}
+                title="Locked on this plan — ask CrwdCtrl to unlock"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-600 cursor-not-allowed opacity-75 hover:bg-white/[0.03]"
+            >
+                <item.icon size={16} className="shrink-0 opacity-60" />
+                <span className="truncate flex-1 text-left">{item.label}</span>
+                <Lock size={12} className="shrink-0 text-gray-600" />
+            </button>
+        );
+    }
+
     return (
         <OrgNavButton
             to={item.path}
@@ -93,6 +123,7 @@ export default function FestOrganizerLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const params = useParams();
+    const { toast } = useDialog();
     const festId = params.festId
         || location.pathname.match(/\/fest-organizer\/fests\/([^/]+)/)?.[1]
         || null;
@@ -119,9 +150,12 @@ export default function FestOrganizerLayout() {
             showFestDayDesk,
             hideLiveNav: Boolean(plugin.hideLiveNav),
             hideFestInfoNav: Boolean(plugin.hideFestInfoNav),
-        }).filter((item) => (
-            !simplePortal || ['Overview', 'Competitions', 'Participants'].includes(item.label)
-        ))
+            // Simple portals (Kshitij / Techfest): show full Aarohan catalog, lock extras
+            showcaseAll: simplePortal,
+        }).map((item) => ({
+            ...item,
+            locked: simplePortal && !SIMPLE_PORTAL_UNLOCKED.has(item.label),
+        }))
         : [];
     const nav = session?.organizer?.portalRole === 'desk'
         ? fullNav.filter((item) => item.label === 'Fest Day Desk')
@@ -135,11 +169,10 @@ export default function FestOrganizerLayout() {
         : hideProShow
             ? ['Fest Day Desk', 'Competitions', 'Participants', 'Check-in', 'Connect']
             : ['Live', 'Competitions', 'Pro Show'];
-    // MindSpark day-of: Scan + Connect on the bar; Edit stays in sidebar / overview
     const mobileNav = simplePortal || hideProShow
         ? [
             ...(overviewItem ? [overviewItem] : []),
-            ...opsNav.filter((n) => mobilePrimary.includes(n.label)),
+            ...opsNav.filter((n) => mobilePrimary.includes(n.label) && !n.locked),
         ].slice(0, 5)
         : [
             ...(overviewItem ? [overviewItem] : []),
@@ -147,8 +180,7 @@ export default function FestOrganizerLayout() {
             ...opsNav.filter((n) => mobilePrimary.includes(n.label)),
         ].slice(0, 5);
 
-    // Pin Connect above Revenue for MindSpark (unpaid chase)
-    const orderedOpsNav = hideProShow
+    const orderedOpsNav = hideProShow && !simplePortal
         ? (() => {
             const connect = opsNav.find((n) => n.label === 'Connect');
             const rest = opsNav.filter((n) => n.label !== 'Connect');
@@ -160,6 +192,13 @@ export default function FestOrganizerLayout() {
             return next;
         })()
         : opsNav;
+
+    const notifyLocked = (item) => {
+        toast(
+            `${item.label} is locked on this plan — unlock Live, Leads, Pro Show, Check-in, Revenue & more with full CrwdCtrl fest tools.`,
+        );
+        setSidebarOpen(false);
+    };
 
     useEffect(() => {
         if (!simplePortal || !festId) return;
@@ -177,32 +216,32 @@ export default function FestOrganizerLayout() {
     }, [simplePortal, festId, location.pathname, navigate]);
 
     useEffect(() => {
-        if (!hideStallLeads || !festId) return;
+        if (simplePortal || !hideStallLeads || !festId) return;
         if (location.pathname.includes(`/fests/${festId}/leads`)) {
             navigate(`/fest-organizer/fests/${festId}`, { replace: true });
         }
-    }, [hideStallLeads, festId, location.pathname, navigate]);
+    }, [simplePortal, hideStallLeads, festId, location.pathname, navigate]);
 
     useEffect(() => {
-        if (!hideProShow || !festId) return;
+        if (simplePortal || !hideProShow || !festId) return;
         if (location.pathname.includes(`/fests/${festId}/pro-show`)) {
             navigate(`/fest-organizer/fests/${festId}`, { replace: true });
         }
-    }, [hideProShow, festId, location.pathname, navigate]);
+    }, [simplePortal, hideProShow, festId, location.pathname, navigate]);
 
     useEffect(() => {
-        if (!plugin.hideLiveNav || !festId) return;
+        if (simplePortal || !plugin.hideLiveNav || !festId) return;
         if (location.pathname.includes(`/fests/${festId}/live`)) {
             navigate(`/fest-organizer/fests/${festId}`, { replace: true });
         }
-    }, [plugin.hideLiveNav, festId, location.pathname, navigate]);
+    }, [simplePortal, plugin.hideLiveNav, festId, location.pathname, navigate]);
 
     useEffect(() => {
-        if (!plugin.hideFestInfoNav || !festId) return;
+        if (simplePortal || !plugin.hideFestInfoNav || !festId) return;
         if (location.pathname.includes(`/fests/${festId}/info`)) {
             navigate(`/fest-organizer/fests/${festId}/edit-listing`, { replace: true });
         }
-    }, [plugin.hideFestInfoNav, festId, location.pathname, navigate]);
+    }, [simplePortal, plugin.hideFestInfoNav, festId, location.pathname, navigate]);
 
     useEffect(() => {
         if (!isDeskOnly || !festId || !showFestDayDesk) return;
@@ -232,19 +271,21 @@ export default function FestOrganizerLayout() {
                 </div>
 
                 <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-2.5 py-3 space-y-0.5">
-                    {!isDeskOnly ? <OrgNavButton
-                        to="/fest-organizer"
-                        end
-                        onNavigate={() => setSidebarOpen(false)}
-                        className={({ isActive }) =>
-                            `w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition ${
-                                isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                            }`
-                        }
-                    >
-                        <Home size={16} className="shrink-0" />
-                        All fests
-                    </OrgNavButton> : null}
+                    {!isDeskOnly ? (
+                        <OrgNavButton
+                            to="/fest-organizer"
+                            end
+                            onNavigate={() => setSidebarOpen(false)}
+                            className={({ isActive }) =>
+                                `w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition ${
+                                    isActive ? 'bg-[#0ECCEE]/15 text-[#0ECCEE]' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                }`
+                            }
+                        >
+                            <Home size={16} className="shrink-0" />
+                            All fests
+                        </OrgNavButton>
+                    ) : null}
 
                     {activeFest ? (
                         <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-gray-600 truncate" title={activeFest.festName}>
@@ -253,7 +294,12 @@ export default function FestOrganizerLayout() {
                     ) : null}
 
                     {overviewItem ? (
-                        <NavItem item={overviewItem} onNavigate={() => setSidebarOpen(false)} />
+                        <NavItem
+                            item={overviewItem}
+                            locked={overviewItem.locked}
+                            onNavigate={() => setSidebarOpen(false)}
+                            onLockedClick={notifyLocked}
+                        />
                     ) : null}
 
                     {editNav.length ? (
@@ -265,8 +311,10 @@ export default function FestOrganizerLayout() {
                                 <NavItem
                                     key={item.path}
                                     item={item}
-                                    accent
+                                    accent={!item.locked}
+                                    locked={item.locked}
                                     onNavigate={() => setSidebarOpen(false)}
+                                    onLockedClick={notifyLocked}
                                 />
                             ))}
                         </div>
@@ -279,8 +327,20 @@ export default function FestOrganizerLayout() {
                     ) : null}
 
                     {orderedOpsNav.map((item) => (
-                        <NavItem key={item.path} item={item} onNavigate={() => setSidebarOpen(false)} />
+                        <NavItem
+                            key={item.path}
+                            item={item}
+                            locked={item.locked}
+                            onNavigate={() => setSidebarOpen(false)}
+                            onLockedClick={notifyLocked}
+                        />
                     ))}
+
+                    {simplePortal ? (
+                        <p className="px-3 pt-3 pb-1 text-[10px] leading-relaxed text-gray-600">
+                            Locked tools unlock with full CrwdCtrl fest ops — Live, Leads, Pro Show, Check-in, Revenue & more.
+                        </p>
+                    ) : null}
                 </nav>
 
                 <div className="shrink-0 p-2.5 border-t border-white/10 pb-[max(0.75rem,var(--safe-bottom))]">

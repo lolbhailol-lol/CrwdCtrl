@@ -275,7 +275,7 @@ export default function FestOrganizerParticipantsPage() {
                         <p className="text-[10px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold">Roster</p>
                         <h1 className="text-xl font-bold text-white mt-0.5">Participants</h1>
                         <p className="text-sm text-gray-500 mt-1">
-                            {pagination.total || rows.length} registered · export Excel anytime
+                            {pagination.total || rows.length} registered · delete or export anytime
                         </p>
                     </div>
                     <div className="flex gap-2 shrink-0">
@@ -385,6 +385,20 @@ export default function FestOrganizerParticipantsPage() {
                                                         <MessageCircle size={14} />
                                                     </a>
                                                 ) : null}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deleteEntry(participant)}
+                                                    disabled={actionBusy === `${participant.id}-delete`}
+                                                    className="p-2 rounded-lg border border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                                                    aria-label="Delete entry"
+                                                    title="Delete entry"
+                                                >
+                                                    {actionBusy === `${participant.id}-delete` ? (
+                                                        <Loader size={14} className="animate-spin" />
+                                                    ) : (
+                                                        <Trash2 size={14} />
+                                                    )}
+                                                </button>
                                             </div>
                                         </div>
                                     </div>

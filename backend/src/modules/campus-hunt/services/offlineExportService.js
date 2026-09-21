@@ -697,17 +697,57 @@ async function ingestOfflineProgress(eventId, payload) {
     throw err;
   }
 
+  const startOver = Boolean(body.startOver || body.reset);
+  const incomingSeq = Number(body.seq) || 0;
+  const storedSeq = Number(team.offlineProgressSeq) || 0;
+  const incomingDevice = String(body.deviceId || '').slice(0, 64);
+  const startScore = 100;
+  const maxPlausible = startScore + (6 * 120);
+
+  // Start over from leader phone — reset live board + unlock score lock for retest.
+  if (startOver) {
+    const score = Math.min(Math.max(0, Number(body.score) || startScore), maxPlausible);
+    team.currentScore = score;
+    team.finalScore = null;
+    team.currentStage = String(body.stage || 'WAITING');
+    team.status = 'active';
+    team.scoreLockedAt = null;
+    team.finishedAt = null;
+    team.offlineProgressSeq = Math.max(0, incomingSeq);
+    if (incomingDevice) team.offlineDeviceId = incomingDevice;
+    await team.save();
+
+    // Reset Zip Grid so the same device key starts a fresh game.
+    try {
+      const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+      const CampusHuntChallenge = require('../models/CampusHuntChallenge');
+      const clue4 = team.clue4ChallengeId
+        ? await CampusHuntChallenge.findById(team.clue4ChallengeId).select('answer').lean()
+        : null;
+      await ensureRound1FieldTerminalGrid(team, {
+        preferredCompletionCode: clue4?.answer || '',
+        forceReset: true,
+      });
+    } catch (_) { /* grid reset is best-effort */ }
+
+    return {
+      teamCode: team.teamCode,
+      score: team.currentScore,
+      stage: team.currentStage,
+      seq: team.offlineProgressSeq,
+      deviceId: team.offlineDeviceId,
+      startOver: true,
+    };
+  }
+
   if (team.currentStage === 'SCORE_LOCKED') {
     return { teamCode: team.teamCode, ignored: true, reason: 'SCORE_LOCKED' };
   }
 
-  const incomingSeq = Number(body.seq) || 0;
-  const storedSeq = Number(team.offlineProgressSeq) || 0;
   if (incomingSeq < storedSeq) {
     return { teamCode: team.teamCode, ignored: true, reason: 'STALE_SEQ' };
   }
 
-  const incomingDevice = String(body.deviceId || '').slice(0, 64);
   const bound = String(team.offlineDeviceId || '').slice(0, 64);
   // Soft bind: allow takeover when score/stage advanced, or explicit takeover flag.
   const advancing = incomingSeq > storedSeq
@@ -723,8 +763,6 @@ async function ingestOfflineProgress(eventId, payload) {
   }
 
   const score = Math.max(0, Number(body.score) || 0);
-  const startScore = 100;
-  const maxPlausible = startScore + (6 * 120);
   team.currentScore = Math.min(score, maxPlausible);
   if (body.stage) team.currentStage = String(body.stage);
   team.offlineProgressSeq = Math.max(storedSeq, incomingSeq);
@@ -778,6 +816,7 @@ async function ensureOfflineGridAccess(eventId, payload) {
   const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
   const gridSession = await ensureRound1FieldTerminalGrid(team, {
     preferredCompletionCode: clue4?.answer || body.preferredCompletionCode || '',
+    forceReset: Boolean(body.reset || body.startOver || body.forceReset),
   });
 
   return {

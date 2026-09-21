@@ -409,14 +409,15 @@ export default function OfflineHuntPlayPage() {
   };
 
   const onResetHunt = async () => {
-    if (!window.confirm('Start over? Clears progress and pulls the latest pack + app update when online.')) {
+    if (!window.confirm('Start over? Clears progress, live ranking, and Zip Grid. Pulls latest pack when online.')) {
       return;
     }
-    await startOverHunt({
+    const result = await startOverHunt({
       teamCode: session.teamCode,
-      reloadAppIfWaiting: true,
+      reloadAppIfWaiting: false,
     });
-    navigate(CAMPUS_HUNT_PATHS.offlineLogin);
+    window.alert(result.message || 'Started over.');
+    navigate(CAMPUS_HUNT_PATHS.offline, { replace: true });
   };
 
   const onRestoreBackup = async (raw) => {
@@ -588,9 +589,12 @@ export default function OfflineHuntPlayPage() {
               </div>
             ) : null}
 
+            <p className="mt-2 text-xs text-white/45">
+              Laptop: clear the Zip Grid tab and enter the device key again after Start over.
+            </p>
             <button
               type="button"
-              className="w-full rounded-lg border border-white/10 py-2 text-xs text-white/45"
+              className="mt-2 w-full rounded-lg border border-white/10 py-2 text-xs text-white/45"
               onClick={onResetHunt}
             >
               Start over · get latest

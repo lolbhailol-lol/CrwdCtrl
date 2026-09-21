@@ -81,6 +81,16 @@ function saveQueue(items) {
   } catch { /* ignore */ }
 }
 
+/** Drop queued sync rows for a team (used by Start over). */
+export function clearOfflineProgressQueue(teamCode) {
+  const code = String(teamCode || '').toUpperCase();
+  if (!code) {
+    saveQueue([]);
+    return;
+  }
+  saveQueue(loadQueue().filter((item) => String(item.team || '').toUpperCase() !== code));
+}
+
 function buildProgressUrl(base, eventId) {
   const path = progressPath(eventId);
   if (!base) return `/api${path}`;
@@ -89,7 +99,7 @@ function buildProgressUrl(base, eventId) {
   return `${base}/api${path}`;
 }
 
-export async function enqueueOfflineProgress(bundle, state) {
+export async function enqueueOfflineProgress(bundle, state, { startOver = false } = {}) {
   if (!bundle?.event?.id || !bundle?.team?.teamCode) return { queued: false };
   const takeover = consumeTakeoverFlag();
   let payload = {
@@ -101,6 +111,7 @@ export async function enqueueOfflineProgress(bundle, state) {
     seq: Number(state.seq) || 0,
     deviceId: getOfflineDeviceId(),
     takeover: takeover || undefined,
+    startOver: startOver || undefined,
     at: new Date().toISOString(),
   };
   try {
@@ -182,7 +193,7 @@ export function offlineBoardPendingCount() {
  * Fetch / mint Field Terminal device key for Clue 4 (needs brief Wi‑Fi).
  * Patches the in-memory pack clue4 so playData can show the key.
  */
-export async function ensureOfflineGridKey(bundle) {
+export async function ensureOfflineGridKey(bundle, { forceReset = false } = {}) {
   if (!bundle?.event?.id || !bundle?.team?.teamCode || !bundle?.signingKey) {
     return null;
   }
@@ -193,6 +204,8 @@ export async function ensureOfflineGridKey(bundle) {
     event: String(bundle.event.id),
     team: bundle.team.teamCode,
     preferredCompletionCode: bundle.clues?.clue4?.answer || '',
+    reset: forceReset || undefined,
+    forceReset: forceReset || undefined,
     at: new Date().toISOString(),
   };
   try {

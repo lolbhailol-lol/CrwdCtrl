@@ -135,6 +135,7 @@ export default function OfflineHuntInstallPage() {
             </div>
             <OfflineHuntInstallHelp
               packReady
+              forceInstall
               teamCode={team.teamCode}
               updateWaiting={updateWaiting}
               packNote={packNote}
@@ -156,7 +157,7 @@ export default function OfflineHuntInstallPage() {
           </div>
         ) : status === 'loading' ? null : (
           <div className="mt-8">
-            <OfflineHuntInstallHelp packReady={false} />
+            <OfflineHuntInstallHelp packReady={false} forceInstall />
           </div>
         )}
       </div>

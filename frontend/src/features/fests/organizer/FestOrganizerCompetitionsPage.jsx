@@ -232,6 +232,191 @@ export default function FestOrganizerCompetitionsPage() {
         return <InlinePageLoader label="Loading competitions…" variant="competition" />;
     }
 
+    if (simplePortal) {
+        const totalEntries = Number(stats?.totalRegistrations) || filtered.reduce((sum, c) => sum + (Number(c.total) || Number(c.approved) || 0), 0);
+        const totalPeople = Number(stats?.totalParticipants) || filtered.reduce((sum, c) => sum + (Number(c.participants) || Number(c.approved) || Number(c.total) || 0), 0);
+        const grouped = (() => {
+            const map = new Map();
+            filtered.forEach((c) => {
+                const key = plugin.competitionGroupKey(c) || 'OTHER';
+                if (!map.has(key)) map.set(key, []);
+                map.get(key).push(c);
+            });
+            const orderedKeys = plugin.sortModules([...map.keys()]);
+            return orderedKeys.map((key) => ({ key, items: map.get(key) || [] }));
+        })();
+
+        return (
+            <div className="max-w-3xl mx-auto space-y-5 pb-10">
+                <section className="rounded-3xl border border-white/10 bg-[#121314] overflow-hidden">
+                    <div className="relative p-5 sm:p-6">
+                        <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/18 via-transparent to-transparent pointer-events-none" />
+                        <div className="relative flex flex-wrap items-start justify-between gap-4">
+                            <div className="min-w-0">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0ECCEE]">Competitions</p>
+                                <h1 className="mt-1.5 text-2xl font-bold text-white tracking-tight">
+                                    {fest?.festName || 'Competitions'}
+                                </h1>
+                                <p className="mt-1.5 text-sm text-gray-400">
+                                    Browse by category · open roster · export Excel
+                                </p>
+                            </div>
+                            <div className="flex gap-2 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => exportCompetitionExcel('', fest?.festName || 'participants')}
+                                    disabled={Boolean(exportBusyId)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/30 bg-emerald-500/15 text-xs font-semibold text-emerald-200 disabled:opacity-40"
+                                >
+                                    {exportBusyId === 'all' ? <Loader size={14} className="animate-spin" /> : <Download size={14} />}
+                                    Export all
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={load}
+                                    className="p-2 rounded-xl border border-white/10 text-gray-300"
+                                    aria-label="Refresh"
+                                >
+                                    <RefreshCw size={16} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="relative mt-5 grid grid-cols-3 gap-2">
+                            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-3 text-center">
+                                <p className="text-xl font-bold tabular-nums text-white">{filtered.length}</p>
+                                <p className="text-[10px] uppercase tracking-wide text-gray-500 mt-1">Events</p>
+                            </div>
+                            <div className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 px-3 py-3 text-center">
+                                <p className="text-xl font-bold tabular-nums text-[#0ECCEE]">{totalEntries}</p>
+                                <p className="text-[10px] uppercase tracking-wide text-gray-500 mt-1">Entries</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-3 text-center">
+                                <p className="text-xl font-bold tabular-nums text-white">{totalPeople}</p>
+                                <p className="text-[10px] uppercase tracking-wide text-gray-500 mt-1">People</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {error ? <p className="text-sm text-red-400">{error}</p> : null}
+
+                <div className="relative">
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search competitions"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]/50"
+                    />
+                </div>
+
+                {categories.length > 2 ? (
+                    <div className="flex gap-2 overflow-x-auto pb-0.5">
+                        {categories.map((tab) => {
+                            const active = activeTab === tab;
+                            return (
+                                <button
+                                    key={tab}
+                                    type="button"
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition ${
+                                        active
+                                            ? 'bg-[#0ECCEE] text-black'
+                                            : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'
+                                    }`}
+                                >
+                                    {tab === 'ALL' ? 'All' : formatCategoryLabel(tab, plugin)}
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : null}
+
+                <div className="space-y-6">
+                    {grouped.map(({ key, items }) => (
+                        <section key={key} className="space-y-2.5">
+                            {activeTab === 'ALL' && grouped.length > 1 ? (
+                                <div className="flex items-center gap-2 px-0.5">
+                                    <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+                                        {formatCategoryLabel(key, plugin)}
+                                    </h2>
+                                    <span className="text-[10px] text-gray-600 tabular-nums">{items.length}</span>
+                                </div>
+                            ) : null}
+                            <div className="space-y-2.5">
+                                {items.map((c) => {
+                                    const id = String(c.id);
+                                    const entries = Number(c.approved) || Number(c.total) || 0;
+                                    const people = Number(c.participants) || entries;
+                                    const fee = organizerCompetitionFeeLabel(c);
+                                    return (
+                                        <article
+                                            key={id}
+                                            className="rounded-2xl border border-white/10 bg-[#161718] overflow-hidden"
+                                        >
+                                            <div className="flex gap-3 p-3.5">
+                                                <div className="relative w-[4.5rem] h-[4.5rem] shrink-0 rounded-xl overflow-hidden bg-[#1a1b1d] ring-1 ring-white/10">
+                                                    <img
+                                                        src={getImageUrl(c.coverImage || c.image, { preset: 'cardSm' })}
+                                                        alt=""
+                                                        className="absolute inset-0 w-full h-full object-cover"
+                                                        onError={(e) => handleImageErrorWithFallback(e, 72, 72, '#0ea5e9', c.name || 'C')}
+                                                    />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-[15px] font-semibold text-white leading-snug line-clamp-2">
+                                                        {c.name}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-1 truncate">
+                                                        <span className={fee === 'Free' ? 'text-emerald-400' : 'text-[#0ECCEE]'}>{fee}</span>
+                                                        {c.subtitle ? ` · ${c.subtitle}` : ''}
+                                                        {c.teamSizeLabel ? ` · ${c.teamSizeLabel}` : ''}
+                                                    </p>
+                                                    <div className="mt-2.5 flex flex-wrap gap-2">
+                                                        <span className="inline-flex items-center rounded-lg border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 px-2 py-1 text-[11px] font-semibold text-[#0ECCEE] tabular-nums">
+                                                            {entries} entr{entries === 1 ? 'y' : 'ies'}
+                                                        </span>
+                                                        <span className="inline-flex items-center rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-gray-300 tabular-nums">
+                                                            {people} people
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 px-3.5 pb-3.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?competitionId=${id}`)}
+                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/12 text-xs font-semibold text-[#0ECCEE]"
+                                                >
+                                                    View roster <ChevronRight size={14} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={exportBusyId === id}
+                                                    onClick={() => exportCompetitionExcel(id, c.name)}
+                                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-semibold text-emerald-200 disabled:opacity-50"
+                                                >
+                                                    {exportBusyId === id ? <Loader size={13} className="animate-spin" /> : <Download size={13} />}
+                                                    Excel
+                                                </button>
+                                            </div>
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    ))}
+                </div>
+
+                {!filtered.length ? (
+                    <p className="text-center text-sm text-gray-500 py-16">
+                        {query ? 'No matches' : 'No competitions yet'}
+                    </p>
+                ) : null}
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-2xl mx-auto space-y-4">
             <div className="rounded-3xl border border-[#0ECCEE]/20 bg-linear-to-br from-[#0ECCEE]/15 via-[#161718] to-[#161718] p-4 sm:p-5">

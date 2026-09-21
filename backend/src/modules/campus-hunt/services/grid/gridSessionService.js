@@ -50,20 +50,28 @@ function anyLevelCleared(session) {
 
 /**
  * Keep the same accessCode (printed on phone/pack) and reopen play time.
+ * forceReset: Start over — wipe completed Zip Grid too, keep device key.
  */
 async function reviveRound1GridSession(session, {
   durationMinutes = ROUND1_GRID_DURATION_MINUTES,
   preferredCompletionCode = '',
+  forceReset = false,
 } = {}) {
   if (!session) throw gridError('Session not found', 'SESSION_NOT_FOUND', 404);
-  if (session.status === 'completed') return session;
+  if (session.status === 'completed' && !forceReset) return session;
 
   const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
-  const resetProgress = !anyLevelCleared(session) || sessionTimedOut(session);
+  const resetProgress = forceReset
+    || !anyLevelCleared(session)
+    || sessionTimedOut(session)
+    || session.status === 'completed'
+    || session.status === 'expired';
   const now = new Date();
 
   session.status = 'active';
   session.expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
+  session.completionCodeUsed = false;
+  session.completionCodeUsedAt = undefined;
 
   if (resetProgress) {
     const puzzles = generateAllLevels();
@@ -82,14 +90,16 @@ async function reviveRound1GridSession(session, {
     session.scoreEarned = 0;
     session.hintsUsed = 0;
     session.score = 0;
+    session.sessionToken = crypto.randomBytes(16).toString('hex');
     session.markModified('puzzles');
     session.markModified('levelProgress');
   }
 
   if (preferred.startsWith('GRID-')) {
     session.completionCode = preferred;
-  } else if (!session.completionCode) {
-    session.completionCode = randomCompletionCode();
+  } else if (!session.completionCode || forceReset) {
+    // Keep planted GRID code when present; only mint if missing.
+    if (!session.completionCode) session.completionCode = randomCompletionCode();
   }
 
   await session.save();
@@ -632,6 +642,7 @@ async function getSessionForRun(missionRunId) {
 async function ensureRound1FieldTerminalGrid(team, {
   durationMinutes = ROUND1_GRID_DURATION_MINUTES,
   preferredCompletionCode = '',
+  forceReset = false,
 } = {}) {
   if (!team?._id || !team?.eventId) {
     throw gridError('Team required for Field Terminal grid', 'TEAM_REQUIRED', 400);
@@ -648,6 +659,14 @@ async function ensureRound1FieldTerminalGrid(team, {
   }).sort({ createdAt: -1 });
 
   if (existing) {
+    if (forceReset) {
+      return reviveRound1GridSession(existing, {
+        durationMinutes,
+        preferredCompletionCode: preferred,
+        forceReset: true,
+      });
+    }
+
     if (existing.status === 'completed') {
       if (preferred.startsWith('GRID-') && !existing.completionCode) {
         existing.completionCode = preferred;

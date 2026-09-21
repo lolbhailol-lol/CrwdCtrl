@@ -50,7 +50,7 @@ export default function OfflineHuntLandingPage() {
       setNote(result.message);
       setUpdateWaiting(Boolean(result.updateWaiting));
       if (result.bundle) setExisting(result.bundle);
-      navigate(CAMPUS_HUNT_PATHS.offlineLogin);
+      navigate(CAMPUS_HUNT_PATHS.offlineLogin, { replace: true });
     } catch (err) {
       setNote(err.message || 'Could not start over');
     } finally {
@@ -123,7 +123,7 @@ export default function OfflineHuntLandingPage() {
             </p>
             <OfflineStorageBadge />
             <div className="mt-6">
-              <OfflineHuntInstallHelp packReady={false} />
+              <OfflineHuntInstallHelp packReady={false} forceInstall />
             </div>
           </>
         )}
