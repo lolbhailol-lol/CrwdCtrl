@@ -227,16 +227,17 @@ export default function PlayerPlayScreen({
     releaseHuntCameraSession();
   }, []);
 
-  // When stage advances, jump to top so next clue/scan is immediately visible
+  // When stage advances, jump to top. Entering a scan stop → open camera.
   useEffect(() => {
     const stage = team?.currentStage;
     if (!stage || stage === prevStageRef.current) return;
     prevStageRef.current = stage;
     timerExpiredHandledRef.current = '';
-    setShowScanner(false);
     setShowPaste(false);
     setAnswer('');
     setHintPreview('');
+    const enteringScan = needsStationScan(stage) && !activeChallengeNumber(stage);
+    setShowScanner(enteringScan);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [team?.currentStage]);
 
@@ -254,14 +255,14 @@ export default function PlayerPlayScreen({
     return null;
   }, [team?.currentStage, atCheckpoint, challenges]);
 
-  // Auto-open camera on scan stages so the main action is one tap away
+  // Keep camera open on scan stages (backup if stage-enter missed)
   useEffect(() => {
     if (
       !atCheckpoint
       || !checkpointStatus
-      || checkpointStatus.youScanned
       || checkpointStatus.assignmentMissing
       || checkpointStatus.needJoinWord
+      || Number(checkpointStatus.verifiedCount || 0) >= Number(checkpointStatus.requiredCount || 1)
     ) {
       return;
     }
@@ -269,7 +270,9 @@ export default function PlayerPlayScreen({
   }, [
     atCheckpoint,
     checkpointStatus?.checkpointId,
-    checkpointStatus?.youScanned,
+    checkpointStatus?.checkpointKey,
+    checkpointStatus?.verifiedCount,
+    checkpointStatus?.requiredCount,
     checkpointStatus?.assignmentMissing,
     checkpointStatus?.needJoinWord,
   ]);
@@ -459,6 +462,8 @@ export default function PlayerPlayScreen({
       if (activeNum === 1) {
         celebrate(pts > 0 ? `Correct! +${pts} pts` : 'Correct! Head to Orange scan');
         setAwardedFlash(pts > 0 ? pts : null);
+        // Open camera as soon as Clue 1 unlocks orange scan (don't wait for effect race).
+        setShowScanner(true);
       } else if (activeNum === 2) {
         celebrate(
           pts > 0
@@ -466,6 +471,7 @@ export default function PlayerPlayScreen({
             : 'Correct — green scan next',
         );
         setAwardedFlash(pts > 0 ? pts : null);
+        setShowScanner(true);
       } else if (activeNum === 3) {
         celebrate(
           pts > 0
@@ -473,6 +479,7 @@ export default function PlayerPlayScreen({
             : 'Decoded — blue scan next',
         );
         setAwardedFlash(pts > 0 ? pts : null);
+        setShowScanner(true);
       } else if (activeNum === 4) {
         celebrate(
           pts > 0
@@ -480,6 +487,7 @@ export default function PlayerPlayScreen({
             : 'GRID cleared — purple scan next',
         );
         setAwardedFlash(pts > 0 ? pts : null);
+        setShowScanner(true);
       } else if (activeNum === 5) {
         celebrate(
           pts > 0
@@ -487,6 +495,7 @@ export default function PlayerPlayScreen({
             : 'Correct — go scan red, then Mindspark Lobby',
         );
         setAwardedFlash(pts > 0 ? pts : null);
+        setShowScanner(true);
       } else if (activeNum === 6) {
         celebrate(
           result.payload?.scoreLocked
@@ -874,7 +883,6 @@ export default function PlayerPlayScreen({
               ) : (
               <>
               {!checkpointStatus.youScanned
-                && !checkpointStatus.awaitingTeamCodeConfirm
                 && Number(checkpointStatus.verifiedCount || 0) < Number(checkpointStatus.requiredCount || 1) && (
                 <>
                   <button

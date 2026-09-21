@@ -187,7 +187,15 @@ export async function clearOfflineTeamState(teamCode) {
 export async function resetOfflineHuntLocal(teamCode, { clearSession = false } = {}) {
   if (teamCode) await clearOfflineTeamState(teamCode);
   // Keep leader login by default — clearing session made Start over look broken.
-  if (clearSession) await clearOfflineSession();
+  // Still drop sticky poster-scan flags so the camera/Scan button show again.
+  if (clearSession) {
+    await clearOfflineSession();
+  } else {
+    const sess = await loadOfflineSession().catch(() => null);
+    if (sess?.localPosterScans) {
+      await saveOfflineSession({ ...sess, localPosterScans: {} });
+    }
+  }
   return true;
 }
 

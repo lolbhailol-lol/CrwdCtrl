@@ -134,7 +134,9 @@ function checkpointStatus(bundle, state, session, _now) {
   const cp = state.checkpoints?.[key] || { scans: {}, confirmed: false };
   const scans = cp.scans || {};
   const verifiedCount = Object.keys(scans).length;
-  const youScanned = Boolean(
+  // One-phone: only real state scans count. localPosterScans sticks after Start over
+  // and was hiding the Scan button / auto-camera after Clue 1.
+  const youScanned = verifiedCount > 0 && Boolean(
     scans[session.memberKey]
     || scans.leader
     || (session.localPosterScans || {})[String(key)],
