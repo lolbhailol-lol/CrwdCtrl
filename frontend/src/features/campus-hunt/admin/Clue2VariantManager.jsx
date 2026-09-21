@@ -33,7 +33,7 @@ const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 p
 const DEFAULT_SETTINGS = CLUE2_DEFAULT_SETTINGS;
 
 const SHARED_PROMPT =
-  'At the green stop: find 2 numbered digit slips (1 and 2) nearby. '
+  'At the green stop: find the numbered digit slips (1, 2, 3…) nearby. '
   + 'Join them in order into one number and type it (leader), then scan the green poster.';
 
 function id(value) {
@@ -231,10 +231,10 @@ export default function Clue2VariantManager({
             station?.joinedWord
               || codes[`${code}-${waveId}`]
               || threeDigitCodeForTeam(waitIndex, slot.localTeamNumber, teamsPerWait),
-          ).trim().toUpperCase();
+          ).replace(/\D/g, '').slice(0, 3);
           if (!answer || answer.length < 3) {
             failures.push(
-              `${startLabel(point)} · ${waveId}: Set digit answer for ${place || 'stop'}`,
+              `${startLabel(point)} · ${waveId}: Set 3-digit answer for ${place || 'stop'}`,
             );
             continue;
           }
@@ -385,9 +385,13 @@ export default function Clue2VariantManager({
               </div>
               <div className="mt-2 space-y-2">
                 <p className="rounded-lg bg-black/30 px-2 py-1.5 font-mono text-sm text-[#0ECCEE]">
-                  Digit answer · {place.joinedWord || stations.find((s) => s.code === place.code)?.joinedWord || '—'}
+                  3-digit · {(
+                    place.joinedWord
+                    || stations.find((s) => s.code === place.code)?.joinedWord
+                    || ''
+                  ).replace(/\D/g, '').slice(0, 3) || '—'}
                   <span className="ml-2 font-sans text-[11px] text-white/45">
-                    (shared · from Digit slips)
+                    (shared · Places → Digit slips)
                   </span>
                 </p>
                 {place.arrivals.map((row) => (

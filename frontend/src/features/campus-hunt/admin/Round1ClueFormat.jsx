@@ -47,7 +47,7 @@ export function buildRound1Clues(geometry) {
       number: 2,
       label: 'Clue 2',
       short: 'DIGITS',
-      detail: '2 digit slips → join number → green scan',
+      detail: 'Numbered digit slips → join number → green scan',
       checkpointKeys: ['2'],
       type: 'decode',
       showCheckpoints: false,

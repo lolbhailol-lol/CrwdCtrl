@@ -27,7 +27,7 @@ const OFFLINE_CLUE_HOW_TO = {
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'At green: find 2 numbered digit slips (1 and 2), join into one number, type it.',
+      'At green: find numbered digit slips (1, 2, 3…), join into one number, type it.',
       'Leader scans the green SECOND SCAN QR once → Clue 3.',
     ],
   },

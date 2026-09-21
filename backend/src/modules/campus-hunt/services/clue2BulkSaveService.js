@@ -274,8 +274,8 @@ function defaultClue2VariantRows(stations = null) {
       const station = stationForLocalTeam(local, waitIndex, list, 1);
       const code = String(station?.code || '').toUpperCase();
       const answer = String(
-        station?.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || 'QUEST',
-      ).toUpperCase();
+        station?.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '847',
+      ).replace(/\D/g, '').slice(0, 3) || '847';
       rows.push({
         startCode: start.code,
         waveId: `T${local}`,

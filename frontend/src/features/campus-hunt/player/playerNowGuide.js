@@ -143,8 +143,8 @@ export function buildPlayerNowGuide({
     return {
       tone: 'clue',
       eyebrow: 'Clue 2 · Digits',
-      title: 'Join 2 digit slips',
-      body: '3 tries. Find slip 1 and slip 2 at green, join into one number, type it.',
+      title: 'Join numbered digit slips',
+      body: '3 tries. Find slips 1→N at green, join digits into one number, type it.',
       steps: [],
     };
   }

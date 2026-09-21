@@ -213,35 +213,46 @@ const DEFAULT_CAMPUS_STATIONS = [
 const DEFAULT_DESTINATION_NAME = 'Mindspark Lobby';
 
 /**
- * Shared join-word per campus stop (Neurosprint / COEP).
- * Plant slips = split of this word across teamSize people.
+ * Clue 2 · shared 3-digit answer per campus stop (COEP).
+ * Plant slips = one digit each; teams join in order.
  */
-const DEFAULT_STATION_JOINED_WORDS = {
-  S01: 'THRUSTJET',
-  S05: 'CALCULUS',
-  S02: 'SIGNALHUB',
-  S06: 'FORGESTEEL',
-  S03: 'ANCHORBOAT',
-  S07: 'FOSSILROCK',
-  S04: 'REACTANTS',
-  S09: 'ENGINEER',
-  S10: 'STARTUPHUB',
-  S11: 'WATERSPRAY',
-  S14: 'GAZEBOPARK',
-  S12: 'BOOKSTACKS',
-  S18: 'BINARYCODE',
-  S13: 'MAKERSPACE',
-  S15: 'ALUMNIBOND',
-  S19: 'MARCHDRILL',
-  S16: 'SIDEENTRY',
-  S08: 'UNDERPASS',
-  S17: 'COPYPRINTS',
-  S20: 'FOUNDATION',
+const DEFAULT_STATION_DIGIT_CODES = {
+  S01: '847',
+  S02: '392',
+  S03: '615',
+  S04: '278',
+  S05: '904',
+  S06: '531',
+  S07: '186',
+  S08: '759',
+  S09: '420',
+  S10: '663',
+  S11: '317',
+  S12: '850',
+  S13: '294',
+  S14: '701',
+  S15: '468',
+  S16: '935',
+  S17: '142',
+  S18: '576',
+  S19: '803',
+  S20: '259',
 };
 
+/** @deprecated alias — Clue 2 uses digits */
+const DEFAULT_STATION_JOINED_WORDS = DEFAULT_STATION_DIGIT_CODES;
+
+function splitDigitSlips(digitAnswer, slipCount = 3) {
+  const digits = String(digitAnswer || '').replace(/\D/g, '');
+  const n = Math.max(3, Math.min(12, Number(slipCount) || digits.length || 3));
+  const padded = (digits || '847').padEnd(n, '0').slice(0, n);
+  return Array.from({ length: n }, (_, i) => padded[i] || '0');
+}
+
+/** Clue 5 letter split (not used for Clue 2 stations). */
 function splitPlantFragments(joinedWord, teamSize = 4) {
   const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
-  const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z0-9]/g, '').toUpperCase() || 'QUEST';
+  const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z]/g, '').toUpperCase() || 'QUEST';
   const len = Math.max(people, raw.length);
   const padded = raw.padEnd(len, 'X');
   const size = Math.ceil(padded.length / people);
@@ -250,25 +261,29 @@ function splitPlantFragments(joinedWord, teamSize = 4) {
   ));
 }
 
-/** Fill missing joinedWord + plantFragments for a station list (mutates copies). */
+/** Fill missing joinedWord + plantFragments for a station list (Clue 2 digits). */
 function withStationPlantDefaults(stations, teamSize = 4) {
-  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  void teamSize;
   return (Array.isArray(stations) ? stations : []).map((row) => {
     const code = String(row?.code || '').toUpperCase().trim();
-    const joinedWord = String(row?.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
-      .replace(/[^A-Za-z0-9]/g, '')
-      .toUpperCase();
+    let joinedWord = String(row?.joinedWord || DEFAULT_STATION_DIGIT_CODES[code] || '')
+      .replace(/\D/g, '');
+    if (!joinedWord || joinedWord.length < 3) {
+      joinedWord = DEFAULT_STATION_DIGIT_CODES[code] || '847';
+    }
+    joinedWord = joinedWord.slice(0, 3).padStart(3, '0');
     const existing = Array.isArray(row?.plantFragments)
-      ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
+      ? row.plantFragments.map((f) => String(f || '').replace(/\D/g, '')).filter(Boolean)
       : [];
-    const plantFragments = existing.length >= people
-      ? existing.slice(0, people)
-      : (joinedWord ? splitPlantFragments(joinedWord, people) : existing);
+    const allDigits = existing.length >= 3 && existing.every((f) => /^\d+$/.test(f));
+    const plantFragments = allDigits
+      ? existing.slice(0, 3)
+      : splitDigitSlips(joinedWord, 3);
     return {
       ...row,
       code,
-      ...(joinedWord ? { joinedWord } : {}),
-      ...(plantFragments.length ? { plantFragments } : {}),
+      joinedWord,
+      plantFragments,
     };
   });
 }
@@ -281,7 +296,7 @@ async function syncStationPlantsToCheckpoints(eventId, stations) {
     const plantFragments = Array.isArray(row.plantFragments)
       ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
       : [];
-    const joinedWord = String(row.joinedWord || '').trim().toUpperCase();
+    const joinedWord = String(row.joinedWord || '').replace(/\D/g, '').slice(0, 3);
     if (!plantFragments.length && !joinedWord) continue;
     // eslint-disable-next-line no-await-in-loop
     const result = await CampusHuntCheckpoint.updateMany(
@@ -298,7 +313,7 @@ async function syncStationPlantsToCheckpoints(eventId, stations) {
   return updated;
 }
 
-/** Ensure event catalog has join-words + plant slips for current teamSize. */
+/** Ensure event catalog has 3-digit answers + digit slips. */
 async function ensureEventStationPlants(event, { force = false } = {}) {
   const teamSize = Math.max(2, Math.min(12, Number(event?.teamSize) || 4));
   const current = normalizeStationList(event?.campusStations);
@@ -306,11 +321,11 @@ async function ensureEventStationPlants(event, { force = false } = {}) {
     current.map((row) => {
       if (!force) return row;
       const code = String(row.code || '').toUpperCase();
-      const joinedWord = DEFAULT_STATION_JOINED_WORDS[code] || row.joinedWord;
+      const joinedWord = DEFAULT_STATION_DIGIT_CODES[code] || '847';
       return {
         ...row,
         joinedWord,
-        plantFragments: joinedWord ? splitPlantFragments(joinedWord, teamSize) : [],
+        plantFragments: splitDigitSlips(joinedWord, 3),
       };
     }),
     teamSize,
@@ -349,34 +364,42 @@ function normalizeStationList(input) {
     const name = String(row?.name || '').trim();
     if (!byCode.has(code) || !name) return;
     const plantFragments = Array.isArray(row.plantFragments)
-      ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
+      ? row.plantFragments.map((f) => String(f || '').replace(/\D/g, '')).filter(Boolean)
       : undefined;
-    const joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
-      .replace(/[^A-Za-z0-9]/g, '')
-      .toUpperCase();
+    let joinedWord = String(row.joinedWord || DEFAULT_STATION_DIGIT_CODES[code] || '')
+      .replace(/\D/g, '');
+    if (!joinedWord || joinedWord.length < 3) {
+      joinedWord = DEFAULT_STATION_DIGIT_CODES[code] || '847';
+    }
+    joinedWord = joinedWord.slice(0, 3).padStart(3, '0');
     const zone = String(row.zone || '').trim();
     const riddle = String(row.riddle || '').trim();
     const prev = byCode.get(code);
+    const frags = plantFragments?.length >= 3 && plantFragments.every((f) => /^\d+$/.test(f))
+      ? plantFragments.slice(0, 3)
+      : splitDigitSlips(joinedWord, 3);
     byCode.set(code, {
       code,
       name,
       zone: zone || prev.zone,
       riddle: riddle || prev.riddle,
-      ...(joinedWord ? { joinedWord } : {}),
-      ...(plantFragments?.length
-        ? { plantFragments }
-        : (joinedWord ? { plantFragments: splitPlantFragments(joinedWord, 4) } : {})),
+      joinedWord,
+      plantFragments: frags,
     });
   });
   return DEFAULT_CAMPUS_STATIONS.map((station) => {
     const row = byCode.get(station.code);
-    const joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[station.code] || '')
-      .replace(/[^A-Za-z0-9]/g, '')
-      .toUpperCase();
-    if (!joinedWord) return row;
-    const plantFragments = Array.isArray(row.plantFragments) && row.plantFragments.length
-      ? row.plantFragments
-      : splitPlantFragments(joinedWord, 4);
+    let joinedWord = String(row.joinedWord || DEFAULT_STATION_DIGIT_CODES[station.code] || '')
+      .replace(/\D/g, '');
+    if (!joinedWord || joinedWord.length < 3) {
+      joinedWord = DEFAULT_STATION_DIGIT_CODES[station.code] || '847';
+    }
+    joinedWord = joinedWord.slice(0, 3).padStart(3, '0');
+    const plantFragments = Array.isArray(row.plantFragments)
+      && row.plantFragments.length >= 3
+      && row.plantFragments.every((f) => /^\d+$/.test(String(f)))
+      ? row.plantFragments.slice(0, 3).map((f) => String(f).replace(/\D/g, ''))
+      : splitDigitSlips(joinedWord, 3);
     return { ...row, joinedWord, plantFragments };
   });
 }
@@ -471,6 +494,7 @@ module.exports = {
   DEFAULT_DESTINATION_NAME,
   DEFAULT_ORGANIZER_FINISH_CODE,
   DEFAULT_STATION_JOINED_WORDS,
+  DEFAULT_STATION_DIGIT_CODES,
   clampCount,
   normalizeStationList,
   normalizeWaitCode,
@@ -487,6 +511,7 @@ module.exports = {
   updateCampusStations,
   replacePlaceText,
   splitPlantFragments,
+  splitDigitSlips,
   withStationPlantDefaults,
   syncStationPlantsToCheckpoints,
   ensureEventStationPlants,

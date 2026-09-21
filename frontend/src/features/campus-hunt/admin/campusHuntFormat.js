@@ -235,59 +235,48 @@ export const CAMPUS_STATIONS = [
 
 export const STATION_TARGET_COUNT = CAMPUS_STATIONS.length; // 20
 
-/** Clue 2 — always 2 numbered digit slips (join → type the number). */
-export const CLUE2_DIGIT_SLIPS = 2;
-
-/** Shared 2-digit answers per place for Clue 2 digit slips. */
-export const DEFAULT_STATION_DIGIT_ANSWERS = Object.fromEntries(
-  CAMPUS_STATIONS.map((s, i) => [
-    s.code,
-    String(10 + ((i * 17 + 3) % 90)).padStart(2, '0'),
-  ]),
-);
-
-/** Split a digit answer into exactly `slipCount` numbered slips (default 2). */
-export function splitDigitSlips(answer, slipCount = CLUE2_DIGIT_SLIPS) {
-  const n = Math.max(2, Math.min(4, Number(slipCount) || CLUE2_DIGIT_SLIPS));
-  const digits = String(answer || '').replace(/\D/g, '') || '47';
-  const padded = digits.length >= n ? digits : digits.padStart(n, '0');
-  if (padded.length === n) return padded.split('');
-  const size = Math.ceil(padded.length / n);
-  return Array.from({ length: n }, (_, i) => (
-    padded.slice(i * size, (i + 1) * size) || '0'
-  ));
-}
-
 /**
- * Shared join-word per place — used for letter plants / legacy.
- * Clue 2 digit answers use DEFAULT_STATION_DIGIT_ANSWERS instead.
+ * Clue 2 · shared 3-digit answer per campus stop (COEP).
+ * Print numbered digit slips = one digit each; teams join in order.
  */
-export const DEFAULT_STATION_JOINED_WORDS = {
-  S01: 'THRUSTJET',
-  S05: 'CALCULUS',
-  S02: 'SIGNALHUB',
-  S06: 'FORGESTEEL',
-  S03: 'ANCHORBOAT',
-  S07: 'FOSSILROCK',
-  S04: 'REACTANTS',
-  S09: 'ENGINEER',
-  S10: 'STARTUPHUB',
-  S11: 'WATERSPRAY',
-  S14: 'GAZEBOPARK',
-  S12: 'BOOKSTACKS',
-  S18: 'BINARYCODE',
-  S13: 'MAKERSPACE',
-  S15: 'ALUMNIBOND',
-  S19: 'MARCHDRILL',
-  S16: 'SIDEENTRY',
-  S08: 'UNDERPASS',
-  S17: 'COPYPRINTS',
-  S20: 'FOUNDATION',
+export const DEFAULT_STATION_DIGIT_CODES = {
+  S01: '847',
+  S02: '392',
+  S03: '615',
+  S04: '278',
+  S05: '904',
+  S06: '531',
+  S07: '186',
+  S08: '759',
+  S09: '420',
+  S10: '663',
+  S11: '317',
+  S12: '850',
+  S13: '294',
+  S14: '701',
+  S15: '468',
+  S16: '935',
+  S17: '142',
+  S18: '576',
+  S19: '803',
+  S20: '259',
 };
 
+/** @deprecated alias — Clue 2 uses digits, not letter words */
+export const DEFAULT_STATION_JOINED_WORDS = DEFAULT_STATION_DIGIT_CODES;
+
+/** Split a 3-digit answer into one digit per slip. */
+export function splitDigitSlips(digitAnswer, slipCount = 3) {
+  const digits = String(digitAnswer || '').replace(/\D/g, '');
+  const n = Math.max(3, Math.min(12, Number(slipCount) || digits.length || 3));
+  const padded = (digits || '847').padEnd(n, '0').slice(0, n);
+  return Array.from({ length: n }, (_, i) => padded[i] || '0');
+}
+
+/** Clue 5 · split a word into letter chunks for print preview. */
 export function splitPlantFragments(joinedWord, teamSize = 4) {
   const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
-  const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z0-9]/g, '').toUpperCase() || 'QUEST';
+  const raw = String(joinedWord || 'QUEST').replace(/[^A-Za-z]/g, '').toUpperCase() || 'QUEST';
   const len = Math.max(people, raw.length);
   const padded = raw.padEnd(len, 'X');
   const size = Math.ceil(padded.length / people);
@@ -297,23 +286,28 @@ export function splitPlantFragments(joinedWord, teamSize = 4) {
 }
 
 export function withStationPlantDefaults(stations, teamSize = 4) {
-  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
+  void teamSize;
   return (Array.isArray(stations) ? stations : []).map((row) => {
     const code = String(row?.code || '').toUpperCase().trim();
-    const joinedWord = String(row?.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
-      .replace(/[^A-Za-z0-9]/g, '')
-      .toUpperCase();
+    let joinedWord = String(row?.joinedWord || DEFAULT_STATION_DIGIT_CODES[code] || '')
+      .replace(/\D/g, '');
+    // Migrate legacy letter words → fresh digit default
+    if (!joinedWord || joinedWord.length < 3) {
+      joinedWord = DEFAULT_STATION_DIGIT_CODES[code] || '847';
+    }
+    joinedWord = joinedWord.slice(0, 3).padStart(3, '0');
     const existing = Array.isArray(row?.plantFragments)
-      ? row.plantFragments.map((f) => String(f || '').trim()).filter(Boolean)
+      ? row.plantFragments.map((f) => String(f || '').replace(/\D/g, '')).filter(Boolean)
       : [];
-    const plantFragments = existing.length >= people
-      ? existing.slice(0, people)
-      : (joinedWord ? splitPlantFragments(joinedWord, people) : existing);
+    const allDigits = existing.length >= 3 && existing.every((f) => /^\d+$/.test(f));
+    const plantFragments = allDigits
+      ? existing.slice(0, 3)
+      : splitDigitSlips(joinedWord, 3);
     return {
       ...row,
       code,
-      ...(joinedWord ? { joinedWord } : {}),
-      ...(plantFragments.length ? { plantFragments } : {}),
+      joinedWord,
+      plantFragments,
     };
   });
 }
@@ -1127,10 +1121,10 @@ export function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        'At the green stop: find 2 numbered digit slips (1 and 2) planted nearby. '
-        + 'Join them in order into one number and type it (leader), then scan green.',
+        `At the green stop: find ${people} numbered digit slips (1→${people}) planted nearby. `
+        + 'Join the digits in order into one number and type it (leader), then scan green.',
       answer: '',
-      hintText: 'Two slips only — digit 1 then digit 2. Eye level on posts.',
+      hintText: 'Numbered slips only — join digit 1, then 2, then 3… Eye level on posts.',
       destinationInstruction:
         'Answer typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
