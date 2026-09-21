@@ -40,6 +40,7 @@ import {
   enqueueOfflineProgress,
   flushOfflineProgressQueue,
   offlineBoardPendingCount,
+  isOfflineBoardSyncPaused,
   rotateOfflineDeviceIdForTakeover,
   ensureOfflineGridKey,
 } from '../offlineBoardSync';
@@ -145,6 +146,7 @@ export default function OfflineHuntPlayPage() {
     setBoardPending(offlineBoardPendingCount());
 
     const pushBoard = () => {
+      if (isOfflineBoardSyncPaused()) return;
       const pack = bundleRef.current;
       const sess = sessionRef.current;
       const st = stateRef.current;

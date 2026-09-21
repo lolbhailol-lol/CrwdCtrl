@@ -7,6 +7,28 @@ import { signPayload } from './offlineQr';
 
 const QUEUE_KEY = 'progress_queue';
 const DEVICE_KEY = 'device_id';
+const SYNC_PAUSE_KEY = 'ch_offline_board_sync_paused';
+
+/** Block interval / online pushes while Start over is resetting the live board. */
+export function pauseOfflineBoardSync() {
+  try {
+    sessionStorage.setItem(SYNC_PAUSE_KEY, '1');
+  } catch { /* ignore */ }
+}
+
+export function resumeOfflineBoardSync() {
+  try {
+    sessionStorage.removeItem(SYNC_PAUSE_KEY);
+  } catch { /* ignore */ }
+}
+
+export function isOfflineBoardSyncPaused() {
+  try {
+    return sessionStorage.getItem(SYNC_PAUSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function resolveApiBases(bundle) {
   const fromBundle = String(bundle?.event?.apiBase || '').replace(/\/$/, '');
@@ -101,6 +123,10 @@ function buildProgressUrl(base, eventId) {
 
 export async function enqueueOfflineProgress(bundle, state, { startOver = false } = {}) {
   if (!bundle?.event?.id || !bundle?.team?.teamCode) return { queued: false };
+  // During Start over, only the explicit startOver sync may talk to the board.
+  if (!startOver && isOfflineBoardSyncPaused()) {
+    return { queued: false, paused: true, syncedOk: false };
+  }
   const takeover = consumeTakeoverFlag();
   let payload = {
     t: 'campus_hunt_offline_progress',
@@ -131,7 +157,7 @@ export async function enqueueOfflineProgress(bundle, state, { startOver = false 
 
 export async function flushOfflineProgressQueue(bundle) {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return { pending: loadQueue().length, synced: false };
+    return { pending: loadQueue().length, synced: false, syncedOk: false };
   }
   let queue = loadQueue();
   if (!queue.length) return { pending: 0, synced: false, syncedOk: false };
@@ -139,6 +165,8 @@ export async function flushOfflineProgressQueue(bundle) {
   const bases = resolveApiBases(bundle);
   const kept = [];
   let synced = 0;
+  let lastSeq = null;
+  let lastStartOver = false;
 
   for (const item of queue) {
     let ok = false;
@@ -163,6 +191,10 @@ export async function flushOfflineProgressQueue(bundle) {
         if (res.ok) {
           ok = true;
           synced += 1;
+          const data = await res.json().catch(() => null);
+          const body = data?.data || data;
+          if (body?.seq != null) lastSeq = Number(body.seq);
+          if (body?.startOver) lastStartOver = true;
           break;
         }
       } catch {
@@ -175,6 +207,7 @@ export async function flushOfflineProgressQueue(bundle) {
       return {
         pending: rest.length,
         synced: false,
+        syncedOk: false,
         deviceBound: true,
         boundDeviceHint: boundHint,
       };
@@ -182,7 +215,13 @@ export async function flushOfflineProgressQueue(bundle) {
     if (!ok) kept.push(item);
   }
   saveQueue(kept);
-  return { pending: kept.length, synced, syncedOk: synced > 0 };
+  return {
+    pending: kept.length,
+    synced,
+    syncedOk: synced > 0,
+    seq: lastSeq,
+    startOver: lastStartOver || undefined,
+  };
 }
 
 export function offlineBoardPendingCount() {

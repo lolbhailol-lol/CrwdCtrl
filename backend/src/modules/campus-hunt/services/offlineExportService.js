@@ -706,36 +706,75 @@ async function ingestOfflineProgress(eventId, payload) {
 
   // Start over from leader phone — reset live board + unlock score lock for retest.
   if (startOver) {
+    const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
+    const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
     const score = Math.min(Math.max(0, Number(body.score) || startScore), maxPlausible);
-    team.currentScore = score;
-    team.finalScore = null;
-    team.currentStage = String(body.stage || 'WAITING');
-    team.status = 'active';
-    team.scoreLockedAt = null;
-    team.finishedAt = null;
-    team.offlineProgressSeq = Math.max(0, incomingSeq);
-    if (incomingDevice) team.offlineDeviceId = incomingDevice;
-    await team.save();
+    // Seq must beat any in-flight SCORE_LOCKED sync still on the phone (interval push).
+    const nextSeq = Math.max(storedSeq + 1, incomingSeq, 1);
+
+    await Promise.all([
+      CampusHuntTeamProgress.deleteMany({ teamId: team._id }),
+      CampusHuntCheckpointVerification.deleteMany({ teamId: team._id }),
+    ]);
+
+    await CampusHuntTeam.updateOne(
+      { _id: team._id },
+      {
+        $set: {
+          currentScore: score,
+          startingScore: startScore,
+          currentStage: String(body.stage || 'WAITING'),
+          status: 'registered',
+          offlineProgressSeq: nextSeq,
+          ...(incomingDevice ? { offlineDeviceId: incomingDevice } : {}),
+          stats: {
+            hintsUsed: 0,
+            failedAttempts: 0,
+            manualPenalty: 0,
+          },
+        },
+        $unset: {
+          finalScore: 1,
+          scoreLockedAt: 1,
+          finishedAt: 1,
+          suddenDeathRank: 1,
+          lastCheckpointNumber: 1,
+          'stats.totalCompletionMs': 1,
+        },
+      },
+    );
+
+    const freshTeam = await CampusHuntTeam.findById(team._id);
+    if (!freshTeam) {
+      const err = new Error(`Team ${body.team} not found after reset`);
+      err.status = 404;
+      throw err;
+    }
 
     // Reset Zip Grid so the same device key starts a fresh game.
     try {
       const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
       const CampusHuntChallenge = require('../models/CampusHuntChallenge');
-      const clue4 = team.clue4ChallengeId
-        ? await CampusHuntChallenge.findById(team.clue4ChallengeId).select('answer').lean()
+      const clue4 = freshTeam.clue4ChallengeId
+        ? await CampusHuntChallenge.findById(freshTeam.clue4ChallengeId).select('answer').lean()
         : null;
-      await ensureRound1FieldTerminalGrid(team, {
+      await ensureRound1FieldTerminalGrid(freshTeam, {
         preferredCompletionCode: clue4?.answer || '',
         forceReset: true,
       });
     } catch (_) { /* grid reset is best-effort */ }
 
+    try {
+      const { publishTeamProgress } = require('./teamProgressBus');
+      publishTeamProgress(freshTeam._id);
+    } catch (_) { /* live bus is best-effort */ }
+
     return {
-      teamCode: team.teamCode,
-      score: team.currentScore,
-      stage: team.currentStage,
-      seq: team.offlineProgressSeq,
-      deviceId: team.offlineDeviceId,
+      teamCode: freshTeam.teamCode,
+      score: freshTeam.currentScore,
+      stage: freshTeam.currentStage,
+      seq: freshTeam.offlineProgressSeq,
+      deviceId: freshTeam.offlineDeviceId,
       startOver: true,
     };
   }
