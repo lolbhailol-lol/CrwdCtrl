@@ -17,19 +17,14 @@ export const DEFAULT_SCORING_CONFIG = {
     ],
   },
   clue2: {
-    basePoints: 0,
+    basePoints: 50,
     maxAttempts: 3,
-    timerSeconds: 180,
-    timerStartDelaySeconds: 20,
-    awardMode: 'time_bands_total',
-    allowLateSubmit: true,
+    timerSeconds: 0,
+    timerStartDelaySeconds: 0,
+    awardMode: 'flat_base',
     revealOnMaxAttempts: true,
     hintCost: 20,
-    speedBonusBands: [
-      { maxSeconds: 60, bonus: 55 },
-      { maxSeconds: 120, bonus: 35 },
-      { maxSeconds: 180, bonus: 15 },
-    ],
+    speedBonusBands: [],
   },
   clue3: {
     basePoints: 65,
@@ -93,19 +88,11 @@ export function scoringForChallenge(event, challengeNumber) {
     merged.speedBonusBands = [];
   }
   if (Number(challengeNumber) === 2) {
-    const timer = Number(merged.timerSeconds);
-    merged.timerSeconds = Number.isFinite(timer) && timer > 0
-      ? timer
-      : (Number(defaults.timerSeconds) || 180);
-    const delay = Number(merged.timerStartDelaySeconds);
-    merged.timerStartDelaySeconds = Number.isFinite(delay) && delay >= 0
-      ? delay
-      : (Number(defaults.timerStartDelaySeconds) || 20);
-    merged.awardMode = merged.awardMode || defaults.awardMode || 'time_bands_total';
-    merged.allowLateSubmit = merged.allowLateSubmit !== false;
-    merged.speedBonusBands = Array.isArray(merged.speedBonusBands) && merged.speedBonusBands.length
-      ? merged.speedBonusBands
-      : (defaults.speedBonusBands || []);
+    merged.timerSeconds = 0;
+    merged.timerStartDelaySeconds = 0;
+    merged.awardMode = 'flat_base';
+    merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
+    merged.speedBonusBands = [];
   }
   if (Number(challengeNumber) === 5) {
     const timer = Number(merged.timerSeconds);
@@ -169,20 +156,18 @@ export function computeChallengeAward({
 }) {
   const n = Number(challengeNumber);
   const mode = awardMode
-    || (n === 1 || n === 3 || n === 4 || n === 6
+    || (n === 1 || n === 2 || n === 3 || n === 4 || n === 6
       ? 'flat_base'
-      : n === 2
-        ? 'time_bands_total'
-        : 'base_plus_speed');
+      : 'base_plus_speed');
 
-  if (mode === 'flat_base' || n === 1 || n === 3 || n === 4 || n === 6) {
+  if (mode === 'flat_base' || n === 1 || n === 2 || n === 3 || n === 4 || n === 6) {
     const total = Number(basePoints) || 0;
     return { basePoints: total, speedBonus: 0, total, late: false };
   }
 
   const elapsed = elapsedSecondsBetween(startedAt, submittedAt);
 
-  if (n === 2 || mode === 'time_bands_total') {
+  if (mode === 'time_bands_total') {
     const limit = Number(timerSeconds) || 180;
     if (elapsed == null || elapsed > limit) {
       return { basePoints: 0, speedBonus: 0, total: 0, late: true, elapsedSeconds: elapsed };

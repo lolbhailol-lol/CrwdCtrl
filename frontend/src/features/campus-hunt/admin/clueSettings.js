@@ -5,18 +5,13 @@ export const CLUE1_DEFAULT_SETTINGS = {
 };
 
 export const CLUE2_DEFAULT_SETTINGS = {
-  timerStartDelaySeconds: 20,
-  timerSeconds: 180,
+  timerStartDelaySeconds: 0,
+  timerSeconds: 0,
   maxAttempts: 3,
   hintCost: 20,
-  allowLateSubmit: true,
-  awardMode: 'time_bands_total',
-  basePoints: 0,
-  speedBonusBands: [
-    { maxSeconds: 60, bonus: 55 },
-    { maxSeconds: 120, bonus: 35 },
-    { maxSeconds: 180, bonus: 15 },
-  ],
+  awardMode: 'flat_base',
+  basePoints: 50,
+  speedBonusBands: [],
 };
 
 export const CLUE3_DEFAULT_SETTINGS = {

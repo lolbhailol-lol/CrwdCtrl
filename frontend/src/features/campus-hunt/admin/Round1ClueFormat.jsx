@@ -49,7 +49,7 @@ export function buildRound1Clues(geometry) {
       short: 'DIGITS',
       detail: '',
       checkpointKeys: ['2'],
-      type: 'timed_search',
+      type: 'decode',
       showCheckpoints: false,
     },
     {

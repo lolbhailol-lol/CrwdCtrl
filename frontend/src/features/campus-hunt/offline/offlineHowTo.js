@@ -17,8 +17,8 @@ export const OFFLINE_CLUE_HOW_TO = {
     title: 'Clue 2 · digits',
     steps: [
       'At green: find the numbered digit slips.',
-      'Join them in order into one answer (3 tries · faster = more pts).',
-      'Time up or 3 misses → answer shown (0 pts).',
+      'Join them in order into one answer (3 tries).',
+      'Miss all 3 → answer shown (0 pts).',
       'Scan green once.',
     ],
   },
@@ -59,4 +59,4 @@ export const OFFLINE_CLUE_HOW_TO = {
 };
 
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 7;
+export const OFFLINE_PLAYER_COPY_REVISION = 8;

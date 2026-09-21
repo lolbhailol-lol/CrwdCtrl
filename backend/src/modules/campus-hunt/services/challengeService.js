@@ -150,35 +150,16 @@ function scoringForChallenge(event, challengeNumber) {
   const merged = { ...defaults, ...custom };
 
   // Clue 4 Field Terminal: never a hunt countdown (Zip Grid is the play).
-  if (Number(challengeNumber) === 4) {
+  // Clue 2: physical digit find — no timer.
+  if (Number(challengeNumber) === 4 || Number(challengeNumber) === 2) {
     merged.timerSeconds = 0;
     merged.timerStartDelaySeconds = 0;
     merged.awardMode = 'flat_base';
     merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
-    merged.allowLateSubmit = true;
     merged.speedBonusBands = [];
+    if (Number(challengeNumber) === 4) merged.allowLateSubmit = true;
   }
 
-  // Clue 2: keep Round 1 timer shape, honor event scoringConfig overrides.
-  if (Number(challengeNumber) === 2) {
-    const timer = Number(merged.timerSeconds);
-    merged.timerSeconds = Number.isFinite(timer) && timer > 0
-      ? timer
-      : (Number(defaults.timerSeconds) || 180);
-
-    const delay = Number(merged.timerStartDelaySeconds);
-    merged.timerStartDelaySeconds = Number.isFinite(delay) && delay >= 0
-      ? delay
-      : (Number(defaults.timerStartDelaySeconds) || 20);
-
-    merged.awardMode = merged.awardMode || defaults.awardMode || 'time_bands_total';
-    merged.allowLateSubmit = merged.allowLateSubmit !== false;
-    merged.speedBonusBands = (
-      Array.isArray(merged.speedBonusBands) && merged.speedBonusBands.length
-        ? merged.speedBonusBands
-        : (defaults.speedBonusBands || [])
-    );
-  }
   merged.hintCost = Number(merged.hintCost ?? cfg.hintCost ?? defaults.hintCost) || 20;
   return merged;
 }
@@ -197,19 +178,15 @@ async function ensureChallengeActive(team, challengeNumber, now = new Date()) {
   const event = await CampusHuntEvent.findById(team.eventId);
   const scoring = scoringForChallenge(event, challengeNumber);
   // Clue 4 Field Terminal: no hunt countdown — Zip Grid itself is the play.
-  // Clue 2 keeps instruction delay + hunt timer.
-  const timerSeconds = Number(challengeNumber) === 4
+  // Clue 2: physical digit find — no hunt countdown.
+  const timerSeconds = Number(challengeNumber) === 4 || Number(challengeNumber) === 2
     ? 0
-    : Number(challengeNumber) === 2
-      ? Number(scoring.timerSeconds || challenge.timerSeconds || 180)
-      : Number(challengeNumber) === 5
-        ? Number(scoring.timerSeconds || challenge.timerSeconds || 300)
-        : Number(challengeNumber) === 6
-          ? 0
-          : Number(challenge.timerSeconds || scoring.timerSeconds || 0);
-  const delaySeconds = Number(challengeNumber) === 2
-    ? Number(scoring.timerStartDelaySeconds ?? 20)
-    : 0;
+    : Number(challengeNumber) === 5
+      ? Number(scoring.timerSeconds || challenge.timerSeconds || 300)
+      : Number(challengeNumber) === 6
+        ? 0
+        : Number(challenge.timerSeconds || scoring.timerSeconds || 0);
+  const delaySeconds = 0;
 
   let progress = await getOrCreateProgress(team, challenge);
 
@@ -347,10 +324,7 @@ function publicChallengeView(challenge, progress, {
   const expiresAt = progress?.expiresAt || null;
   const nowMs = nowDate(now).getTime();
   const timerArmed = !startedAt || nowMs >= new Date(startedAt).getTime();
-  const instructionPhase = n === 2
-    && progress?.state === 'ACTIVE'
-    && Boolean(startedAt)
-    && !timerArmed;
+  const instructionPhase = false;
 
   const timeExpired = Boolean(
     expiresAt
@@ -396,28 +370,21 @@ function publicChallengeView(challenge, progress, {
     hintText: includeHint && isLeader && progress?.hintUsed ? (hintText || null) : undefined,
     hintCost: Number(challenge.hintCost ?? scoring?.hintCost) || 20,
     startedAt,
-    expiresAt: n === 4 ? null : expiresAt,
-    timerStartsAt: n === 2 ? startedAt : null,
+    expiresAt: n === 4 || n === 2 ? null : expiresAt,
+    timerStartsAt: null,
     instructionPhase,
-    timerArmed: n === 4 ? true : timerArmed,
-    timerSeconds: n === 2
-      ? (scoring?.timerSeconds || 180)
-      : undefined,
-    instructionDelaySeconds: n === 2
-      ? (scoring?.timerStartDelaySeconds ?? 20)
-      : undefined,
+    timerArmed: n === 4 || n === 2 ? true : timerArmed,
+    timerSeconds: undefined,
+    instructionDelaySeconds: undefined,
     awardedPoints: progress?.awardedPoints ?? null,
     failureReason: progress?.failureReason || null,
-    timeExpired,
+    timeExpired: n === 2 ? false : timeExpired,
     allowLateSubmit: Boolean(
       scoring?.allowLateSubmit
-      || n === 2
       || n === 4
       || n === 5,
     ),
-    scoringBands: n === 2 && state === 'ACTIVE'
-      ? (scoring?.speedBonusBands || null)
-      : undefined,
+    scoringBands: undefined,
     locked: false,
   };
 }
@@ -543,26 +510,8 @@ async function submitAnswer({
     throw err;
   }
 
-  // Clue 2: block answers during the instruction read delay
-  if (
-    Number(challengeNumber) === 2
-    && progress.startedAt
-    && nowDate(now).getTime() < new Date(progress.startedAt).getTime()
-  ) {
-    const secs = Math.ceil(
-      (new Date(progress.startedAt).getTime() - nowDate(now).getTime()) / 1000,
-    );
-    const err = new Error(
-      `Read the instructions first — the 3-minute timer starts in ${secs}s`,
-    );
-    err.status = 409;
-    err.code = 'TIMER_NOT_STARTED';
-    throw err;
-  }
-
   const expired = isExpired(progress.expiresAt, now);
   const allowLate = Boolean(scoring.allowLateSubmit)
-    || Number(challengeNumber) === 2
     || Number(challengeNumber) === 4
     || Number(challengeNumber) === 5;
 
@@ -1134,11 +1083,9 @@ async function revealTimedChallengeAfterExpiry({
     failureReason: 'REVEALED_ZERO_POINTS',
     timedOut: true,
     awaitSubmit: true,
-    message: n === 2
-      ? 'Time’s up — 3-digit code revealed (0 points). Type it to continue, then scan green.'
-      : n === 4
-        ? 'Time’s up — GRID code revealed (0 points). Type it to continue, then scan purple.'
-        : 'Time’s up — answer revealed (0 points). Type it to continue, then scan red.',
+    message: n === 4
+      ? 'Time’s up — GRID code revealed (0 points). Type it to continue, then scan purple.'
+      : 'Time’s up — answer revealed (0 points). Type it to continue, then scan red.',
     teamStage: freshTeam?.currentStage || team.currentStage,
     currentScore: freshTeam?.currentScore ?? team.currentScore,
   };
@@ -1184,17 +1131,6 @@ async function requestHint({
     ?? event?.scoringConfig?.[`clue${challengeNumber}`]?.hintCost
     ?? event?.scoringConfig?.hintCost
     ?? 20;
-
-  if (
-    Number(challengeNumber) === 2
-    && progress.startedAt
-    && nowDate(now).getTime() < new Date(progress.startedAt).getTime()
-  ) {
-    const err = new Error('Hints unlock when the 3-minute timer starts');
-    err.status = 409;
-    err.code = 'TIMER_NOT_STARTED';
-    throw err;
-  }
 
   // Idempotent: already used
   if (progress.hintUsed) {
@@ -1474,14 +1410,14 @@ async function buildPlayerProgress(team, userId, isLeader) {
   const byNumber2 = new Map(refreshed.map((p) => [p.challengeNumber, p]));
   const eventForTimeout = await CampusHuntEvent.findById(team.eventId).select('scoringConfig');
 
-  // Auto-reveal timed clues 2/5; Field Terminal (4) has no hunt timer.
+  // Auto-reveal timed clue 5; Clue 2/4 have no hunt timer.
   for (const ch of challenges) {
     const p = byNumber2.get(ch.challengeNumber);
     const scoringRow = scoringForChallenge(eventForTimeout, ch.challengeNumber);
     const n = ch.challengeNumber;
-    if (n === 4) continue;
+    if (n === 2 || n === 4) continue;
     if (
-      (n === 2 || n === 5)
+      n === 5
       && p?.state === 'ACTIVE'
       && p.expiresAt
       && isExpired(p.expiresAt, now)
@@ -1491,7 +1427,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
       await finalizeTimerReveal({ team, challenge: ch, progress: p, now });
       continue;
     }
-    if (scoringRow.allowLateSubmit || n === 2 || n === 5) {
+    if (scoringRow.allowLateSubmit || n === 5) {
       continue;
     }
     if (

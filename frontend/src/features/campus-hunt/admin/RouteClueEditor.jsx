@@ -94,7 +94,7 @@ function blankForm(number, takesTo, teamSize = 4) {
         : ''),
     basePoints: number === 3 ? 65 : number === 5 ? 45 : 0,
     maxAttempts: number === 3 || number === 5 ? 2 : 3,
-    timerSeconds: number === 2 ? 180 : number === 5 ? 240 : 0,
+    timerSeconds: number === 5 ? 240 : 0,
     hintCost: number === 3 ? 25 : number === 5 ? 30 : 15,
     memberPrompts: defaults.memberPrompts || Array.from({ length: people }, () => ''),
     active: true,
@@ -311,7 +311,7 @@ export default function RouteClueEditor({
       basePoints: existing.basePoints ?? (number === 3 ? 65 : number === 5 ? 45 : 0),
       maxAttempts: existing.maxAttempts ?? (number === 3 || number === 5 ? 2 : 3),
       timerSeconds: existing.timerSeconds
-        ?? (number === 2 ? 180 : number === 5 ? 240 : 0),
+        ?? (number === 5 ? 240 : 0),
       hintCost: existing.hintCost ?? (number === 3 ? 25 : number === 5 ? 30 : 15),
       memberPrompts: (number === 5 || number === 3) && membersEmpty
         ? (defaults.memberPrompts || memberPrompts)

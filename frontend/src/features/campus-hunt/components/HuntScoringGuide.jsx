@@ -2,7 +2,7 @@ import { STAGE_THEMES } from '../types/stageTheme';
 
 const CLUE_ROWS = [
   { theme: STAGE_THEMES.clue1, clue: 'Clue 1', points: '50' },
-  { theme: STAGE_THEMES.clue2, clue: 'Clue 2', points: '≤55' },
+  { theme: STAGE_THEMES.clue2, clue: 'Clue 2', points: '50' },
   { theme: STAGE_THEMES.clue3, clue: 'Clue 3', points: '65' },
   { theme: STAGE_THEMES.clue4, clue: 'Clue 4', points: '50' },
   { theme: STAGE_THEMES.final, clue: 'Clue 5', points: '≤75' },

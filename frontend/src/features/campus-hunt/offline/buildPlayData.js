@@ -73,10 +73,7 @@ function challengeView(bundle, state, session, n, now) {
   const startedAt = row.startedAt || null;
   const expiresAt = row.expiresAt || null;
   const timerArmed = !startedAt || now.getTime() >= new Date(startedAt).getTime();
-  const instructionPhase = n === 2
-    && row.state === 'ACTIVE'
-    && Boolean(startedAt)
-    && !timerArmed;
+  const instructionPhase = false;
   const revealed = row.failureReason === 'REVEALED_ZERO_POINTS'
     || row.failureReason === 'TIMEOUT';
   const showDestination = row.state === 'COMPLETED'
@@ -108,10 +105,8 @@ function challengeView(bundle, state, session, n, now) {
     timerStartsAt: n === 2 ? startedAt : null,
     instructionPhase,
     timerArmed: n === 4 ? true : timerArmed,
-    timerSeconds: n === 2 ? (cfg.timerSeconds || 180) : undefined,
-    instructionDelaySeconds: n === 2
-      ? (cfg.timerStartDelaySeconds ?? 20)
-      : undefined,
+    timerSeconds: undefined,
+    instructionDelaySeconds: undefined,
     awardedPoints: row.awardedPoints ?? null,
     failureReason: row.failureReason || null,
     timeExpired: Boolean(
@@ -121,8 +116,8 @@ function challengeView(bundle, state, session, n, now) {
       && isExpired(expiresAt, now)
       && row.state === 'ACTIVE',
     ),
-    allowLateSubmit: Boolean(cfg.allowLateSubmit || n === 2 || n === 4 || n === 5),
-    scoringBands: n === 2 && row.state === 'ACTIVE' ? (cfg.speedBonusBands || null) : undefined,
+    allowLateSubmit: Boolean(cfg.allowLateSubmit || n === 4 || n === 5),
+    scoringBands: undefined,
     locked: false,
   };
 

@@ -258,21 +258,16 @@ const DEFAULT_SCORING_CONFIG = {
       { attempt: 3, points: 50 },
     ],
   },
-  // Clue 2: digit find · speed bands (max 55).
+  // Clue 2: physical digit slips nearby · no timer · flat points.
   clue2: {
-    basePoints: 0,
+    basePoints: 50,
     maxAttempts: 3,
-    timerSeconds: 180,
-    timerStartDelaySeconds: 20,
-    awardMode: 'time_bands_total',
-    allowLateSubmit: true,
+    timerSeconds: 0,
+    timerStartDelaySeconds: 0,
+    awardMode: 'flat_base',
     revealOnMaxAttempts: true,
     hintCost: 20,
-    speedBonusBands: [
-      { maxSeconds: 60, bonus: 55 },
-      { maxSeconds: 120, bonus: 35 },
-      { maxSeconds: 180, bonus: 15 },
-    ],
+    speedBonusBands: [],
   },
   // Clue 3 — physical lockbox digits nearby. Harder · fewer tries · pricey hint.
   clue3: {
@@ -335,8 +330,8 @@ const CLUE_HOW_TO = {
     title: 'Clue 2 · digits',
     steps: [
       'At green: find numbered digit slips nearby.',
-      'Join in order · type (3 tries · faster = more pts).',
-      'Time up or 3 misses → answer shown (0 pts).',
+      'Join in order · type (3 tries).',
+      'Miss all 3 → answer shown (0 pts).',
       'Scan green once.',
     ],
   },

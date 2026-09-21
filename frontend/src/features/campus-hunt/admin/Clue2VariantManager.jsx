@@ -310,29 +310,16 @@ export default function Clue2VariantManager({
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
         <h2 className="text-base font-semibold text-white">1. Defaults for all {teamCapacity} teams</h2>
         <p className="mt-1 text-xs text-white/50">
-          20s to read instructions, then the solve timer. Points by speed; late submit = 0.
+          No timer — plant digit slips at green; teams find them and type the answer (+50).
         </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-xs text-white/55">
-            Read delay (sec)
+            Points
             <input
               type="number"
               min="0"
-              value={settings.timerStartDelaySeconds}
-              onChange={(e) => setSettings((s) => ({
-                ...s,
-                timerStartDelaySeconds: e.target.value,
-              }))}
-              className={`mt-1 ${inputClass}`}
-            />
-          </label>
-          <label className="block text-xs text-white/55">
-            Solve timer (sec)
-            <input
-              type="number"
-              min="1"
-              value={settings.timerSeconds}
-              onChange={(e) => setSettings((s) => ({ ...s, timerSeconds: e.target.value }))}
+              value={settings.basePoints}
+              onChange={(e) => setSettings((s) => ({ ...s, basePoints: e.target.value }))}
               className={`mt-1 ${inputClass}`}
             />
           </label>
@@ -357,9 +344,6 @@ export default function Clue2VariantManager({
             />
           </label>
         </div>
-        <p className="mt-2 text-[11px] text-white/40">
-          Points: ≤1:00 = 50 · ≤2:00 = 30 · ≤3:00 = 10 · after timer = 0 (late OK)
-        </p>
         <button
           type="button"
           disabled={busy || !eventId}

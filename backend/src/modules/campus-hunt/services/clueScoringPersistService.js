@@ -37,24 +37,26 @@ function normalizeClueScoring(clueNumber, scoring = {}, event = null) {
       : (defaults.attemptBands || []);
   }
 
-  if (n === 2 || n === 4) {
-    normalized.basePoints = 0;
-    normalized.awardMode = 'time_bands_total';
+  if (n === 2) {
+    normalized.basePoints = Number(merged.basePoints) || 50;
+    normalized.awardMode = 'flat_base';
+    normalized.timerSeconds = 0;
+    normalized.timerStartDelaySeconds = 0;
+    normalized.revealOnMaxAttempts = merged.revealOnMaxAttempts !== false;
+    normalized.speedBonusBands = [];
+  }
+
+  if (n === 4) {
+    normalized.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
+    normalized.awardMode = 'flat_base';
     normalized.allowLateSubmit = merged.allowLateSubmit !== false;
-    normalized.timerSeconds = Math.max(1, Number(merged.timerSeconds) || 180);
-    normalized.timerStartDelaySeconds = Math.max(
-      0,
-      Number(merged.timerStartDelaySeconds ?? (n === 2 ? 20 : 15)),
-    );
-    normalized.speedBonusBands = (
-      Array.isArray(merged.speedBonusBands) && merged.speedBonusBands.length
-        ? merged.speedBonusBands
-        : (defaults.speedBonusBands || [])
-    );
+    normalized.timerSeconds = 0;
+    normalized.timerStartDelaySeconds = 0;
+    normalized.speedBonusBands = [];
   }
 
   if (n === 3) {
-    normalized.basePoints = Number(merged.basePoints) || 50;
+    normalized.basePoints = Number(merged.basePoints) || 65;
     normalized.awardMode = merged.awardMode || 'flat_base';
   }
 
@@ -101,11 +103,11 @@ async function syncChallengeScoring({ eventId, clueNumber, scoring, roundId }) {
     hintCost: normalized.hintCost,
   };
 
-  if (n === 1 || n === 3 || n === 5) {
+  if (n === 1 || n === 2 || n === 3 || n === 5) {
     $set.basePoints = normalized.basePoints;
   }
   if (n === 2 || n === 4 || n === 5) {
-    $set.timerSeconds = normalized.timerSeconds;
+    $set.timerSeconds = normalized.timerSeconds ?? 0;
   }
   if (n === 2 || n === 4 || n === 5) {
     if (Array.isArray(normalized.speedBonusBands)) {

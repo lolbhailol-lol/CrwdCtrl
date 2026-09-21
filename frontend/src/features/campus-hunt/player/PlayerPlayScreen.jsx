@@ -1326,9 +1326,9 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
-              {activeChallenge.challengeNumber === 2 && inInstructionPhase && (
+              {activeChallenge.challengeNumber === 2 && (
                 <p className="text-sm text-white/55">
-                  Read first. Hunt timer starts when the countdown hits zero.
+                  Find the numbered digit slips nearby, join in order, then type the answer.
                 </p>
               )}
 

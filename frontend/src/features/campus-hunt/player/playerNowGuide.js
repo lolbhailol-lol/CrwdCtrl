@@ -131,16 +131,7 @@ export function buildPlayerNowGuide({
   }
 
   if (activeNum === 2) {
-    if (activeChallenge?.instructionPhase) {
-      return {
-        tone: 'clue',
-        eyebrow: 'Clue 2',
-        title: 'Read first',
-        body: 'Hunt timer starts when the countdown hits zero.',
-        steps: [],
-      };
-    }
-    if (activeChallenge?.revealedAnswer || activeChallenge?.timeExpired) {
+    if (activeChallenge?.revealedAnswer) {
       return {
         tone: 'clue',
         eyebrow: 'Clue 2',
@@ -153,7 +144,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 2',
       title: 'Find the digits',
-      body: '3 attempts. Find numbered digit slips at green, join in order, type it. Faster = more points.',
+      body: '3 attempts. Find numbered digit slips at green, join in order, type it.',
       steps: [],
     };
   }

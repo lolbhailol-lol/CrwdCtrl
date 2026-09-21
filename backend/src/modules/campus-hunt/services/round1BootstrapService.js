@@ -869,19 +869,19 @@ async function ensureCheckpointsAndClues(
             startingPointId: startingPoint._id,
             secondCheckpointId: secondCheckpoint._id,
             challengeNumber: 2,
-            type: 'timed_search',
+            type: 'decode',
             prompt: clue2Defaults.prompt,
             answer: joinWord,
             acceptedAnswers: [joinWord].filter(Boolean),
-            destinationInstruction:
-              `Go to ${second.station.name}. Find the shared plant slips, join the word, `
-              + 'type it on this phone, then scan the shared green SECOND SCAN QR once to unlock Clue 3.',
-            basePoints: 0,
+            destinationInstruction: clue2Defaults.destinationInstruction,
+            basePoints: scoring.clue2?.basePoints ?? DEFAULT_SCORING_CONFIG.clue2.basePoints ?? 50,
             maxAttempts: scoring.clue2?.maxAttempts || 3,
-            timerSeconds: scoring.clue2?.timerSeconds || 180,
-            speedBonusBands: scoring.clue2?.speedBonusBands || [],
+            timerSeconds: 0,
+            speedBonusBands: [],
             hintText: clue2Defaults.hintText,
-            hintCost: scoring.hintCost || 15,
+            hintCost: scoring.clue2?.hintCost
+              ?? DEFAULT_SCORING_CONFIG.clue2.hintCost
+              ?? 20,
             difficulty: 'medium',
             variantKey,
             active: true,
