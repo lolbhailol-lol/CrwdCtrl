@@ -406,6 +406,7 @@ async function exportOfflinePacks(eventId) {
         name: event.name,
         college: event.college || '',
         teamSize: Math.max(2, Math.min(12, Number(event.teamSize) || 10)),
+        teamCapacity: Math.max(1, Number(event.teamCapacity) || teams.length || 20),
         startingScore: Number(event.startingScore) > 0 ? event.startingScore : 100,
         scoringConfig: event.scoringConfig || DEFAULT_SCORING_CONFIG,
         destinationName: event.destinationName || 'Mindspark Lobby',

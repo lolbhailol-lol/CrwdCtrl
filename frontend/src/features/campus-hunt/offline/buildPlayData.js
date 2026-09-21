@@ -180,7 +180,7 @@ export function buildPlayData(bundle, session, state, now = new Date()) {
   return {
     event: {
       id: bundle.event.id,
-      teamCapacity: size,
+      teamCapacity: Number(bundle.event?.teamCapacity) || 20,
       finaleCapacity: 0,
       name: bundle.event.name,
     },
