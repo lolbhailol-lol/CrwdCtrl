@@ -53,7 +53,7 @@ export default function StationPlantFragmentsPanel({
         plantFragments: splitPlantFragments(joinedWord, n),
       };
     }));
-    setMsg(`Filled default join-words + ${n} plant slips per stop — tap Save`);
+    setMsg(`Filled default digit answers + ${n} digit slips per stop — tap Save`);
   };
 
   const save = async () => {
