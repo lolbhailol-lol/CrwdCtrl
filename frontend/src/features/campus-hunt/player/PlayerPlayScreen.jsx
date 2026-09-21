@@ -1328,7 +1328,7 @@ export default function PlayerPlayScreen({
 
               {activeChallenge.challengeNumber === 2 && (
                 <p className="text-sm text-white/55">
-                  Find the numbered digit slips nearby, join in order, then type the answer.
+                  Find the numbered digit slips nearby, join in order into one number, then type it.
                 </p>
               )}
 

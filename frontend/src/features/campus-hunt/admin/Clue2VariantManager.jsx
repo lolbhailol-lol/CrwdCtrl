@@ -33,8 +33,8 @@ const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 p
 const DEFAULT_SETTINGS = CLUE2_DEFAULT_SETTINGS;
 
 const SHARED_PROMPT =
-  'At the green stop: find the numbered digit slips nearby. '
-  + 'Join them in order into one answer and type it (leader), then scan the green poster.';
+  'At the green stop: find the numbered digit slips (1, 2, 3…) nearby. '
+  + 'Join them in order into one number and type it (leader), then scan the green poster.';
 
 function id(value) {
   return String(value?._id || value?.id || value || '');

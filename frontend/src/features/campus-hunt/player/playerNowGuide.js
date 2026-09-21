@@ -135,16 +135,16 @@ export function buildPlayerNowGuide({
       return {
         tone: 'clue',
         eyebrow: 'Clue 2',
-        title: 'Type the digit answer',
-        body: '0 pts — type the revealed answer, then scan green.',
+        title: 'Type the digit number',
+        body: '0 pts — type the revealed number, then scan green.',
         steps: [],
       };
     }
     return {
       tone: 'clue',
-      eyebrow: 'Clue 2',
-      title: 'Find the digits',
-      body: '3 attempts. Find numbered digit slips at green, join in order, type it.',
+      eyebrow: 'Clue 2 · Digits',
+      title: 'Join numbered digit slips',
+      body: '3 tries. Find slips 1→N at green, join digits into one number, type it.',
       steps: [],
     };
   }
@@ -162,8 +162,8 @@ export function buildPlayerNowGuide({
     return {
       tone: 'clue',
       eyebrow: 'Clue 3 · Lockbox',
-      title: 'Find digits nearby',
-      body: '2 tries. Physical digit tags at this stop — rebuild the code. Hints cost more.',
+      title: 'Find the lockbox plaque',
+      body: '2 tries. One hidden plaque with the full code — not green digit slips. Hints cost more.',
       steps: [],
     };
   }
@@ -182,7 +182,7 @@ export function buildPlayerNowGuide({
     if (activeChallenge?.revealedAnswer || activeChallenge?.timeExpired) {
       return {
         tone: 'clue',
-        eyebrow: 'Clue 5',
+        eyebrow: 'Clue 5 · Word',
         title: 'Type the revealed word',
         body: '0 pts — type it, then scan red.',
         steps: [],
@@ -190,9 +190,9 @@ export function buildPlayerNowGuide({
     }
     return {
       tone: 'clue',
-      eyebrow: 'Clue 5',
-      title: 'Find word slips nearby',
-      body: '2 tries. Physical slips at red — join in order. Hints cost more.',
+      eyebrow: 'Clue 5 · Word',
+      title: 'Join letter slips into a word',
+      body: '2 tries. Letter slips at red (not digits) — build one word. Hints cost more.',
       steps: [],
     };
   }

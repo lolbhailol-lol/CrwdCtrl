@@ -494,7 +494,7 @@ export default function RouteClueEditor({
                 {selectedRoute ? ` (${pathLabel(selectedRoute, starts)})` : ''}
               </p>
               <p className="mt-1 text-xs text-white/50">
-                Print word slips nearby at the red stop — letters are NOT on the phone.
+                Print letter slips nearby at the red stop — letters (not digits) are NOT on the phone.
                 After the word → red FIFTH SCAN → Clue 6 → Mindspark Lobby.
               </p>
             </>

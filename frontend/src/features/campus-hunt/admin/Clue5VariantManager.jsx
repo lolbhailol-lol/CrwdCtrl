@@ -244,7 +244,7 @@ export default function Clue5VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Clue 5 · physical word find
+          Clue 5 · letter slips → one word
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
           savedCount >= orderedPoints.length && orderedPoints.length > 0
@@ -300,8 +300,8 @@ export default function Clue5VariantManager({
       </section>
 
       <p className="text-xs text-white/50">
-        Each start path has one Clue 5 word. Print word slips nearby at the red stop —
-        letters are NOT all on the phone. After the word → red FIFTH SCAN → Clue 6 → Mindspark Lobby.
+        Each start path has one Clue 5 word. Print letter slips nearby at the red stop —
+        letters are NOT on the phone (not digits). After the word → red FIFTH SCAN → Clue 6 → Mindspark Lobby.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

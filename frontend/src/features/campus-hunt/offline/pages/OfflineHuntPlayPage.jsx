@@ -552,7 +552,7 @@ export default function OfflineHuntPlayPage() {
             <div className="mt-3 space-y-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0a1218] p-3 text-left">
               <p className="text-xs font-semibold text-[#0ECCEE]">Join the word</p>
               <p className="text-[11px] text-white/55">
-                Join the planted word slips into one word, then submit.
+                Join the planted letter slips into one word, then submit.
               </p>
               <div className="flex gap-2">
                 <input

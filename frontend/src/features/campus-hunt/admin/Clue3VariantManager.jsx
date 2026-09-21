@@ -287,7 +287,7 @@ export default function Clue3VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Blue · physical digits nearby · then scan
+          Blue · one lockbox plaque · then scan
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
           {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}

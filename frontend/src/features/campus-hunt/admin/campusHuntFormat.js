@@ -1104,10 +1104,10 @@ export function routeClueDefaults(
   if (n === 2) {
     return {
       prompt:
-        `At the green stop: find ${people} numbered digit slips planted nearby. `
-        + 'Join them in order into one answer and type it (leader), then scan the green poster.',
+        `At the green stop: find ${people} numbered digit slips (1→${people}) planted nearby. `
+        + 'Join the digits in order into one number and type it (leader), then scan green.',
       answer: '',
-      hintText: 'Eye level on posts, pillars, and notice boards — then join the digits in order.',
+      hintText: 'Numbered slips only — join digit 1, then 2, then 3… Eye level on posts.',
       destinationInstruction:
         'Answer typed — stay at green. Leader scans the green QR once to unlock Clue 3.',
       memberPrompts: Array.from({ length: people }, () => ''),
@@ -1116,23 +1116,20 @@ export function routeClueDefaults(
 
   if (n === 3) {
     const code = String(lockboxCode || '').replace(/\D/g, '') || '9407';
-    const pieces = Array.from({ length: Math.min(people, code.length) }, (_, i) => {
-      const ord = ['1st', '2nd', '3rd'][i] || `${i + 1}th`;
-      return `Find the ${ord} digit tag planted nearby (lockbox code digit ${i + 1}).`;
-    });
-    while (pieces.length < people) {
-      pieces.push('Help search nearby posts and boards — do not invent digits.');
-    }
+    const pieces = Array.from({ length: people }, (_, i) => (
+      i === 0
+        ? 'Lead the search for the single LOCKBOX plaque nearby (full code on one card).'
+        : 'Help search — look under ledges / behind boards. Do not invent digits.'
+    ));
     return {
       prompt:
-        `THE LOCKBOX · physical find\n`
-        + `Digit tags are planted near this stop — not all on this phone.\n`
-        + `Search pillars, benches, and notice boards at eye level.\n`
-        + `Rebuild the ${code.length}-digit lockbox code from what you find.\n`
-        + `Leader submits digits only (2 tries · hints cost more).`,
+        `THE LOCKBOX · hard find (not digit slips)\n`
+        + `One LOCKBOX plaque is hidden near this blue stop — full ${code.length}-digit code on a single card.\n`
+        + `It is NOT the numbered green slips. Search quietly (ledges, behind boards, under benches).\n`
+        + `Leader types digits only (2 tries · hints cost more).`,
       answer: code,
       hintText:
-        'Minimal help: look at eye level on posts and boards. Digits only — no spaces. Hints cost 25 pts.',
+        'Not numbered slips. One plaque · full code. Check ledges and the back of notice boards. −25 pts.',
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
         + `Leader scans once to unlock Field Terminal.`,
@@ -1168,21 +1165,21 @@ export function routeClueDefaults(
     };
   }
 
-  // Clue 5 — physical word slips nearby; `place` is the finish word (not a campus stop).
+  // Clue 5 — letter slips → one WORD (not digits).
   const raw = String(place).replace(/\s+/g, '').toUpperCase();
   const fifthStop = String(fifthStopName || '').trim() || 'your 5th campus stop';
   const findTasks = Array.from({ length: people }, (_, i) => (
-    `Find word slip #${i + 1} planted nearby — piece ${i + 1} of ${people}.`
+    `Find letter slip #${i + 1} nearby — letters only, piece ${i + 1} of ${people}.`
   ));
   return {
     prompt:
-      `At the red stop area: find ${people} short word slips planted nearby `
-      + `(pillars, benches, notice boards).\n`
+      `At the red stop: find ${people} letter slips planted nearby `
+      + `(not digits — letters that make one word).\n`
       + `Join them in order into one word. Leader submits (2 tries · hints cost more).\n`
-      + `The letters are NOT all printed on this phone — search the place.`,
+      + `Letters are NOT on this phone.`,
     answer: raw || 'QUEST',
     hintText:
-      'Minimal help: eye-level posts and boards only. No spaces in the final word. Hints cost 30 pts.',
+      'Letters only · eye-level boards. Build one word, no spaces. Hints cost 30 pts.',
     destinationInstruction:
       `Word solved — go to ${fifthStop}. Find the shared red FIFTH SCAN QR. `
       + `Leader scans once to unlock Clue 6.`,

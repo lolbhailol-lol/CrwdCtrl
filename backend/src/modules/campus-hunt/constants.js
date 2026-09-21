@@ -329,8 +329,8 @@ const CLUE_HOW_TO = {
   2: {
     title: 'Clue 2 · digits',
     steps: [
-      'At green: find numbered digit slips nearby.',
-      'Join in order · type (3 tries).',
+      'At green: find numbered digit slips (1, 2, 3…).',
+      'Join digits in order · type the number (3 tries).',
       'Miss all 3 → answer shown (0 pts).',
       'Scan green once.',
     ],
@@ -338,9 +338,9 @@ const CLUE_HOW_TO = {
   3: {
     title: 'Clue 3 · lockbox',
     steps: [
-      'At blue: find physical digit tags planted nearby.',
-      'Rebuild the lockbox code (2 tries · hints cost more).',
-      'Miss both → code shown (0 pts).',
+      'At blue: find ONE lockbox plaque (full code on one card).',
+      'Not the green digit slips — search ledges / behind boards.',
+      'Type the code (2 tries · hints cost more).',
       'Scan blue once.',
     ],
   },
@@ -355,8 +355,8 @@ const CLUE_HOW_TO = {
   5: {
     title: 'Clue 5 · word',
     steps: [
-      'At red: find word slips planted nearby.',
-      'Join in order · type (2 tries · hints cost more).',
+      'At red: find letter slips (letters — not digits).',
+      'Join in order into one word (2 tries · hints cost more).',
       'Time up or 2 misses → word shown (0 pts).',
       'Scan red once · then Mindspark Lobby.',
     ],

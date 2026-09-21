@@ -27,15 +27,15 @@ const OFFLINE_CLUE_HOW_TO = {
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'At the green stop: find numbered digit slips, join in order, type the answer on this phone.',
+      'At green: find numbered digit slips (1, 2, 3…), join into one number, type it.',
       'Leader scans the green SECOND SCAN QR once → Clue 3.',
     ],
   },
   3: {
     title: 'How to play — Lockbox',
     steps: [
-      'At blue: find physical digit tags planted nearby (posts / boards).',
-      'Rebuild the lockbox code on this phone (2 tries) → scan blue THIRD SCAN once.',
+      'At blue: find ONE lockbox plaque (full code on one card — not green digit slips).',
+      'Type the code (2 tries) → scan blue THIRD SCAN once.',
     ],
   },
   4: {
@@ -48,7 +48,7 @@ const OFFLINE_CLUE_HOW_TO = {
   5: {
     title: 'How to play — Clue 5',
     steps: [
-      'At red: find word slips planted nearby. Join in order (2 tries · hints cost more).',
+      'At red: find letter slips (not digits). Join into one word (2 tries · hints cost more).',
       'Scan red FIFTH SCAN once → Clue 6 at Mindspark Lobby.',
     ],
   },

@@ -42,7 +42,7 @@ export default function HuntScoringGuide({ startingScore = 100 }) {
         ))}
       </ul>
       <p className="mt-2 text-[10px] text-white/40">
-        Blue/red: physical find nearby · fewer tries · hints cost more
+        Green: join digit slips · Blue: one lockbox plaque · Red: join letter slips
       </p>
     </section>
   );
