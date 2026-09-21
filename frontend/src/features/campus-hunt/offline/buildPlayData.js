@@ -60,14 +60,8 @@ function challengeView(bundle, state, session, n, now) {
   }
 
   if (n === 3 && Array.isArray(clue.memberPrompts) && clue.memberPrompts.length) {
-    collaborative = true;
-    const prompts = clue.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
-    if (session.role === 'leader') {
-      memberFragments = prompts.length ? prompts : clue.memberPrompts;
-      memberCode = null;
-    } else {
-      memberCode = clue.memberPrompts[memberIndex] || '';
-    }
+    // Prompt-only for Clue 3 — no find-task list on the phone.
+    collaborative = false;
   }
 
   const startedAt = row.startedAt || null;

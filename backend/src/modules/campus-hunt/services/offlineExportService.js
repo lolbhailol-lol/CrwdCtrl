@@ -34,8 +34,8 @@ const OFFLINE_CLUE_HOW_TO = {
   3: {
     title: 'How to play — Lockbox',
     steps: [
-      'At blue: find ONE lockbox plaque (full code on one card — not green digit slips).',
-      'Type the code (2 tries) → scan blue THIRD SCAN once.',
+      'Find the physical lockbox nearby.',
+      'Type the code written on it → scan blue THIRD SCAN once.',
     ],
   },
   4: {

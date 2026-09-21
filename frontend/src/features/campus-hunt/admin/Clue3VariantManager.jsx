@@ -154,10 +154,14 @@ export default function Clue3VariantManager({
         String(v.destinationInstruction || '').toLowerCase().includes(place.name.toLowerCase())
         || /^\d{3,8}$/.test(String(v.answer || '').trim())
       ));
+      const oldPrompt = String(sample?.prompt || '');
+      const useFreshPrompt = !oldPrompt
+        || /hard find|digit slips|LOCKBOX plaque|not numbered/i.test(oldPrompt)
+        || /^THE LOCKBOX/i.test(oldPrompt);
       nextPacks[place.code] = {
-        prompt: sample?.prompt || defaults.prompt,
+        prompt: useFreshPrompt ? defaults.prompt : oldPrompt,
         answer: String(sample?.answer || defaults.answer || '').trim(),
-        hintText: sample?.hintText || defaults.hintText,
+        hintText: useFreshPrompt ? defaults.hintText : (sample?.hintText || defaults.hintText),
       };
     });
     setPackContent(nextPacks);
@@ -287,7 +291,7 @@ export default function Clue3VariantManager({
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Blue · one lockbox plaque · then scan
+          Blue · find physical lockbox · type the code
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
           {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}
@@ -336,8 +340,9 @@ export default function Clue3VariantManager({
       </section>
 
       <p className="text-xs text-white/50">
-        Print ONE lockbox plaque per blue stop with the full code below (not numbered digit slips).
-        Hide it on a ledge / behind a board. After they type the code → blue THIRD SCAN → Field Terminal.
+        Plant one physical lockbox per blue stop with the code below printed on it.
+        In-game text: “Find the physical lockbox nearby. Type the code written on it.”
+        After they type → blue THIRD SCAN → Field Terminal.
       </p>
 
       <div className="grid gap-3 md:grid-cols-2">

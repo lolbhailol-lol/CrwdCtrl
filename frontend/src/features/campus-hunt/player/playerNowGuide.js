@@ -162,8 +162,8 @@ export function buildPlayerNowGuide({
     return {
       tone: 'clue',
       eyebrow: 'Clue 3 · Lockbox',
-      title: 'Find the lockbox plaque',
-      body: '2 tries. One hidden plaque with the full code — not green digit slips. Hints cost more.',
+      title: 'Find the lockbox',
+      body: 'Find the physical lockbox nearby. Type the code written on it.',
       steps: [],
     };
   }

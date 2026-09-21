@@ -338,9 +338,8 @@ const CLUE_HOW_TO = {
   3: {
     title: 'Clue 3 · lockbox',
     steps: [
-      'At blue: find ONE lockbox plaque (full code on one card).',
-      'Not the green digit slips — search ledges / behind boards.',
-      'Type the code (2 tries · hints cost more).',
+      'Find the physical lockbox nearby.',
+      'Type the code written on it.',
       'Scan blue once.',
     ],
   },

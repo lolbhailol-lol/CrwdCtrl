@@ -273,14 +273,12 @@ function ordinalLabel(n) {
   return `${num}${suffix}`;
 }
 
-/** Clue 3 lockbox — one hard plaque find (not multi digit-slips like Clue 2). */
+/** Clue 3 lockbox — find the physical lockbox; type the code on it. */
 function lockboxMemberPrompts(code, teamSize = 4) {
   const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   void code;
-  return Array.from({ length: people }, (_, i) => (
-    i === 0
-      ? 'Lead the search for the single LOCKBOX plaque nearby (full code on one card).'
-      : 'Help search — look under ledges / behind boards. Do not invent digits.'
+  return Array.from({ length: people }, () => (
+    'Help look for the physical lockbox nearby.'
   ));
 }
 
@@ -313,13 +311,10 @@ function routeClueDefaults(
     const pieces = lockboxMemberPrompts(code, people);
     return {
       prompt:
-        `THE LOCKBOX · hard find (not digit slips)\n`
-        + `One LOCKBOX plaque is hidden near this blue stop — full ${code.length}-digit code on a single card.\n`
-        + `It is NOT the numbered green slips. Search quietly (ledges, behind boards, under benches).\n`
-        + `Leader types digits only (2 tries · hints cost more).`,
+        'Find the physical lockbox nearby.\n'
+        + 'Type the code written on it.',
       answer: code,
-      hintText:
-        'Not numbered slips. One plaque · full code. Check ledges and the back of notice boards. −25 pts.',
+      hintText: 'Look around the blue stop for the lockbox. Type exactly what’s printed on it.',
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
         + `Leader scans once to unlock Field Terminal.`,

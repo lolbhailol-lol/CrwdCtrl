@@ -289,14 +289,8 @@ function publicChallengeView(challenge, progress, {
         : 'Help search nearby for word slips — join in order into one word.');
   }
   if (n === 3 && Array.isArray(challenge.memberPrompts) && challenge.memberPrompts.length) {
-    collaborative = true;
-    const prompts = challenge.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
-    if (isLeader) {
-      memberFragments = prompts.length ? prompts : challenge.memberPrompts;
-      memberCode = undefined;
-    } else {
-      memberCode = challenge.memberPrompts[memberIndex] || '';
-    }
+    // Keep prompt-only for Clue 3 — no fragment list on the phone.
+    collaborative = false;
   }
 
   const maxAttempts = challenge.maxAttempts || scoring?.maxAttempts || 3;

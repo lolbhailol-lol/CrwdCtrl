@@ -42,7 +42,7 @@ export default function HuntScoringGuide({ startingScore = 100 }) {
         ))}
       </ul>
       <p className="mt-2 text-[10px] text-white/40">
-        Green: join digit slips · Blue: one lockbox plaque · Red: join letter slips
+        Green: digit slips · Blue: physical lockbox · Red: letter slips
       </p>
     </section>
   );

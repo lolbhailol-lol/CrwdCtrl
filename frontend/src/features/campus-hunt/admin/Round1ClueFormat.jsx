@@ -57,7 +57,7 @@ export function buildRound1Clues(geometry) {
       number: 3,
       label: 'Clue 3',
       short: 'PLAQUE',
-      detail: 'One lockbox plaque (full code) → blue scan',
+      detail: 'Find physical lockbox → type code → blue scan',
       checkpointKeys: ['3'],
       type: 'decode',
       showCheckpoints: false,

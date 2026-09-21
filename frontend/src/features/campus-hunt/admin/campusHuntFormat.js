@@ -1133,20 +1133,15 @@ export function routeClueDefaults(
 
   if (n === 3) {
     const code = String(lockboxCode || '').replace(/\D/g, '') || '9407';
-    const pieces = Array.from({ length: people }, (_, i) => (
-      i === 0
-        ? 'Lead the search for the single LOCKBOX plaque nearby (full code on one card).'
-        : 'Help search — look under ledges / behind boards. Do not invent digits.'
+    const pieces = Array.from({ length: people }, () => (
+      'Help look for the physical lockbox nearby.'
     ));
     return {
       prompt:
-        `THE LOCKBOX · hard find (not digit slips)\n`
-        + `One LOCKBOX plaque is hidden near this blue stop — full ${code.length}-digit code on a single card.\n`
-        + `It is NOT the numbered green slips. Search quietly (ledges, behind boards, under benches).\n`
-        + `Leader types digits only (2 tries · hints cost more).`,
+        'Find the physical lockbox nearby.\n'
+        + 'Type the code written on it.',
       answer: code,
-      hintText:
-        'Not numbered slips. One plaque · full code. Check ledges and the back of notice boards. −25 pts.',
+      hintText: 'Look around the blue stop for the lockbox. Type exactly what’s printed on it.',
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
         + `Leader scans once to unlock Field Terminal.`,
