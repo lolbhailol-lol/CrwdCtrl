@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { loadOfflineBundle } from './offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import { applyOfflineHuntManifest, isOfflineHuntPath } from './offlineHuntManifest';
+import { dismissBootOverlays } from '../../../utils/dismissBootOverlays';
 
 /**
  * Airplane mode + a saved team pack → open Hunt, not the main website.
@@ -14,6 +15,13 @@ export default function OfflineHuntBootGate() {
 
   useEffect(() => {
     applyOfflineHuntManifest();
+    if (isOfflineHuntPath(location.pathname)) {
+      dismissBootOverlays();
+      try {
+        document.body.classList.remove('page-content-loading');
+        document.documentElement.removeAttribute('data-home-hub-loading');
+      } catch { /* ignore */ }
+    }
   }, [location.pathname]);
 
   useEffect(() => {

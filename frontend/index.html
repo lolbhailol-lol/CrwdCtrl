@@ -56,6 +56,16 @@
         var hunt = /^\/campus-hunt(\/|$)/.test(p) || /^\/campus-hunt-volunteer(\/|$)/.test(p);
         var offlineHunt = /^\/campus-hunt\/offline(\/|$)/.test(p);
         if (offlineHunt) {
+          document.documentElement.classList.add('skip-boot-splash');
+          try {
+            var splash = document.getElementById('boot-splash');
+            if (splash) {
+              splash.style.pointerEvents = 'none';
+              splash.remove();
+            }
+            var fallback = document.getElementById('boot-fallback');
+            if (fallback) fallback.remove();
+          } catch (e3) {}
           function swapHuntManifest() {
             var links = document.querySelectorAll('link[rel="manifest"]');
             for (var i = 0; i < links.length; i++) {

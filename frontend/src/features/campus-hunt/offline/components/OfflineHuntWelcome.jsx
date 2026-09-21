@@ -1,7 +1,6 @@
-import { motion } from 'framer-motion';
-
 /**
  * First screen before organizer start code — brand + fest collaboration.
+ * No Google Fonts / framer-motion — those break taps in airplane mode.
  */
 export default function OfflineHuntWelcome({
   teamCode,
@@ -12,12 +11,6 @@ export default function OfflineHuntWelcome({
 }) {
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap"
-      />
-
-      {/* Atmosphere */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -35,10 +28,7 @@ export default function OfflineHuntWelcome({
         }}
       />
 
-      <div
-        className="relative mx-auto flex min-h-screen max-w-md flex-col px-5 pb-10 pt-8"
-        style={{ fontFamily: 'Outfit, Poppins, sans-serif' }}
-      >
+      <div className="relative mx-auto flex min-h-screen max-w-md flex-col px-5 pb-10 pt-8">
         {onBack ? (
           <button
             type="button"
@@ -51,26 +41,15 @@ export default function OfflineHuntWelcome({
           <div className="mb-6 h-4" />
         )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-1 flex-col"
-        >
+        <div className="flex flex-1 flex-col">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]/90">
             CrwdCtrl × Mindspark
           </p>
 
-          <h1
-            className="mt-4 text-[3.4rem] leading-[0.9] tracking-wide text-white sm:text-[3.85rem]"
-            style={{ fontFamily: '"Bebas Neue", Impact, sans-serif' }}
-          >
+          <h1 className="mt-4 text-[2.75rem] font-black uppercase leading-[0.95] tracking-tight text-white sm:text-[3.25rem]">
             Campus Hunt
           </h1>
-          <p
-            className="mt-1 text-2xl tracking-[0.08em] text-[#0ECCEE]"
-            style={{ fontFamily: '"Bebas Neue", Impact, sans-serif' }}
-          >
+          <p className="mt-1 text-xl font-bold tracking-wide text-[#0ECCEE]">
             Challenge
           </p>
 
@@ -82,7 +61,7 @@ export default function OfflineHuntWelcome({
           </p>
 
           {(teamCode || startName) ? (
-            <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 backdrop-blur-sm">
+            <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5">
               {teamCode ? (
                 <p className="font-mono text-lg font-bold tracking-wide text-white">
                   {teamCode}
@@ -116,19 +95,18 @@ export default function OfflineHuntWelcome({
           </p>
 
           <div className="mt-auto pt-10">
-            <motion.button
+            <button
               type="button"
               onClick={onContinue}
-              whileTap={{ scale: 0.98 }}
-              className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black shadow-[0_12px_40px_-12px_rgba(14,204,238,0.55)]"
+              className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black shadow-[0_12px_40px_-12px_rgba(14,204,238,0.55)] active:scale-[0.98]"
             >
               Continue
-            </motion.button>
+            </button>
             <p className="mt-3 text-center text-[11px] text-white/35">
               Next: wait for the organizer start code
             </p>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

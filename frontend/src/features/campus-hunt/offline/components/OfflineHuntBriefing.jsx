@@ -41,8 +41,6 @@ export default function OfflineHuntBriefing({
     setShowWelcome(false);
   };
 
-  const canStart = isLeader && gate.open && !starting;
-
   if (showWelcome) {
     return (
       <OfflineHuntWelcome
@@ -141,18 +139,34 @@ export default function OfflineHuntBriefing({
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
 
         {isLeader ? (
-          <button
-            type="button"
-            disabled={!canStart}
-            onClick={() => onStartHunt?.(goCode)}
-            className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
-          >
-            {starting
-              ? 'Starting…'
-              : gate.open
-                ? 'Start the hunt'
-                : 'Enter start code…'}
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => {
+                if (!gate.open) {
+                  setGate((g) => ({
+                    ...g,
+                    message: 'Type the organizer start code above first, then tap Start.',
+                  }));
+                  return;
+                }
+                onStartHunt?.(goCode);
+              }}
+              className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
+            >
+              {starting
+                ? 'Starting…'
+                : gate.open
+                  ? 'Start the hunt'
+                  : 'Type start code, then tap here'}
+            </button>
+            {!gate.open ? (
+              <p className="text-center text-xs text-amber-200/80">
+                Start stays locked until the organizer code is entered (works offline).
+              </p>
+            ) : null}
+          </>
         ) : (
           <p className="text-center text-sm text-white/50">
             Use the leader phone to start.

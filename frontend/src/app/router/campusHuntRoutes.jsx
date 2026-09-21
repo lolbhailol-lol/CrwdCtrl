@@ -12,13 +12,14 @@ import {
   VolunteerCheckpointPage,
   CampusHuntAdminDashboard,
   CampusHuntEventControl,
-  OfflineHuntLandingPage,
-  OfflineHuntLoginPage,
-  OfflineHuntTeamPage,
-  OfflineHuntRoundsPage,
-  OfflineHuntPlayPage,
-  OfflineHuntInstallPage,
 } from './lazyPages';
+// Eager (not lazy): airplane-mode Hunt must not hang on Suspense waiting for /assets/*.js
+import OfflineHuntLandingPage from '../../features/campus-hunt/offline/pages/OfflineHuntLandingPage';
+import OfflineHuntLoginPage from '../../features/campus-hunt/offline/pages/OfflineHuntLoginPage';
+import OfflineHuntTeamPage from '../../features/campus-hunt/offline/pages/OfflineHuntTeamPage';
+import OfflineHuntRoundsPage from '../../features/campus-hunt/offline/pages/OfflineHuntRoundsPage';
+import OfflineHuntPlayPage from '../../features/campus-hunt/offline/pages/OfflineHuntPlayPage';
+import OfflineHuntInstallPage from '../../features/campus-hunt/offline/pages/OfflineHuntInstallPage';
 
 /**
  * Campus Hunt player routes — only when VITE_ENABLE_CAMPUS_HUNT=true.
