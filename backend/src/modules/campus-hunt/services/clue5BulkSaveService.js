@@ -1,5 +1,5 @@
 /**
- * Bulk-save Clue 5 / Final (one collaborative challenge per start route) in one request.
+ * Bulk-save Clue 5 (letter-slip word per start route) in one request.
  */
 
 const CampusHuntEvent = require('../models/CampusHuntEvent');
@@ -93,11 +93,13 @@ async function bulkSaveClue5({
         `Word solved — go to your 5th campus stop. Find the shared red FIFTH SCAN QR. `
         + `Leader scans once to unlock Clue 6.`;
 
-      const answer = String(row.answer || finishWord).trim().toUpperCase();
-      const memberPrompts = Array.isArray(row.memberPrompts)
-        ? row.memberPrompts.slice(0, teamSize).map((v) => String(v || '').trim())
-        : defaults.memberPrompts;
-      while (memberPrompts.length < teamSize) memberPrompts.push('');
+      const answer = String(row.answer || finishWord)
+        .replace(/[^A-Za-z]/g, '')
+        .toUpperCase() || finishWord;
+      if (answer.length < 3) {
+        errors.push({ startCode, message: 'Clue 5 word needs at least 3 letters' });
+        continue;
+      }
 
       await CampusHuntChallenge.findOneAndUpdate(
         {
@@ -113,9 +115,10 @@ async function bulkSaveClue5({
             routeId: route._id,
             startingPointId: point._id,
             challengeNumber: 5,
-            type: 'collaborative',
+            type: 'decode',
             prompt: String(row.prompt || defaults.prompt).trim(),
-            memberPrompts,
+            // Letter slips are physical plants — never store piece lists on the phone.
+            memberPrompts: [],
             answer,
             acceptedAnswers: [answer, answer.toLowerCase()],
             destinationInstruction: String(

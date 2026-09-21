@@ -115,9 +115,9 @@ async function bulkSaveClue2({
         errors.push({ row, message: 'Invalid startCode or waveId' });
         continue;
       }
-      const answer = String(row.answer || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const answer = String(row.answer || '').replace(/\D/g, '').slice(0, 3);
       if (answer.length < 3) {
-        errors.push({ startCode, waveId, message: 'Answer must be the plant join-word (3+ letters)' });
+        errors.push({ startCode, waveId, message: 'Answer must be a 3-digit plant number' });
         continue;
       }
 
@@ -152,7 +152,7 @@ async function bulkSaveClue2({
             stationCode,
             publicInstruction:
               `Green SECOND SCAN at ${place}. One shared QR for this place. `
-              + 'After the join-word is typed on the leader phone, scan once to unlock Clue 3.',
+              + 'After the digit answer is typed on the leader phone, scan once to unlock Clue 3.',
             sequence: 2,
             active: true,
             compensationPolicyKey: 'skip_and_continue',

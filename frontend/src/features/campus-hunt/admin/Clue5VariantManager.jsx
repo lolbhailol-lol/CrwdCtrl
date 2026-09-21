@@ -205,7 +205,7 @@ export default function Clue5VariantManager({
           startCode: code,
           prompt: sharedPrompt,
           answer,
-          memberPrompts: defaults.memberPrompts,
+          memberPrompts: [],
           destinationInstruction: defaults.destinationInstruction,
           routeId: id(routeForStart(routes, point)),
           startingPointId: id(point),
