@@ -9,11 +9,21 @@ const HUNT_SHELL_PATHS = [
   '/offline-hunt.webmanifest',
 ];
 
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(null), ms);
+    }),
+  ]);
+}
+
 /**
- * Precache Hunt screens + wait for the service worker so airplane mode
- * can open the home-screen icon without hitting the network.
+ * Precache Hunt screens + wait briefly for the service worker so airplane mode
+ * can open the home-screen icon. Never blocks install forever — callers may
+ * proceed after pack save even if warmup is incomplete.
  */
-export async function warmupOfflineHunt() {
+export async function warmupOfflineHunt({ timeoutMs = 8000 } = {}) {
   const imports = Promise.allSettled([
     import('./pages/OfflineHuntLandingPage'),
     import('./pages/OfflineHuntLoginPage'),
@@ -28,8 +38,8 @@ export async function warmupOfflineHunt() {
     : Promise.resolve(null);
 
   const pages = Promise.allSettled(
-    HUNT_SHELL_PATHS.map((path) => fetch(path, { credentials: 'same-origin' })),
+    HUNT_SHELL_PATHS.map((path) => fetch(path, { credentials: 'same-origin' }).catch(() => null)),
   );
 
-  await Promise.all([imports, swReady, pages]);
+  await withTimeout(Promise.all([imports, swReady, pages]), timeoutMs);
 }
