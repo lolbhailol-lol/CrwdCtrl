@@ -6,7 +6,7 @@ import {
 } from './offlineEngine';
 import { scoringForChallenge } from './scoring';
 import { sanitizePlayerCopy } from '../player/sanitizePlayerCopy';
-import { OFFLINE_CLUE_HOW_TO } from './offlineHowTo';
+import { OFFLINE_CLUE_HOW_TO, OFFLINE_CLUE_PROMPTS } from './offlineHowTo';
 
 function isExpired(expiresAt, now) {
   if (!expiresAt) return false;
@@ -41,28 +41,18 @@ function challengeView(bundle, state, session, n, now) {
   if (n === 1 && !isLeader) prompt = null;
 
   const memberIndex = Number(session.slot) || 0;
-  let memberCode;
-  let memberFragments;
-  let collaborative = false;
-  if (n === 5 && Array.isArray(clue.memberPrompts) && clue.memberPrompts.length) {
-    collaborative = true;
-    const prompts = clue.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
-    if (session.role === 'leader') {
-      memberFragments = prompts.length ? prompts : clue.memberPrompts;
-      memberCode = null;
-    } else {
-      memberCode = clue.memberPrompts[memberIndex] || '';
-    }
-    prompt = clue.prompt
-      || (session.role === 'leader'
-        ? 'Find the planted word slips nearby — rebuild into one word and submit.'
-        : 'Help search nearby for word slips — join in order into one word.');
+  // Clue 2 / 3 / 5: short prompt only — no phone “piece / digital lockbox” lists.
+  if (n === 3) {
+    prompt = OFFLINE_CLUE_PROMPTS[3] || prompt;
   }
-
-  if (n === 3 && Array.isArray(clue.memberPrompts) && clue.memberPrompts.length) {
-    // Prompt-only for Clue 3 — no find-task list on the phone.
-    collaborative = false;
+  if (n === 2) {
+    prompt = OFFLINE_CLUE_PROMPTS[2] || prompt;
   }
+  if (n === 5) {
+    prompt = OFFLINE_CLUE_PROMPTS[5] || prompt
+      || 'Find the letter slips nearby — join into one word. Leader submits.';
+  }
+  void memberIndex;
 
   const startedAt = row.startedAt || null;
   const expiresAt = row.expiresAt || null;
@@ -77,9 +67,9 @@ function challengeView(bundle, state, session, n, now) {
     challengeNumber: n,
     type: clue.type,
     prompt,
-    memberCode,
-    memberFragments,
-    collaborative,
+    memberCode: undefined,
+    memberFragments: undefined,
+    collaborative: false,
     // App HOW_TO wins over pack-frozen text (updates without re-export).
     howTo: OFFLINE_CLUE_HOW_TO[n] || clue.howTo || null,
     destinationInstruction: showDestination

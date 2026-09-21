@@ -9,7 +9,6 @@ export const OFFLINE_CLUE_HOW_TO = {
     title: 'Clue 1 · place',
     steps: [
       'Type the campus place (3 tries).',
-      'Miss all 3 → answer shown (0 pts) — type it.',
       'Walk there · scan orange once.',
     ],
   },
@@ -17,8 +16,7 @@ export const OFFLINE_CLUE_HOW_TO = {
     title: 'Clue 2 · digits',
     steps: [
       'At green: find numbered digit slips (1, 2, 3…).',
-      'Join digits in order · type the number (3 tries).',
-      'Miss all 3 → answer shown (0 pts).',
+      'Join digits in order · type the number.',
       'Scan green once.',
     ],
   },
@@ -56,5 +54,18 @@ export const OFFLINE_CLUE_HOW_TO = {
   },
 };
 
+/** Short prompts forced onto installed packs (overrides old digital-lockbox / letter copy). */
+export const OFFLINE_CLUE_PROMPTS = {
+  2:
+    'At the green stop: find the numbered digit slips nearby.\n'
+    + 'Join them in order into one number. Leader types it.',
+  3:
+    'Find the physical lockbox nearby.\n'
+    + 'Type the code written on it.',
+  5:
+    'At the red stop: find the letter slips planted nearby (letters only — not digits).\n'
+    + 'Join them in order into one word. Leader submits.',
+};
+
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 11;
+export const OFFLINE_PLAYER_COPY_REVISION = 12;

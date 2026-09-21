@@ -24,6 +24,7 @@ export default function ScoreChip({
   const hasField = Number.isFinite(total) && total > 0;
 
   if (rankFirst) {
+    const field = hasField ? total : 20;
     return (
       <div className="shrink-0 text-right">
         <p className="text-[10px] font-medium uppercase tracking-wider text-white/35">
@@ -31,11 +32,7 @@ export default function ScoreChip({
         </p>
         <p className="text-xl font-semibold tabular-nums leading-none text-white">
           {hasRank ? `#${place}` : '—'}
-        </p>
-        <p className="mt-1 text-[11px] tabular-nums text-white/45">
-          {hasRank
-            ? `${place}${ordinalSuffix(place)}${hasField ? ` of ${total}` : ''}`
-            : 'Updates on Wi‑Fi'}
+          <span className="ml-1 text-sm font-normal text-white/40">of {field}</span>
         </p>
       </div>
     );

@@ -159,20 +159,27 @@ function serializeChallenge(ch, extra = {}) {
 const {
   resolveCampusStationsCatalog,
   DEFAULT_STATION_JOINED_WORDS,
-  splitPlantFragments,
+  splitDigitSlips,
+  withStationPlantDefaults,
 } = require('./stationCatalogService');
 
 function stationPlantMap(event) {
   const map = new Map();
-  const teamSize = Math.max(2, Math.min(12, Number(event?.teamSize) || 4));
-  for (const row of resolveCampusStationsCatalog(event) || []) {
+  const catalog = withStationPlantDefaults(resolveCampusStationsCatalog(event) || [], 3);
+  for (const row of catalog) {
     const code = String(row.code || '').toUpperCase();
     if (!code) continue;
-    let plantFragments = Array.isArray(row.plantFragments) ? row.plantFragments : [];
-    let joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '').trim();
-    if (joinedWord && plantFragments.length < teamSize) {
-      plantFragments = splitPlantFragments(joinedWord, teamSize);
+    let joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
+      .replace(/\D/g, '')
+      .slice(0, 3);
+    if (joinedWord.length < 3) {
+      joinedWord = String(DEFAULT_STATION_JOINED_WORDS[code] || '847').replace(/\D/g, '').slice(0, 3) || '847';
     }
+    const plantFragments = Array.isArray(row.plantFragments)
+      && row.plantFragments.length >= 3
+      && row.plantFragments.every((f) => /^\d+$/.test(String(f)))
+      ? row.plantFragments.slice(0, 3).map((f) => String(f).replace(/\D/g, ''))
+      : splitDigitSlips(joinedWord, 3);
     map.set(code, {
       plantFragments,
       joinedWord,

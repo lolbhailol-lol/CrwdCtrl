@@ -17,6 +17,10 @@ export function sanitizePlayerCopy(text) {
     .replace(/\bplant fragments?\b/gi, 'digit slips')
     .replace(/\bplant join[- ]?words?\b/gi, 'digit answer')
     .replace(/\bjoined word from plant\b/gi, 'digit answer')
+    .replace(/\bdigital lockbox\b/gi, 'lockbox')
+    .replace(/\bopen (?:the )?digital lockbox\b/gi, 'find the lockbox')
+    .replace(/\ball pieces are on this phone[^.!]*/gi, '')
+    .replace(/\brebuild the code\b/gi, 'type the code')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([.!?])/g, '$1')
     .trim();

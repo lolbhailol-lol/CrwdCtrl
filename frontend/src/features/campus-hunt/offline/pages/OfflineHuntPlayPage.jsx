@@ -549,32 +549,7 @@ export default function OfflineHuntPlayPage() {
         backLabel="← Home"
         onStartOver={session.role === 'leader' ? onResetHunt : null}
         startOverBusy={resetting}
-        checkpointExtra={
-          session.role === 'leader' && cp?.needJoinWord ? (
-            <div className="mt-3 space-y-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0a1218] p-3 text-left">
-              <p className="text-xs font-semibold text-[#0ECCEE]">Join the word</p>
-              <p className="text-[11px] text-white/55">
-                Join the planted letter slips into one word, then submit.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  value={joinWord}
-                  onChange={(e) => setJoinWord(e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
-                  placeholder="Joined word"
-                />
-                <button
-                  type="button"
-                  onClick={onSubmitJoinWord}
-                  className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-xs font-bold text-black"
-                >
-                  Submit
-                </button>
-              </div>
-              {joinMsg ? <p className="text-[11px] text-emerald-300">{joinMsg}</p> : null}
-            </div>
-          ) : null
-        }
+        checkpointExtra={null}
       />
 
       {session.role === 'leader' ? (

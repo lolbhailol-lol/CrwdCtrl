@@ -11,8 +11,7 @@ import {
 import { CAMPUS_HUNT_PATHS } from '../config';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
 import UnlockHoldingCard from '../components/UnlockHoldingCard';
-import HuntScoringGuide from '../components/HuntScoringGuide';
-import OfflineLiveRankPanel from '../offline/components/OfflineLiveRankPanel';
+import HuntColorFlowGuide from '../components/HuntColorFlowGuide';
 import { pullOfflineBoardState } from '../offline/offlineBoardSync';
 import {
   submitChallengeAnswer,
@@ -168,8 +167,8 @@ export default function PlayerPlayScreen({
     ? liveRank
     : team?.leaderboardRank;
   const displayFieldSize = offlineMode
-    ? liveFieldSize
-    : team?.leaderboardSize;
+    ? (liveFieldSize || Number(data?.event?.teamCapacity) || 20)
+    : (team?.leaderboardSize || Number(data?.event?.teamCapacity) || null);
 
   const winMsg = useCallback((withPts, withoutPts) => (
     offlineMode ? withoutPts : withPts
@@ -783,7 +782,7 @@ export default function PlayerPlayScreen({
               score={team.currentScore}
               label="Score"
               rank={displayRank}
-              fieldSize={displayFieldSize}
+              fieldSize={displayFieldSize || 20}
               rankFirst={offlineMode}
             />
           </div>
@@ -793,15 +792,6 @@ export default function PlayerPlayScreen({
           {!waitingForRelease && !locked && (
             <HuntProgressTrack stage={team.currentStage} />
           )}
-
-          {offlineMode && !waitingForRelease && (eventId || offlineBundle) ? (
-            <OfflineLiveRankPanel
-              eventId={eventId}
-              teamCode={team.teamCode}
-              teamId={team.id}
-              bundle={offlineBundle}
-            />
-          ) : null}
 
           {!waitingForRelease && !locked && (
             <PlayerInstructionBox
@@ -825,9 +815,7 @@ export default function PlayerPlayScreen({
                 serverTime={serverTime}
                 onReady={() => onRefresh?.({ force: true })}
               />
-              <HuntScoringGuide
-                startingScore={Number(team?.startingScore) || 100}
-              />
+              <HuntColorFlowGuide title="Clue flow · colors" />
             </div>
           )}
 
@@ -1432,34 +1420,16 @@ export default function PlayerPlayScreen({
                 </p>
               )}
 
-              {activeChallenge.collaborative && (
-                Array.isArray(activeChallenge.memberFragments)
-                  && activeChallenge.memberFragments.length > 0
-                  ? (
-                    <div className="rounded-xl bg-black/30 px-4 py-4">
-                      <p className="text-[10px] uppercase tracking-wide text-white/40">
-                        Find nearby · in order
-                      </p>
-                      <ul className="mt-2 space-y-1.5">
-                        {activeChallenge.memberFragments.map((frag, i) => (
-                          <li key={`frag-${i}`} className="text-sm font-medium text-white/90">
-                            <span className="mr-2 text-white/35">{i + 1}.</span>
-                            {frag}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                  : activeChallenge.memberCode
-                    ? (
-                      <div className="rounded-xl bg-black/30 px-4 py-4 text-center">
-                        <p className="text-[10px] uppercase tracking-wide text-white/40">Your find task</p>
-                        <p className="mt-2 text-base font-semibold text-white/90">
-                          {activeChallenge.memberCode}
-                        </p>
-                      </div>
-                    )
-                    : null
+              {activeChallenge.challengeNumber === 3 && (
+                <p className="text-sm text-white/55">
+                  Find the physical lockbox nearby. Type the code printed on it.
+                </p>
+              )}
+
+              {activeChallenge.challengeNumber === 5 && (
+                <p className="text-sm text-white/55">
+                  Find the letter slips nearby (letters — not digits). Join into one word, then type it.
+                </p>
               )}
 
               {activeChallenge.revealedAnswer && activeChallenge.state === 'ACTIVE' && (

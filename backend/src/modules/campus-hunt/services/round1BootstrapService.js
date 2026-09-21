@@ -275,11 +275,9 @@ function ordinalLabel(n) {
 
 /** Clue 3 lockbox — find the physical lockbox; type the code on it. */
 function lockboxMemberPrompts(code, teamSize = 4) {
-  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   void code;
-  return Array.from({ length: people }, () => (
-    'Help look for the physical lockbox nearby.'
-  ));
+  void teamSize;
+  return [];
 }
 
 function routeClueDefaults(

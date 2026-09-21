@@ -271,26 +271,19 @@ function publicChallengeView(challenge, progress, {
   if (n === 1 && !isLeader) {
     prompt = null; // members never receive the leader-only Clue 1 text
   }
-  let memberCode = undefined;
-  let memberFragments = undefined;
-  let collaborative = false;
-  if (n === 5 && Array.isArray(challenge.memberPrompts) && challenge.memberPrompts.length) {
-    collaborative = true;
-    const prompts = challenge.memberPrompts.map((p) => String(p || '').trim()).filter(Boolean);
-    if (isLeader) {
-      memberFragments = prompts.length ? prompts : challenge.memberPrompts;
-      memberCode = undefined;
-    } else {
-      memberCode = challenge.memberPrompts[memberIndex] || '';
-    }
-    prompt = challenge.prompt
-      || (isLeader
-        ? 'Find the planted word slips nearby — rebuild into one word and submit.'
-        : 'Help search nearby for word slips — join in order into one word.');
+  // Round 1 Clue 3 = physical lockbox only (never digital / piece lists).
+  if (n === 3) {
+    prompt = 'Find the physical lockbox nearby.\nType the code written on it.';
   }
-  if (n === 3 && Array.isArray(challenge.memberPrompts) && challenge.memberPrompts.length) {
-    // Keep prompt-only for Clue 3 — no fragment list on the phone.
-    collaborative = false;
+  if (n === 2) {
+    prompt = challenge.prompt
+      && !/letter|join.?word|plant/i.test(String(challenge.prompt))
+      ? challenge.prompt
+      : 'At the green stop: find the numbered digit slips nearby.\nJoin them in order into one number. Leader types it.';
+  }
+  if (n === 5) {
+    prompt = challenge.prompt
+      || 'At the red stop: find the letter slips nearby (letters only — not digits).\nJoin them in order into one word. Leader submits.';
   }
 
   const maxAttempts = challenge.maxAttempts || scoring?.maxAttempts || 3;
@@ -332,9 +325,9 @@ function publicChallengeView(challenge, progress, {
     challengeNumber: n,
     type: challenge.type,
     prompt,
-    memberCode,
-    memberFragments,
-    collaborative,
+    memberCode: undefined,
+    memberFragments: undefined,
+    collaborative: false,
     howTo: CLUE_HOW_TO[n] || null,
     destinationInstruction: showDestination
       ? (challenge.destinationInstruction

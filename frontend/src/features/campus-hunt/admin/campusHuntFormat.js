@@ -1156,9 +1156,6 @@ export function routeClueDefaults(
 
   if (n === 3) {
     const code = String(lockboxCode || '').replace(/\D/g, '') || '9407';
-    const pieces = Array.from({ length: people }, () => (
-      'Help look for the physical lockbox nearby.'
-    ));
     return {
       prompt:
         'Find the physical lockbox nearby.\n'
@@ -1168,7 +1165,7 @@ export function routeClueDefaults(
       destinationInstruction:
         `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
         + `Leader scans once to unlock Field Terminal.`,
-      memberPrompts: pieces,
+      memberPrompts: [],
     };
   }
 

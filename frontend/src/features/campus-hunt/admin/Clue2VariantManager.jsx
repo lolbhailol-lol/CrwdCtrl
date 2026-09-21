@@ -227,11 +227,16 @@ export default function Clue2VariantManager({
           const place = secondStopForLocalTeam(slot.localTeamNumber, waitIndex, stations, teamsPerWait);
           const station = stations.find((s) => s.name === place || s.code === place);
           const stationCode = station?.code;
-          const answer = String(
+          // Prefer plant digit slips for this place; never leave letter-word leftovers.
+          const plantDigits = String(
             station?.joinedWord
-              || codes[`${code}-${waveId}`]
-              || threeDigitCodeForTeam(waitIndex, slot.localTeamNumber, teamsPerWait),
+            || place?.joinedWord
+            || '',
           ).replace(/\D/g, '').slice(0, 3);
+          const savedDigits = String(codes[`${code}-${waveId}`] || '').replace(/\D/g, '').slice(0, 3);
+          const answer = (plantDigits.length >= 3 ? plantDigits : '')
+            || (savedDigits.length >= 3 ? savedDigits : '')
+            || threeDigitCodeForTeam(waitIndex, slot.localTeamNumber, teamsPerWait);
           if (!answer || answer.length < 3) {
             failures.push(
               `${startLabel(point)} · ${waveId}: Set 3-digit answer for ${place || 'stop'}`,

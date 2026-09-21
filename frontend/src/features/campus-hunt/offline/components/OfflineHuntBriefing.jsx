@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getHuntStartGate } from '../offlineEngine';
 import OfflineHuntWelcome from './OfflineHuntWelcome';
+import HuntColorFlowGuide from '../../components/HuntColorFlowGuide';
 
 const WELCOME_KEY = 'ch_hunt_welcome_seen';
 
@@ -96,13 +97,14 @@ export default function OfflineHuntBriefing({
           ) : null}
         </div>
 
+        <HuntColorFlowGuide title="Clue flow · colors" />
+
         <div className="rounded-2xl border border-amber-400/25 bg-amber-500/[0.08] px-4 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/90">
-            Prize track
+            Mindspark 2026
           </p>
           <p className="mt-1.5 text-sm leading-snug text-amber-50/90">
-            Clear clues to climb the live leaderboard. Top{' '}
-            <span className="font-bold">10 teams</span> get a chance to volunteer at
+            Top <span className="font-bold">10 teams</span> get a chance to volunteer at
             Mindspark 2026.
           </p>
         </div>
