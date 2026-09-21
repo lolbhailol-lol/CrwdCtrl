@@ -311,27 +311,16 @@ export default function CampusHuntEventControl() {
           stationCount={overview?.stationCount ?? overview?.event?.stationCount}
           roundPlan={overview?.event?.roundPlan || overview?.roundPlan}
           busy={busy}
-          onSaveFormat={async ({ teamCapacity, teamSize, startCount, stationCount, createDemoTeams = true }) => {
+          onSaveFormat={async ({ teamCapacity, teamSize }) => {
             setBusy(true);
             setMsg('');
+            setRefreshError('');
             try {
-              const result = await applyRound1Scale(eventId, {
-                teamCapacity,
-                teamSize,
-                startCount,
-                stationCount,
-                createDemoTeams,
-                existingStations: overview?.campusStationsCatalog
-                  || overview?.campusStations
-                  || overview?.event?.campusStations,
-                existingStarts: overview?.campusStartsCatalog
-                  || overview?.campusStarts
-                  || overview?.event?.campusStarts,
-              });
+              const result = await applyRound1Scale(eventId, { teamCapacity, teamSize });
               setMsg(result.message);
               await refresh();
             } catch (err) {
-              setMsg(err.message || 'Could not update hunt scale');
+              setMsg(err.message || 'Could not save');
             } finally {
               setBusy(false);
             }

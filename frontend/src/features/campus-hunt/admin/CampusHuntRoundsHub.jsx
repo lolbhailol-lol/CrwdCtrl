@@ -1,17 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { deriveCompetitionFormat } from './competitionFormat';
-import { deriveClueGeometry, suggestHuntLayout } from './campusHuntFormat';
 
 /**
- * Event hub — single game (no Survival / Finals).
- * Competition size drives recommended starts + campus places.
+ * Event hub — set teams × people, save, open the hunt.
  */
 export default function CampusHuntRoundsHub({
   round1Status,
   teamCapacity = 20,
   teamSize = 10,
-  startCount: savedStartCount,
-  stationCount: savedStationCount,
   roundPlan: roundPlanProp,
   onOpenRound,
   onSaveFormat,
@@ -32,27 +28,8 @@ export default function CampusHuntRoundsHub({
     teamSize: draftTeamSize,
   });
 
-  const suggested = useMemo(
-    () => suggestHuntLayout(previewFormat.teamCapacity),
-    [previewFormat.teamCapacity],
-  );
-
-  const previewLayout = useMemo(
-    () => deriveClueGeometry(
-      previewFormat.teamCapacity,
-      previewFormat.teamSize,
-      {
-        startCount: suggested.startCount,
-        stationCount: suggested.stationCount,
-      },
-    ),
-    [previewFormat.teamCapacity, previewFormat.teamSize, suggested.startCount, suggested.stationCount],
-  );
-
-  const formatDirty = Number(draftCapacity) !== savedFormat.teamCapacity
-    || Number(draftTeamSize) !== savedFormat.teamSize
-    || Number(savedStartCount || 0) !== previewLayout.startCount
-    || Number(savedStationCount || 0) !== previewLayout.stationCount;
+  const dirty = previewFormat.teamCapacity !== savedFormat.teamCapacity
+    || previewFormat.teamSize !== savedFormat.teamSize;
 
   const status = String(round1Status || 'not_created').toLowerCase();
   const badge = status === 'live'
@@ -61,13 +38,10 @@ export default function CampusHuntRoundsHub({
       ? { label: 'COMPLETED', className: 'bg-emerald-500/20 text-emerald-200' }
       : { label: 'OPEN', className: 'bg-white/10 text-white/80' };
 
-  const save = (createDemoTeams = true) => {
+  const save = () => {
     onSaveFormat?.({
       teamCapacity: previewFormat.teamCapacity,
       teamSize: previewFormat.teamSize,
-      startCount: previewLayout.startCount,
-      stationCount: previewLayout.stationCount,
-      createDemoTeams,
     });
   };
 
@@ -75,18 +49,15 @@ export default function CampusHuntRoundsHub({
     <div className="space-y-5">
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <h2 className="text-lg font-bold uppercase tracking-wide">
-          The Hunt · {plan?.round1Name || 'Campus Hunt'}
+          {plan?.round1Name || 'Campus Hunt'}
         </h2>
-        <p className="mt-1 max-w-2xl text-sm text-white/55">
-          Set teams + people per team, save, then open the hunt.
+        <p className="mt-1 text-sm text-white/55">
+          Set how many teams and people per team, then Save.
         </p>
 
         {typeof onSaveFormat === 'function' && (
-          <div className="mt-4 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">
-              Size
-            </h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 space-y-3 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-xs text-white/50">
                 Teams
                 <input
@@ -95,7 +66,7 @@ export default function CampusHuntRoundsHub({
                   max={200}
                   value={draftCapacity}
                   onChange={(e) => setDraftCapacity(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
+                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2.5 text-base text-white"
                 />
               </label>
               <label className="block text-xs text-white/50">
@@ -106,23 +77,21 @@ export default function CampusHuntRoundsHub({
                   max={12}
                   value={draftTeamSize}
                   onChange={(e) => setDraftTeamSize(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
+                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2.5 text-base text-white"
                 />
               </label>
-              <div className="flex flex-col justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={busy || !formatDirty}
-                  onClick={() => save(true)}
-                  className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
-                >
-                  {busy ? 'Saving…' : 'Save size'}
-                </button>
-                <p className="text-[11px] text-white/45">
-                  {previewLayout.startCount} start · {previewLayout.stationCount} places · {previewFormat.totalPlayers} players
-                </p>
-              </div>
             </div>
+            <button
+              type="button"
+              disabled={busy || !dirty}
+              onClick={save}
+              className="w-full rounded-xl bg-[#0ECCEE] px-4 py-3 text-sm font-bold text-black disabled:opacity-40"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <p className="text-center text-xs text-white/45">
+              {previewFormat.teamCapacity} teams · {previewFormat.teamSize}/team · {previewFormat.totalPlayers} players
+            </p>
           </div>
         )}
       </section>
@@ -136,7 +105,7 @@ export default function CampusHuntRoundsHub({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                The Hunt · {plan?.round1Name || 'Campus Hunt'}
+                Next
               </p>
               <h3 className="mt-1 text-2xl font-bold uppercase tracking-wide text-white">
                 Open the hunt
@@ -147,8 +116,6 @@ export default function CampusHuntRoundsHub({
             </span>
           </div>
           <p className="mt-2 text-sm text-white/60">
-            {previewFormat.round1Teams} teams · {previewFormat.teamSize}/team ·
-            {' '}
             Places → Clues → Teams → Links → Live
           </p>
           <p className="mt-3 text-sm font-medium text-[#0ECCEE]">
