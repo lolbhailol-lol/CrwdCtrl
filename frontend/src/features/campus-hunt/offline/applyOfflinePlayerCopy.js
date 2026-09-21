@@ -1,7 +1,7 @@
 /**
  * Refresh player-facing copy on an already-installed pack.
- * Always force Clue 2 / 3 / 5 prompts + answers so offline play stays current
- * without requiring a full re-export.
+ * Always force Clue 2 / 3 / 5 prompts + answer shapes so offline play stays current.
+ * Never overwrite a valid admin-saved answer with a different plant/default.
  */
 
 import { sanitizePlayerCopy } from '../player/sanitizePlayerCopy';
@@ -31,29 +31,59 @@ function startCodeFromPack(bundle) {
   return stripped.charAt(0);
 }
 
+function digitsOnly(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function lettersOnly(value) {
+  return String(value || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+}
+
+/** Prefer challenge answer (admin save). Plant is fallback only when answer is not digits. */
 function digitAnswerFromPack(bundle, clue) {
-  const fromRoute = String(bundle?.route?.green?.joinedWord || '').replace(/\D/g, '');
+  const fromClue = digitsOnly(clue?.answer);
+  if (fromClue.length >= 3) return fromClue.slice(0, 3);
+
+  for (const row of clue?.acceptedAnswers || []) {
+    const d = digitsOnly(row);
+    if (d.length >= 3) return d.slice(0, 3);
+  }
+
+  const fromRoute = digitsOnly(bundle?.route?.green?.joinedWord);
+  if (fromRoute.length >= 3) return fromRoute.slice(0, 3);
+
   const fromPlant = Array.isArray(bundle?.route?.green?.plantFragments)
-    ? bundle.route.green.plantFragments.map((f) => String(f || '').replace(/\D/g, '')).join('')
+    ? bundle.route.green.plantFragments.map((f) => digitsOnly(f)).join('')
     : '';
-  const fromClue = String(clue?.answer || '').replace(/\D/g, '');
-  const digits = (fromRoute.length >= 3 ? fromRoute : '')
-    || (fromPlant.length >= 3 ? fromPlant : '')
-    || (fromClue.length >= 3 ? fromClue : '');
-  return digits ? digits.slice(0, 3).padStart(3, '0') : '';
+  if (fromPlant.length >= 3) return fromPlant.slice(0, 3);
+
+  return '';
 }
 
 function clue5WordFromPack(bundle, clue) {
-  // Prefer admin-saved / pack answer when it is already a letter word.
-  const existing = String(clue?.answer || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+  const existing = lettersOnly(clue?.answer);
   if (existing.length >= 3) return existing;
   const fromAccepted = (Array.isArray(clue?.acceptedAnswers) ? clue.acceptedAnswers : [])
-    .map((a) => String(a || '').replace(/[^A-Za-z]/g, '').toUpperCase())
+    .map((a) => lettersOnly(a))
     .find((w) => w.length >= 3);
   if (fromAccepted) return fromAccepted;
   const start = startCodeFromPack(bundle);
   if (CLUE5_WORDS[start]) return CLUE5_WORDS[start];
   return 'QUEST';
+}
+
+function lockboxAnswerFromPack(clue) {
+  const raw = String(clue?.answer || '').trim();
+  const digits = digitsOnly(raw);
+  if (digits.length >= 3) return digits;
+  if (raw.length >= 3) return raw.toUpperCase();
+  for (const row of clue?.acceptedAnswers || []) {
+    const d = digitsOnly(row);
+    if (d.length >= 3) return d;
+    const s = String(row || '').trim();
+    if (s.length >= 3) return s.toUpperCase();
+  }
+  return raw;
 }
 
 function looksStaleClue5(clue) {
@@ -81,12 +111,18 @@ function patchChallenge(clue, n, bundle) {
     next.prompt = forcedPrompt;
   }
 
-  // Clue 2 — always 3-digit plant answer (never leftover letter words).
+  // Clue 2 — 3-digit plant answer. Never keep letter-word leftovers in acceptedAnswers.
   if (n === 2) {
     const digits = digitAnswerFromPack(bundle, clue);
     if (digits) {
       next.answer = digits;
       next.acceptedAnswers = [digits];
+    } else {
+      // Strip letter leftovers so old words never validate.
+      next.acceptedAnswers = (Array.isArray(clue.acceptedAnswers) ? clue.acceptedAnswers : [])
+        .map((a) => digitsOnly(a).slice(0, 3))
+        .filter((d) => d.length >= 3);
+      if (next.acceptedAnswers[0]) next.answer = next.acceptedAnswers[0];
     }
     next.memberPrompts = [];
     next.type = 'decode';
@@ -94,14 +130,19 @@ function patchChallenge(clue, n, bundle) {
       || 'Numbered slips only — join digit 1, then 2, then 3… Eye level on posts.';
   }
 
-  // Clue 3 — physical lockbox only; strip digital/collaborative leftovers.
+  // Clue 3 — keep unique lockbox code from pack; strip collaborative leftovers.
   if (n === 3) {
+    const code = lockboxAnswerFromPack(clue);
+    if (code) {
+      next.answer = code;
+      next.acceptedAnswers = [code, String(code).toLowerCase()];
+    }
     next.memberPrompts = [];
     next.type = 'decode';
     next.hintText = 'Look around the blue stop for the lockbox. Type exactly what’s printed on it.';
   }
 
-  // Clue 5 — letter slips → one word; never piece lists / digit leftovers.
+  // Clue 5 — letter slips → one word; never digit leftovers / piece lists.
   if (n === 5) {
     const word = clue5WordFromPack(bundle, clue);
     next.prompt = OFFLINE_CLUE_PROMPTS[5];
@@ -121,14 +162,14 @@ function patchChallenge(clue, n, bundle) {
 
 function challengeNeedsPatch(clue, n) {
   if (!clue || typeof clue !== 'object') return false;
-  if (n === 5) return looksStaleClue5(clue) || String(clue.answer || '').replace(/\D/g, '').length >= 3;
+  if (n === 5) return looksStaleClue5(clue) || digitsOnly(clue.answer).length >= 3;
   if (n === 3) {
     return (Array.isArray(clue.memberPrompts) && clue.memberPrompts.some((p) => String(p || '').trim()))
       || /digital|piece|collaborative/i.test(String(clue.prompt || ''));
   }
   if (n === 2) {
     const ans = String(clue.answer || '');
-    return /[A-Za-z]/.test(ans) || String(clue.prompt || '').length < 10;
+    return /[A-Za-z]/.test(ans) || digitsOnly(ans).length < 3 || String(clue.prompt || '').length < 10;
   }
   return false;
 }
@@ -148,7 +189,6 @@ export function applyOfflinePlayerCopy(bundle) {
   let contentChanged = !revisionFresh;
   for (const key of ['clue1', 'clue2', 'clue3', 'clue4', 'clue5', 'clue6']) {
     const n = Number(String(key).replace('clue', ''));
-    // Always re-patch 2 / 3 / 5 so stale packs never stick after a soft revision bump.
     const must = n === 2 || n === 3 || n === 5 || !revisionFresh;
     if (challenges[key] && (must || challengeNeedsPatch(challenges[key], n))) {
       const before = JSON.stringify(challenges[key]);
@@ -162,14 +202,38 @@ export function applyOfflinePlayerCopy(bundle) {
     }
   }
 
+  // Keep green plant digits aligned with Clue 2 answer (never the reverse overwrite).
+  let route = bundle.route;
+  const clue2 = clues.clue2 || challenges.clue2;
+  const digitAns = digitsOnly(clue2?.answer);
+  if (digitAns.length >= 3 && route?.green) {
+    const greenDigits = digitsOnly(route.green.joinedWord);
+    if (greenDigits !== digitAns.slice(0, 3)) {
+      route = {
+        ...route,
+        green: {
+          ...route.green,
+          joinedWord: digitAns.slice(0, 3),
+          plantFragments: digitAns.slice(0, 3).split(''),
+        },
+      };
+      contentChanged = true;
+    }
+  }
+
   const checkpoints = Array.isArray(bundle.checkpoints)
     ? bundle.checkpoints.map((cp) => {
       if (!cp || typeof cp !== 'object') return cp;
       const publicInstruction = sanitizePlayerCopy(cp.publicInstruction || '');
-      return {
+      const next = {
         ...cp,
         publicInstruction: publicInstruction || cp.publicInstruction || '',
       };
+      if (String(cp.progressionKey || cp.checkpointKey || '') === '2' && digitAns.length >= 3) {
+        next.joinedWord = digitAns.slice(0, 3);
+        next.plantFragments = digitAns.slice(0, 3).split('');
+      }
+      return next;
     })
     : bundle.checkpoints;
 
@@ -182,6 +246,7 @@ export function applyOfflinePlayerCopy(bundle) {
       ...bundle,
       challenges,
       clues,
+      route,
       checkpoints,
       playerCopyRevision: OFFLINE_PLAYER_COPY_REVISION,
     },

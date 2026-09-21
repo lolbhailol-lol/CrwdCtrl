@@ -10,7 +10,7 @@ const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const { DEFAULT_SCORING_CONFIG } = require('../constants');
-const { resolveCampusStations, DEFAULT_STATION_JOINED_WORDS } = require('./stationCatalogService');
+const { resolveCampusStations, DEFAULT_STATION_JOINED_WORDS, splitDigitSlips } = require('./stationCatalogService');
 const { persistClueScoring } = require('./clueScoringPersistService');
 const { resyncClue1TeamBindings } = require('./startScheduleService');
 const { writeAudit } = require('./auditService');
@@ -153,6 +153,8 @@ async function bulkSaveClue2({
             publicInstruction:
               `Green SECOND SCAN at ${place}. One shared QR for this place. `
               + 'After the digit answer is typed on the leader phone, scan once to unlock Clue 3.',
+            joinedWord: answer,
+            plantFragments: splitDigitSlips(answer, 3),
             sequence: 2,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -217,6 +219,34 @@ async function bulkSaveClue2({
         waveId: row.waveId,
         message: error.message || 'Save failed',
       });
+    }
+  }
+
+  // Keep Places digit catalog in sync with saved Clue 2 answers (per station).
+  const plantByStation = new Map();
+  for (const row of variants) {
+    const code = String(row.stationCode || '').toUpperCase().trim();
+    const digits = String(row.answer || '').replace(/\D/g, '').slice(0, 3);
+    if (code && digits.length >= 3) plantByStation.set(code, digits);
+  }
+  if (plantByStation.size && event) {
+    const catalog = Array.isArray(event.campusStations) ? [...event.campusStations] : [];
+    let catalogChanged = false;
+    for (const [code, digits] of plantByStation.entries()) {
+      const idx = catalog.findIndex((r) => String(r.code || '').toUpperCase() === code);
+      const plantFragments = splitDigitSlips(digits, 3);
+      if (idx >= 0) {
+        catalog[idx] = { ...catalog[idx], joinedWord: digits, plantFragments };
+        catalogChanged = true;
+      } else {
+        catalog.push({ code, joinedWord: digits, plantFragments });
+        catalogChanged = true;
+      }
+    }
+    if (catalogChanged) {
+      event.campusStations = catalog;
+      event.markModified?.('campusStations');
+      await event.save();
     }
   }
 

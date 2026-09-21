@@ -68,4 +68,4 @@ export const OFFLINE_CLUE_PROMPTS = {
 };
 
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 14;
+export const OFFLINE_PLAYER_COPY_REVISION = 15;

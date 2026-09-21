@@ -288,6 +288,47 @@ export function getClue(bundle, n) {
   return bundle?.clues?.[key] || bundle?.challenges?.[key] || null;
 }
 
+/** Canonical accepted answers for offline grading (digits / letters / lockbox). */
+function acceptedAnswersForClue(bundle, n, clue) {
+  const raw = [clue?.answer, ...(clue?.acceptedAnswers || [])].filter(Boolean);
+  if (n === 2) {
+    const digits = [];
+    for (const row of raw) {
+      const d = String(row || '').replace(/\D/g, '');
+      if (d.length >= 3) digits.push(d.slice(0, 3));
+    }
+    // Only use green plant if challenge has no digit answer yet (legacy packs).
+    if (!digits.length) {
+      const plant = String(bundle?.route?.green?.joinedWord || '').replace(/\D/g, '');
+      if (plant.length >= 3) digits.push(plant.slice(0, 3));
+      const frags = Array.isArray(bundle?.route?.green?.plantFragments)
+        ? bundle.route.green.plantFragments.map((f) => String(f || '').replace(/\D/g, '')).join('')
+        : '';
+      if (frags.length >= 3) digits.push(frags.slice(0, 3));
+    }
+    return [...new Set(digits)];
+  }
+  if (n === 5) {
+    const words = [];
+    for (const row of raw) {
+      const w = String(row || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+      if (w.length >= 3) words.push(w);
+    }
+    return [...new Set(words)];
+  }
+  if (n === 3) {
+    const codes = [];
+    for (const row of raw) {
+      const s = String(row || '').trim();
+      const d = s.replace(/\D/g, '');
+      if (d.length >= 3) codes.push(d);
+      else if (s.length >= 3) codes.push(s.toUpperCase());
+    }
+    return [...new Set(codes)];
+  }
+  return raw.map((v) => String(v || '').trim()).filter(Boolean);
+}
+
 export function checkpointForKey(bundle, key) {
   const color = ROUTE_BY_KEY[Number(key)];
   return bundle?.route?.[color] || (bundle?.checkpoints || []).find(
@@ -396,8 +437,8 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
 
   const expired = Boolean(row.expiresAt && now.getTime() >= new Date(row.expiresAt).getTime());
   const allowLate = cfg.allowLateSubmit !== false || n === 2 || n === 4 || n === 5;
-  const accepted = [clue.answer, ...(clue.acceptedAnswers || [])].filter(Boolean);
-  const correct = matchesAnyAccepted(answer, accepted);
+  const accepted = acceptedAnswersForClue(bundle, n, clue);
+  const correct = matchesAnyAccepted(answer, accepted, n);
   const nextAttempts = (row.attempts || 0) + 1;
   const maxAttempts = clue.maxAttempts || cfg.maxAttempts || 3;
 

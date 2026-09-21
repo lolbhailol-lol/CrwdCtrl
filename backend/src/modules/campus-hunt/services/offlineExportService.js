@@ -159,13 +159,23 @@ function serializeChallenge(ch, extra = {}) {
 
   if (n === 2) {
     answer = answer.replace(/\D/g, '').slice(0, 3);
+    // Fall back to plant digits when challenge still has a letter leftover.
+    if (answer.length < 3) {
+      const plant = String(extra.plantDigits || '').replace(/\D/g, '').slice(0, 3);
+      if (plant.length >= 3) answer = plant;
+    }
     memberPrompts = [];
     type = 'decode';
-    if (answer) acceptedAnswers = [answer];
+    acceptedAnswers = answer ? [answer] : [];
   }
   if (n === 3) {
     memberPrompts = [];
     type = 'decode';
+    const digits = answer.replace(/\D/g, '');
+    if (digits.length >= 3) {
+      answer = digits;
+      acceptedAnswers = [digits];
+    }
   }
   if (n === 5) {
     answer = answer.replace(/[^A-Za-z]/g, '').toUpperCase() || answer;
@@ -468,24 +478,25 @@ async function exportOfflinePacks(eventId) {
           ? { code: start.code, name: start.name, description: start.description || '' }
           : null,
       },
-      route: {
-        orange: routeStop(cp1, 'first', plantByStation),
-        green: routeStop(cp2, 'second', plantByStation),
-        blue: routeStop(cp3, 'third', plantByStation),
-        purple: routeStop(cp4, 'fourth', plantByStation),
-        red: routeStop(cp5, 'fifth', plantByStation),
-      },
-      clues: {
-        clue1: serializeChallenge(clue1),
-        clue2: serializeChallenge(clue2),
-        clue3: serializeChallenge(clue3),
-        clue4: serializeChallenge(clue4, {
-          gridAccessCode,
-          gridGameUrl: '/campus-hunt/grid',
-        }),
-        clue5: serializeChallenge(clue5),
-        clue6: serializeChallenge(clue6),
-      },
+      route: (() => {
+        const orange = routeStop(cp1, 'first', plantByStation);
+        let green = routeStop(cp2, 'second', plantByStation);
+        const blue = routeStop(cp3, 'third', plantByStation);
+        const purple = routeStop(cp4, 'fourth', plantByStation);
+        const red = routeStop(cp5, 'fifth', plantByStation);
+        const plantDigits = String(green?.joinedWord || '').replace(/\D/g, '').slice(0, 3);
+        const clue2Ser = serializeChallenge(clue2, { plantDigits });
+        const answerDigits = String(clue2Ser?.answer || '').replace(/\D/g, '').slice(0, 3);
+        if (green && answerDigits.length >= 3) {
+          green = {
+            ...green,
+            joinedWord: answerDigits,
+            plantFragments: splitDigitSlips(answerDigits, 3),
+          };
+        }
+        return { orange, green, blue, purple, red, _clue2Ser: clue2Ser };
+      })(),
+      clues: null,
       checkpoints: stops.filter(Boolean),
       placePosters,
         opsNotes: {
@@ -494,6 +505,21 @@ async function exportOfflinePacks(eventId) {
         checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks next clue — no team-code step, no multi-member scan). Digit join-answer is Clue 2 only. Clue 6 → Mindspark Lobby finish code.',
         posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage. Leader scans once.',
       },
+    };
+
+    // Attach clues using the synced Clue 2 answer from route builder.
+    const clue2Ser = bundle.route._clue2Ser;
+    delete bundle.route._clue2Ser;
+    bundle.clues = {
+      clue1: serializeChallenge(clue1),
+      clue2: clue2Ser,
+      clue3: serializeChallenge(clue3),
+      clue4: serializeChallenge(clue4, {
+        gridAccessCode,
+        gridGameUrl: '/campus-hunt/grid',
+      }),
+      clue5: serializeChallenge(clue5),
+      clue6: serializeChallenge(clue6),
     };
 
     bundles.push({

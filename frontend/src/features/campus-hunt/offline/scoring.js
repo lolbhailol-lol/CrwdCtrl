@@ -115,13 +115,47 @@ export function normalizeAnswer(value) {
   return String(value).trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+export function normalizeDigits(value) {
+  return String(value == null ? '' : value).replace(/\D/g, '');
+}
+
+export function normalizeLetters(value) {
+  return String(value == null ? '' : value).replace(/[^A-Za-z]/g, '').toUpperCase();
+}
+
 export function answersMatch(submitted, expected) {
   const a = normalizeAnswer(submitted);
   const b = normalizeAnswer(expected);
   return a.length > 0 && a === b;
 }
 
-export function matchesAnyAccepted(submitted, acceptedAnswers = []) {
+/** Clue-aware match: digits for 2, letters for 5, flexible for lockbox/others. */
+export function answersMatchForClue(challengeNumber, submitted, expected) {
+  const n = Number(challengeNumber);
+  if (n === 2) {
+    const a = normalizeDigits(submitted);
+    const b = normalizeDigits(expected);
+    return a.length >= 3 && a === b;
+  }
+  if (n === 5) {
+    const a = normalizeLetters(submitted);
+    const b = normalizeLetters(expected);
+    return a.length >= 3 && a === b;
+  }
+  if (n === 3) {
+    const aDigits = normalizeDigits(submitted);
+    const bDigits = normalizeDigits(expected);
+    if (aDigits.length >= 3 && bDigits.length >= 3) return aDigits === bDigits;
+  }
+  return answersMatch(submitted, expected);
+}
+
+export function matchesAnyAccepted(submitted, acceptedAnswers = [], challengeNumber = null) {
+  if (challengeNumber != null) {
+    return (acceptedAnswers || []).some((expected) => (
+      answersMatchForClue(challengeNumber, submitted, expected)
+    ));
+  }
   return (acceptedAnswers || []).some((expected) => answersMatch(submitted, expected));
 }
 
