@@ -1,14 +1,26 @@
 import { defaultFestPlugin } from './defaultPlugin';
+import { KSHITIJ_PUNE_MULTICITY_SLUG } from '../kshitij/isKshitijFest';
 
 const CATEGORY_ORDER = ['PERFORMING ARTS', 'GAMING AND SPORTS', 'INFORMALS', 'BUSINESS EVENTS'];
 
+/**
+ * Kshitij Pune Multicity — Techfest-style simple organizer portal
+ * (Overview · Competitions · Participants) with roster registration.
+ */
 export const kshitijPlugin = {
   ...defaultFestPlugin,
   id: 'kshitij',
-  // Kshitij competition registrations use the same guided roster flow as
-  // MindSpark: team selection, one details form per participant, then submit.
+  simpleOrganizerPortal: true,
+  hideProShow: true,
+  hideStallLeads: true,
+  hideLiveNav: true,
+  hideFestInfoNav: true,
+  hideCompetitionProbables: true,
+  skipRegistrationReview: true,
+  suppressDefaultSuccessPopup: true,
   skipFestCommonFormOnCompetition: true,
   hasRosterPersonStep: true,
+  recoveryFestId: KSHITIJ_PUNE_MULTICITY_SLUG,
   competitionGroupKey(comp) {
     return String(comp?.module || comp?.competitionType || 'OTHER').trim().toUpperCase();
   },

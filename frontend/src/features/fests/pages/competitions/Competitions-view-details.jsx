@@ -1155,13 +1155,14 @@ function EventPage() {
         ? 'object-cover object-[center_28%]'
         : 'object-cover object-center';
     const competitionHeroMobileH = showHeroImage
-        ? (isKshitijPuneRegionals ? 'aspect-[16/10] h-auto max-h-[280px] min-h-[200px]' : 'h-[396px]')
+        ? (isKshitijPuneRegionals ? 'aspect-[16/10] h-auto max-h-[240px] min-h-[180px]' : 'h-[396px]')
         : 'h-52';
     const competitionHeroDesktopH = isKshitijPuneRegionals
-        ? 'h-64 lg:h-[18rem] xl:h-[20rem]'
+        ? 'h-56 lg:h-[16rem] xl:h-[18rem]'
         : isMindSparkCompetition
             ? 'h-80 lg:h-[24rem] xl:h-[26rem]'
             : 'h-72 lg:h-[20rem] xl:h-[22rem]';
+    const competitionHeroAnimClass = isKshitijPuneRegionals ? '' : 'animate-detail-enter';
 
     // Function to get common rules based on fest context
     const getCommonRules = () => {
@@ -2016,7 +2017,7 @@ function EventPage() {
 
             <main
                 key={competitionId || eventData?.id || 'competition'}
-                className="flex-1 w-full animate-detail-enter"
+                className={`flex-1 w-full ${isKshitijPuneRegionals ? '' : 'animate-detail-enter'}`}
             >
                     {/* Mobile — full-bleed hero when cover exists; compact chrome otherwise (no empty black box) */}
                     <div className="block md:hidden w-full">
@@ -2030,10 +2031,10 @@ function EventPage() {
                                         alt={eventData.title || 'Competition'}
                                         preset={competitionHeroPreset}
                                         containerClassName="absolute inset-0 w-full h-full"
-                                        className={`absolute inset-0 w-full h-full ${competitionHeroObjectClass} animate-detail-enter`}
+                                        className={`absolute inset-0 w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
                                         loaderSize="hero"
                                         eager={showHeroImage}
-                                        placeholder={showHeroImage ? 'trophy' : 'muted'}
+                                        placeholder={showHeroImage ? (isKshitijPuneRegionals ? 'muted' : 'trophy') : 'muted'}
                                     />
                                     {showHeroImage ? (
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
@@ -2231,10 +2232,10 @@ function EventPage() {
                                         alt={eventData.title || 'Competition'}
                                         preset={competitionHeroPreset}
                                         containerClassName="w-full h-full"
-                                        className={`w-full h-full ${competitionHeroObjectClass} animate-detail-enter`}
+                                        className={`w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
                                         loaderSize="hero"
                                         eager={showHeroImage}
-                                        placeholder={showHeroImage ? 'trophy' : 'muted'}
+                                        placeholder={showHeroImage ? (isKshitijPuneRegionals ? 'muted' : 'trophy') : 'muted'}
                                     />
                                         </div>
                                 </div>

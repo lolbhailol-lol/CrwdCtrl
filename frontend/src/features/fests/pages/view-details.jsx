@@ -85,8 +85,8 @@ function CompetitionScrollCard({
       ? 'h-64 xl:h-72'
       : 'h-56'
     : fill
-      ? 'h-52 xl:h-56'
-      : 'h-48';
+      ? 'h-44 xl:h-52'
+      : 'h-40';
 
   return (
     <div
@@ -103,9 +103,9 @@ function CompetitionScrollCard({
       }}
       aria-disabled={busy}
       aria-busy={busy}
-      className={`card-surface text-left rounded-2xl overflow-hidden transition hover:-translate-y-0.5 active:scale-[0.98] flex flex-col ${
-        fill ? 'w-full h-full' : largeCover ? 'w-52 shrink-0' : 'w-46 shrink-0'
-      } ${busy ? 'cursor-wait opacity-70' : ''} ${isDark ? 'bg-black!' : 'bg-white'}`}
+      className={`card-surface text-left rounded-2xl overflow-hidden transition active:scale-[0.98] flex flex-col ${
+        fill ? 'w-full h-full' : largeCover ? 'w-52 shrink-0' : 'w-44 shrink-0'
+      } ${largeCover ? 'hover:-translate-y-0.5' : ''} ${busy ? 'cursor-wait opacity-70' : ''} ${isDark ? 'bg-black!' : 'bg-white'}`}
     >
       <div className={`relative ${coverH} w-full shrink-0`}>
         <CompetitionCoverImage
@@ -199,6 +199,7 @@ function EventDetailsPage() {
   const [bodyReady, setBodyReady] = useState(() => Boolean(resolveSeededFest(eventId, location)));
   const [openingCompetition, setOpeningCompetition] = useState(false);
   const [auditoriumMeta, setAuditoriumMeta] = useState(null);
+  const [deferHeavyMedia, setDeferHeavyMedia] = useState(false);
   const openingCompetitionRef = useRef(false);
   const eventsRef = useRef(null);
   const fetchGenRef = useRef(0);
@@ -218,6 +219,7 @@ function EventDetailsPage() {
     setActiveTab('GROUP');
     setShowFullOverview(false);
     setLightboxIndex(null);
+    setDeferHeavyMedia(false);
     setBodyReady(false);
     setOpeningCompetition(false);
     openingCompetitionRef.current = false;
@@ -227,6 +229,26 @@ function EventDetailsPage() {
     }
     return undefined;
   }, [eventId]);
+
+  // Paint hero + competitions first; mount gallery / explore after idle (MindSpark-smooth)
+  useEffect(() => {
+    let cancelled = false;
+    const arm = () => {
+      if (!cancelled) setDeferHeavyMedia(true);
+    };
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(arm, { timeout: 900 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(id);
+      };
+    }
+    const t = window.setTimeout(arm, 280);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [eventId, fetchDone]);
 
   // Fetch event data from backend API
   useEffect(() => {
@@ -526,6 +548,8 @@ function EventDetailsPage() {
   const mindSparkDesktop = festPlugin.id === 'mindspark';
   const techfestPage = festPlugin.id === 'techfest';
   const kshitijPage = festPlugin.id === 'kshitij';
+  // MindSpark-style dense layout (tighter hero, competition grid, less chrome)
+  const smoothFestLayout = mindSparkDesktop || kshitijPage;
   // Fill hero box edge-to-edge (no letterbox gaps). Techfest keeps logo contain.
   const heroShellClass = 'bg-[#1A1B1D]';
   const festHeroRaw = (() => {
@@ -544,14 +568,16 @@ function EventDetailsPage() {
       })
     : '';
   const techfestHeroSrc = techfestPage ? festHeroSrc : '';
-  const festHeroBoxClass = mindSparkDesktop || kshitijPage
-    ? 'h-72 lg:h-[22rem] xl:h-[26rem]'
+  const festHeroBoxClass = smoothFestLayout
+    ? (kshitijPage ? 'h-56 lg:h-[18rem] xl:h-[20rem]' : 'h-72 lg:h-[22rem] xl:h-[26rem]')
     : 'h-64 sm:h-80 xl:h-96';
   const festHeroMobileH = techfestPage
     ? 'h-[320px]'
-    : mindSparkDesktop || kshitijPage
-      ? 'h-[320px]'
-      : 'h-[280px]';
+    : kshitijPage
+      ? 'h-[240px]'
+      : mindSparkDesktop
+        ? 'h-[320px]'
+        : 'h-[280px]';
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -601,7 +627,12 @@ function EventDetailsPage() {
   };
 
   const primaryPhone = getPrimaryPhone(pageEvent.contacts);
-  const galleryPreview = pageEvent.galleryImages || [];
+  const galleryAll = pageEvent.galleryImages || [];
+  // Cap thumbs — full set opens in lightbox after idle mount
+  const galleryCap = kshitijPage ? 6 : smoothFestLayout ? 8 : galleryAll.length;
+  const galleryPreview = galleryAll.slice(0, galleryCap);
+  const galleryHasMore = galleryAll.length > galleryPreview.length;
+  const showDeferredMedia = !kshitijPage || deferHeavyMedia;
 
   const handleFestFavorite = () => {
     toggleFavorite(pageEvent.id, {
@@ -687,8 +718,8 @@ function EventDetailsPage() {
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
           {/* Content */}
-          <div className={`mx-auto px-4 lg:px-8 ${mindSparkDesktop ? 'max-w-[92rem] py-3' : 'max-w-7xl py-5'}`}>
-            {!mindSparkDesktop ? (
+          <div className={`mx-auto px-4 lg:px-8 ${smoothFestLayout ? 'max-w-[92rem] py-3' : 'max-w-7xl py-5'}`}>
+            {!smoothFestLayout ? (
             <button
               type="button"
               onClick={goBack}
@@ -700,12 +731,12 @@ function EventDetailsPage() {
               Back
             </button>
             ) : null}
-            <div className={mindSparkDesktop
+            <div className={smoothFestLayout
               ? 'grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_18rem] lg:grid-cols-[minmax(0,1fr)_22rem] gap-6 lg:gap-8 items-start'
               : 'grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8'
             }>
               {/* Left Column - Event Details */}
-              <div className={mindSparkDesktop ? 'order-2 md:order-1 space-y-4 min-w-0' : 'md:col-span-2 space-y-4 sm:space-y-6'}>
+              <div className={smoothFestLayout ? 'order-2 md:order-1 space-y-4 min-w-0' : 'md:col-span-2 space-y-4 sm:space-y-6'}>
                 {/* Hero — natural image size; techfest logo box; MindSpark photo frame */}
                 {techfestPage ? (
                 <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
@@ -728,7 +759,7 @@ function EventDetailsPage() {
                     ) : null}
                   </div>
                 </div>
-                ) : mindSparkDesktop || kshitijPage ? (
+                ) : smoothFestLayout ? (
                 <div className={`relative rounded-2xl overflow-hidden ${heroShellClass} ${festHeroBoxClass}`}>
                   {festHeroSrc ? (
                     <img
@@ -737,6 +768,8 @@ function EventDetailsPage() {
                       className={`absolute inset-0 w-full h-full object-cover ${
                         kshitijPage ? 'object-[center_35%]' : 'object-center'
                       }`}
+                      fetchPriority="high"
+                      decoding="async"
                     />
                   ) : null}
                   <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/75 via-black/15 to-black/25" />
@@ -794,8 +827,11 @@ function EventDetailsPage() {
                   ) : null}
                 </div>
                 )}
-                {!techfestPage && (mindSparkDesktop || kshitijPage) && galleryPreview.length > 0 ? (
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
+                {!techfestPage && smoothFestLayout && showDeferredMedia && galleryPreview.length > 0 ? (
+                  <div
+                    className="flex gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1"
+                    style={{ contentVisibility: 'auto', containIntrinsicSize: '64px' }}
+                  >
                     {galleryPreview.map((img, idx) => (
                       <button
                         key={idx}
@@ -817,12 +853,25 @@ function EventDetailsPage() {
                           src={getImageUrl(img, { preset: 'thumb' })}
                           alt={`Gallery ${idx + 1}`}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                           onError={(e) => {
                             handleImageErrorWithFallback(e, 100, 100, '#2A2B2E', 'Gallery');
                           }}
                         />
                       </button>
                     ))}
+                    {galleryHasMore ? (
+                      <button
+                        type="button"
+                        onClick={() => openLightbox(galleryPreview.length)}
+                        className={`shrink-0 rounded-xl flex items-center justify-center text-[11px] font-semibold ${
+                          kshitijPage ? 'w-12 h-12 xl:w-14 xl:h-14' : 'w-16 h-16'
+                        } ${isDark ? 'bg-white/10 text-white' : 'bg-gray-200 text-gray-700'}`}
+                      >
+                        +{galleryAll.length - galleryPreview.length}
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -831,10 +880,10 @@ function EventDetailsPage() {
                 <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
                   <h2 className={`text-xl sm:text-2xl font-bold mb-3 sm:mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
                   <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed text-sm sm:text-base`}>
-                    {showFullOverview || overviewText.length <= (mindSparkDesktop ? 520 : 200)
+                    {showFullOverview || overviewText.length <= (smoothFestLayout ? 520 : 200)
                       ? overviewText
-                      : `${overviewText.substring(0, mindSparkDesktop ? 520 : 200)}...`}
-                    {overviewText.length > (mindSparkDesktop ? 520 : 200) && (
+                      : `${overviewText.substring(0, smoothFestLayout ? 520 : 200)}...`}
+                    {overviewText.length > (smoothFestLayout ? 520 : 200) && (
                       <button
                         onClick={toggleReadMore}
                         className="text-blue-500 ml-1 font-semibold hover:text-blue-600 transition-colors"
@@ -861,7 +910,7 @@ function EventDetailsPage() {
                     <CompetitionSectionSkeleton isDark={isDark} />
                   </div>
                 ) : availableTabs.length > 0 ? (
-                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`}>
+                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`} style={kshitijPage ? { contentVisibility: 'auto', containIntrinsicSize: '420px' } : undefined}>
                     <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {pageEvent.competitionsHeading || "Competitions"}
                     </h2>
@@ -890,14 +939,14 @@ function EventDetailsPage() {
                       ))}
                     </div>
 
-                    {/* Competition Cards — grid on MindSpark laptop, scroll on other fests */}
-                    <div className={mindSparkDesktop ? '' : 'overflow-x-auto scrollbar-hide -mx-1 px-1'}>
-                      <div className={mindSparkDesktop ? 'grid grid-cols-2 xl:grid-cols-3 gap-4' : 'flex gap-4 pb-1'}>
+                    {/* Competition Cards — grid on MindSpark / Kshitij, scroll on other fests */}
+                    <div className={smoothFestLayout ? '' : 'overflow-x-auto scrollbar-hide -mx-1 px-1'}>
+                      <div className={smoothFestLayout ? 'grid grid-cols-2 xl:grid-cols-3 gap-4' : 'flex gap-4 pb-1'}>
                         {pageEvent.competitions[visibleTab]?.map((comp, idx) => (
                           <CompetitionScrollCard
                             key={comp.id || idx}
                             comp={comp}
-                            fill={mindSparkDesktop}
+                            fill={smoothFestLayout}
                             hideFee={false}
                             largeCover={mindSparkDesktop}
                             isDark={isDark}
@@ -944,12 +993,12 @@ function EventDetailsPage() {
               </div>
 
               {/* Right Column - Registration Card & Artists */}
-              <div className={mindSparkDesktop ? 'order-1 md:order-2 space-y-5' : 'lg:col-span-1 space-y-4 sm:space-y-5'}>
+              <div className={smoothFestLayout ? 'order-1 md:order-2 space-y-5' : 'lg:col-span-1 space-y-4 sm:space-y-5'}>
                 <div className={`sticky top-4 lg:top-[calc(var(--desktop-navbar-h)+0.75rem)] ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-5 mb-6 transition-colors duration-300`}>
-                  <div className={`flex items-start justify-between gap-3 ${mindSparkDesktop ? 'mb-3' : 'mb-4 sm:mb-6'}`}>
-                    {mindSparkDesktop ? (
+                  <div className={`flex items-start justify-between gap-3 ${smoothFestLayout ? 'mb-3' : 'mb-4 sm:mb-6'}`}>
+                    {smoothFestLayout ? (
                       <h1 className={`text-2xl lg:text-3xl font-bold leading-tight tracking-tight min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {formatMindSparkTitle(pageEvent.title)}
+                        {mindSparkDesktop ? formatMindSparkTitle(pageEvent.title) : pageEvent.title}
                         {collegeLabel ? (
                           <span className={`block mt-1 text-sm font-semibold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                             {collegeLabel}
@@ -986,7 +1035,7 @@ function EventDetailsPage() {
                     </button>
                   ) : null}
 
-                  <div className={mindSparkDesktop ? 'space-y-2 mb-3' : 'space-y-3 sm:space-y-4 mb-4 sm:mb-6'}>
+                  <div className={smoothFestLayout ? 'space-y-2 mb-3' : 'space-y-3 sm:space-y-4 mb-4 sm:mb-6'}>
                     {dateLabel ? (
                     <div className="flex items-center space-x-3">
                       <img src={calendarIcon} alt="Calendar" className={`w-[18px] h-[18px] ${isDark ? 'invert brightness-200' : ''}`}/>
@@ -1016,7 +1065,7 @@ function EventDetailsPage() {
                     >
                       <img src={shareIcon} alt="Share" className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'filter brightness-150 invert' : ''}`} />
                     </button>
-                    {mindSparkDesktop ? (
+                    {smoothFestLayout ? (
                       <button
                         type="button"
                         onClick={handleFestFavorite}
@@ -1030,7 +1079,7 @@ function EventDetailsPage() {
                       </button>
                     ) : null}
                   </div>
-                  {mindSparkDesktop ? (
+                  {smoothFestLayout ? (
                     <div className="mt-3 grid gap-2">
                       <button
                         type="button"
@@ -1218,6 +1267,7 @@ function EventDetailsPage() {
               </div>
             </div>
 
+            {showDeferredMedia ? (
             <SimilarFestsSection
               relatedFests={pageEvent.relatedFests}
               festType={pageEvent.type || pageEvent.category}
@@ -1229,6 +1279,7 @@ function EventDetailsPage() {
               hideSubtitle={kshitijPage}
               compact={kshitijPage}
             />
+            ) : null}
           </div>
         </div>
       </div>
@@ -1254,6 +1305,8 @@ function EventDetailsPage() {
               className={`absolute inset-0 w-full h-full object-cover ${
                 kshitijPage ? 'object-[center_35%]' : 'object-center'
               }`}
+              fetchPriority="high"
+              decoding="async"
             />
           ) : null}
           <div
@@ -1582,13 +1635,16 @@ function EventDetailsPage() {
         )}
 
         {/* Gallery — horizontal swipe (same pattern as run clubs) */}
-        {galleryPreview.length > 0 && (
-          <section className={`mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+        {showDeferredMedia && galleryPreview.length > 0 && (
+          <section
+            className={`mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '180px' }}
+          >
             <div className="flex items-end justify-between gap-3 mb-3 px-4">
               <h2 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Gallery</h2>
-              {galleryPreview.length > 1 ? (
+              {galleryAll.length > 1 ? (
                 <p className={`text-xs shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                  Swipe · {galleryPreview.length} photos
+                  Swipe · {galleryAll.length} photos
                 </p>
               ) : null}
             </div>
@@ -1597,16 +1653,16 @@ function EventDetailsPage() {
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {galleryPreview.map((img, idx) => {
-                const src = getImageUrl(img, { preset: 'detail' }) || getImageUrl(img, { preset: 'thumb' });
+                const src = getImageUrl(img, { preset: 'thumb' });
                 return (
                   <button
                     key={`${img}-${idx}`}
                     type="button"
                     onClick={() => openLightbox(idx)}
-                    aria-label={`View gallery image ${idx + 1} of ${galleryPreview.length}`}
+                    aria-label={`View gallery image ${idx + 1} of ${galleryAll.length}`}
                     className={`relative shrink-0 snap-center overflow-hidden border active:scale-[0.985] transition-transform ${
                       kshitijPage
-                        ? 'w-[62vw] max-w-[260px] h-[150px] rounded-2xl'
+                        ? 'w-[58vw] max-w-[220px] h-[124px] rounded-2xl'
                         : 'w-[78vw] max-w-[340px] h-[220px] rounded-3xl'
                     } ${
                       isDark ? 'border-white/10 bg-[#111213]' : 'border-gray-100 bg-white shadow-sm'
@@ -1616,11 +1672,13 @@ function EventDetailsPage() {
                       src={src}
                       alt={`Gallery ${idx + 1}`}
                       className="absolute inset-0 w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         handleImageErrorWithFallback(
                           e,
-                          kshitijPage ? 260 : 340,
-                          kshitijPage ? 150 : 220,
+                          kshitijPage ? 220 : 340,
+                          kshitijPage ? 124 : 220,
                           '#2A2B2E',
                           'Gallery',
                         );
@@ -1632,15 +1690,29 @@ function EventDetailsPage() {
                         ? 'bottom-2 right-2 px-2 py-0.5 text-[10px]'
                         : 'bottom-3 right-3 px-2.5 py-1 text-[11px]'
                     }`}>
-                      {idx + 1}/{galleryPreview.length}
+                      {idx + 1}/{galleryAll.length}
                     </span>
                   </button>
                 );
               })}
+              {galleryHasMore ? (
+                <button
+                  type="button"
+                  onClick={() => openLightbox(galleryPreview.length)}
+                  className={`relative shrink-0 snap-center overflow-hidden border flex items-center justify-center ${
+                    kshitijPage
+                      ? 'w-[58vw] max-w-[220px] h-[124px] rounded-2xl'
+                      : 'w-[78vw] max-w-[340px] h-[220px] rounded-3xl'
+                  } ${isDark ? 'border-white/10 bg-[#111213] text-white' : 'border-gray-100 bg-white text-gray-700'}`}
+                >
+                  <span className="text-sm font-semibold">+{galleryAll.length - galleryPreview.length} more</span>
+                </button>
+              ) : null}
             </div>
           </section>
         )}
 
+        {showDeferredMedia ? (
         <SimilarFestsSection
           relatedFests={pageEvent.relatedFests}
           festType={pageEvent.type || pageEvent.category}
@@ -1652,10 +1724,11 @@ function EventDetailsPage() {
           hideSubtitle={kshitijPage}
           compact={kshitijPage}
         />
+        ) : null}
       </div>
 
       {/* Gallery Lightbox */}
-      {lightboxIndex != null && galleryPreview[lightboxIndex] && (
+      {lightboxIndex != null && galleryAll[lightboxIndex] && (
         <div
           className="fixed inset-0 z-60 bg-black/90 flex items-center justify-center"
           onClick={closeLightbox}
@@ -1671,25 +1744,22 @@ function EventDetailsPage() {
           </button>
 
           <img
-            src={getImageUrl(galleryPreview[lightboxIndex], { preset: 'hero' })}
+            src={getImageUrl(galleryAll[lightboxIndex], { preset: 'hero' })}
             alt={`Gallery ${lightboxIndex + 1}`}
-            className="max-w-[92vw] max-h-[82vh] object-contain rounded-xl"
+            className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg"
             onClick={(e) => e.stopPropagation()}
-            onError={(e) => {
-              handleImageErrorWithFallback(e, 600, 600, '#2A2B2E', 'Gallery');
-            }}
           />
 
-          {galleryPreview.length > 1 && (
+          {galleryAll.length > 1 && (
             <>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxIndex((prev) => (prev === 0 ? galleryPreview.length - 1 : prev - 1));
+                  setLightboxIndex((prev) => (prev === 0 ? galleryAll.length - 1 : prev - 1));
                 }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white backdrop-blur-sm flex items-center justify-center"
-                aria-label="Previous image"
+                className="absolute left-3 p-2 rounded-full bg-white/15 text-white backdrop-blur-sm"
+                aria-label="Previous"
               >
                 <ChevronLeft size={22} />
               </button>
@@ -1697,16 +1767,16 @@ function EventDetailsPage() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxIndex((prev) => (prev === galleryPreview.length - 1 ? 0 : prev + 1));
+                  setLightboxIndex((prev) => (prev === galleryAll.length - 1 ? 0 : prev + 1));
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white backdrop-blur-sm flex items-center justify-center"
-                aria-label="Next image"
+                className="absolute right-3 p-2 rounded-full bg-white/15 text-white backdrop-blur-sm"
+                aria-label="Next"
               >
                 <ChevronRight size={22} />
               </button>
-              <div className="absolute bottom-6 left-0 right-0 text-center text-white/80 text-sm">
-                {lightboxIndex + 1} / {galleryPreview.length}
-              </div>
+              <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/80 text-sm tabular-nums">
+                {lightboxIndex + 1} / {galleryAll.length}
+              </p>
             </>
           )}
         </div>

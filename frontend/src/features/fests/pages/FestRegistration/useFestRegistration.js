@@ -951,6 +951,14 @@ export default function useFestRegistration() {
   const validateCurrentPerson = () => {
     const idx = getPersonIndex();
     if (idx < 0) return true;
+    // Fixed-size teams collect team name on person 1 (no size-picker step)
+    if (idx === 0 && getPeopleCount() > 1 && !needsTeamSizePicker()) {
+      const nameErr = validateTeamName({ ...formData, team_size: getPeopleCount() });
+      if (nameErr) {
+        setError(nameErr);
+        return false;
+      }
+    }
     const isTechfest = festPlugin.id === 'techfest';
     // Techfest: use raw personFields so leader/member roles survive MindSpark normalize
     const personFields = isTechfest
@@ -1089,15 +1097,20 @@ export default function useFestRegistration() {
 
   }, [formData.team_size, competition?._id || competition?.id]);
 
-  // Solo MindSpark: lock team_size to 1 so submit / validation stay consistent
+  // Fixed roster size (solo or exact N): lock team_size so submit / validation stay consistent
   useEffect(() => {
     if (!hasParticipantStep()) return;
     if (needsTeamSizePicker()) return;
+    const { min } = getRosterBounds(competition);
+    const locked = Math.max(1, min);
     setFormData((prev) => {
-      if (Number(prev.team_size) === 1) return prev;
-      return { ...prev, team_size: 1 };
+      const prevMembers = Array.isArray(prev.team_members) ? prev.team_members : [];
+      const nextMembers = [...prevMembers];
+      while (nextMembers.length < locked) nextMembers.push({});
+      const sized = nextMembers.slice(0, locked);
+      if (Number(prev.team_size) === locked && prevMembers.length === locked) return prev;
+      return { ...prev, team_size: locked, team_members: sized };
     });
-
   }, [competition?._id || competition?.id, competition?.teamSizeMax, competition?.teamSizeMin]);
 
   const handleStepFieldChange = (fieldId, value) => {

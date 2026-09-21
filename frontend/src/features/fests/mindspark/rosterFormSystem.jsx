@@ -511,7 +511,8 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
   if (personIndex < 0) return null;
 
   const Req = () => <span className="text-red-400 ml-0.5">*</span>;
-
+  const showInlineTeamName =
+    personIndex === 0 && chosen > 1 && !needsParticipantCountStep(competition);
 
   return (
     <div className={`rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
@@ -524,9 +525,26 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
         </p>
         <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           Fields marked <span className="text-red-400">*</span> are compulsory
+          {chosen > 1 ? ` · Team of ${chosen}` : ''}
         </p>
       </div>
       <div className="px-4 py-4 md:px-6 md:py-5 space-y-3 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-3 md:space-y-0">
+        {showInlineTeamName ? (
+          <div className="md:col-span-2">
+            <p className={`text-[11px] mb-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              Team name
+              <Req />
+            </p>
+            <input
+              type="text"
+              value={formData.team_name || ''}
+              onChange={(e) => setFormData((prev) => ({ ...prev, team_name: e.target.value }))}
+              placeholder="Your team name"
+              autoFocus
+              className={inputClass(isDark)}
+            />
+          </div>
+        ) : null}
         {personFields.map((field, fi) => (
           <div
             key={field.id || field.key}
@@ -541,7 +559,7 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
               <select
                 value={person[field.key] || ''}
                 onChange={(e) => setField(field.key, e.target.value)}
-                autoFocus={fi === 0}
+                autoFocus={!showInlineTeamName && fi === 0}
                 className={inputClass(isDark)}
               >
                 <option value="">{field.placeholder || `Select ${field.label.toLowerCase()}`}</option>
@@ -572,7 +590,7 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
                 value={person[field.key] || ''}
                 onChange={(e) => setField(field.key, e.target.value)}
                 placeholder={field.placeholder || field.label}
-                autoFocus={fi === 0}
+                autoFocus={!showInlineTeamName && fi === 0}
                 inputMode={field.type === 'tel' ? 'tel' : field.type === 'email' ? 'email' : undefined}
                 autoComplete={
                   field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : field.key === 'college' ? 'organization' : 'name'

@@ -32,8 +32,8 @@ export const IMAGE_PRESETS = {
     /** Home / hub hero — mobile-first; still sharp on desktop via dpr_2 */
     hero: { width: 960, height: 448, crop: 'fill', quality: 'good' },
     /** Competition detail heroes for landscape event photos (Kshitij etc.) — keep subject with g_auto */
-    competitionHeroWide: { width: 1200, height: 675, crop: 'fill', quality: 'good', gravity: 'auto' },
-    /** Event detail page top image (5:4) */
+    competitionHeroWide: { width: 960, height: 540, crop: 'fill', quality: 'eco', gravity: 'auto' },
+    /** Fest detail hero — landscape frame; logos/photos pad to fill, never crop subject */
     eventPage: { width: 960, height: 768, crop: 'fill', quality: 'good' },
     /** Community detail header */
     communityBanner: { width: 786, height: 792, crop: 'fill', quality: 'good' },

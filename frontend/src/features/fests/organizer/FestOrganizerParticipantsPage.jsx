@@ -270,50 +270,165 @@ export default function FestOrganizerParticipantsPage() {
     if (simplePortal) {
         return (
             <div className="max-w-3xl mx-auto space-y-4 pb-10">
-                <div className="flex items-start justify-between gap-3">
-                    <div>
-                        <h1 className="text-xl font-bold text-white">Participants</h1>
-                        <p className="text-sm text-gray-500 mt-1">{pagination.total || rows.length} registered</p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-[0.14em] text-[#0ECCEE] font-semibold">Roster</p>
+                        <h1 className="text-xl font-bold text-white mt-0.5">Participants</h1>
+                        <p className="text-sm text-gray-500 mt-1">
+                            {pagination.total || rows.length} registered · export Excel anytime
+                        </p>
                     </div>
-                    <button type="button" onClick={() => load(pagination.page)} className="p-2 rounded-xl border border-white/10 text-gray-400" aria-label="Refresh">
-                        <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                    </button>
+                    <div className="flex gap-2 shrink-0">
+                        <button
+                            type="button"
+                            onClick={exportExcel}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/30 bg-emerald-500/15 text-sm font-semibold text-emerald-200"
+                        >
+                            <Download size={14} /> Export Excel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => load(pagination.page)}
+                            className="p-2 rounded-xl border border-white/10 text-gray-400"
+                            aria-label="Refresh"
+                        >
+                            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <select value={competitionId} onChange={(event) => setParams({ competitionId: event.target.value })} className="w-full px-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white">
+                    <select
+                        value={competitionId}
+                        onChange={(event) => setParams({ competitionId: event.target.value })}
+                        className="w-full px-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white"
+                    >
                         <option value="">All competitions</option>
-                        {competitions.map((competition) => <option key={competition.id} value={competition.id}>{competition.name}</option>)}
+                        {competitions.map((competition) => (
+                            <option key={competition.id} value={competition.id}>{competition.name}</option>
+                        ))}
                     </select>
-                    <form onSubmit={(event) => { event.preventDefault(); load(1); }} className="relative">
+                    <form
+                        onSubmit={(event) => { event.preventDefault(); load(1); }}
+                        className="relative"
+                    >
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, phone or email" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white placeholder:text-gray-600" />
+                        <input
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Search name, phone or email"
+                            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white placeholder:text-gray-600"
+                        />
                     </form>
                 </div>
 
-                {loading && !rows.length ? <InlinePageLoader label="Loading participants…" variant="fest" minHeight={false} /> : (
+                {loading && !rows.length ? (
+                    <InlinePageLoader label="Loading participants…" variant="fest" minHeight={false} />
+                ) : (
                     <div className="space-y-2.5">
                         {rows.map((participant) => {
                             const meta = [participant.college, participant.city, participant.year].filter(Boolean).join(' · ');
+                            const phone = participant.userPhone || '';
+                            const wa = waLink(phone);
+                            const tel = telLink(phone);
                             return (
-                                <div key={participant.id} className="rounded-xl border border-white/10 bg-[#161718] px-4 py-3">
+                                <div
+                                    key={participant.id}
+                                    className="rounded-2xl border border-white/10 bg-[#161718] px-4 py-3.5"
+                                >
                                     <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0 flex-1">
-                                            <p className="font-semibold text-white truncate">{participant.userName || 'Unnamed participant'}</p>
-                                            <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">
-                                                {participant.competitionName || 'General'}{participant.teamName ? ` · ${participant.teamName}` : ''}
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailId(participant.id)}
+                                            className="min-w-0 flex-1 text-left"
+                                        >
+                                            <p className="font-semibold text-white truncate">
+                                                {participant.userName || 'Unnamed participant'}
                                             </p>
+                                            <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">
+                                                {participant.competitionName || 'General'}
+                                                {participant.teamName ? ` · ${participant.teamName}` : ''}
+                                            </p>
+                                            {participant.userEmail ? (
+                                                <p className="text-xs text-gray-500 mt-1 truncate">{participant.userEmail}</p>
+                                            ) : null}
+                                            {meta ? (
+                                                <p className="text-xs text-gray-600 mt-1 truncate">{meta}</p>
+                                            ) : null}
+                                            <OrganizerRosterPreview
+                                                teamMembers={participant.teamMembers}
+                                                teamSize={participant.teamSize}
+                                            />
+                                        </button>
+                                        <div className="flex flex-col items-end gap-2 shrink-0">
+                                            {phone ? (
+                                                <span className="text-xs text-gray-400 tabular-nums">{phone}</span>
+                                            ) : null}
+                                            <div className="flex gap-1.5">
+                                                {tel ? (
+                                                    <a
+                                                        href={tel}
+                                                        className="p-2 rounded-lg border border-white/10 text-gray-300 hover:text-white"
+                                                        aria-label="Call"
+                                                    >
+                                                        <Phone size={14} />
+                                                    </a>
+                                                ) : null}
+                                                {wa ? (
+                                                    <a
+                                                        href={wa}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="p-2 rounded-lg border border-emerald-400/25 text-emerald-300"
+                                                        aria-label="WhatsApp"
+                                                    >
+                                                        <MessageCircle size={14} />
+                                                    </a>
+                                                ) : null}
+                                            </div>
                                         </div>
-                                        <span className="text-xs text-gray-500 shrink-0">{participant.userPhone || ''}</span>
                                     </div>
-                                    {participant.userEmail ? <p className="text-xs text-gray-500 mt-1 truncate">{participant.userEmail}</p> : null}
-                                    {meta ? <p className="text-xs text-gray-600 mt-1 truncate">{meta}</p> : null}
                                 </div>
                             );
                         })}
-                        {!rows.length ? <p className="text-center text-sm text-gray-500 py-12">No participants found</p> : null}
+                        {!rows.length ? (
+                            <p className="text-center text-sm text-gray-500 py-12">No participants found</p>
+                        ) : null}
                     </div>
                 )}
+
+                {pagination.pages > 1 ? (
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                        <button
+                            type="button"
+                            disabled={pagination.page <= 1}
+                            onClick={() => load(pagination.page - 1)}
+                            className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-gray-300 disabled:opacity-40"
+                        >
+                            Prev
+                        </button>
+                        <span className="text-xs text-gray-500 tabular-nums">
+                            {pagination.page} / {pagination.pages}
+                        </span>
+                        <button
+                            type="button"
+                            disabled={pagination.page >= pagination.pages}
+                            onClick={() => load(pagination.page + 1)}
+                            className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-gray-300 disabled:opacity-40"
+                        >
+                            Next
+                        </button>
+                    </div>
+                ) : null}
+
+                {detailId ? (
+                    <FestOrganizerParticipantModal
+                        festId={festId}
+                        registrationId={detailId}
+                        onClose={() => setDetailId(null)}
+                        onUpdated={() => load(pagination.page)}
+                    />
+                ) : null}
             </div>
         );
     }

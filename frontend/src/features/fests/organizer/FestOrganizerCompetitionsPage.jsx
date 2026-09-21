@@ -4,6 +4,7 @@ import { RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircl
 import {
     fetchFestOrganizerDashboard,
     updateFestOrganizerCompetitionSlots,
+    exportFestOrganizerParticipants,
 } from '../../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
@@ -48,6 +49,7 @@ export default function FestOrganizerCompetitionsPage() {
     const [slotsBusyId, setSlotsBusyId] = useState('');
     const [qrOpen, setQrOpen] = useState(false);
     const [qrBusyId, setQrBusyId] = useState('');
+    const [exportBusyId, setExportBusyId] = useState('');
 
     const load = async () => {
         setLoading(true);
@@ -92,6 +94,30 @@ export default function FestOrganizerCompetitionsPage() {
             toast(e.message || 'Failed');
         } finally {
             setSlotsBusyId('');
+        }
+    };
+
+    const exportCompetitionExcel = async (competitionId = '', nameHint = '') => {
+        const busyKey = competitionId || 'all';
+        setExportBusyId(busyKey);
+        try {
+            const blob = await exportFestOrganizerParticipants(festId, {
+                competitionId: competitionId || undefined,
+                format: 'xlsx',
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const stamp = new Date().toISOString().slice(0, 10);
+            const base = (nameHint || fest?.festName || 'participants').replace(/[^\w]+/g, '_');
+            a.download = `${base}_${stamp}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast('Excel downloaded');
+        } catch (e) {
+            toast(e.message || 'Export failed');
+        } finally {
+            setExportBusyId('');
         }
     };
 
@@ -256,6 +282,17 @@ export default function FestOrganizerCompetitionsPage() {
                         )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                        {simplePortal ? (
+                            <button
+                                type="button"
+                                onClick={() => exportCompetitionExcel('', fest?.festName || 'participants')}
+                                disabled={Boolean(exportBusyId)}
+                                className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-emerald-400/30 bg-emerald-500/15 text-xs font-semibold text-emerald-200 disabled:opacity-40"
+                            >
+                                {exportBusyId === 'all' ? <Loader size={14} className="animate-spin" /> : <Download size={14} />}
+                                Export Excel
+                            </button>
+                        ) : null}
                         {!simplePortal ? <button
                             type="button"
                             onClick={() => setQrOpen(true)}
@@ -505,7 +542,27 @@ export default function FestOrganizerCompetitionsPage() {
                                         </button>
                                     </div>
                                 ) : null}
-                                <div className={`grid ${simplePortal ? 'grid-cols-1' : 'grid-cols-3'} gap-2`}>
+                                <div className={`grid ${simplePortal ? 'grid-cols-2' : 'grid-cols-3'} gap-2`}>
+                                    {simplePortal ? (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?competitionId=${id}`)}
+                                                className="inline-flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 text-xs font-medium text-[#0ECCEE]"
+                                            >
+                                                Participants <ChevronRight size={14} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={exportBusyId === id}
+                                                onClick={() => exportCompetitionExcel(id, c.name)}
+                                                className="inline-flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 text-xs font-medium text-emerald-200 disabled:opacity-50"
+                                            >
+                                                {exportBusyId === id ? <Loader size={13} className="animate-spin" /> : <Download size={13} />}
+                                                Excel
+                                            </button>
+                                        </>
+                                    ) : null}
                                     {!simplePortal ? <button
                                         type="button"
                                         onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${id}`)}

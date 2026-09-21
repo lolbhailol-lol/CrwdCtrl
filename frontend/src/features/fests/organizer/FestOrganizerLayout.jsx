@@ -130,11 +130,13 @@ export default function FestOrganizerLayout() {
     const overviewItem = nav.find((n) => n.label === 'Overview');
     const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');
     const editNav = nav.filter((n) => n.group === 'edit');
-    const mobilePrimary = hideProShow
-        ? ['Fest Day Desk', 'Competitions', 'Participants', 'Check-in', 'Connect']
-        : ['Live', 'Competitions', 'Pro Show'];
+    const mobilePrimary = simplePortal
+        ? ['Competitions', 'Participants']
+        : hideProShow
+            ? ['Fest Day Desk', 'Competitions', 'Participants', 'Check-in', 'Connect']
+            : ['Live', 'Competitions', 'Pro Show'];
     // MindSpark day-of: Scan + Connect on the bar; Edit stays in sidebar / overview
-    const mobileNav = hideProShow
+    const mobileNav = simplePortal || hideProShow
         ? [
             ...(overviewItem ? [overviewItem] : []),
             ...opsNav.filter((n) => mobilePrimary.includes(n.label)),
@@ -158,6 +160,21 @@ export default function FestOrganizerLayout() {
             return next;
         })()
         : opsNav;
+
+    useEffect(() => {
+        if (!simplePortal || !festId) return;
+        const path = (location.pathname.replace(/\/$/, '') || location.pathname);
+        const base = `/fest-organizer/fests/${festId}`;
+        const allowed =
+            path === base
+            || path === `${base}/competitions`
+            || path.startsWith(`${base}/competitions/`)
+            || path === `${base}/participants`
+            || path.startsWith(`${base}/participants/`);
+        if (!allowed) {
+            navigate(base, { replace: true });
+        }
+    }, [simplePortal, festId, location.pathname, navigate]);
 
     useEffect(() => {
         if (!hideStallLeads || !festId) return;

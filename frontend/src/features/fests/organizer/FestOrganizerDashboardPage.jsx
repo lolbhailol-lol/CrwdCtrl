@@ -3,14 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Bell, QrCode, ExternalLink, RefreshCw,
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
-    Pencil, Download, ScanLine, Ticket,
+    Pencil, Download, ScanLine, Ticket, Loader,
 } from 'lucide-react';
-import { fetchFestOrganizerDashboard, fetchFestOrganizerAuditorium } from '../../../services/api/festOrganizer.api';
+import { fetchFestOrganizerDashboard, fetchFestOrganizerAuditorium, exportFestOrganizerParticipants } from '../../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { getFestPlugin } from '../plugins/registry';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
+import { useDialog } from '../../../context/DialogContext';
 
 function formatWhen(d) {
     if (!d) return '';
@@ -40,56 +41,186 @@ function ProgressBar({ value, max, tone = 'cyan' }) {
     );
 }
 
-function SimpleTechfestDashboard({ fest, stats, competitions, festId, navigate, reload }) {
+/** Techfest / Kshitij — lean ops home: comps + people + Excel */
+function SimpleOrganizerDashboard({ fest, stats, competitions, festId, navigate, reload, pluginId = 'techfest' }) {
+    const { toast } = useDialog();
+    const [exporting, setExporting] = useState(false);
     const totalParticipants = Number(stats.totalRegistrations || stats.allActive) || 0;
+    const publicUrl = fest.slug
+        ? `${window.location.origin}/view-details/${fest.slug}`
+        : `${window.location.origin}/view-details/${fest.id || festId}`;
+    const brand = pluginId === 'kshitij' ? 'Kshitij' : 'Organizer';
+    const festLabel = String(fest.festName || brand);
+
+    const downloadExcel = async (competitionId = '') => {
+        setExporting(true);
+        try {
+            const blob = await exportFestOrganizerParticipants(festId, {
+                competitionId: competitionId || undefined,
+                format: 'xlsx',
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const stamp = new Date().toISOString().slice(0, 10);
+            const slug = festLabel.replace(/[^\w]+/g, '_').replace(/^_|_$/g, '') || 'fest';
+            a.download = competitionId
+                ? `${slug}_competition_${String(competitionId).slice(-6)}_${stamp}.xlsx`
+                : `${slug}_participants_${stamp}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast('Excel downloaded');
+        } catch (e) {
+            toast(e.message || 'Export failed');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
-            <section className="rounded-3xl border border-white/10 bg-[#121314] p-6 sm:p-8">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0ECCEE]">Organizer dashboard</p>
-                        <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-white">{fest.festName}</h1>
-                        <p className="mt-2 text-sm text-gray-400">Manage free competitions and their participants.</p>
+        <div className="max-w-4xl mx-auto space-y-5">
+            <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#121314]">
+                {fest.coverImage ? (
+                    <img
+                        src={getImageUrl(fest.coverImage, { preset: 'cardLandscape' })}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover opacity-30"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                ) : null}
+                <div className="absolute inset-0 bg-linear-to-br from-[#0ECCEE]/25 via-transparent to-[#053780]/35" />
+                <div className="relative p-5 sm:p-7 flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0ECCEE]">
+                            {brand} dashboard
+                        </p>
+                        <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                            {fest.festName}
+                        </h1>
+                        <p className="mt-2 text-sm text-gray-300/90 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {fest.collegeName ? (
+                                <span className="inline-flex items-center gap-1"><Building2 size={12} />{fest.collegeName}</span>
+                            ) : null}
+                            {fest.festDate || fest.venue ? (
+                                <span className="inline-flex items-center gap-1">
+                                    <Calendar size={12} />
+                                    {[fest.festDate, fest.venue].filter(Boolean).join(' · ')}
+                                </span>
+                            ) : null}
+                        </p>
+                        <p className="mt-2 text-sm text-gray-500">
+                            Free competitions · registrations · Excel export
+                        </p>
                     </div>
-                    <button type="button" onClick={reload} className="p-2.5 rounded-xl border border-white/10 bg-white/5 text-gray-300" aria-label="Refresh dashboard">
-                        <RefreshCw size={17} />
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                        <a
+                            href={publicUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 backdrop-blur border border-white/15 text-sm text-white hover:bg-white/15"
+                        >
+                            <ExternalLink size={14} /> Public page
+                        </a>
+                        <button
+                            type="button"
+                            onClick={() => downloadExcel()}
+                            disabled={exporting}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-400/30 bg-emerald-500/15 text-sm font-semibold text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-50"
+                        >
+                            {exporting ? <Loader size={14} className="animate-spin" /> : <Download size={14} />}
+                            Export Excel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={reload}
+                            className="p-2.5 rounded-xl border border-white/15 bg-white/10 text-white"
+                            aria-label="Refresh dashboard"
+                        >
+                            <RefreshCw size={16} />
+                        </button>
+                    </div>
                 </div>
             </section>
 
-            <div className="grid sm:grid-cols-2 gap-4">
-                <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)} className="rounded-3xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/8 p-6 text-left hover:border-[#0ECCEE]/50 transition">
+            <div className="grid sm:grid-cols-2 gap-3">
+                <button
+                    type="button"
+                    onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)}
+                    className="rounded-3xl border border-[#0ECCEE]/30 bg-linear-to-br from-[#0ECCEE]/15 to-[#161718] p-5 sm:p-6 text-left hover:border-[#0ECCEE]/55 transition"
+                >
                     <Trophy size={22} className="text-[#0ECCEE]" />
-                    <p className="mt-5 text-3xl font-bold text-white">{stats.competitionCount || competitions.length}</p>
+                    <p className="mt-4 text-3xl font-bold tabular-nums text-white">{stats.competitionCount || competitions.length}</p>
                     <p className="mt-1 font-semibold text-white">Competitions</p>
-                    <p className="mt-1 text-sm text-gray-500">View events and open participant lists</p>
-                    <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#0ECCEE]">Open competitions <ArrowRight size={15} /></span>
+                    <p className="mt-1 text-sm text-gray-500">Open desks and participant lists</p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#0ECCEE]">
+                        Open competitions <ArrowRight size={15} />
+                    </span>
                 </button>
 
-                <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/participants`)} className="rounded-3xl border border-white/10 bg-[#161718] p-6 text-left hover:border-[#0ECCEE]/40 transition">
+                <button
+                    type="button"
+                    onClick={() => navigate(`/fest-organizer/fests/${festId}/participants`)}
+                    className="rounded-3xl border border-white/10 bg-[#161718] p-5 sm:p-6 text-left hover:border-[#0ECCEE]/40 transition"
+                >
                     <Users size={22} className="text-[#0ECCEE]" />
-                    <p className="mt-5 text-3xl font-bold text-white">{totalParticipants}</p>
+                    <p className="mt-4 text-3xl font-bold tabular-nums text-white">{totalParticipants}</p>
                     <p className="mt-1 font-semibold text-white">Participants</p>
-                    <p className="mt-1 text-sm text-gray-500">Search and view registrations</p>
-                    <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-[#0ECCEE]">View participants <ArrowRight size={15} /></span>
+                    <p className="mt-1 text-sm text-gray-500">Search, filter, and export Excel</p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#0ECCEE]">
+                        View participants <ArrowRight size={15} />
+                    </span>
                 </button>
             </div>
 
-            <section>
-                <div className="flex items-center justify-between mb-3">
+            <section className="rounded-3xl border border-white/10 bg-[#161718] overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-white/8">
                     <h2 className="text-base font-semibold text-white">Competitions</h2>
-                    <button type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)} className="text-xs font-semibold text-[#0ECCEE]">View all</button>
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions`)}
+                        className="text-xs font-semibold text-[#0ECCEE]"
+                    >
+                        View all
+                    </button>
                 </div>
-                <div className="divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10 bg-[#161718]">
-                    {competitions.slice(0, 5).map((competition) => (
-                        <button key={competition.id} type="button" onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${competition.id}`)} className="w-full flex items-center gap-3 p-4 text-left hover:bg-white/4">
-                            <div className="size-10 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center"><Trophy size={16} className="text-[#0ECCEE]" /></div>
-                            <div className="min-w-0 flex-1"><p className="font-medium text-white truncate">{competition.name}</p><p className="text-xs text-gray-500 mt-0.5">{Number(competition.total) || 0} participants</p></div>
-                            <ArrowRight size={15} className="text-gray-600" />
-                        </button>
-                    ))}
-                    {!competitions.length ? <p className="p-6 text-center text-sm text-gray-500">No competitions yet</p> : null}
+                <div className="divide-y divide-white/8">
+                    {competitions.slice(0, 8).map((competition) => {
+                        const count = Number(competition.total) || Number(competition.participants) || 0;
+                        return (
+                            <div key={competition.id} className="flex items-center gap-3 px-4 sm:px-5 py-3.5">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${competition.id}`)}
+                                    className="min-w-0 flex-1 flex items-center gap-3 text-left hover:opacity-90"
+                                >
+                                    <div className="size-10 rounded-xl bg-[#0ECCEE]/10 flex items-center justify-center shrink-0">
+                                        <Trophy size={16} className="text-[#0ECCEE]" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-medium text-white truncate">{competition.name}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5 tabular-nums">
+                                            {count} participant{count === 1 ? '' : 's'}
+                                            {competition.module ? ` · ${competition.module}` : ''}
+                                        </p>
+                                    </div>
+                                    <ArrowRight size={15} className="text-gray-600 shrink-0" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => downloadExcel(competition.id)}
+                                    disabled={exporting}
+                                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-white/10 text-[11px] font-semibold text-gray-300 hover:border-[#0ECCEE]/40 hover:text-[#0ECCEE] disabled:opacity-50"
+                                    title="Export Excel for this competition"
+                                >
+                                    <Download size={12} />
+                                    Excel
+                                </button>
+                            </div>
+                        );
+                    })}
+                    {!competitions.length ? (
+                        <p className="p-8 text-center text-sm text-gray-500">No competitions yet</p>
+                    ) : null}
                 </div>
             </section>
         </div>
@@ -204,7 +335,17 @@ export default function FestOrganizerDashboardPage() {
     const qrComps = comps.filter((c) => c.id);
 
     if (plugin.simpleOrganizerPortal) {
-        return <SimpleTechfestDashboard fest={fest} stats={stats} competitions={comps} festId={festId} navigate={navigate} reload={load} />;
+        return (
+            <SimpleOrganizerDashboard
+                fest={fest}
+                stats={stats}
+                competitions={comps}
+                festId={festId}
+                navigate={navigate}
+                reload={load}
+                pluginId={plugin.id}
+            />
+        );
     }
 
     return (

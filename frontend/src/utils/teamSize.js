@@ -45,11 +45,14 @@ export function requiresTeamRosterGate({ teamSizeMin, teamSizeMax } = {}) {
     return hi >= 3 && hi <= 6;
 }
 
-/** Competition registration step 1: pick count when team can be more than 1 */
+/**
+ * Competition registration step: pick count only when the range is flexible.
+ * Fixed sizes (solo, or exactly N e.g. FIFA team-of-2) skip the stepper.
+ */
 export function needsParticipantCountStep({ teamSizeMin, teamSizeMax } = {}) {
     const lo = clampTeam(teamSizeMin);
     const hi = clampTeam(teamSizeMax, lo);
-    return hi >= 2;
+    return hi >= 2 && lo < hi;
 }
 
 /** Effective min/max for roster UI — respects organizer teamSizeMin/teamSizeMax as saved */

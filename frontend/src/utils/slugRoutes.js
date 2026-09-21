@@ -89,7 +89,7 @@ function competitionPathToken(competition) {
 
 export function festRegisterPath(fest = {}, competition = null) {
     const id = pickId(fest);
-    const slug = toSlug(fest.festName || fest.title || '');
+    const slug = toSlug(fest.slug || fest.festName || fest.title || '');
     const base = `/fest/${slug || id}/register`;
     const token = competitionPathToken(competition);
     return token ? `${base}/${token}` : base;
