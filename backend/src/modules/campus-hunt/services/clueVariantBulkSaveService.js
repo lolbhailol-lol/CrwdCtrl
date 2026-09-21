@@ -377,13 +377,10 @@ async function bulkSaveClue3({
             destinationInstruction:
               `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
               + `Leader scans once to unlock Field Terminal.`,
-            memberPrompts: Array.isArray(row.memberPrompts) && row.memberPrompts.length
-              ? row.memberPrompts
-              : pieceDefaults.memberPrompts,
+            memberPrompts: [],
             hintText:
               String(row.hintText || '').trim()
-              || pieceDefaults.hintText
-              || 'Say every digit piece out loud in seat order. The code is digits only.',
+              || 'Look around the blue stop for the lockbox. Type exactly what’s printed on it.',
             basePoints: clue3Scoring.basePoints,
             maxAttempts: clue3Scoring.maxAttempts,
             hintCost: clue3Scoring.hintCost,

@@ -1031,7 +1031,7 @@ export function buildCampusStarts(
 
 export const CAMPUS_STARTS = buildCampusStarts();
 
-/** Final one-word answers per start path (A–D) — Clue 5. */
+/** Final one-word answers per start path (A–D) — legacy fallback. */
 export const CLUE5_WORDS = {
   A: 'QUEST',
   B: 'BLAZE',
@@ -1041,6 +1041,26 @@ export const CLUE5_WORDS = {
 
 /** @deprecated use CLUE5_WORDS */
 export const CLUE4_WORDS = CLUE5_WORDS;
+
+/** Unique Clue 5 letter-words — one per team (capacity ≤ 24). */
+const CLUE5_WORD_BANK = [
+  'QUEST', 'BLAZE', 'SPARK', 'PRIDE', 'FLAME', 'CROWN', 'STORM', 'RIVER',
+  'NORTH', 'LIGHT', 'BRAVE', 'FOCUS', 'PULSE', 'SWIFT', 'GLINT', 'FORGE',
+  'ECHO', 'VISTA', 'NOVA', 'DASH', 'CREST', 'LUNAR', 'EMBER', 'PIXEL',
+];
+
+/**
+ * Unique Clue 5 word per global team — matches backend bootstrap.
+ * @param {number} waitIndex start A=0…
+ * @param {number} localTeamNumber local slot 1…
+ * @param {number} [teamsPerWait]
+ */
+export function clue5WordForTeam(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_WAIT) {
+  const perWait = Math.max(1, Number(teamsPerWait) || TEAMS_PER_WAIT);
+  const teamNumber = (Math.max(0, Number(waitIndex) || 0) * perWait)
+    + Math.max(1, Number(localTeamNumber) || 1);
+  return CLUE5_WORD_BANK[(teamNumber - 1) % CLUE5_WORD_BANK.length];
+}
 
 /** Unique 4-digit lockbox codes — one per team (capacity ≤ 24). */
 const LOCKBOX_CODES = [

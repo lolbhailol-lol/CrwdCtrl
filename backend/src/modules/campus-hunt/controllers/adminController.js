@@ -1176,7 +1176,7 @@ async function bulkSaveClue4Variants(req, res, next) {
   }
 }
 
-/** One-shot Clue 5 / Final save: all start routes in one request. */
+/** One-shot Clue 5 save: unique letter-word per team. */
 async function bulkSaveClue5Variants(req, res, next) {
   try {
     let roundId = req.body.roundId;
@@ -1190,11 +1190,12 @@ async function bulkSaveClue5Variants(req, res, next) {
     if (!roundId) {
       return res.status(404).json({ success: false, message: 'Round 1 not found' });
     }
+    const variants = Array.isArray(req.body.variants) ? req.body.variants : [];
     const routes = Array.isArray(req.body.routes) ? req.body.routes : [];
-    if (!routes.length) {
+    if (!variants.length && !routes.length) {
       return res.status(400).json({
         success: false,
-        message: 'routes array required (one Final per start path)',
+        message: 'variants array required (unique letter word per team)',
       });
     }
     const data = await bulkSaveClue5({
@@ -1202,6 +1203,7 @@ async function bulkSaveClue5Variants(req, res, next) {
       roundId,
       actor: adminActor(req),
       scoring: req.body.scoring || {},
+      variants,
       routes,
     });
     if (data.saved === 0 && data.errors?.length) {

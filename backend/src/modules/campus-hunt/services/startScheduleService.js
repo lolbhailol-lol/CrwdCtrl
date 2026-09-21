@@ -523,8 +523,7 @@ async function attachFifthPathStops(event, assignments) {
       eventId,
       challengeNumber: 5,
       active: { $ne: false },
-      variantKey: 'DEFAULT',
-    }).select('_id routeId').lean(),
+    }).select('_id routeId variantKey').lean(),
     CampusHuntChallenge.find({
       eventId,
       challengeNumber: 6,
@@ -536,7 +535,15 @@ async function attachFifthPathStops(event, assignments) {
   const byStation = new Map(
     fifthCps.map((cp) => [String(cp.stationCode || '').toUpperCase(), cp]),
   );
-  const clue5ByRoute = new Map(clue5Rows.map((row) => [String(row.routeId), String(row._id)]));
+  const clue5ByVariant = new Map(
+    clue5Rows.map((row) => [String(row.variantKey || '').toUpperCase(), String(row._id)]),
+  );
+  const clue5ByRoute = new Map();
+  for (const row of clue5Rows) {
+    if (String(row.variantKey || '').toUpperCase() === 'DEFAULT') {
+      clue5ByRoute.set(String(row.routeId), String(row._id));
+    }
+  }
   const clue6ByRoute = new Map(clue6Rows.map((row) => [String(row.routeId), String(row._id)]));
 
   const capacity = Number(event.teamCapacity) || assignments.length || 20;
@@ -550,10 +557,11 @@ async function attachFifthPathStops(event, assignments) {
       .toUpperCase();
     const waitCode = waitRaw.charAt(0);
     const waitIndex = Math.max(0, ROUTE_KEYS.indexOf(waitCode));
-    const waveMatch = String(row.clue1VariantKey || '').match(/T(\d+)$/i);
+    const waveMatch = String(row.clue1VariantKey || row.clue3VariantKey || '').match(/T(\d+)$/i);
     const localTeam = waveMatch
       ? Number(waveMatch[1])
       : ((((Number(row.teamNumber) || 1) - 1) % teamsPerWait) + 1);
+    const waveId = `T${localTeam}`;
     const group = teamGroups.find((g) => g.localTeamNumber === localTeam)
       || teamGroups[(Math.max(1, localTeam) - 1) % teamGroups.length];
     const fifthStops = rotatingFifthStops(waitIndex, huntStations, teamGroups);
@@ -561,11 +569,15 @@ async function attachFifthPathStops(event, assignments) {
     const cp = fifthStation
       ? byStation.get(String(fifthStation.code).toUpperCase())
       : null;
+    const variantKey = `${waitCode}-${waveId}`.toUpperCase();
     return {
       ...row,
       fifthCheckpointId: cp ? String(cp._id) : null,
       fifthStopName: cp?.locationName || fifthStation?.name || null,
-      clue5ChallengeId: clue5ByRoute.get(String(row.routeId)) || null,
+      clue5ChallengeId: clue5ByVariant.get(variantKey)
+        || clue5ByRoute.get(String(row.routeId))
+        || null,
+      clue5VariantKey: clue5ByVariant.has(variantKey) ? variantKey : null,
       clue6ChallengeId: clue6ByRoute.get(String(row.routeId)) || null,
     };
   });

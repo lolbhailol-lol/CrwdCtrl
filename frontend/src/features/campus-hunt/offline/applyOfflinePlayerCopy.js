@@ -61,12 +61,14 @@ function digitAnswerFromPack(bundle, clue) {
 }
 
 function clue5WordFromPack(bundle, clue) {
+  // Always prefer the team's saved pack answer — never overwrite unique words.
   const existing = lettersOnly(clue?.answer);
   if (existing.length >= 3) return existing;
   const fromAccepted = (Array.isArray(clue?.acceptedAnswers) ? clue.acceptedAnswers : [])
     .map((a) => lettersOnly(a))
     .find((w) => w.length >= 3);
   if (fromAccepted) return fromAccepted;
+  // Last-resort defaults only when pack has no letter answer yet.
   const start = startCodeFromPack(bundle);
   if (CLUE5_WORDS[start]) return CLUE5_WORDS[start];
   return 'QUEST';

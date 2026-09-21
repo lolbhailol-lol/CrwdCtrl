@@ -17,12 +17,13 @@ import {
   TARGET_TEAMS_PER_STATION,
   TEAMS_PER_WAIT,
   buildTeamSlots,
-  clue5WordForStart,
+  clue5WordForTeam,
   fifthStopArrivalPlan,
   letterSlipsForWord,
   resolveStations,
   resolveStarts,
   routeClueDefaults,
+  waitIndexForStart,
 } from './campusHuntFormat';
 import { STAGE_THEMES } from '../types/stageTheme';
 
@@ -58,8 +59,12 @@ function routeForStart(routes, point) {
   return routes.find((route) => String(route.routeKey || '').toUpperCase() === code) || null;
 }
 
+function variantKeyFor(code, waveId) {
+  return `${code}-${waveId}`.toUpperCase();
+}
+
 /**
- * Clue 5: letter slips → one word. Show plant list for every team’s red stop.
+ * Clue 5: unique letter-word per team — plant slips at that team’s red stop.
  */
 export default function Clue5VariantManager({
   eventId,
@@ -87,7 +92,7 @@ export default function Clue5VariantManager({
 
   const [routes, setRoutes] = useState([]);
   const [points, setPoints] = useState([]);
-  const [challenges, setChallenges] = useState([]);
+  const [variants, setVariants] = useState([]);
   const [words, setWords] = useState({});
   const [prompt, setPrompt] = useState(SHARED_PROMPT);
   const [busy, setBusy] = useState(false);
@@ -115,9 +120,9 @@ export default function Clue5VariantManager({
     setRoutes(routeList);
     setPoints(pointList);
     const list = (challengeResult.data?.challenges || []).filter(
-      (row) => Number(row.challengeNumber) === 5,
+      (row) => Number(row.challengeNumber) === 5 && row.active !== false,
     );
-    setChallenges(list);
+    setVariants(list);
     setSettings(loadClueSettings(
       overview.data?.event?.scoringConfig,
       'clue5',
@@ -133,11 +138,18 @@ export default function Clue5VariantManager({
     const nextWords = {};
     ordered.forEach((point) => {
       const code = startCode(point);
-      const route = routeForStart(routeList, point);
-      const existing = list.find((row) => id(row.routeId) === id(route));
-      nextWords[code] = String(existing?.answer || clue5WordForStart(code))
-        .replace(/[^A-Za-z]/g, '')
-        .toUpperCase() || clue5WordForStart(code);
+      const waitIndex = waitIndexForStart(code);
+      teamSlots.forEach((slot) => {
+        const waveId = slot.id;
+        const key = `${code}-${waveId}`;
+        const existing = list.find((row) => (
+          String(row.variantKey || '').toUpperCase() === variantKeyFor(code, waveId)
+        ));
+        nextWords[key] = String(
+          existing?.answer || clue5WordForTeam(waitIndex, slot.localTeamNumber, teamsPerWait),
+        ).replace(/[^A-Za-z]/g, '').toUpperCase()
+          || clue5WordForTeam(waitIndex, slot.localTeamNumber, teamsPerWait);
+      });
     });
     setWords(nextWords);
 
@@ -146,7 +158,7 @@ export default function Clue5VariantManager({
       return old && !/collaborative|piece of the|each teammate/i.test(old);
     })?.prompt;
     setPrompt(sample || SHARED_PROMPT);
-  }, [eventId]);
+  }, [eventId, teamSlots, teamsPerWait]);
 
   useEffect(() => {
     refresh().catch((err) => setError(err.message || 'Could not load Clue 5'));
@@ -184,53 +196,86 @@ export default function Clue5VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage('Saving Clue 5 letter words for all teams…');
+    setMessage('Saving unique Clue 5 letter words for all teams…');
 
     try {
       const sharedPrompt = String(prompt || SHARED_PROMPT).trim() || SHARED_PROMPT;
-      const routesPayload = [];
+      const variantsPayload = [];
+      const failures = [];
+      const usedWords = new Set();
+
       for (const point of orderedPoints) {
         const code = startCode(point);
-        const answer = String(words[code] || clue5WordForStart(code))
-          .replace(/[^A-Za-z]/g, '')
-          .toUpperCase();
-        if (!answer || answer.length < 3) {
-          setError(`${startLabel(point)}: Clue 5 word needs at least 3 letters`);
-          setMessage('');
-          setBusy(false);
-          return;
+        const waitIndex = waitIndexForStart(code);
+        const route = routeForStart(routes, point);
+        if (!route) {
+          failures.push(`${startLabel(point)}: no route ${code}`);
+          continue;
         }
-        const defaults = routeClueDefaults(5, answer, people);
-        routesPayload.push({
-          startCode: code,
-          prompt: sharedPrompt,
-          answer,
-          memberPrompts: [],
-          destinationInstruction: defaults.destinationInstruction,
-          routeId: id(routeForStart(routes, point)),
-          startingPointId: id(point),
-        });
+        for (const slot of teamSlots) {
+          const waveId = slot.id;
+          const codeKey = `${code}-${waveId}`;
+          let answer = String(
+            words[codeKey]
+            || clue5WordForTeam(waitIndex, slot.localTeamNumber, teamsPerWait),
+          ).replace(/[^A-Za-z]/g, '').toUpperCase();
+          if (!answer || answer.length < 3) {
+            failures.push(
+              `${startLabel(point)} · ${waveId}: word needs at least 3 letters`,
+            );
+            continue;
+          }
+          if (usedWords.has(answer)) {
+            failures.push(
+              `${startLabel(point)} · ${waveId}: word ${answer} already used — each team needs a unique word`,
+            );
+            continue;
+          }
+          usedWords.add(answer);
+          const defaults = routeClueDefaults(5, answer, people);
+          variantsPayload.push({
+            startCode: code,
+            waveId,
+            localTeamNumber: slot.localTeamNumber,
+            prompt: sharedPrompt,
+            answer,
+            memberPrompts: [],
+            destinationInstruction: defaults.destinationInstruction,
+            routeId: id(route),
+            startingPointId: id(point),
+          });
+        }
+      }
+
+      if (!variantsPayload.length) {
+        setError(failures[0] || 'Nothing to save');
+        setMessage('');
+        return;
       }
 
       const result = await adminBulkSaveClue5(eventId, {
         roundId,
         scoring: coerceClueScoring(settings, CLUE5_DEFAULT_SETTINGS),
-        routes: routesPayload,
+        variants: variantsPayload,
       });
       const saved = result.data?.saved ?? 0;
+      const bound = result.data?.teamsUpdated ?? 0;
       const apiErrors = result.data?.errors || [];
 
       await refresh();
       onChanged?.();
 
       if (saved === 0) {
-        setError(apiErrors[0]?.message || 'Clue 5 save failed');
+        setError(apiErrors[0]?.message || failures[0] || 'Clue 5 save failed');
         setMessage('');
       } else {
         setMessage(
-          `Saved ${saved} Clue 5 word(s) · letter slips ready for all ${teamCapacity} teams.`,
+          `Saved ${saved} unique Clue 5 words · bound ${bound} teams.`
+          + (apiErrors.length || failures.length
+            ? ` (${apiErrors.length + failures.length} warnings)`
+            : ''),
         );
-        setError('');
+        setError(failures[0] || '');
       }
     } catch (err) {
       setError(err.message || 'Could not save Clue 5');
@@ -240,57 +285,65 @@ export default function Clue5VariantManager({
     }
   };
 
-  const savedCount = challenges.filter((c) => c.active !== false).length;
-  const plantedPlaces = arrivalPlan.filter((p) => p.teamCount > 0).length;
+  const savedCount = variants.filter((v) => (
+    v.active !== false && String(v.variantKey || '').toUpperCase() !== 'DEFAULT'
+  )).length;
+  const uniqueSaved = new Set(
+    variants
+      .filter((v) => v.active !== false && String(v.variantKey || '').toUpperCase() !== 'DEFAULT')
+      .map((v) => String(v.answer || '').replace(/[^A-Za-z]/g, '').toUpperCase())
+      .filter((w) => w.length >= 3),
+  ).size;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Red · letter slips → one word · for all teams
+          Red · unique letter word per team · plant slips
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {plantedPlaces} red stops · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}
+          {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
-          savedCount >= orderedPoints.length && orderedPoints.length > 0
+          savedCount >= teamCapacity && uniqueSaved >= teamCapacity
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          Saved {savedCount}/{orderedPoints.length || starts.length} start paths
+          Saved {savedCount}/{teamCapacity} · {uniqueSaved} unique words
         </span>
       </div>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">1. Defaults for all teams</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block text-xs text-white/55">
-            Solve timer (sec)
-            <input
-              type="number"
-              min="1"
-              value={settings.timerSeconds}
-              onChange={(e) => setSettings((s) => ({ ...s, timerSeconds: e.target.value }))}
-              className={`mt-1 ${inputClass}`}
-            />
-          </label>
+        <h2 className="text-base font-semibold text-white">Defaults for all teams</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <label className="block text-xs text-white/55">
             Max attempts
             <input
               type="number"
-              min="1"
+              min={1}
+              max={5}
               value={settings.maxAttempts}
-              onChange={(e) => setSettings((s) => ({ ...s, maxAttempts: e.target.value }))}
+              onChange={(e) => setSettings((s) => ({ ...s, maxAttempts: Number(e.target.value) || 2 }))}
               className={`mt-1 ${inputClass}`}
             />
           </label>
           <label className="block text-xs text-white/55">
-            Hint cost (pts)
+            Timer (seconds)
             <input
               type="number"
-              min="0"
+              min={0}
+              value={settings.timerSeconds}
+              onChange={(e) => setSettings((s) => ({ ...s, timerSeconds: Number(e.target.value) || 0 }))}
+              className={`mt-1 ${inputClass}`}
+            />
+          </label>
+          <label className="block text-xs text-white/55">
+            Hint cost
+            <input
+              type="number"
+              min={0}
               value={settings.hintCost}
-              onChange={(e) => setSettings((s) => ({ ...s, hintCost: e.target.value }))}
+              onChange={(e) => setSettings((s) => ({ ...s, hintCost: Number(e.target.value) || 0 }))}
               className={`mt-1 ${inputClass}`}
             />
           </label>
@@ -306,7 +359,7 @@ export default function Clue5VariantManager({
       </section>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">2. Shared phone prompt</h2>
+        <h2 className="text-base font-semibold text-white">Shared phone prompt</h2>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -315,66 +368,15 @@ export default function Clue5VariantManager({
         />
       </section>
 
-      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">3. Word per start path</h2>
-        <p className="mt-1 text-xs text-white/50">
-          Teams from the same gather share one word. Print that word’s letter slips at every red stop
-          those teams visit.
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {orderedPoints.map((point) => {
-            const code = startCode(point);
-            const word = words[code] || clue5WordForStart(code);
-            const slips = letterSlipsForWord(word);
-            const teamCount = teamSlots.length;
-            return (
-              <div
-                key={code}
-                className={`rounded-xl border px-3 py-3 ${THEME.borderClass} bg-black/20`}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-semibold text-white">{startLabel(point)}</p>
-                  <p className={`text-xs font-semibold ${THEME.textClass}`}>
-                    {teamCount} teams
-                  </p>
-                </div>
-                <label className="mt-2 block text-xs text-white/55">
-                  Correct word
-                  <input
-                    value={word}
-                    onChange={(e) => setWords((prev) => ({
-                      ...prev,
-                      [code]: e.target.value.replace(/[^A-Za-z]/g, '').toUpperCase(),
-                    }))}
-                    className={`mt-1 font-mono tracking-[0.2em] ${inputClass}`}
-                    placeholder={clue5WordForStart(code)}
-                  />
-                </label>
-                <p className="mt-2 text-[10px] uppercase tracking-wide text-white/35">
-                  Print {slips.length} letter slips
-                </p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  {slips.map((letter, index) => (
-                    <span
-                      key={`${code}-slip-${index}`}
-                      className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 font-mono text-lg font-bold tracking-wide text-red-100"
-                    >
-                      <span className="mr-1 text-[10px] text-white/35">{index + 1}.</span>
-                      {letter}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+      <p className="text-xs text-white/50">
+        Each team gets its own letter word. Plant that team’s numbered letter slips at their red stop.
+        No two teams share a word. After they type → red FIFTH SCAN → Clue 6.
+      </p>
 
       <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
-        <h2 className="text-base font-semibold text-white">4. Who goes where · letter slips for all teams</h2>
+        <h2 className="text-base font-semibold text-white">Who goes where · unique letter words</h2>
         <p className="mt-1 text-xs text-white/50">
-          Fifth stop = red. Plant the numbered letter slips below at that place for each team.
-          After they type the word → red FIFTH SCAN → Clue 6.
+          Edit each team’s word. Slips update live — print those letters at that red place.
         </p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {arrivalPlan.map((place) => {
@@ -392,37 +394,46 @@ export default function Clue5VariantManager({
                 </div>
                 <div className="mt-2 space-y-3">
                   {place.arrivals.map((row) => {
-                    const code = row.startingPointCode;
-                    const word = words[code]
-                      || clue5WordForStart(code);
+                    const codeKey = `${row.startingPointCode}-T${row.localTeamNumber}`;
+                    const word = words[codeKey] || '';
                     const slips = letterSlipsForWord(word);
                     return (
                       <div
                         key={`${place.code}-${row.teamNumber}`}
                         className="rounded-lg border border-white/10 bg-black/30 px-2.5 py-2"
                       >
-                        <div className="flex items-center justify-between gap-2 text-sm">
+                        <div className="grid grid-cols-[4.5rem_1fr_7rem] items-center gap-2 text-sm">
                           <span className="font-semibold text-white">T{row.teamNumber}</span>
                           <span className="truncate text-white/55">
                             from{' '}
                             <span className="text-emerald-300">
                               {row.startingPointName || row.waitName}
                             </span>
-                            {' · '}
-                            <span className={`font-mono font-bold ${THEME.textClass}`}>{word}</span>
                           </span>
+                          <input
+                            value={word}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/[^A-Za-z]/g, '').toUpperCase();
+                              setWords((prev) => ({ ...prev, [codeKey]: value }));
+                            }}
+                            aria-label={`Clue 5 word for team ${row.teamNumber}`}
+                            className={`${inputClass} py-1.5 text-center font-mono text-sm tracking-[0.18em] ${THEME.textClass}`}
+                            placeholder="WORD"
+                          />
                         </div>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {slips.map((letter, index) => (
-                            <span
-                              key={`t${row.teamNumber}-l${index}`}
-                              className="rounded border border-red-400/35 bg-red-500/10 px-2 py-1 font-mono text-sm font-bold text-red-100"
-                            >
-                              <span className="mr-0.5 text-[9px] text-white/35">{index + 1}</span>
-                              {letter}
-                            </span>
-                          ))}
-                        </div>
+                        {slips.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {slips.map((letter, index) => (
+                              <span
+                                key={`t${row.teamNumber}-l${index}`}
+                                className="rounded border border-red-400/35 bg-red-500/10 px-2 py-1 font-mono text-sm font-bold text-red-100"
+                              >
+                                <span className="mr-0.5 text-[9px] text-white/35">{index + 1}</span>
+                                {letter}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -440,7 +451,7 @@ export default function Clue5VariantManager({
           onClick={saveAll}
           className={`rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-40 ${THEME.buttonClass}`}
         >
-          {busy ? 'Saving…' : `Save Clue 5 · all ${teamCapacity} teams`}
+          {busy ? 'Saving…' : `Save Clue 5 · bind ${teamCapacity} unique words`}
         </button>
       </div>
       {message && <p className={`text-xs ${THEME.textClass}`}>{message}</p>}
