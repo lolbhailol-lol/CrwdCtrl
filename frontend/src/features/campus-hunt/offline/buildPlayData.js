@@ -49,8 +49,7 @@ function challengeView(bundle, state, session, n, now) {
     prompt = OFFLINE_CLUE_PROMPTS[2] || prompt;
   }
   if (n === 5) {
-    prompt = OFFLINE_CLUE_PROMPTS[5] || prompt
-      || 'Find the letter slips nearby — join into one word. Leader submits.';
+    prompt = OFFLINE_CLUE_PROMPTS[5];
   }
   void memberIndex;
 
@@ -62,6 +61,12 @@ function challengeView(bundle, state, session, n, now) {
     || row.failureReason === 'TIMEOUT';
   const showDestination = row.state === 'COMPLETED'
     || (n === 1 && revealed);
+
+  // Prefer pack-patched answers (applyOfflinePlayerCopy), keep letters-only for Clue 5.
+  let revealedAnswer = revealed ? (clue.answer || null) : undefined;
+  if (n === 5 && revealedAnswer) {
+    revealedAnswer = String(revealedAnswer).replace(/[^A-Za-z]/g, '').toUpperCase() || revealedAnswer;
+  }
 
   const view = {
     challengeNumber: n,
@@ -76,7 +81,7 @@ function challengeView(bundle, state, session, n, now) {
       ? sanitizePlayerCopy(clue.destinationInstruction || '')
       : undefined,
     revealedLocation: revealed && n === 1 ? (clue.answer || null) : undefined,
-    revealedAnswer: revealed ? (clue.answer || null) : undefined,
+    revealedAnswer: n === 5 ? revealedAnswer : (revealed ? (clue.answer || null) : undefined),
     state: row.state,
     attempts: row.attempts || 0,
     maxAttempts: clue.maxAttempts || cfg.maxAttempts || 3,

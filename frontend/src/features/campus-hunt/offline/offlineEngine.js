@@ -284,7 +284,8 @@ export function startHunt(bundle, session, state, now = new Date(), { goCode = '
 }
 
 export function getClue(bundle, n) {
-  return bundle?.clues?.[`clue${n}`] || null;
+  const key = `clue${n}`;
+  return bundle?.clues?.[key] || bundle?.challenges?.[key] || null;
 }
 
 export function checkpointForKey(bundle, key) {

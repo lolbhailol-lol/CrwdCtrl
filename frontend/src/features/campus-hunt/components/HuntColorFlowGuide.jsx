@@ -1,15 +1,15 @@
 import { STAGE_THEMES } from '../types/stageTheme';
 
 const FLOW = [
-  { theme: STAGE_THEMES.clue1, clue: 'Clue 1', detail: 'Type campus place → orange scan' },
-  { theme: STAGE_THEMES.clue2, clue: 'Clue 2', detail: 'Digit slips → green scan' },
-  { theme: STAGE_THEMES.clue3, clue: 'Clue 3', detail: 'Physical lockbox → blue scan' },
-  { theme: STAGE_THEMES.clue4, clue: 'Clue 4', detail: 'Zip Grid → purple scan' },
-  { theme: STAGE_THEMES.final, clue: 'Clue 5', detail: 'Letter slips → red scan' },
-  { theme: STAGE_THEMES.destination, clue: 'Clue 6', detail: 'Mindspark Lobby finish' },
+  { theme: STAGE_THEMES.clue1, clue: 'Clue 1' },
+  { theme: STAGE_THEMES.clue2, clue: 'Clue 2' },
+  { theme: STAGE_THEMES.clue3, clue: 'Clue 3' },
+  { theme: STAGE_THEMES.clue4, clue: 'Clue 4' },
+  { theme: STAGE_THEMES.final, clue: 'Clue 5' },
+  { theme: STAGE_THEMES.destination, clue: 'Clue 6' },
 ];
 
-/** Color path for the hunt — no points shown. */
+/** Color path for the hunt — color + clue only. */
 export default function HuntColorFlowGuide({ title = 'Your path' }) {
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
@@ -27,14 +27,11 @@ export default function HuntColorFlowGuide({ title = 'Your path' }) {
               style={{ background: row.theme.hex }}
               aria-hidden
             />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white">
-                <span style={{ color: row.theme.hex }}>{row.theme.colorName}</span>
-                {' · '}
-                {row.clue}
-              </p>
-              <p className="text-[11px] text-white/45">{row.detail}</p>
-            </div>
+            <p className="min-w-0 flex-1 text-sm font-semibold text-white">
+              <span style={{ color: row.theme.hex }}>{row.theme.colorName}</span>
+              {' · '}
+              {row.clue}
+            </p>
           </li>
         ))}
       </ul>

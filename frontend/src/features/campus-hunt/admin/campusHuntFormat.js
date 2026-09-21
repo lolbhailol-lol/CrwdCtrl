@@ -1208,10 +1208,9 @@ export function routeClueDefaults(
   ));
   return {
     prompt:
-      `At the red stop: find ${slips.length} letter slips planted nearby `
+      `At the red stop: find the letter slips planted nearby `
       + `(letters only — not digits).\n`
-      + `Join them in order (1→${slips.length}) into one word. Leader submits.\n`
-      + `Letters are NOT on this phone.`,
+      + `Join them in order into one word. Leader submits.`,
     answer: raw,
     hintText:
       'Letters only · eye-level boards · numbered slips. Build one word, no spaces.',

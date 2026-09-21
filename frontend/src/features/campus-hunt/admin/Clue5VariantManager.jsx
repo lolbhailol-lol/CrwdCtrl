@@ -30,10 +30,8 @@ const THEME = STAGE_THEMES.final;
 const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 py-2 text-sm text-white';
 
 const SHARED_PROMPT =
-  'At the red stop: find the letter slips planted nearby '
-  + '(letters only — not digits).\n'
-  + 'Join them in order into one word. Leader submits.\n'
-  + 'Letters are NOT on this phone.';
+  'At the red stop: find the letter slips planted nearby (letters only — not digits).\n'
+  + 'Join them in order into one word. Leader submits.';
 
 function id(value) {
   return String(value?._id || value?.id || value || '');

@@ -62,6 +62,20 @@ const OFFLINE_CLUE_HOW_TO = {
     ],
   },
 };
+
+/** Short prompts frozen into packs (must match frontend offlineHowTo). */
+const OFFLINE_CLUE_PROMPTS = {
+  2:
+    'At the green stop: find the numbered digit slips nearby.\n'
+    + 'Join them in order into one number. Leader types it.',
+  3:
+    'Find the physical lockbox nearby.\n'
+    + 'Type the code written on it.',
+  5:
+    'At the red stop: find the letter slips planted nearby (letters only — not digits).\n'
+    + 'Join them in order into one word. Leader submits.',
+};
+
 const {
   OFFLINE_BUNDLE_VERSION,
   OFFLINE_BUNDLE_TYPE,
@@ -133,16 +147,44 @@ function buildRoster(team) {
 
 function serializeChallenge(ch, extra = {}) {
   if (!ch) return null;
+  const n = Number(ch.challengeNumber) || 0;
+  const forcedPrompt = OFFLINE_CLUE_PROMPTS[n] || null;
+  let answer = String(ch.answer || '').trim();
+  let memberPrompts = Array.isArray(ch.memberPrompts) ? ch.memberPrompts : [];
+  let type = ch.type;
+  let prompt = forcedPrompt || ch.prompt || '';
+  let acceptedAnswers = Array.isArray(ch.acceptedAnswers)
+    ? ch.acceptedAnswers.map((a) => String(a || '').trim()).filter(Boolean)
+    : (answer ? [answer] : []);
+
+  if (n === 2) {
+    answer = answer.replace(/\D/g, '').slice(0, 3);
+    memberPrompts = [];
+    type = 'decode';
+    if (answer) acceptedAnswers = [answer];
+  }
+  if (n === 3) {
+    memberPrompts = [];
+    type = 'decode';
+  }
+  if (n === 5) {
+    answer = answer.replace(/[^A-Za-z]/g, '').toUpperCase() || answer;
+    memberPrompts = [];
+    type = 'decode';
+    prompt = OFFLINE_CLUE_PROMPTS[5] || prompt;
+    if (answer) {
+      acceptedAnswers = [answer, answer.toLowerCase()];
+    }
+  }
+
   return {
     id: String(ch._id),
     challengeNumber: ch.challengeNumber,
-    type: ch.type,
-    prompt: ch.prompt || '',
-    memberPrompts: Array.isArray(ch.memberPrompts) ? ch.memberPrompts : [],
-    answer: String(ch.answer || '').trim(),
-    acceptedAnswers: Array.isArray(ch.acceptedAnswers)
-      ? ch.acceptedAnswers.map((a) => String(a || '').trim()).filter(Boolean)
-      : [],
+    type,
+    prompt,
+    memberPrompts,
+    answer,
+    acceptedAnswers,
     hintText: ch.hintText || '',
     hintCost: ch.hintCost ?? 15,
     maxAttempts: ch.maxAttempts ?? 3,

@@ -29,7 +29,7 @@ import { sanitizePlayerCopy } from './sanitizePlayerCopy';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { STAGE_THEMES } from '../types/stageTheme';
 import ClueHowTo from '../components/ClueHowTo';
-import { OFFLINE_CLUE_HOW_TO } from '../offline/offlineHowTo';
+import { OFFLINE_CLUE_HOW_TO, OFFLINE_CLUE_PROMPTS } from '../offline/offlineHowTo';
 
 function activeChallengeNumber(stage) {
   const m = String(stage || '').match(/^CLUE_(\d)_ACTIVE$/);
@@ -179,9 +179,13 @@ export default function PlayerPlayScreen({
       const raw = challenges.find((c) => c.challengeNumber === activeNum);
       if (!raw) return undefined;
       const appHowTo = OFFLINE_CLUE_HOW_TO[Number(raw.challengeNumber)];
-      return appHowTo ? { ...raw, howTo: appHowTo } : raw;
+      const appPrompt = OFFLINE_CLUE_PROMPTS[Number(raw.challengeNumber)];
+      let next = raw;
+      if (appHowTo) next = { ...next, howTo: appHowTo };
+      if (appPrompt && offlineMode) next = { ...next, prompt: appPrompt, collaborative: false, memberFragments: undefined, memberCode: undefined };
+      return next;
     },
-    [challenges, activeNum],
+    [challenges, activeNum, offlineMode],
   );
 
   const clue1 = useMemo(
