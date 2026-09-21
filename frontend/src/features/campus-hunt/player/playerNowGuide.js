@@ -136,7 +136,7 @@ export function buildPlayerNowGuide({
         tone: 'clue',
         eyebrow: 'Clue 2',
         title: 'Type the digit number',
-        body: '0 pts — type the revealed number, then scan green.',
+        body: 'Type the revealed number, then scan green.',
         steps: [],
       };
     }
@@ -155,7 +155,7 @@ export function buildPlayerNowGuide({
         tone: 'clue',
         eyebrow: 'Clue 3 · Lockbox',
         title: 'Type the revealed code',
-        body: '0 pts — type the code shown, then scan blue.',
+        body: 'Type the code shown, then scan blue.',
         steps: [],
       };
     }
@@ -184,7 +184,7 @@ export function buildPlayerNowGuide({
         tone: 'clue',
         eyebrow: 'Clue 5 · Word',
         title: 'Type the revealed word',
-        body: '0 pts — type it, then scan red.',
+        body: 'Type it, then scan red.',
         steps: [],
       };
     }
