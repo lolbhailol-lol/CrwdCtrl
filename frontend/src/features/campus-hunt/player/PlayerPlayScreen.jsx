@@ -188,11 +188,6 @@ export default function PlayerPlayScreen({
     [challenges, activeNum, offlineMode],
   );
 
-  const clue1 = useMemo(
-    () => challenges.find((c) => c.challengeNumber === 1),
-    [challenges],
-  );
-
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -1318,17 +1313,20 @@ export default function PlayerPlayScreen({
                 </div>
               )}
 
-              {activeChallenge.prompt == null && activeChallenge.challengeNumber === 1 ? (
-                <p className="text-sm text-white/50">Clue 1 is only on the Team Leader phone.</p>
-              ) : (
-                <div className="rounded-xl bg-black/30 px-4 py-4">
-                  <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-white/35">
-                    Clue
-                  </p>
-                  <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-white/92">
-                    {activeChallenge.prompt}
-                  </p>
-                </div>
+              {/* Clue 1 riddle only — Clues 2/3/5/6 use the 1·2·3 how-to (no duplicate prompt). */}
+              {Number(activeChallenge.challengeNumber) === 1 && (
+                activeChallenge.prompt == null ? (
+                  <p className="text-sm text-white/50">Clue 1 is only on the Team Leader phone.</p>
+                ) : (
+                  <div className="rounded-xl bg-black/30 px-4 py-4">
+                    <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-white/35">
+                      Clue
+                    </p>
+                    <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-white/92">
+                      {activeChallenge.prompt}
+                    </p>
+                  </div>
+                )
               )}
 
               {activeChallenge.challengeNumber === 4
@@ -1343,12 +1341,6 @@ export default function PlayerPlayScreen({
                   >
                     Field Terminal · borrow a laptop
                   </p>
-                  <ol className="list-decimal space-y-1.5 pl-4 text-sm text-white/70">
-                    <li>Borrow any laptop that has internet</li>
-                    <li>Open Zip Grid → type the device key below</li>
-                    <li>Finish the game → laptop shows GRID-XXXX</li>
-                    <li>Type that GRID code on this phone</li>
-                  </ol>
                   {activeChallenge.gridAccessCode ? (
                     <div className="rounded-xl bg-black/35 px-3 py-4 text-center">
                       <p className="text-[10px] uppercase tracking-wide text-white/40">
@@ -1408,7 +1400,7 @@ export default function PlayerPlayScreen({
                     </button>
                   </div>
                   <p className="text-xs text-white/45">
-                    After the laptop shows GRID-XXXX, enter it in the answer box below.
+                    After the laptop shows GRID-XXXX, enter it below.
                   </p>
                   {activeChallenge.gridCompleted && (
                     <p className="text-xs font-medium text-emerald-200/90">
@@ -1416,24 +1408,6 @@ export default function PlayerPlayScreen({
                     </p>
                   )}
                 </div>
-              )}
-
-              {activeChallenge.challengeNumber === 2 && (
-                <p className="text-sm text-white/55">
-                  Find the numbered digit slips nearby, join in order into one number, then type it.
-                </p>
-              )}
-
-              {activeChallenge.challengeNumber === 3 && (
-                <p className="text-sm text-white/55">
-                  Find the physical lockbox nearby. Type the code printed on it.
-                </p>
-              )}
-
-              {activeChallenge.challengeNumber === 5 && (
-                <p className="text-sm text-white/55">
-                  Find the letter slips nearby (letters — not digits). Join into one word, then type it.
-                </p>
               )}
 
               {activeChallenge.revealedAnswer && activeChallenge.state === 'ACTIVE' && (
