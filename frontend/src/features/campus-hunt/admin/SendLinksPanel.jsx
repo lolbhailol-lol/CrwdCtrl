@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   adminExportOfflinePacks,
   adminImportOfflineResults,
@@ -9,8 +9,7 @@ import OfflineInstallCards from '../offline/components/OfflineInstallCards';
 import { downloadOfflinePacks } from '../offline/downloadOfflinePacks';
 
 /**
- * Create WhatsApp install links — passwords + clues ready.
- * No schedule / lock step required (bindings auto-fill on create).
+ * Links — default ready. Create anytime; change teams/clues then Create again.
  */
 export default function SendLinksPanel({
   eventId,
@@ -27,6 +26,9 @@ export default function SendLinksPanel({
   const [importPreview, setImportPreview] = useState(null);
   const [pendingImport, setPendingImport] = useState(null);
 
+  const teamsTotal = Number(readiness?.teamsTotal) || 0;
+  const passwordsReady = Number(readiness?.passwordsReady ?? readiness?.teamsReady) || 0;
+
   const refreshStatus = useCallback(async () => {
     if (!eventId) return;
     try {
@@ -41,64 +43,8 @@ export default function SendLinksPanel({
     refreshStatus();
   }, [refreshStatus]);
 
-  const preflight = useMemo(() => {
-    const r = readiness || {};
-    const teamsTotal = Number(r.teamsTotal) || 0;
-    const passwordsReady = Number(r.passwordsReady ?? r.teamsReady) || 0;
-    const leftover = Number(r.leftoverTeams) || 0;
-    const linksGate = r.offlineLinksReady != null
-      ? Boolean(r.offlineLinksReady)
-      : (
-        teamsTotal > 0
-        && passwordsReady >= teamsTotal
-        && Boolean(r.startingPointsReady)
-        && Number(r.routesReady) > 0
-      );
-    const checks = [
-      {
-        id: 'teams',
-        ok: teamsTotal > 0 && passwordsReady >= teamsTotal,
-        label: `Team passwords · ${passwordsReady || '—'}/${teamsTotal || teamCapacity}`,
-        fix: 'Teams tab — set a password for every team',
-      },
-      {
-        id: 'clues',
-        ok: Number(r.routesReady) > 0,
-        label: 'Clues 1–6 + place QRs ready',
-        fix: 'Clues tab — save Clue 1–6',
-      },
-      {
-        id: 'starts',
-        ok: Boolean(r.startingPointsReady),
-        label: 'Starting place ready',
-        fix: 'Places tab — keep at least one gather point',
-      },
-      ...(leftover > 0
-        ? [{
-          id: 'leftover',
-          ok: false,
-          label: `${leftover} leftover team(s) beyond capacity`,
-          fix: 'Teams → Trim to capacity (or Save setup again)',
-        }]
-        : []),
-    ];
-    const blockers = checks.filter((c) => !c.ok);
-    return {
-      checks,
-      blockers,
-      // Leftovers auto-prune on create links — don't block the button.
-      ready: linksGate && blockers.filter((b) => b.id !== 'leftover').length === 0,
-    };
-  }, [readiness, teamCapacity]);
-
   const exportLinks = useCallback(async (perTeam = false) => {
     if (!eventId || busy) return;
-    if (!preflight.ready) {
-      setError(
-        `Fix setup first: ${preflight.blockers.filter((b) => b.id !== 'leftover').map((b) => b.fix).join(' · ')}`,
-      );
-      return;
-    }
     setBusy(perTeam ? 'zip' : 'links');
     setMessage('');
     setWarnings([]);
@@ -115,16 +61,16 @@ export default function SendLinksPanel({
           : []),
         ...(data.incompleteTeams?.length
           ? [
-            `${data.incompleteTeams.length} team(s) skipped — finish Clues 1–6, then Create again.`,
+            `${data.incompleteTeams.length} team(s) skipped — save Clues 1–6, then Create again.`,
           ]
           : []),
       ];
       setWarnings(nextWarnings);
       setMessage(
         data.teamCount
-          ? `Ready: ${data.teamCount} team pack${data.teamCount === 1 ? '' : 's'} `
+          ? `Ready: ${data.teamCount} team link${data.teamCount === 1 ? '' : 's'} `
             + `(batch ${data.exportBatchId || '—'}). WhatsApp each leader.`
-          : 'No packs yet — finish Places, Clues 1–6, and team passwords first.',
+          : 'No packs yet — open Teams / Clues once, then Create again.',
       );
       await refreshStatus();
     } catch (err) {
@@ -132,7 +78,7 @@ export default function SendLinksPanel({
     } finally {
       setBusy('');
     }
-  }, [busy, eventId, preflight, refreshStatus]);
+  }, [busy, eventId, refreshStatus]);
 
   const runImport = useCallback(async (payload, force = false) => {
     if (!eventId || !payload) return;
@@ -143,8 +89,7 @@ export default function SendLinksPanel({
       const row = res.data || res;
       setMessage(
         `Imported ${row.teamCode}: ${row.score} pts`
-        + `${row.overwritten ? ' (overwrote locked)' : ''}. `
-        + 'Live / Results board updates from this score.',
+        + `${row.overwritten ? ' (overwrote locked)' : ''}.`,
       );
       setImportPreview(null);
       setPendingImport(null);
@@ -174,9 +119,9 @@ export default function SendLinksPanel({
       const preview = res.data?.preview || res.preview;
       setImportPreview(preview);
       if (preview?.alreadyLocked) {
-        setMessage(`${preview.team} already locked at ${preview.finalScore ?? preview.currentScore}. Confirm overwrite to continue.`);
+        setMessage(`${preview.team} already locked. Confirm overwrite to continue.`);
       } else {
-        setMessage(`Preview OK · ${preview.team} → ${preview.score} pts. Confirm import.`);
+        setMessage(`Preview OK · ${preview.team} → ${preview.score} pts.`);
       }
     } catch (err) {
       setError(err.message || 'Could not preview import');
@@ -195,36 +140,27 @@ export default function SendLinksPanel({
       <div>
         <h2 className="text-xl font-bold">Send links</h2>
         <p className="mt-1 text-sm text-white/55">
-          One WhatsApp install link per team · leader phone only.
-          {' '}
-          No schedule step — create when passwords + clues are ready.
+          Ready by default. Create links anytime — if you change teams or clues, Create again.
         </p>
       </div>
 
-      <section className="rounded-xl border border-white/10 bg-white/4 p-3">
-        <ul className="space-y-1.5 text-sm">
-          {preflight.checks.map((c) => (
-            <li key={c.id} className={c.ok ? 'text-emerald-200' : 'text-amber-100'}>
-              {c.ok ? '✓' : '○'} {c.label}
-              {!c.ok ? <span className="text-white/45"> — {c.fix}</span> : null}
-            </li>
-          ))}
-        </ul>
+      <section className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+        {teamsTotal > 0
+          ? `✓ ${teamsTotal} teams ready · passwords ${passwordsReady}/${teamsTotal || teamCapacity}`
+          : 'Create teams on the Teams tab first (or Save size on the hub), then Create links.'}
       </section>
 
       {dayBeforeGate ? (
         <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          <p className="font-semibold">Day-before gate · {missingInstall.length} team(s) not installed</p>
+          <p className="font-semibold">{missingInstall.length} team(s) not installed yet</p>
           <p className="mt-1 text-xs text-amber-100/80">
-            Chase WhatsApp acks before fest day:
-            {' '}
             {missingInstall.slice(0, 12).map((r) => r.teamCode).join(', ')}
             {missingInstall.length > 12 ? '…' : ''}
           </p>
         </div>
       ) : statusRows.length > 0 ? (
         <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
-          Day-before ready · {installedCount}/{statusRows.length} installed
+          Installed · {installedCount}/{statusRows.length}
         </div>
       ) : null}
 
@@ -233,16 +169,15 @@ export default function SendLinksPanel({
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={Boolean(busy) || !eventId || !preflight.ready}
+            disabled={Boolean(busy) || !eventId}
             onClick={() => exportLinks(false)}
             className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-bold text-black disabled:opacity-40"
-            title={!preflight.ready ? 'Fix preflight blockers first' : undefined}
           >
             {busy === 'links' ? 'Creating…' : 'Create team links'}
           </button>
           <button
             type="button"
-            disabled={Boolean(busy) || !eventId || !preflight.ready}
+            disabled={Boolean(busy) || !eventId}
             onClick={() => exportLinks(true)}
             className="rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
           >
@@ -257,11 +192,6 @@ export default function SendLinksPanel({
             Refresh installed
           </button>
         </div>
-        {!preflight.ready ? (
-          <p className="mt-3 text-sm text-amber-100/90">
-            Need: team passwords + Clues 1–6 saved + at least one gather place.
-          </p>
-        ) : null}
         {message ? <p className="mt-3 text-sm text-emerald-300">{message}</p> : null}
         {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
         {warnings.length ? (
@@ -312,7 +242,7 @@ export default function SendLinksPanel({
       <section className="rounded-2xl border border-white/10 bg-white/4 p-4">
         <h3 className="text-sm font-bold text-white">Import results</h3>
         <p className="mt-1 text-xs text-white/50">
-          After the hunt, leaders export JSON from the phone. Upload here to lock scores.
+          After the hunt, upload a leader’s results JSON to lock the score.
         </p>
         <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-black/30 px-4 py-2 text-sm text-white/80">
           {busy === 'preview' ? 'Reading…' : 'Choose results file'}
@@ -360,10 +290,7 @@ export default function SendLinksPanel({
           </div>
         ) : null}
         <p className="mt-2 text-[11px] text-white/40">
-          {teamSize}
-          /team · capacity
-          {' '}
-          {teamCapacity}
+          {teamSize}/team · capacity {teamCapacity}
         </p>
       </section>
     </div>

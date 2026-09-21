@@ -120,13 +120,13 @@ export default function CampusHuntEventControl() {
   );
   const linksReady = Boolean(
     readiness?.offlineLinksReady
-    ?? (teamsReady && cluesReady && locationsReady),
+    ?? (readiness?.teamsTotal > 0),
   );
   const workflowStatuses = {
     locations: locationsReady ? 'Ready' : 'Needs attention',
     clues: cluesReady ? 'Ready' : 'Needs attention',
     teams: teamsReady ? 'Ready' : readiness?.teamsTotal ? 'Needs attention' : 'Not started',
-    links: linksReady ? 'Ready' : 'Not started',
+    links: linksReady ? 'Ready' : (readiness?.teamsTotal ? 'Ready' : 'Not started'),
     playtest: round1?.status === 'live' ? 'Live' : linksReady && teamsReady ? 'Ready' : 'Not started',
     live: round1?.status === 'live' ? 'Live' : round1?.status === 'locked' ? 'Complete' : 'Not started',
     results: round1?.status === 'finalized' ? 'Complete' : round1?.status === 'locked' ? 'Ready' : 'Not started',

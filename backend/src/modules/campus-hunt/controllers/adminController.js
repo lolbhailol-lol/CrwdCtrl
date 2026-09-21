@@ -439,16 +439,13 @@ async function getEventOverview(req, res, next) {
     const startingPointsReady = startingPoints.filter((p) => p.active !== false).length
       >= Math.max(1, Number(event.startCount) || 1);
     const routesConfigured = eventHasPathStops && eventHasPathClues;
+    // Links are default-ready when teams exist; export auto-fills passwords/paths.
+    const linksDefaultReady = competitionTeams.length > 0;
     const readiness = {
-      ready: competitionTeams.length > 0
-        && passwordsReady === competitionTeams.length
-        && routesConfigured
+      ready: linksDefaultReady
+        && (passwordsReady === competitionTeams.length || routesConfigured)
         && startingPointsReady,
-      /** Links: passwords + clues/places ready. Path bindings auto-fill on export. */
-      offlineLinksReady: competitionTeams.length > 0
-        && passwordsReady === competitionTeams.length
-        && routesConfigured
-        && startingPointsReady,
+      offlineLinksReady: linksDefaultReady,
       teamsReady,
       passwordsReady,
       teamsTotal: competitionTeams.length,
@@ -4173,21 +4170,51 @@ async function updateEventCampusStations(req, res, next) {
 async function exportOfflinePacks(req, res, next) {
   try {
     const { pruneExcessTeams } = require('../services/capacityService');
-    const pruned = await pruneExcessTeams(req.params.eventId);
+    let pruned = { kept: 0, removed: 0 };
+    try {
+      pruned = await pruneExcessTeams(req.params.eventId);
+    } catch (pruneErr) {
+      console.warn('[export] prune skipped:', pruneErr.message);
+    }
 
-    // Auto-bind Clue 1–6 paths if missing — no separate Schedule step needed for links.
+    const event = await CampusHuntEvent.findById(req.params.eventId)
+      .select('teamCapacity college slug');
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    // Ensure passwords exist so Links stays one-click ready.
+    try {
+      const { setTeamSharedPassword } = require('../services/teamGateService');
+      const { isTeamPasswordReady } = require('../utils/roster');
+      const { selectCompetitionTeams } = require('../services/startScheduleService');
+      const allTeams = await CampusHuntTeam.find({ eventId: event._id })
+        .select('+accessPack.encryptedTeamPassword +accessPack.encryptedSharedScannerPassword '
+          + '+accessPack.leader.encryptedPassword +accessPack.scanners.encryptedPassword');
+      const field = selectCompetitionTeams(allTeams, event.teamCapacity);
+      const defaultPass = process.env.CAMPUS_HUNT_DEFAULT_TEAM_PASSWORD
+        || (String(event.college || '').toUpperCase().includes('COEP') ? 'COEP2026' : 'HUNT2026');
+      for (const team of field) {
+        if (isTeamPasswordReady(team.toObject ? team.toObject() : team)) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await setTeamSharedPassword(team, defaultPass);
+      }
+    } catch (pwdErr) {
+      console.warn('[export] password ensure skipped:', pwdErr.message);
+    }
+
+    // Auto-bind Clue 1–6 paths if missing — no separate Schedule step.
     const round = await CampusHuntRound.findOne({
       eventId: req.params.eventId,
       roundNumber: 1,
     }).select('_id startsAt releaseIntervalMinutes assignmentStrategy status');
     if (round) {
       const { selectCompetitionTeams } = require('../services/startScheduleService');
-      const event = await CampusHuntEvent.findById(req.params.eventId).select('teamCapacity').lean();
       const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
         .select('teamCode clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId startingPointId')
         .lean();
-      const field = selectCompetitionTeams(teams, event?.teamCapacity);
-      const needsBind = field.some((t) => (
+      const field = selectCompetitionTeams(teams, event.teamCapacity);
+      const needsBind = !field.length || field.some((t) => (
         !t.clue1ChallengeId
         || !t.clue6ChallengeId
         || !t.firstCheckpointId
