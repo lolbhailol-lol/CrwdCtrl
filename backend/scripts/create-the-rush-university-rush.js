@@ -1,9 +1,9 @@
 /**
- * Create / update THE RUSH — University Rush (27 Sep 2026) as a live published run.
- * Simple price: ₹98 (no strike / no coupon / no % label).
+ * Create / update THE RUSH — Ritrovo Rush (27 Sep 2026).
+ * Café Ritrovo, Kothrud · ₹98 · DJ KIRLO collab.
  *
  * Run: node scripts/create-the-rush-university-rush.js
- * Skip poster re-upload: SKIP_POSTER=1 node scripts/create-the-rush-university-rush.js
+ * Skip poster: SKIP_POSTER=1 node scripts/create-the-rush-university-rush.js
  */
 require('dotenv').config();
 
@@ -15,10 +15,11 @@ const RunClub = require('../src/model/run_club_model');
 const SportsEvent = require('../src/model/sports_model');
 const Coupon = require('../src/model/coupon_model');
 
-const SLUG = 'university-rush-sppu-27-sep-2026';
+const SLUG = 'ritrovo-rush-27-sep-2026';
+const LEGACY_SLUG = 'university-rush-sppu-27-sep-2026';
 const CLUB_SLUG = 'the-rush';
 const ENTRY_FEE = 98;
-const POSTER = path.join(__dirname, 'assets', 'university-rush-poster.png');
+const POSTER = path.join(__dirname, 'assets', 'ritrovo-rush-poster.png');
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -27,23 +28,40 @@ cloudinary.config({
 });
 
 const DESCRIPTION = [
-  '⚡ THE RUSH — UNIVERSITY RUSH',
+  '⚡ RITROVO RUSH',
   '',
-  'A high-energy Sunday morning with The Rush community — built around movement, connection, challenges and good vibes.',
+  'Sunday, 27 September | 6:30 AM onwards',
+  '📍 Café Ritrovo, Kothrud',
   '',
-  'Your experience includes:',
-  '• Community Run (3 KM)',
-  '• Fun challenges & games',
-  '• Meet new people & make new friends',
-  '• Content-worthy moments',
-  '• The Rush community experience',
+  'We’re bringing The Rush to Café Ritrovo for a Sunday morning built around movement, connection, good food and a whole lot of energy. 🏃‍♂️☕️',
   '',
-  'This isn’t just a run.',
-  'It’s your next Rush. ⚡',
+  'THE EXPERIENCE',
   '',
-  'UNIVERSITY RUSH',
-  'Run. Connect. Experience.',
+  '🏃 Community Run',
+  '🎯 Fun Games & Challenges',
+  '🤝 Meet New People',
+  '☕ Italian Café Experience at Café Ritrovo',
+  '🎧 Rave with DJ KIRLO',
+  '🏆 Prizes & surprises',
+  '',
+  'In collaboration with:',
+  '☕ Café Ritrovo',
+  '🎧 DJ KIRLO',
+  '',
+  'One morning. One community. One hell of a Rush. ⚡',
+  '',
+  'RITROVO RUSH - 27.09.26',
+  'Move. Connect. Belong.',
 ].join('\n');
+
+function mergePreviousSlugs(existing = [], ...extra) {
+  const out = [];
+  for (const s of [...(existing || []), ...extra]) {
+    const v = String(s || '').trim();
+    if (v && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
 
 async function disableRushCoupon() {
   const coupon = await Coupon.findOne({ code: 'RUSH' });
@@ -59,7 +77,14 @@ async function main() {
   if (!club) throw new Error('THE RUSH club not found');
 
   let event = await SportsEvent.findOne({
-    $or: [{ slug: SLUG }, { title: 'University Rush', runClubId: club._id }],
+    $or: [
+      { slug: SLUG },
+      { slug: LEGACY_SLUG },
+      { previousSlugs: SLUG },
+      { previousSlugs: LEGACY_SLUG },
+      { title: /ritrovo\s*rush/i, runClubId: club._id },
+      { title: 'University Rush', runClubId: club._id },
+    ],
   });
 
   let coverUrl = event?.coverImage || '';
@@ -68,7 +93,7 @@ async function main() {
     if (!fs.existsSync(POSTER)) throw new Error(`Poster missing: ${POSTER}`);
     if (!process.env.CLOUDINARY_CLOUD_NAME) throw new Error('Cloudinary config required');
     const uploaded = await cloudinary.uploader.upload(POSTER, {
-      public_id: 'crwdctrl/sports/the-rush/university-rush-sppu-2026',
+      public_id: 'crwdctrl/sports/the-rush/ritrovo-rush-sppu-2026',
       overwrite: true,
       resource_type: 'image',
     });
@@ -98,15 +123,23 @@ async function main() {
       },
     ];
 
+  const previousSlugs = mergePreviousSlugs(
+    event?.previousSlugs,
+    event?.slug && event.slug !== SLUG ? event.slug : '',
+    LEGACY_SLUG,
+    'university-rush',
+  ).filter((s) => s !== SLUG);
+
   // 27 Sep 2026 06:30 IST = 01:00 UTC
   const eventDate = new Date('2026-09-27T01:00:00.000Z');
 
   const payload = {
-    title: 'University Rush',
+    title: 'Ritrovo Rush',
     slug: SLUG,
+    previousSlugs,
     sportType: 'run_club',
     organizer: 'THE RUSH',
-    venue: 'SPPU Main Building, Savitribai Phule Pune University',
+    venue: 'Café Ritrovo, Kothrud',
     city: 'Pune',
     eventDate,
     reportingTime: '6:30 AM onwards',
@@ -118,7 +151,7 @@ async function main() {
     participationType: 'individual',
     skillLevel: 'all',
     dressCode: 'Activewear / running gear',
-    meetingPoint: 'SPPU Main Building',
+    meetingPoint: 'Café Ritrovo, Kothrud',
     fitnessLevel: 'All levels welcome',
     coverImage: coverUrl,
     coverImages: {
@@ -126,23 +159,28 @@ async function main() {
       page: coverUrl,
       portrait: coverUrl,
       square: coverUrl,
-      wide: existingCovers.wide || coverUrl,
+      wide: coverUrl,
       landscape: existingCovers.landscape || coverUrl,
-      hero: existingCovers.hero || coverUrl,
-      video: existingCovers.video || existingCovers.wide || coverUrl,
+      hero: coverUrl,
+      video: existingCovers.video || coverUrl,
     },
     images: existingImages.length ? existingImages : [coverUrl],
     inclusions: [
       'Community Run (3 KM)',
-      'Fun challenges & games',
-      'Meet new people & make new friends',
-      'Content-worthy moments',
-      'The Rush community experience',
+      'Fun Games & Challenges',
+      'Meet New People',
+      'Italian Café Experience at Café Ritrovo',
+      'Rave with DJ KIRLO',
+      'Prizes & surprises',
     ],
     infoSections: [
       {
         title: 'THE EXPERIENCE',
-        details: 'A high-energy Sunday morning with The Rush community, built around movement, connection, challenges and good vibes.',
+        details: 'We’re bringing The Rush to Café Ritrovo for a Sunday morning built around movement, connection, good food and a whole lot of energy.',
+      },
+      {
+        title: 'IN COLLABORATION',
+        details: 'Café Ritrovo · DJ KIRLO',
       },
       {
         title: 'ENTRY',
@@ -152,8 +190,8 @@ async function main() {
     detailBoxes: [
       { id: 'date', label: 'Date', value: 'Sunday, 27 September 2026', icon: 'calendar', order: 0 },
       { id: 'time', label: 'Time', value: '6:30 AM onwards', icon: 'clock', order: 1 },
-      { id: 'venue', label: 'Venue', value: 'SPPU Main Building', icon: 'map', order: 2 },
-      { id: 'distance', label: 'Distance', value: '3 KM Run · Fun Games · Challenges', icon: 'default', order: 3 },
+      { id: 'venue', label: 'Venue', value: 'Café Ritrovo, Kothrud', icon: 'map', order: 2 },
+      { id: 'distance', label: 'Distance', value: '3 KM Run · Fun Games · Prizes', icon: 'default', order: 3 },
     ],
     description: DESCRIPTION,
     runClubId: club._id,
@@ -176,8 +214,20 @@ async function main() {
     },
   };
 
+  // Keep phones if already set on the event
+  if (Array.isArray(event?.contactPhones) && event.contactPhones.length) {
+    payload.contactPhones = event.contactPhones;
+    payload.contactPhone = event.contactPhone || event.contactPhones[0];
+  }
+
   if (event) {
     Object.assign(event, payload);
+    event.markModified('coverImages');
+    event.markModified('previousSlugs');
+    event.markModified('registration');
+    event.markModified('infoSections');
+    event.markModified('detailBoxes');
+    event.markModified('inclusions');
     await event.save();
   } else {
     event = await SportsEvent.create(payload);
@@ -189,14 +239,13 @@ async function main() {
     ok: true,
     eventId: String(event._id),
     slug: event.slug,
+    previousSlugs: event.previousSlugs,
     title: event.title,
-    club: club.name,
+    venue: event.venue,
     fee: event.registrationFee,
-    originalFee: event.originalFee,
     rushCouponActive: coupon ? coupon.active : null,
-    eventDate: event.eventDate,
-    status: event.status,
     path: `/sports/run/${event.slug}`,
+    legacyPath: `/sports/run/${LEGACY_SLUG}`,
   }, null, 2));
 }
 
