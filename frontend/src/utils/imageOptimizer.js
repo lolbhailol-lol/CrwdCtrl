@@ -17,6 +17,16 @@ export const IMAGE_PRESETS = {
     cardPortrait: { width: 360, height: 468, crop: 'fill', quality: 'eco', gravity: 'auto' },
     /** Wide activity cards — .card-wide-image ~320×224 CSS */
     cardWide: { width: 720, height: 504, crop: 'fill', quality: 'eco' },
+    /** Wide cards — full poster fit, no crop (upcoming runs / activities) */
+    cardWideFit: { width: 720, height: 504, crop: 'fit', quality: 'eco' },
+    /** Wide cards — full poster + colour-matched pads (10:7) */
+    cardWidePad: {
+        width: 720,
+        height: 504,
+        crop: 'pad',
+        quality: 'eco',
+        background: 'auto:predominant',
+    },
     /** Full-width community row — aspect 5:3 */
     cardLandscape: { width: 720, height: 432, crop: 'fill', quality: 'eco' },
     /** 16:9 carousel / video-style cards — matches fest listing covers */
@@ -78,6 +88,8 @@ export const IMAGE_PRESET_SIZES = {
     square: '180px',
     cardPortrait: '(min-width: 1024px) 160px, 42vw',
     cardWide: '(min-width: 1024px) 360px, 84vw',
+    cardWideFit: '(min-width: 1024px) 360px, 84vw',
+    cardWidePad: '(min-width: 1024px) 360px, 84vw',
     cardLandscape: '100vw',
     cardVideo: '(min-width: 1024px) 320px, 80vw',
     cardTrending: '(min-width: 1024px) 300px, 78vw',

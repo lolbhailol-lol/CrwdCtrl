@@ -21,6 +21,8 @@ export const PRESET_ALIASES = {
     cardPortrait: 'portrait',
     cardPortraitFit: 'portrait',
     cardWide: 'wide',
+    cardWideFit: 'wide',
+    cardWidePad: 'wide',
     cardLandscape: 'landscape',
     cardVideo: 'video',
     cardTrending: 'portrait',

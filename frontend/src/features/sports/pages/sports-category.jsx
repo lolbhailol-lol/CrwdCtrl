@@ -109,7 +109,7 @@ function SportsAutoRetryError({ isDark, message, onRetry }) {
 }
 
 function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
-    const imgSrc = getCoverImageUrl(club, 'cardPortrait');
+    const imgSrc = getCoverImageUrl(club, 'cardPortraitFit');
     const shareUrl = typeof window !== 'undefined'
         ? `${window.location.origin}${runClubPath(club)}`
         : runClubPath(club);
@@ -123,11 +123,11 @@ function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eage
                     <ContentImage
                         src={imgSrc}
                         alt={club.title}
-                        preset="cardPortrait"
+                        preset="cardPortraitFit"
                         loading={eager ? 'eager' : 'lazy'}
                         fetchPriority={eager ? 'high' : undefined}
                         showPlaceholderUntilLoad
-                        className="absolute inset-0 z-0 w-full h-full object-cover pointer-events-none"
+                        className="absolute inset-0 z-0 w-full h-full object-contain object-center pointer-events-none"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', club.title || 'Run Club')}
                     />
                 ) : (
@@ -270,7 +270,7 @@ export default function SportsCategoryPage() {
             sportType: e.sportType,
             title: e.title,
             subtitle: getSportsDisplayType(e, SPORT_TYPE_LABELS),
-            image: getCoverImageUrl(e, 'cardWide') || normalizeImageUrl(e.coverImage) || normalizeImageUrl(e.images?.[0]) || null,
+            image: getCoverImageUrl(e, 'cardWideFit') || normalizeImageUrl(e.coverImage) || normalizeImageUrl(e.images?.[0]) || null,
             shareUrl: e.registrationLink || `${window.location.origin}/sports`,
             registrationLink: e.registrationLink,
             festId: null,

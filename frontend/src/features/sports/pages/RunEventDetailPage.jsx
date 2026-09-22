@@ -10,16 +10,17 @@ import Seo from '../../../components/Seo';
 import LazyMap from '../../../components/LazyMap';
 import TrekDetailIcon from '../../../components/TrekDetailIcon';
 import DetailPageLoader from '../../../components/DetailPageLoader';
-import { breadcrumbSchema, eventSchema } from '../../../utils/seo';
+import { breadcrumbSchema, eventSchema, toOgShareImageUrl } from '../../../utils/seo';
 import { shareContent } from '../../../utils/externalLink';
 import { sportRunPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import { normalizeRunDetailBoxes, resolveRunMapPin } from '../../../utils/trekDetailBoxes';
 import { resolveRunContacts, instagramHandle } from '../../../utils/runContacts';
 import { getSportsTiers, isTiersPricing, minSportsFee, formatInr, hasPricingSnapshot, sportsOriginalFee, sportsDiscountPercent } from '../../../utils/sportsTiers';
+import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../../utils/suggestedCoupon';
 import { groupTermsAndConditions } from '../../../utils/termsAndConditions';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { resolveAuthToken, getBearerAuthHeaders } from '../../../utils/authToken';
-import { resolveCoverImage } from '../../../utils/coverImages';
+import { resolveCoverImage, primaryCoverUrl } from '../../../utils/coverImages';
 
 import { publicFetchJSONRetry } from '../../../services/api/client';
 import { DETAIL_FETCH_OPTS, classifyDetailLoadError } from '../../../utils/detailPageLoad';
@@ -271,6 +272,11 @@ export default function RunEventDetailPage() {
 
     const club = event.runClub || null;
     const coverImg = resolveCoverImage(event, 'hero') || event.coverImage || null;
+    const shareRaw =
+        resolveCoverImage(event, 'cardPortrait')
+        || primaryCoverUrl(event.coverImages || {}, event.coverImage)
+        || coverImg;
+    const shareImage = toOgShareImageUrl(shareRaw, { contain: true, portrait: true });
     // Gallery uploads only — strip any card/cover URLs that leaked into images[]
     const coverSlots = event.coverImages || {};
     const coverSet = new Set(
@@ -311,7 +317,7 @@ export default function RunEventDetailPage() {
                 title={event.title || 'Run Event'}
                 description={desc}
                 canonical={canonicalPath}
-                image={coverImg || images?.[0]}
+                image={shareImage}
                 type="article"
                 jsonLd={[
                     breadcrumbSchema([
@@ -323,7 +329,7 @@ export default function RunEventDetailPage() {
                         name: event.title || 'Run Event',
                         description: desc,
                         url: canonicalPath,
-                        image: coverImg || images?.[0],
+                        image: shareImage,
                         location: mapQuery || undefined,
                         price: minSportsFee(event),
                         organizerName: communityName || undefined,
@@ -449,6 +455,8 @@ export default function RunEventDetailPage() {
                             if (fromFee > 0) {
                                 const original = sportsOriginalFee(event);
                                 const discountPct = sportsDiscountPercent(event);
+                                const couponCode = getSuggestedCouponCode(event);
+                                const couponLabel = getSuggestedCouponLabel(couponCode);
                                 return (
                                     <div className="mt-0.5">
                                         <p className={`text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -459,7 +467,12 @@ export default function RunEventDetailPage() {
                                                 </span>
                                             ) : null}
                                         </p>
-                                        {discountPct > 0 ? (
+                                        {couponCode ? (
+                                            <p className="mt-1 text-[11px] font-semibold text-emerald-500">
+                                                Coupon {couponCode}
+                                                {couponLabel ? ` · ${couponLabel}` : ''}
+                                            </p>
+                                        ) : discountPct > 0 ? (
                                             <p className="mt-1 text-[11px] font-semibold text-emerald-500">
                                                 Early bird · {discountPct}% off
                                             </p>

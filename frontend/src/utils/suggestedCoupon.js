@@ -45,5 +45,6 @@ export function getSuggestedCouponCode(event, extras = {}) {
 export function getSuggestedCouponLabel(code) {
   if (!code) return '';
   if (/^CTRL20$/i.test(code)) return '20% OFF';
+  if (/^RUSH$/i.test(code)) return '₹51 OFF · pay ₹98';
   return 'Promo';
 }

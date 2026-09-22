@@ -23,19 +23,21 @@ export function absoluteUrl(pathOrUrl) {
 }
 
 /**
- * WhatsApp / OG share image — force 1200×630 JPEG on Cloudinary.
- * Photos: fill. Logos: pass { contain: true, padColor: 'rgb:ffffff' }.
+ * WhatsApp / OG share image — landscape 1200×630 or portrait card 800×1040 (10:13).
+ * Photos: fill. Logos / full posters: pass { contain: true }.
  */
-export function toOgShareImageUrl(url, { contain = false, padColor = 'auto' } = {}) {
+export function toOgShareImageUrl(url, { contain = false, padColor = 'auto', portrait = false } = {}) {
   if (!url || typeof url !== 'string') return DEFAULT_IMAGE;
   const trimmed = url.trim();
   if (!trimmed) return DEFAULT_IMAGE;
+  const w = portrait ? 800 : 1200;
+  const h = portrait ? 1040 : 630;
   if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
     return trimmed.replace(
       /\/image\/upload\//i,
       contain
-        ? `/image/upload/c_pad,w_1200,h_630,b_${padColor},f_jpg,q_auto/`
-        : '/image/upload/c_fill,w_1200,h_630,g_auto,f_jpg,q_auto/',
+        ? `/image/upload/c_pad,w_${w},h_${h},b_${padColor},f_jpg,q_auto/`
+        : `/image/upload/c_fill,w_${w},h_${h},g_auto,f_jpg,q_auto/`,
     );
   }
   return absoluteUrl(trimmed);

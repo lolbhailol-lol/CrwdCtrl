@@ -73,8 +73,8 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
                     <ContentImage
                         src={show.image}
                         alt={show.title}
-                        preset="cardPortrait"
-                        className="absolute inset-0 z-0 h-full w-full object-cover object-center pointer-events-none"
+                        preset="cardPortraitFit"
+                        className="absolute inset-0 z-0 h-full w-full object-contain object-center pointer-events-none"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#5c0a12', show.title || 'Event')}
                     />
                 ) : (
@@ -115,9 +115,9 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
             <div className="card-wide-image relative">
                 {show.image ? (
                     <img
-                        src={getCoverImageUrl(show, 'cardWide') || getImageUrl(show.image, { preset: 'cardWide' })}
+                        src={getCoverImageUrl(show, 'cardWideFit') || getImageUrl(show.image, { preset: 'cardWideFit' })}
                         alt={show.title}
-                        className="absolute inset-0 z-0 w-full h-full object-cover pointer-events-none"
+                        className="absolute inset-0 z-0 w-full h-full object-contain object-center pointer-events-none"
                         onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#2a1a3a', show.title || 'Event')}
                     />
                 ) : (
@@ -160,8 +160,8 @@ function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClic
                     <ContentImage
                         src={show.image}
                         alt={show.title}
-                        preset="cardPortrait"
-                        className="absolute inset-0 z-0 h-full w-full object-cover object-center pointer-events-none"
+                        preset="cardPortraitFit"
+                        className="absolute inset-0 z-0 h-full w-full object-contain object-center pointer-events-none"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#5c0a12', show.title || 'Event')}
                     />
                 ) : (

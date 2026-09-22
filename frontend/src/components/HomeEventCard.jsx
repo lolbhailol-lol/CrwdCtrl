@@ -76,10 +76,10 @@ export default function HomeEventCard({
                     <CardCoverImage
                         src={event.image}
                         alt={event.title}
-                        preset="cardWide"
+                        preset="cardWideFit"
                         loading={loading}
                         fetchPriority={fetchPriority}
-                        className="w-full h-full object-cover object-center absolute inset-0"
+                        className="w-full h-full object-contain object-center absolute inset-0"
                         onError={(e) => handleImageErrorWithFallback(
                             e,
                             320,
@@ -127,14 +127,14 @@ export default function HomeEventCard({
         : 'card-carousel';
 
     const imagePreset = portraitCard
-        ? 'cardPortrait'
+        ? 'cardPortraitFit'
         : wideCard
-            ? 'cardWide'
+            ? 'cardWideFit'
             : heroCard
                 ? 'hero'
                 : tallImage
                     ? 'cardTrending'
-                    : 'cardWide';
+                    : 'cardWideFit';
 
     return (
         <div
@@ -166,7 +166,7 @@ export default function HomeEventCard({
                     preset={imagePreset}
                     loading={loading}
                     fetchPriority={fetchPriority}
-                    className="absolute inset-0 z-0 h-full w-full object-cover object-center pointer-events-none"
+                    className="absolute inset-0 z-0 h-full w-full object-contain object-center pointer-events-none"
                     onError={(e) => handleImageErrorWithFallback(
                         e,
                         portraitCard ? 160 : prominentImage ? (heroCard ? 400 : 300) : 300,

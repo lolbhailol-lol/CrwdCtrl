@@ -57,6 +57,7 @@ import {
     resolveOptionalAddOn,
     formatInr,
 } from '../../../utils/sportsTiers';
+import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../../utils/suggestedCoupon';
 import {
     firstPageCouponFields,
     hasAutoCouponOptions,
@@ -362,6 +363,17 @@ export default function RunEventBookingPage() {
     const autoCouponCode = useMemo(
         () => resolveFormAutoCouponCode(reg.formSchema || [], extraFields),
         [reg.formSchema, extraFields],
+    );
+    const suggestedCoupon = useMemo(
+        () => getSuggestedCouponCode(event, {
+            suggestedCoupon: location.state?.suggestedCoupon,
+            search: location.search,
+        }),
+        [event, location.state?.suggestedCoupon, location.search],
+    );
+    const suggestedCouponLabel = useMemo(
+        () => getSuggestedCouponLabel(suggestedCoupon),
+        [suggestedCoupon],
     );
 
     const formInstructions = reg.formInstructions || '';
@@ -789,7 +801,10 @@ export default function RunEventBookingPage() {
         if (!event || loadingEvent || chargePerPerson <= 0) return;
         if (couponSourceRef.current === 'cleared') return;
         const manual = couponSourceRef.current === 'manual';
-        const code = (manual ? couponCodeRef.current : autoCouponCode).trim();
+        const code = (manual
+            ? couponCodeRef.current
+            : (autoCouponCode || suggestedCoupon)
+        ).trim();
         if (!code) {
             if (couponSourceRef.current === 'form') {
                 setCouponInfo(null);
@@ -801,10 +816,10 @@ export default function RunEventBookingPage() {
         }
         applyCouponRef.current({
             code,
-            source: manual ? 'manual' : 'form',
+            source: manual ? 'manual' : (autoCouponCode ? 'form' : 'suggested'),
             silent: true,
         });
-    }, [autoCouponCode, people, selectedTierId, addOnSelected, event, loadingEvent, chargePerPerson]);
+    }, [autoCouponCode, suggestedCoupon, people, selectedTierId, addOnSelected, event, loadingEvent, chargePerPerson]);
 
     useEffect(() => {
         const evId = id || event?._id || event?.id;
@@ -1803,6 +1818,11 @@ export default function RunEventBookingPage() {
                                                     <p className={`text-[10px] mt-0.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
                                                         {couponInfo.couponCode} · save {formatInr(couponInfo.discountAmount || 0)}
                                                     </p>
+                                                ) : suggestedCoupon ? (
+                                                    <p className={`text-[10px] mt-0.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
+                                                        Coupon {suggestedCoupon}
+                                                        {suggestedCouponLabel ? ` · ${suggestedCouponLabel}` : ''}
+                                                    </p>
                                                 ) : couponError && autoCouponCode ? (
                                                     <p className={`text-[10px] mt-0.5 ${isDark ? 'text-amber-400/80' : 'text-amber-700'}`}>
                                                         {couponError}
@@ -1888,13 +1908,19 @@ export default function RunEventBookingPage() {
                                 couponCode={couponCode}
                                 couponLoading={couponLoading}
                                 couponError={couponError}
+                                suggestedCoupon={suggestedCoupon}
+                                suggestedCouponLabel={suggestedCouponLabel}
                                 onCouponCodeChange={(v) => {
                                     couponSourceRef.current = 'cleared';
                                     setCouponCode(v);
                                     setCouponInfo(null);
                                     setCouponError('');
                                 }}
-                                onApplyCoupon={() => applyCoupon({ source: 'manual' })}
+                                onApplyCoupon={(codeOrEvent) => {
+                                    const code = typeof codeOrEvent === 'string' ? codeOrEvent : undefined;
+                                    if (code) setCouponCode(code);
+                                    applyCoupon({ source: 'manual', code });
+                                }}
                                 onClearCoupon={clearAppliedCoupon}
                                 paymentQR={paymentQR}
                                 paymentUpiId={paymentUpiId}
