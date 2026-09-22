@@ -2104,8 +2104,8 @@ function EventPage() {
                                 )}
                                 </div>
 
-                            {/* Classic podium for monetary prizes; Kshitij winner-benefit copy removed until confirmed. */}
-                            {eventData?.prize && !isKshitijPuneRegionals && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                            {/* Classic podium for monetary prizes (Kshitij: 1st place cash only). */}
+                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                 <div className="px-4 pb-2">
                                     <PrizePoolPodium
                                       prizeText={eventData.prize}
@@ -2241,8 +2241,8 @@ function EventPage() {
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Classic podium for monetary prizes; Kshitij winner-benefit copy removed until confirmed. */}
-                                    {eventData?.prize && !isKshitijPuneRegionals && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                                    {/* Classic podium for monetary prizes (Kshitij: 1st place cash only). */}
+                                    {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                         <PrizePoolPodium
                                           prizeText={eventData.prize}
                                           isDark={isDark}

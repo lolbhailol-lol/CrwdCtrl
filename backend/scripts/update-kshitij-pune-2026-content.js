@@ -55,6 +55,12 @@ const PERFORMANCE_DURATION = {
   'Bollywood Dhamaka': 'Performance duration: 2-3 minutes.',
 };
 
+/** Cash prize for 1st place only */
+const PRIZE_BY_NAME = {
+  'Bollywood Dhamaka': '1st Place: ₹6,000/-',
+};
+const DEFAULT_PRIZE = '1st Place: ₹2,000/-';
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -230,7 +236,7 @@ async function main() {
   for (const comp of comps) {
     const set = {
       judgingCriteria: [],
-      prizePool: '',
+      prizePool: PRIZE_BY_NAME[comp.name] || DEFAULT_PRIZE,
     };
 
     if (eventCoverUrls[comp.name]) {

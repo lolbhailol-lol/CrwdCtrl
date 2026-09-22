@@ -85,6 +85,7 @@ export const PageSectionsPage = lazyWithRetry(() => import('../../pages/admin/Pa
 export const AppCopyPage = lazyWithRetry(() => import('../../pages/admin/AppCopyPage'));
 export const CouponsPage = lazyWithRetry(() => import('../../pages/admin/CouponsPage'));
 export const AdminNotificationsPage = lazyWithRetry(() => import('../../pages/admin/AdminNotificationsPage'));
+export const AdminDataPage = lazyWithRetry(() => import('../../pages/admin/AdminDataPage'));
 export const AdminProtectedRoute = lazyWithRetry(() => import('../../pages/admin/AdminProtectedRoute'));
 
 export const OrganizerProtectedRoute = lazyWithRetry(() => import('../../pages/organizer/OrganizerProtectedRoute'));
