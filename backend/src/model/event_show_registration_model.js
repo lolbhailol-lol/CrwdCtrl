@@ -5,6 +5,8 @@ const additionalEntrySchema = new mongoose.Schema(
   {
     tierId: { type: String, default: null },
     tierName: { type: String, default: null },
+    selectedTierIds: { type: [String], default: [] },
+    selectedTierNames: { type: [String], default: [] },
     selectedAddOns: { type: [mongoose.Schema.Types.Mixed], default: [] },
     amountPaid: { type: Number, default: 0 },
     paymentStatus: { type: String, enum: ['free', 'pending', 'paid', 'failed'], default: 'free' },
@@ -38,6 +40,9 @@ const eventShowRegistrationSchema = new mongoose.Schema(
     /** Selected package when event uses pricingMode: tiers (first registration) */
     tierId: { type: String, default: null },
     tierName: { type: String, default: null },
+    /** When tiersMultiSelect — all competition classes in this booking */
+    selectedTierIds: { type: [String], default: [] },
+    selectedTierNames: { type: [String], default: [] },
     /** Snapshot of optional experiences purchased with the primary package. */
     selectedAddOns: { type: [mongoose.Schema.Types.Mixed], default: [] },
     /** Later registrations (2nd, 3rd, … Nth) for the same email/user */

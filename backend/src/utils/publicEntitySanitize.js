@@ -232,6 +232,7 @@ const EVENT_SHOW_LIST_SELECT = [
   'ticketPrice',
   'priceLabel',
   'pricingMode',
+  'tiersMultiSelect',
   'tiers',
   'bookingLink',
   'registrationLink',

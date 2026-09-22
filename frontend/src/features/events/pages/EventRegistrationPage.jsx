@@ -189,6 +189,20 @@ export default function EventRegistrationPage() {
             return location.state?.tierId || '';
         }
     });
+    const [selectedTierIds, setSelectedTierIds] = useState(() => {
+        try {
+            const fromState = Array.isArray(location.state?.selectedTierIds)
+                ? location.state.selectedTierIds
+                : [];
+            if (fromState.length) return fromState.map(String);
+            const q = new URLSearchParams(window.location.search).get('tiers') || '';
+            if (q) return q.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean);
+            const one = new URLSearchParams(window.location.search).get('tier') || location.state?.tierId || '';
+            return one ? [String(one)] : [];
+        } catch {
+            return location.state?.tierId ? [String(location.state.tierId)] : [];
+        }
+    });
     const [selectedAddOnIds, setSelectedAddOnIds] = useState([]);
     const retryRef = useRef(null);
     const resumeRef = useRef(false);
@@ -297,9 +311,18 @@ export default function EventRegistrationPage() {
         [event, tiersMode, packages],
     );
     const selectedTier = findEventShowTier(pricedEvent, selectedTierId);
+    const multiTierMode = Boolean(event?.tiersMultiSelect) && selectedTierIds.length > 0;
+    const selectedTiersList = useMemo(() => {
+        if (!multiTierMode) return selectedTier ? [selectedTier] : [];
+        return selectedTierIds
+            .map((id) => findEventShowTier(pricedEvent, id))
+            .filter(Boolean);
+    }, [multiTierMode, selectedTierIds, pricedEvent, selectedTier]);
     const driverCount = resolveTierParticipantCount(selectedTier);
     const priced = resolveEventShowFee(pricedEvent, selectedTierId);
-    const packagePrice = priced.fee;
+    const packagePrice = multiTierMode
+        ? selectedTiersList.reduce((sum, t) => sum + Math.max(0, Number(t.fee) || 0), 0)
+        : priced.fee;
     const addOns = useMemo(() => sanitizeEventShowAddOns(event?.addOns), [event?.addOns]);
     const selectedAddOns = useMemo(
         () => addOns.filter((addOn) => selectedAddOnIds.includes(addOn.id)),
@@ -885,6 +908,10 @@ export default function EventRegistrationPage() {
         if (paymentOrderId) fd.append('payment_order_id', paymentOrderId);
         if (paymentId) fd.append('payment_id', paymentId);
         if (tierIdToUse) fd.append('tierId', tierIdToUse);
+        const multiIds = multiTierMode
+            ? selectedTierIds
+            : (tierIdToUse ? [tierIdToUse] : []);
+        if (multiIds.length) fd.append('selectedTierIds', JSON.stringify(multiIds));
         fd.append('selectedAddOnIds', JSON.stringify(addOnIdsToUse));
         if (submissionValues.payment_screenshot_url) fd.append('paymentScreenshotUrl', String(submissionValues.payment_screenshot_url));
         if (submissionValues.transaction_id) fd.append('transactionId', String(submissionValues.transaction_id));
@@ -1145,6 +1172,7 @@ export default function EventRegistrationPage() {
         const draftPayload = {
             values,
             tierId: selectedTierId,
+            selectedTierIds: multiTierMode ? selectedTierIds : (selectedTierId ? [selectedTierId] : []),
             selectedAddOnIds,
             couponCode: couponsEnabled ? couponCode.trim() : '',
             eventShowId: String(showId || eventId),
@@ -1166,6 +1194,7 @@ export default function EventRegistrationPage() {
                 body: JSON.stringify({
                     eventShowId: showIdStr,
                     tierId: String(selectedTierId || '').trim() || undefined,
+                    selectedTierIds: multiTierMode ? selectedTierIds : undefined,
                     selectedAddOnIds,
                     customerName: customer.name || user?.name || 'Customer',
                     customerEmail: customer.email || user?.email || '',

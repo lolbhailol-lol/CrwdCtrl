@@ -86,24 +86,54 @@ const submitEventShowRegistration = async (req, res) => {
     }
 
     // Verify payment when the selected package / ticket has a fee
-    const { resolveSportsPerPersonFee } = require('../../utils/sportsPricing');
+    const {
+      resolveSportsPerPersonFee,
+      resolveSportsMultiTierFee,
+      normalizeTierIdList,
+    } = require('../../utils/sportsPricing');
     let tierId = req.body.tierId;
     if (typeof tierId === 'string') tierId = tierId.trim();
     else tierId = '';
 
+    let selectedTierIds = normalizeTierIdList(
+      req.body.selectedTierIds || req.body.tierIds || (tierId ? [tierId] : []),
+    );
+
     let ticketPrice = Number(eventShow.ticketPrice) || 0;
     let selectedTier = null;
+    let selectedTiers = [];
     if (eventShow.pricingMode === 'tiers') {
       try {
-        const priced = resolveSportsPerPersonFee(
-          { ...eventShow.toObject?.() || eventShow, registrationFee: eventShow.ticketPrice },
-          tierId,
-        );
-        ticketPrice = priced.fee;
-        selectedTier = priced.tier;
+        if (eventShow.tiersMultiSelect) {
+          const priced = resolveSportsMultiTierFee(
+            { ...eventShow.toObject?.() || eventShow, registrationFee: eventShow.ticketPrice },
+            selectedTierIds,
+          );
+          ticketPrice = priced.fee;
+          selectedTiers = priced.tiers;
+          selectedTier = priced.tier;
+          selectedTierIds = priced.tierIds;
+          tierId = priced.tierIds[0] || '';
+        } else {
+          const priced = resolveSportsPerPersonFee(
+            { ...eventShow.toObject?.() || eventShow, registrationFee: eventShow.ticketPrice },
+            tierId,
+          );
+          ticketPrice = priced.fee;
+          selectedTier = priced.tier;
+          if (selectedTier) {
+            selectedTiers = [selectedTier];
+            selectedTierIds = [selectedTier.id];
+          }
+        }
       } catch (tierErr) {
         return res.status(tierErr.status || 400).json({ error: tierErr.message || 'Please select a registration package.' });
       }
+    }
+    if (selectedTiers.length) {
+      responses.package_name = selectedTiers.map((t) => t.name).join(', ');
+      responses.selected_classes = responses.package_name;
+      responses.class_count = String(selectedTiers.length);
     }
     const { resolveEventAddOns } = require('../../utils/sportsPricing');
     let addOns;
@@ -275,6 +305,8 @@ const submitEventShowRegistration = async (req, res) => {
       existing.additionalEntries.push({
         tierId: selectedTier?.id || null,
         tierName: selectedTier?.name || null,
+        selectedTierIds,
+        selectedTierNames: selectedTiers.map((t) => t.name),
         selectedAddOns: addOns.selected,
         amountPaid: entryAmount,
         paymentStatus,
@@ -319,6 +351,8 @@ const submitEventShowRegistration = async (req, res) => {
         amountPaid: entryAmount,
         tierId: selectedTier?.id || null,
         tierName: selectedTier?.name || null,
+        selectedTierIds,
+        selectedTierNames: selectedTiers.map((t) => t.name),
         selectedAddOns: addOns.selected,
         additionalEntries: [],
         reRegistrationCount: 0,

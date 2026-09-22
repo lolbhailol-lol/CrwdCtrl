@@ -75,6 +75,63 @@ function findSportsTier(event, tierId) {
     return tiers.find((t) => t.id === id) || null;
 }
 
+function normalizeTierIdList(raw) {
+    if (Array.isArray(raw)) {
+        return [...new Set(raw.map((id) => String(id || '').trim()).filter(Boolean))];
+    }
+    if (typeof raw === 'string') {
+        const s = raw.trim();
+        if (!s) return [];
+        if (s.startsWith('[')) {
+            try {
+                return normalizeTierIdList(JSON.parse(s));
+            } catch {
+                /* fall through */
+            }
+        }
+        return [...new Set(s.split(/[,|]/).map((id) => id.trim()).filter(Boolean))];
+    }
+    return [];
+}
+
+/**
+ * Sum fees for multiple selected tiers (e.g. Dirt Drag classes @ ₹10k each).
+ * @returns {{ fee: number, tiers: object[], tierIds: string[], pricingMode: string }}
+ */
+function resolveSportsMultiTierFee(event, tierIds) {
+    const pricingMode = event?.pricingMode === 'tiers' ? 'tiers' : 'single';
+    const ids = normalizeTierIdList(tierIds);
+    if (!ids.length) {
+        const err = new Error('Select at least one competition class.');
+        err.status = 400;
+        throw err;
+    }
+    const all = getSportsTiers(event);
+    if (!all.length) {
+        const err = new Error('No packages available.');
+        err.status = 400;
+        throw err;
+    }
+    const selected = [];
+    for (const id of ids) {
+        const tier = all.find((t) => t.id === id);
+        if (!tier) {
+            const err = new Error('Invalid competition class selection.');
+            err.status = 400;
+            throw err;
+        }
+        selected.push(tier);
+    }
+    const fee = selected.reduce((sum, t) => sum + Math.max(0, Number(t.fee) || 0), 0);
+    return {
+        fee,
+        tiers: selected,
+        tierIds: selected.map((t) => t.id),
+        pricingMode,
+        tier: selected[0] || null,
+    };
+}
+
 /**
  * @returns {{ fee: number, tier: object|null, pricingMode: string }}
  */
@@ -249,6 +306,8 @@ module.exports = {
     minTierFee,
     maxTierFee,
     findSportsTier,
+    normalizeTierIdList,
+    resolveSportsMultiTierFee,
     resolveSportsPerPersonFee,
     resolveOptionalAddOn,
     resolveSportsTicketTotal,

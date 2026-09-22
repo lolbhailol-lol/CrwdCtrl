@@ -50,6 +50,8 @@ const {
 const {
   resolveSportsTicketTotal,
   resolveSportsPerPersonFee,
+  resolveSportsMultiTierFee,
+  normalizeTierIdList,
   resolveEventAddOns,
 } = require('../utils/sportsPricing');
 const { sanitizeSportsFormDraft } = require('../utils/sportsBookingDraft');
@@ -148,6 +150,7 @@ const resolvePricedEntity = async ({
   eventShowId,
   notes = {},
   tierId,
+  selectedTierIds,
   selectedAddOnIds,
 } = {}) => {
   const resolvedEventId = eventId || notes.eventId;
@@ -159,20 +162,38 @@ const resolvePricedEntity = async ({
   if (resolvedEventShowId) {
     const eventShow = await findByIdOrSlug(EventShow, resolvedEventShowId, {
       pickName: (row) => row.title || row.displayName || '',
-      select: 'title ticketPrice platformFeePercent pricingMode tiers addOns registration.mode registration.allowCoupons',
+      select: 'title ticketPrice platformFeePercent pricingMode tiersMultiSelect tiers addOns registration.mode registration.allowCoupons',
       lean: true,
     });
     if (!eventShow) return null;
 
+    const multiIds = normalizeTierIdList(
+      selectedTierIds
+      || notes.selectedTierIds
+      || notes.tierIds
+      || (resolvedTierId ? [resolvedTierId] : []),
+    );
     let ticketPrice = Math.max(0, Number(eventShow.ticketPrice) || 0);
     let tier = null;
+    let selectedTiers = [];
     if (eventShow.pricingMode === 'tiers') {
-      const priced = resolveSportsPerPersonFee(
-        { ...eventShow, registrationFee: eventShow.ticketPrice },
-        resolvedTierId,
-      );
-      ticketPrice = priced.fee;
-      tier = priced.tier;
+      if (eventShow.tiersMultiSelect && multiIds.length) {
+        const priced = resolveSportsMultiTierFee(
+          { ...eventShow, registrationFee: eventShow.ticketPrice },
+          multiIds,
+        );
+        ticketPrice = priced.fee;
+        selectedTiers = priced.tiers;
+        tier = priced.tier;
+      } else {
+        const priced = resolveSportsPerPersonFee(
+          { ...eventShow, registrationFee: eventShow.ticketPrice },
+          resolvedTierId,
+        );
+        ticketPrice = priced.fee;
+        tier = priced.tier;
+        if (tier) selectedTiers = [tier];
+      }
     }
 
     const addOns = resolveEventAddOns(eventShow, selectedAddOnIds || notes.selectedAddOnIds || []);
@@ -194,6 +215,13 @@ const resolvePricedEntity = async ({
         selectedAddOns: addOns.selected,
         eventShowName: eventShow.title || eventShow.displayName || '',
         ...(tier ? { tierId: tier.id, tierName: tier.name } : {}),
+        ...(selectedTiers.length
+          ? {
+              selectedTierIds: selectedTiers.map((t) => t.id),
+              selectedTierNames: selectedTiers.map((t) => t.name),
+              tierCount: selectedTiers.length,
+            }
+          : {}),
       },
     };
   }
@@ -261,6 +289,7 @@ const getPricingForRequest = async (req) => {
     notes = {},
     couponCode,
     tierId,
+    selectedTierIds,
     selectedAddOnIds,
     registrationDraft,
   } = req.body || {};
@@ -268,6 +297,12 @@ const getPricingForRequest = async (req) => {
     || notes?.registrationDraft?.formData?.feeTierId
     || notes?.feeTierId
     || '';
+  const draftTierIds = registrationDraft?.selectedTierIds
+    || registrationDraft?.tierIds
+    || notes?.selectedTierIds
+    || notes?.tierIds
+    || selectedTierIds
+    || [];
   const resolvedTierId = String(tierId || notes.tierId || draftTierId || '').trim();
   let pricedEntity;
   try {
@@ -278,6 +313,7 @@ const getPricingForRequest = async (req) => {
       eventShowId,
       notes,
       tierId: resolvedTierId,
+      selectedTierIds: draftTierIds,
       selectedAddOnIds,
     });
   } catch (e) {

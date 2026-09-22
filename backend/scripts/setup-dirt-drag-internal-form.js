@@ -289,6 +289,7 @@ const f = (id, label, fieldName, type, required = true, options = [], placeholde
     {
       $set: {
         pricingMode: 'tiers',
+        tiersMultiSelect: true,
         tiers,
         ticketPrice: 10000,
         platformFeePercent: 0,

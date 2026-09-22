@@ -77,6 +77,7 @@ function mapEventDetail(raw) {
     ticketPrice: raw.ticketPrice,
     priceLabel: raw.priceLabel || '',
     pricingMode: raw.pricingMode === 'tiers' ? 'tiers' : 'single',
+    tiersMultiSelect: Boolean(raw.tiersMultiSelect),
     tiers: Array.isArray(raw.tiers) ? raw.tiers : [],
     addOns: Array.isArray(raw.addOns) ? raw.addOns : [],
     platformFeePercent: raw.platformFeePercent,
@@ -229,6 +230,12 @@ function tierBucket(tier) {
   return 'group';
 }
 
+function tierDisplayLabel(tier, { multi = false } = {}) {
+  const name = String(tier?.name || 'Ticket').trim();
+  if (multi) return name.length > 56 ? `${name.slice(0, 54)}…` : name;
+  return tierShortLabel(tier);
+}
+
 function tierShortLabel(tier) {
   const name = String(tier?.name || 'Ticket').trim();
   // Prefer short zone name: "Group of 5 · VIP" → "VIP"
@@ -267,6 +274,7 @@ export default function EventDetailsPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [tierSheetOpen, setTierSheetOpen] = useState(false);
   const [selectedTierId, setSelectedTierId] = useState(null);
+  const [selectedTierIds, setSelectedTierIds] = useState([]);
   const [tierNavigating, setTierNavigating] = useState(false);
   const [tierBucketFilter, setTierBucketFilter] = useState('solo');
   const [imgPg, setImgPg] = useState(0);
@@ -393,6 +401,7 @@ export default function EventDetailsPage() {
           destination: 'tier_selection',
         });
         setSelectedTierId(null);
+        setSelectedTierIds([]);
         setTierNavigating(false);
         // Default chip to the cheapest bucket that has options
         const buckets = new Set(tiers.map(tierBucket));
@@ -1097,6 +1106,7 @@ export default function EventDetailsPage() {
                   if (tierNavigating) return;
                   setTierSheetOpen(false);
                   setSelectedTierId(null);
+                  setSelectedTierIds([]);
                 }}
               />
               <div
@@ -1109,7 +1119,9 @@ export default function EventDetailsPage() {
                   <div>
                     <h3 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Choose tickets</h3>
                     <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                      Pick your ticket, then continue to register.
+                      {event.tiersMultiSelect
+                        ? 'Select one or more classes — fee adds up per class.'
+                        : 'Pick your ticket, then continue to register.'}
                     </p>
                   </div>
                   <button
@@ -1118,6 +1130,7 @@ export default function EventDetailsPage() {
                     onClick={() => {
                       setTierSheetOpen(false);
                       setSelectedTierId(null);
+                      setSelectedTierIds([]);
                     }}
                     className={`text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors duration-200 ${isDark ? 'text-gray-400 hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100'}`}
                   >
@@ -1126,41 +1139,66 @@ export default function EventDetailsPage() {
                 </div>
 
                 {(() => {
+                  const multiSelect = Boolean(event.tiersMultiSelect);
                   const buckets = [
                     { key: 'solo', label: 'Solo' },
                     { key: 'couple', label: 'Couple' },
                     { key: 'group', label: 'Group' },
                   ].filter((b) => packageTiers.some((t) => tierBucket(t) === b.key));
-                  const visible = packageTiers.filter((t) => tierBucket(t) === tierBucketFilter);
+                  const visible = multiSelect
+                    ? packageTiers
+                    : packageTiers.filter((t) => tierBucket(t) === tierBucketFilter);
                   const sorted = [...visible].sort((a, b) => {
+                    const ao = Number(a.order);
+                    const bo = Number(b.order);
+                    if (Number.isFinite(ao) && Number.isFinite(bo) && ao !== bo) return ao - bo;
                     const pn = tierPeopleCount(a) - tierPeopleCount(b);
                     if (pn !== 0) return pn;
                     return (Number(a.fee) || 0) - (Number(b.fee) || 0);
                   });
                   const selectedTier = packageTiers.find((t) => t.id === selectedTierId) || null;
+                  const selectedMulti = packageTiers.filter((t) => selectedTierIds.includes(t.id));
+                  const multiTotal = selectedMulti.reduce((sum, t) => sum + Math.max(0, Number(t.fee) || 0), 0);
+                  const canContinue = multiSelect ? selectedMulti.length > 0 : Boolean(selectedTier);
+
+                  const toggleMulti = (tierId) => {
+                    setSelectedTierIds((prev) => (
+                      prev.includes(tierId)
+                        ? prev.filter((id) => id !== tierId)
+                        : [...prev, tierId]
+                    ));
+                  };
 
                   const goNext = () => {
-                    if (!selectedTier || tierNavigating) return;
+                    if (!canContinue || tierNavigating) return;
                     setTierNavigating(true);
-                    const tierId = selectedTier.id;
-                    // Brief pause so Next feels acknowledged before the page shift
+                    const ids = multiSelect
+                      ? selectedMulti.map((t) => t.id)
+                      : [selectedTier.id];
+                    const tierId = ids[0];
+                    const tiersQuery = ids.map(encodeURIComponent).join(',');
                     window.setTimeout(() => {
-                      navigate(`${eventShowPath(event)}/register?tier=${encodeURIComponent(tierId)}`, {
+                      const qs = multiSelect && ids.length
+                        ? `?tier=${encodeURIComponent(tierId)}&tiers=${tiersQuery}`
+                        : `?tier=${encodeURIComponent(tierId)}`;
+                      navigate(`${eventShowPath(event)}/register${qs}`, {
                         state: {
                           event: event.raw || event,
                           tierId,
+                          selectedTierIds: ids,
                           openLogin: !isLoggedIn(),
                         },
                       });
                       setTierSheetOpen(false);
                       setTierNavigating(false);
                       setSelectedTierId(null);
+                      setSelectedTierIds([]);
                     }, 220);
                   };
 
                   return (
                     <>
-                      {buckets.length > 1 ? (
+                      {!multiSelect && buckets.length > 1 ? (
                         <div className="px-4 mb-3 shrink-0">
                           <div className={`flex rounded-2xl p-1 gap-1 ${isDark ? 'bg-[#111213]' : 'bg-gray-100'}`}>
                             {buckets.map((b) => (
@@ -1188,15 +1226,17 @@ export default function EventDetailsPage() {
                       ) : null}
 
                       <div
-                        key={tierBucketFilter}
+                        key={multiSelect ? 'multi' : tierBucketFilter}
                         className="px-4 overflow-y-auto space-y-2 flex-1 min-h-0 animate-step-enter"
                         style={{ WebkitOverflowScrolling: 'touch' }}
                       >
                         {sorted.map((tier) => {
                           const people = tierPeopleCount(tier);
-                          const selected = selectedTierId === tier.id;
+                          const selected = multiSelect
+                            ? selectedTierIds.includes(tier.id)
+                            : selectedTierId === tier.id;
                           const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
-                          const perPerson = people > 1 && Number(tier.fee) > 0
+                          const perPerson = !multiSelect && people > 1 && Number(tier.fee) > 0
                             ? Math.round(Number(tier.fee) / people)
                             : null;
 
@@ -1205,7 +1245,11 @@ export default function EventDetailsPage() {
                               key={tier.id}
                               type="button"
                               disabled={tierNavigating}
-                              onClick={() => setSelectedTierId(tier.id)}
+                              onClick={() => (
+                                multiSelect
+                                  ? toggleMulti(tier.id)
+                                  : setSelectedTierId(tier.id)
+                              )}
                               className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 ease-out active:scale-[0.99] ${
                                 selected
                                   ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
@@ -1215,7 +1259,7 @@ export default function EventDetailsPage() {
                               }`}
                             >
                               <span
-                                className={`size-4.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors duration-200 ${
+                                className={`${multiSelect ? 'rounded-md' : 'rounded-full'} size-4.5 border-2 flex items-center justify-center shrink-0 transition-colors duration-200 ${
                                   selected
                                     ? 'border-[#0ECCEE] bg-[#0ECCEE]'
                                     : isDark ? 'border-gray-600' : 'border-gray-300'
@@ -1226,10 +1270,10 @@ export default function EventDetailsPage() {
                               </span>
                               <div className="min-w-0 flex-1">
                                 <p className={`text-[15px] font-semibold leading-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                  {tierShortLabel(tier)}
+                                  {tierDisplayLabel(tier, { multi: multiSelect })}
                                 </p>
                                 <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                  {tierPeopleLabel(people)}
+                                  {multiSelect ? 'Competition class' : tierPeopleLabel(people)}
                                   {perPerson != null ? ` · ~${formatInr(perPerson)} / person` : ''}
                                 </p>
                               </div>
@@ -1254,12 +1298,20 @@ export default function EventDetailsPage() {
                         className="px-4 pt-2.5 shrink-0"
                         style={{ paddingBottom: 'max(0.85rem, var(--safe-bottom))' }}
                       >
+                        {multiSelect && selectedMulti.length > 0 ? (
+                          <p className={`text-xs mb-2 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {selectedMulti.length} class{selectedMulti.length === 1 ? '' : 'es'} · Total{' '}
+                            <span className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {formatInr(multiTotal)}
+                            </span>
+                          </p>
+                        ) : null}
                         <button
                           type="button"
-                          disabled={!selectedTier || tierNavigating}
+                          disabled={!canContinue || tierNavigating}
                           onClick={goNext}
                           className={`w-full h-12 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-200 ease-out ${
-                            !selectedTier
+                            !canContinue
                               ? isDark
                                 ? 'bg-white/10 text-gray-500 cursor-not-allowed'
                                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
@@ -1276,7 +1328,10 @@ export default function EventDetailsPage() {
                           ) : (
                             <>
                               Next
-                              {selectedTier ? (
+                              {multiSelect && selectedMulti.length > 0
+                                ? ` · ${formatInr(multiTotal)}`
+                                : null}
+                              {canContinue ? (
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="m9 18 6-6-6-6" />
                                 </svg>
@@ -1287,7 +1342,7 @@ export default function EventDetailsPage() {
                       </div>
                     </>
                   );
-                })()}
+                })()}                })()}
               </div>
             </div>
           ) : null}
