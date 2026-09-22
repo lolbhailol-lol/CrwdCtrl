@@ -411,6 +411,21 @@ export default function EventsPage() {
             .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999));
     }, [eventCommunityCards, communityEventCards, communityShows]);
 
+    // Prefetch community event detail chunk so Touch Grass / Mafia open without waiting on JS
+    useEffect(() => {
+        if (!communityEventCards.length) return undefined;
+        const idle = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'
+            ? window.requestIdleCallback
+            : (cb) => setTimeout(cb, 400);
+        const cancel = typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'
+            ? window.cancelIdleCallback
+            : clearTimeout;
+        const handle = idle(() => {
+            import('./EventCommunityEventPage').catch(() => {});
+        });
+        return () => cancel(handle);
+    }, [communityEventCards.length]);
+
     const heroBannerEvents = useMemo(
         () => heroShows.map((show) => ({
             id: show.id,

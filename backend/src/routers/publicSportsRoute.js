@@ -136,6 +136,7 @@ router.get('/:idOrSlug', async (req, res) => {
             baseFilter: { status: { $in: ['published', 'completed'] } },
             pickName: (row) => row.title,
             lean: true,
+            select: '_id',
         });
         if (!eventMatch) return res.status(404).json({ message: 'Sports event not found' });
 
@@ -191,12 +192,14 @@ router.get('/:idOrSlug', async (req, res) => {
             }
         }
 
-        // Seats: expire stale pending QR holds, then compute remaining
+        // Seats: optional expire (no-op when TTL unset), then compute remaining in parallel
         await expireStalePendingRegistrations(event._id);
-        const genderRegistration = await getSportsGenderRegistrationSnapshot(event);
         const capacity = Math.max(0, Number(event.maxParticipants) || 0);
+        const [genderRegistration, seatsFilled] = await Promise.all([
+            getSportsGenderRegistrationSnapshot(event),
+            capacity > 0 ? sumConfirmedSeats(event._id) : Promise.resolve(null),
+        ]);
         if (capacity > 0) {
-            const seatsFilled = await sumConfirmedSeats(event._id);
             event.seatsFilled = seatsFilled;
             event.seatsRemaining = Math.max(0, capacity - seatsFilled);
             event.isFull = seatsFilled >= capacity
