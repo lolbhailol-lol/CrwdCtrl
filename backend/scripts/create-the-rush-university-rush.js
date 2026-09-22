@@ -1,10 +1,11 @@
 /**
  * Create / update THE RUSH — University Rush (27 Sep 2026) as a live published run.
- * Early bird: ₹98 (was ₹149 · ~34.22% off). No coupon — when early bird ends, set fee to 149 and originalFee to 0.
+ * Price: ₹98 with ₹149 list (strike). No coupon / no % label.
+ * When offer ends: END_EARLY_BIRD=1 → fee 149, originalFee 0.
  *
  * Run: node scripts/create-the-rush-university-rush.js
  * Skip poster re-upload: SKIP_POSTER=1 node scripts/create-the-rush-university-rush.js
- * End early bird: END_EARLY_BIRD=1 node scripts/create-the-rush-university-rush.js
+ * End offer: END_EARLY_BIRD=1 node scripts/create-the-rush-university-rush.js
  */
 require('dotenv').config();
 
@@ -31,10 +32,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const EARLY_BIRD_LINE = END_EARLY_BIRD
-  ? `Entry ₹${LIST_FEE}.`
-  : `Early bird ₹${EARLY_BIRD_FEE} (was ₹${LIST_FEE} · ~34.22% off).`;
-
 const DESCRIPTION = [
   '⚡ THE RUSH — UNIVERSITY RUSH',
   '',
@@ -46,8 +43,6 @@ const DESCRIPTION = [
   '• Meet new people & make new friends',
   '• Content-worthy moments',
   '• The Rush community experience',
-  '',
-  EARLY_BIRD_LINE,
   '',
   'This isn’t just a run.',
   'It’s your next Rush. ⚡',
@@ -159,7 +154,7 @@ async function main() {
         title: 'ENTRY',
         details: END_EARLY_BIRD
           ? `Entry ₹${LIST_FEE}.`
-          : `Early bird ₹${EARLY_BIRD_FEE} (was ₹${LIST_FEE} · ~34.22% off). Limited early-bird pricing.`,
+          : `₹${EARLY_BIRD_FEE} entry · listed ₹${LIST_FEE}.`,
       },
     ],
     detailBoxes: [
@@ -184,9 +179,7 @@ async function main() {
       requireLogin: true,
       allowCoupons: true,
       maxPeoplePerBooking: 10,
-      formInstructions: END_EARLY_BIRD
-        ? `Entry ₹${LIST_FEE}. Spots fill fast — book your Rush.`
-        : `Early bird ₹${EARLY_BIRD_FEE} (was ₹${LIST_FEE} · ~34.22% off). Spots fill fast — book your Rush.`,
+      formInstructions: 'Spots fill fast — book your Rush.',
       formSchema,
     },
   };
@@ -206,12 +199,9 @@ async function main() {
     slug: event.slug,
     title: event.title,
     club: club.name,
-    earlyBird: !END_EARLY_BIRD,
+    offerActive: !END_EARLY_BIRD,
     fee: event.registrationFee,
     originalFee: event.originalFee,
-    discountPercent: ORIGINAL_FEE
-      ? Math.round(((ORIGINAL_FEE - PAYABLE_FEE) / ORIGINAL_FEE) * 10000) / 100
-      : 0,
     rushCouponActive: coupon ? coupon.active : null,
     eventDate: event.eventDate,
     status: event.status,

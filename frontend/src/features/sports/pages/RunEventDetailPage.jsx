@@ -15,7 +15,7 @@ import { shareContent } from '../../../utils/externalLink';
 import { sportRunPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import { normalizeRunDetailBoxes, resolveRunMapPin } from '../../../utils/trekDetailBoxes';
 import { resolveRunContacts, instagramHandle } from '../../../utils/runContacts';
-import { getSportsTiers, isTiersPricing, minSportsFee, formatInr, hasPricingSnapshot, sportsOriginalFee, sportsDiscountPercent } from '../../../utils/sportsTiers';
+import { getSportsTiers, isTiersPricing, minSportsFee, formatInr, hasPricingSnapshot, sportsOriginalFee } from '../../../utils/sportsTiers';
 import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../../utils/suggestedCoupon';
 import { groupTermsAndConditions } from '../../../utils/termsAndConditions';
 import { useInAppBack } from '../../../hooks/useInAppBack';
@@ -454,7 +454,6 @@ export default function RunEventDetailPage() {
                             const fromFee = minSportsFee(event);
                             if (fromFee > 0) {
                                 const original = sportsOriginalFee(event);
-                                const discountPct = sportsDiscountPercent(event);
                                 const couponCode = getSuggestedCouponCode(event);
                                 const couponLabel = getSuggestedCouponLabel(couponCode);
                                 return (
@@ -471,10 +470,6 @@ export default function RunEventDetailPage() {
                                             <p className="mt-1 text-[11px] font-semibold text-emerald-500">
                                                 Coupon {couponCode}
                                                 {couponLabel ? ` · ${couponLabel}` : ''}
-                                            </p>
-                                        ) : discountPct > 0 ? (
-                                            <p className="mt-1 text-[11px] font-semibold text-emerald-500">
-                                                Early bird · {discountPct}% off
                                             </p>
                                         ) : null}
                                     </div>
