@@ -310,6 +310,9 @@ export default function MindSparkAuditoriumPage() {
   const [uploadingKind, setUploadingKind] = useState(null); // 'id' | 'face' | null
   const [ticket, setTicket] = useState(null);
   const [issuedFresh, setIssuedFresh] = useState(false);
+  const draftOwnerRef = useRef(String(draftBoot?.ownerKey || ''));
+  const faceUploadRef = useRef(0);
+  const idUploadRef = useRef(0);
   const bootedAuthRef = useRef(Boolean(draftBoot?.step > 1 || draftBoot?.categoryId));
   const draftSnapshotRef = useRef({
     step: Math.min(5, Math.max(1, Number(draftBoot?.step) || 1)),
@@ -333,6 +336,7 @@ export default function MindSparkAuditoriumPage() {
     const next = {
       ...draftSnapshotRef.current,
       ...override,
+      ownerKey: draftOwnerRef.current,
       form: { ...draftSnapshotRef.current.form, ...(override.form || {}) },
     };
     draftSnapshotRef.current = next;
@@ -415,13 +419,36 @@ export default function MindSparkAuditoriumPage() {
 
   useEffect(() => {
     if (!user) return;
+    const ownerKey = String(user.uid || user._id || user.id || user.email || '').toLowerCase();
+    const savedOwner = String(readDraft()?.ownerKey || '').toLowerCase();
+    const ownerChanged = Boolean(savedOwner && ownerKey && savedOwner !== ownerKey);
+    if (ownerChanged) {
+      clearDraft();
+      setStep(1);
+      setCategoryId('');
+      setPhotoUrl('');
+      setPhotoPreview('');
+      setIdCardUrl('');
+      setIdCardPreview('');
+      draftSnapshotRef.current = { step: 1, categoryId: '', form: {}, photoUrl: '', idCardUrl: '' };
+    } else if (!savedOwner && (photoUrl || idCardUrl)) {
+      // Legacy drafts were not account-scoped. Never restore their photos into a login.
+      setPhotoUrl('');
+      setPhotoPreview('');
+      setIdCardUrl('');
+      setIdCardPreview('');
+      flushDraft({ photoUrl: '', idCardUrl: '' });
+    }
+    draftOwnerRef.current = ownerKey;
     setForm((f) => ({
-      ...f,
-      name: f.name || user.name || user.displayName || '',
-      email: f.email || user.email || '',
-      phone: f.phone || user.phoneNumber || user.phone || '',
+      ...(ownerChanged ? {} : f),
+      name: ownerChanged ? (user.name || user.displayName || '') : (f.name || user.name || user.displayName || ''),
+      email: ownerChanged ? (user.email || '') : (f.email || user.email || ''),
+      phone: ownerChanged ? (user.phoneNumber || user.phone || '') : (f.phone || user.phoneNumber || user.phone || ''),
+      misId: ownerChanged ? '' : (f.misId || ''),
+      honorConfirmed: ownerChanged ? false : Boolean(f.honorConfirmed),
     }));
-  }, [user]);
+  }, [user, photoUrl, idCardUrl, flushDraft]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -460,6 +487,8 @@ export default function MindSparkAuditoriumPage() {
       toast('Sign in to upload');
       return;
     }
+    const uploadId = faceUploadRef.current + 1;
+    faceUploadRef.current = uploadId;
     setUploadingKind('face');
     setBusy(true);
     flushDraft({ step: 4, categoryId, form, photoUrl, idCardUrl });
@@ -469,6 +498,7 @@ export default function MindSparkAuditoriumPage() {
       setPhotoPreview(preview);
       const uploadFile = await optimizeUploadImage(file);
       const url = await uploadTicketPhoto(uploadFile, token);
+      if (faceUploadRef.current !== uploadId) return;
       if (!url) throw new Error('Upload failed');
       if (idCardUrl && cloudinaryPathKey(url) === cloudinaryPathKey(idCardUrl)) {
         throw new Error('Face photo and college ID must be different pictures');
@@ -477,9 +507,11 @@ export default function MindSparkAuditoriumPage() {
       flushDraft({ step: 4, categoryId, form, photoUrl: url, idCardUrl });
       toast('Face photo ready');
     } catch (e) {
+      if (faceUploadRef.current !== uploadId) return;
       toast(e.message || 'Photo failed');
       setPhotoUrl('');
       setPhotoPreview('');
+      flushDraft({ photoUrl: '' });
     } finally {
       setBusy(false);
       setUploadingKind(null);
@@ -493,6 +525,8 @@ export default function MindSparkAuditoriumPage() {
       toast('Sign in to upload');
       return;
     }
+    const uploadId = idUploadRef.current + 1;
+    idUploadRef.current = uploadId;
     setUploadingKind('id');
     setBusy(true);
     flushDraft({ step: 3, categoryId, form, photoUrl, idCardUrl });
@@ -502,6 +536,7 @@ export default function MindSparkAuditoriumPage() {
       setIdCardPreview(preview);
       const uploadFile = await optimizeUploadImage(file);
       const url = await uploadTicketPhoto(uploadFile, token);
+      if (idUploadRef.current !== uploadId) return;
       if (!url) throw new Error('Upload failed');
       if (photoUrl && cloudinaryPathKey(url) === cloudinaryPathKey(photoUrl)) {
         throw new Error('Face photo and college ID must be different pictures');
@@ -510,9 +545,11 @@ export default function MindSparkAuditoriumPage() {
       flushDraft({ step: 3, categoryId, form, photoUrl, idCardUrl: url });
       toast('ID card ready');
     } catch (e) {
+      if (idUploadRef.current !== uploadId) return;
       toast(e.message || 'ID upload failed');
       setIdCardUrl('');
       setIdCardPreview('');
+      flushDraft({ idCardUrl: '' });
     } finally {
       setBusy(false);
       setUploadingKind(null);
@@ -556,13 +593,7 @@ export default function MindSparkAuditoriumPage() {
         setIssuedFresh(false);
         toast('You already have a ticket');
       } else if (e.code === 'MIS_YEAR_MISMATCH') {
-        const expected = e.expectedCategoryId || e.data?.expectedCategoryId;
-        if (expected) {
-          setCategoryId(expected);
-          toast(e.message || 'MIS batch doesn’t match the year you picked — switched to the matching year. Submit again.');
-        } else {
-          toast(e.message || 'MIS batch doesn’t match the year you picked');
-        }
+        toast(e.message || 'MIS batch doesn’t match the selected year. Check the MIS number or choose the correct year.');
       } else if (e.code === 'SAME_PHOTO') {
         toast(e.message || 'Face photo and college ID must be different pictures');
       } else if (e.status === 401 || e.code === 'LOGIN_REQUIRED' || e.code === 'AUTH_401' || e.code === 'NO_AUTH_TOKEN') {
