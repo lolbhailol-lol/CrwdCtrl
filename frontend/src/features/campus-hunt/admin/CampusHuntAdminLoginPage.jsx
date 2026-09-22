@@ -19,19 +19,21 @@ export default function CampusHuntAdminLoginPage() {
     }
     setError('Unable to connect. Try again.');
   };
-  return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 20, background: '#f4f7fb' }}>
-    <section style={{ width: '100%', maxWidth: 420, padding: 32, borderRadius: 18, background: '#fff', boxShadow: '0 12px 40px rgba(15,23,42,.12)' }}>
-      <h1 style={{ margin: 0 }}>Campus Hunt Admin</h1>
-      <p style={{ color: '#64748b', marginBottom: 24 }}>Sign in to manage Campus Hunt only.</p>
-      <form onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
-        <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>Username
-          <input aria-label="Username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter username" autoComplete="username" required style={{ padding: 12, border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 16 }} />
+  return <main className="min-h-dvh bg-[#0f1011] flex items-center justify-center px-4 py-6">
+    <section className="w-full max-w-md rounded-2xl border border-gray-800 bg-[#161718] p-6 sm:p-8 shadow-2xl">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="size-12 rounded-xl bg-[#0ECCEE]/15 flex items-center justify-center text-[#0ECCEE] text-2xl">⌁</div>
+        <div><h1 className="text-xl sm:text-2xl font-bold text-white">Campus Hunt Admin</h1><p className="text-xs sm:text-sm text-gray-500">Sign in to manage Campus Hunt</p></div>
+      </div>
+      <form onSubmit={submit} className="space-y-4">
+        <label className="block text-xs font-medium text-gray-400">Username
+          <input aria-label="Username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" autoComplete="username" required className="mt-1.5 w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-[#0ECCEE]" />
         </label>
-        <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>Password
-          <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" autoComplete="current-password" required style={{ padding: 12, border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 16 }} />
+        <label className="block text-xs font-medium text-gray-400">Password
+          <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" required className="mt-1.5 w-full bg-[#111213] border border-gray-700 rounded-xl px-4 py-3.5 text-white text-base focus:outline-none focus:border-[#0ECCEE]" />
         </label>
-        {error && <p role="alert" style={{ color: '#dc2626', margin: 0 }}>{error}</p>}
-        <button type="submit" style={{ marginTop: 6, padding: 13, border: 0, borderRadius: 10, background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}>Sign in</button>
+        {error && <p role="alert" className="rounded-lg border border-red-800 bg-red-900/20 px-3 py-2.5 text-sm text-red-300">{error}</p>}
+        <button type="submit" className="w-full min-h-[48px] rounded-xl bg-[#0ECCEE] text-black text-base font-bold hover:opacity-90">Sign in</button>
       </form>
     </section>
   </main>;
