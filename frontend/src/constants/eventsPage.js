@@ -36,10 +36,20 @@ export function formatEventShowDate(showTimings) {
 }
 
 import { normalizeCoverImages, primaryCoverUrl } from '../utils/coverImages';
+import {
+    formatInr,
+    isEventShowTiersPricing,
+    minEventShowFee,
+} from '../utils/eventShowTiers';
 
 export function mapEventShow(raw) {
     const coverImages = normalizeCoverImages(raw.coverImages);
     const poster = primaryCoverUrl(coverImages, raw.poster);
+    const fee = minEventShowFee(raw);
+    const feeLabel = String(raw.priceLabel || '').trim()
+        || (fee > 0
+            ? (isEventShowTiersPricing(raw) ? `From ${formatInr(fee)}` : formatInr(fee))
+            : 'Free');
     return {
         id: raw._id,
         title: raw.title,
@@ -58,5 +68,11 @@ export function mapEventShow(raw) {
         date: formatEventShowDate(raw.showTimings),
         pageSection: raw.pageSection || null,
         pagePriority: raw.pagePriority ?? 999,
+        ticketPrice: raw.ticketPrice,
+        priceLabel: raw.priceLabel || '',
+        pricingMode: raw.pricingMode === 'tiers' ? 'tiers' : 'single',
+        tiers: Array.isArray(raw.tiers) ? raw.tiers : [],
+        fee,
+        feeLabel,
     };
 }

@@ -134,6 +134,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
                     </p>
                     <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         {toCardText(show.type)}
+                        {show.feeLabel ? ` · ${show.feeLabel}` : ''}
                     </p>
                 </div>
                 <CardShareButton

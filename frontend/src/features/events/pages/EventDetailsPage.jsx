@@ -1046,9 +1046,16 @@ export default function EventDetailsPage() {
                     {tiersPricing ? 'From' : 'Registration Fee'}
                   </p>
                   {fromFee > 0 ? (
-                    <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {formatInr(fromFee)}
-                    </p>
+                    <>
+                      <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {formatInr(fromFee)}
+                      </p>
+                      {event.priceLabel ? (
+                        <p className={`mt-1 text-[11px] font-medium truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {event.priceLabel}
+                        </p>
+                      ) : null}
+                    </>
                   ) : (
                     <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
                   )}
