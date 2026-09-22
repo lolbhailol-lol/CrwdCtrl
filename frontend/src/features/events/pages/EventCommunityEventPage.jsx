@@ -421,8 +421,11 @@ export default function EventCommunityEventPage() {
             .filter(Boolean),
     );
     const galleryImages = (event.images || []).filter((u) => u && !coverSet.has(u));
-    // Top slider = gallery uploads only (cover/card stays out). Fall back to cover if no gallery yet.
-    const images = galleryImages.length ? galleryImages : (coverImg ? [coverImg] : [null]);
+    // Lead with the event poster, then community gallery shots
+    const posterUrl = coverSlots.portrait || coverSlots.page || coverImg || null;
+    const images = galleryImages.length
+        ? (posterUrl ? [posterUrl, ...galleryImages.filter((u) => u !== posterUrl)] : galleryImages)
+        : (posterUrl ? [posterUrl] : [null]);
     const communityName = club?.name || event.organizer || '';
     const copy = organizerHubCopy(true);
     const mapPin = resolveRunMapPin(event);
