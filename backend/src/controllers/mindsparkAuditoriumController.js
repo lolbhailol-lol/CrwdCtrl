@@ -616,7 +616,7 @@ async function createAuditoriumTicket({
     await TicketClaim.updateMany(
       { _id: { $in: claimIds } },
       { $set: { registrationId: registration._id } },
-    );
+    ).catch((error) => console.warn('[auditorium.claim-link]', error.message));
 
     // Seat already reserved by claimCategorySeat — do not re-count and reject.
     // Concurrent creates that both claimed would falsely fail the second legit claim.

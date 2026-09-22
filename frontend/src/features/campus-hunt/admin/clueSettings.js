@@ -34,13 +34,17 @@ export const CLUE4_DEFAULT_SETTINGS = {
 };
 
 export const CLUE5_DEFAULT_SETTINGS = {
-  timerSeconds: 0,
+  timerSeconds: 240,
   maxAttempts: 2,
   hintCost: 30,
   basePoints: 45,
   allowLateSubmit: true,
-  awardMode: 'flat_base',
-  speedBonusBands: [],
+  awardMode: 'base_plus_speed',
+  speedBonusBands: [
+    { maxSeconds: 90, bonus: 30 },
+    { maxSeconds: 150, bonus: 15 },
+    { maxSeconds: 240, bonus: 5 },
+  ],
 };
 
 export function loadClueSettings(scoringConfig, clueKey, defaults, sampleChallenge = null) {

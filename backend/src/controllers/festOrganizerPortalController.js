@@ -2946,9 +2946,15 @@ exports.getFestDayDesk = async (req, res) => {
                 paidToday: 0,
             };
         });
+        const assistedDeskEntries = await FestDayAssistedRegistration.find({
+            fest: req.festId,
+            paymentOrderId: { $nin: [null, ''] },
+        }).select('paymentOrderId +paymentToken').sort({ createdAt: -1 }).limit(300).lean();
+        const assistedOrderIds = assistedDeskEntries.map((entry) => entry.paymentOrderId).filter(Boolean);
         const orderFilter = {
             entityType: 'competition',
             entityId: { $in: competitionIds },
+            orderId: { $in: assistedOrderIds },
         };
         if (search) {
             const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -2985,19 +2991,9 @@ exports.getFestDayDesk = async (req, res) => {
             .limit(search ? 100 : 120)
             .lean();
         const orderIds = orders.map((order) => order.orderId).filter(Boolean);
-        const [registrations, assistedEntries] = await Promise.all([
-            Registration.find({ payment_order_id: { $in: orderIds } })
-                .select('_id payment_order_id status paymentStatus qrCodeData createdAt responses').lean(),
-            FestDayAssistedRegistration.find({ paymentOrderId: { $in: orderIds } })
-                .select('paymentOrderId +paymentToken').lean(),
-        ]);
+        const registrations = await Registration.find({ payment_order_id: { $in: orderIds } })
+                .select('_id payment_order_id status paymentStatus qrCodeData createdAt responses').lean();
         const refunds = await PaymentRefund.find({ orderId: { $in: orderIds } }).sort({ createdAt: -1 }).lean();
-        const formStarts = await FestDayFormSession.find({ fest: req.festId, expiresAt: { $gt: new Date() } })
-            .populate('user', 'name email phone phoneNumber')
-            .populate('competition', 'name')
-            .sort({ updatedAt: -1 })
-            .limit(120)
-            .lean();
         const refundByOrder = new Map();
         refunds.forEach((refund) => {
             if (!refundByOrder.has(String(refund.orderId))) refundByOrder.set(String(refund.orderId), refund);
@@ -3006,12 +3002,8 @@ exports.getFestDayDesk = async (req, res) => {
             String(registration.payment_order_id),
             registration,
         ]));
-        const assistedByOrder = new Map(assistedEntries.map((entry) => [String(entry.paymentOrderId), entry]));
+        const assistedByOrder = new Map(assistedDeskEntries.map((entry) => [String(entry.paymentOrderId), entry]));
         const competitionById = new Map(competitions.map((competition) => [String(competition._id), competition]));
-        const orderedUserCompetition = new Set(orders.map((order) => {
-            const userId = order.userId?._id || order.userId || '';
-            return `${String(order.entityId)}:${String(userId)}`;
-        }));
         const todayStart = startOfTodayIst();
         const pendingTodayByComp = new Map();
         const paidTodayByComp = new Map();
@@ -3079,28 +3071,6 @@ exports.getFestDayDesk = async (req, res) => {
                 updatedAt: order.updatedAt,
             };
         });
-        for (const start of formStarts) {
-            const key = `${String(start.competition?._id || start.competition)}:${String(start.user?._id || start.user)}`;
-            if (orderedUserCompetition.has(key)) continue;
-            const row = {
-                orderId: `form:${start._id}`,
-                status: 'form_started',
-                amount: 0,
-                competitionId: String(start.competition?._id || start.competition || ''),
-                competitionName: start.competition?.name || 'Competition',
-                participantName: start.user?.name || 'Participant',
-                phone: start.user?.phoneNumber || start.user?.phone || '',
-                email: start.user?.email || '',
-                teamName: '',
-                registrationId: null,
-                refundStatus: '',
-                resumeUrl: null,
-                createdAt: start.createdAt,
-                updatedAt: start.updatedAt,
-            };
-            if (!search || [row.participantName, row.phone, row.email, row.competitionName]
-                .some((value) => String(value || '').toLowerCase().includes(search))) activity.push(row);
-        }
         activity.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
         activity.splice(60);
 
@@ -3111,7 +3081,7 @@ exports.getFestDayDesk = async (req, res) => {
         }));
 
         const MindSparkBundle = require('../model/mindspark_bundle_model');
-        const bundleFilter = { fest: req.festId };
+        const bundleFilter = { fest: req.festId, source: 'desk' };
         if (search) {
             const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(escaped, 'i');

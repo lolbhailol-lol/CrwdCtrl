@@ -290,16 +290,20 @@ const DEFAULT_SCORING_CONFIG = {
     hintCost: 20,
     speedBonusBands: [],
   },
-  // Clue 5 — physical word slips nearby. No timer · flat points · expensive hints.
+  // Clue 5 — physical word slips nearby. Four-minute speed challenge.
   clue5: {
     basePoints: 45,
     maxAttempts: 2,
-    timerSeconds: 0,
-    awardMode: 'flat_base',
+    timerSeconds: 240,
+    awardMode: 'base_plus_speed',
     allowLateSubmit: true,
     revealOnMaxAttempts: true,
     hintCost: 30,
-    speedBonusBands: [],
+    speedBonusBands: [
+      { maxSeconds: 90, bonus: 30 },
+      { maxSeconds: 150, bonus: 15 },
+      { maxSeconds: 240, bonus: 5 },
+    ],
   },
   // Clue 6: finish code.
   clue6: {

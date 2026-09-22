@@ -146,8 +146,12 @@ function theoreticalMaxScore(scoringConfig) {
   const c3 = scoringConfig?.clue3?.basePoints ?? 65;
   const c4 = Number(scoringConfig?.clue4?.basePoints) || 50;
   const c5 = Number(scoringConfig?.clue5?.basePoints) || 45;
+  const c5Bonus = Math.max(
+    0,
+    ...(scoringConfig?.clue5?.speedBonusBands || []).map((band) => Number(band.bonus) || 0),
+  );
   const c6 = scoringConfig?.clue6?.basePoints ?? 30;
-  return start + c1 + c2 + c3 + c4 + c5 + c6;
+  return start + c1 + c2 + c3 + c4 + c5 + c5Bonus + c6;
 }
 
 module.exports = {

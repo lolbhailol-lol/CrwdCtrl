@@ -48,12 +48,16 @@ export const DEFAULT_SCORING_CONFIG = {
   clue5: {
     basePoints: 45,
     maxAttempts: 2,
-    timerSeconds: 0,
-    awardMode: 'flat_base',
+    timerSeconds: 240,
+    awardMode: 'base_plus_speed',
     allowLateSubmit: true,
     revealOnMaxAttempts: true,
     hintCost: 30,
-    speedBonusBands: [],
+    speedBonusBands: [
+      { maxSeconds: 90, bonus: 30 },
+      { maxSeconds: 150, bonus: 15 },
+      { maxSeconds: 240, bonus: 5 },
+    ],
   },
   clue6: {
     basePoints: 30,
