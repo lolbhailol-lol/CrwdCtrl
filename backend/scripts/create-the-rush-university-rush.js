@@ -159,10 +159,13 @@ async function main() {
       page: coverUrl,
       portrait: coverUrl,
       square: coverUrl,
-      wide: coverUrl,
-      landscape: existingCovers.landscape || coverUrl,
       hero: coverUrl,
-      video: existingCovers.video || coverUrl,
+      // Upcoming / wide cards keep community shots when already set
+      wide: existingCovers.wide && existingCovers.wide !== existingCovers.portrait
+        ? existingCovers.wide
+        : (existingImages.find((u) => /group-banner|upcoming-wide|group-cheer/i.test(u)) || coverUrl),
+      landscape: existingCovers.landscape || existingCovers.wide || coverUrl,
+      video: existingCovers.video || existingCovers.wide || coverUrl,
     },
     images: existingImages.length ? existingImages : [coverUrl],
     inclusions: [
