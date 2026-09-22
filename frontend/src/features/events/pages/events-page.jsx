@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useFavorites } from '../../../context/FavoritesContext';
 import { useNotifications } from '../../../context/NotificationsContext';
-import { getImageUrl } from '../../../utils/imageImports';
 import { getCoverImageUrl } from '../../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { toCardText } from '../../../utils/cardText';
@@ -25,7 +24,6 @@ import HeroBanner from '../../../components/HeroBanner';
 import {
     HeroBannerSkeleton,
     CompactPortraitCardsRowSkeleton,
-    WideActivityCardsRowSkeleton,
 } from '../../../components/HomeEventCardSkeleton';
 import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
@@ -109,16 +107,17 @@ function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) 
 function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
         <div
-            className="card-surface card-wide rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200"
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
             onClick={onClick}
         >
-            <div className="card-wide-image relative">
+            <div className={`card-portrait-image relative overflow-hidden ${isDark ? 'bg-[#0B0C0D]' : 'bg-[#E8EAED]'}`}>
                 {show.image ? (
-                    <img
-                        src={getCoverImageUrl(show, 'cardWideFit') || getImageUrl(show.image, { preset: 'cardWideFit' })}
+                    <ContentImage
+                        src={show.image}
                         alt={show.title}
-                        className="absolute inset-0 z-0 w-full h-full object-contain object-center pointer-events-none"
-                        onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#2a1a3a', show.title || 'Event')}
+                        preset="cardPortraitFit"
+                        className="absolute inset-0 z-0 h-full w-full object-contain object-center pointer-events-none"
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2a1a3a', show.title || 'Event')}
                     />
                 ) : (
                     <div className="w-full h-full bg-linear-to-br from-slate-700 to-slate-900 flex items-center justify-center">
@@ -127,8 +126,8 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
                 )}
                 <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
             </div>
-            <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full">
+                <div className="flex-1 min-w-0 pr-1">
                     <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {toCardText(show.title)}
                     </p>
@@ -139,7 +138,7 @@ function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick 
                 </div>
                 <CardShareButton
                     isDark={isDark}
-                    className="ml-3"
+                    className="mt-0.5 shrink-0"
                     onClick={(e) => {
                         e.stopPropagation();
                         shareContent({ title: show.title, url: window.location.origin + '/events' });
@@ -594,7 +593,7 @@ export default function EventsPage() {
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
-                                <WideActivityCardsRowSkeleton count={2} className="" />
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
                         ) : upcomingShows.length === 0 ? (
                             <EmptyState label={publicConfig.emptyStates.events.upcoming} />
@@ -604,7 +603,7 @@ export default function EventsPage() {
                                     ref={upcomingScrollRef}
                                     className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-                                    onScroll={(e) => setUpcomingPg(Math.round(e.target.scrollLeft / 328))}
+                                    onScroll={(e) => setUpcomingPg(Math.round(e.target.scrollLeft / 176))}
                                 >
                                     <div className="flex gap-4 pb-1">
                                         {upcomingShows.map((show) => (
