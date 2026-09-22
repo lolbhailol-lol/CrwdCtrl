@@ -5,7 +5,7 @@ import {
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
     Pencil, Download, ScanLine, Ticket, Loader,
 } from 'lucide-react';
-import { fetchFestOrganizerDashboard, fetchFestOrganizerAuditorium, exportFestOrganizerParticipants } from '../../../services/api/festOrganizer.api';
+import { fetchFestOrganizerDashboard, exportFestOrganizerParticipants } from '../../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { getFestPlugin } from '../plugins/registry';
@@ -231,7 +231,6 @@ export default function FestOrganizerDashboardPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
     const [data, setData] = useState(null);
-    const [auditorium, setAuditorium] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [qrOpen, setQrOpen] = useState(false);
@@ -242,17 +241,6 @@ export default function FestOrganizerDashboardPage() {
         try {
             const dash = await fetchFestOrganizerDashboard(festId);
             setData(dash);
-            const pluginId = getFestPlugin(festId, dash?.fest)?.id;
-            if (pluginId === 'mindspark') {
-                try {
-                    const aud = await fetchFestOrganizerAuditorium(festId);
-                    setAuditorium(aud?.data || aud || null);
-                } catch {
-                    setAuditorium(null);
-                }
-            } else {
-                setAuditorium(null);
-            }
         } catch (e) {
             setError(e.message || 'Failed to load dashboard');
         } finally {
@@ -350,7 +338,7 @@ export default function FestOrganizerDashboardPage() {
 
     return (
         <div className={`mx-auto space-y-5 ${hideProShow ? 'max-w-6xl' : 'max-w-5xl'}`}>
-            <div className={hideProShow ? 'lg:grid lg:grid-cols-[1fr_280px] lg:gap-5 lg:items-start' : ''}>
+            <div>
             <div className="space-y-5 min-w-0">
             {/* Hero */}
             <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#121314]">
@@ -803,92 +791,6 @@ export default function FestOrganizerDashboardPage() {
             />
             </div>
 
-            {hideProShow ? (
-                <aside className="lg:sticky lg:top-4 space-y-3 mt-5 lg:mt-0">
-                    <div className="rounded-2xl border border-[#0ECCEE]/25 bg-[#121314] p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                            <div>
-                                <p className="text-[10px] uppercase tracking-[0.16em] text-[#0ECCEE] font-semibold">Auditorium</p>
-                                <p className="text-sm font-semibold text-white mt-0.5">Night pass desk</p>
-                            </div>
-                            <Ticket size={18} className="text-[#0ECCEE]" />
-                        </div>
-                        {auditorium?.stats ? (
-                            <>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl border border-white/10 bg-white/4 px-2.5 py-2">
-                                        <p className="text-lg font-bold tabular-nums text-white">
-                                            {auditorium.stats.totalFilled || 0}
-                                            <span className="text-white/35 text-sm">/{auditorium.stats.totalSeats || 0}</span>
-                                        </p>
-                                        <p className="text-[9px] uppercase tracking-wide text-gray-500">Filled</p>
-                                    </div>
-                                    <div className="rounded-xl border border-white/10 bg-white/4 px-2.5 py-2">
-                                        <p className="text-lg font-bold tabular-nums text-white">{auditorium.stats.totalLeft ?? '—'}</p>
-                                        <p className="text-[9px] uppercase tracking-wide text-gray-500">Left</p>
-                                    </div>
-                                    <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-2">
-                                        <p className="text-lg font-bold tabular-nums text-emerald-200">{auditorium.stats.checkedIn || 0}</p>
-                                        <p className="text-[9px] uppercase tracking-wide text-emerald-200/60">In</p>
-                                    </div>
-                                    <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-2.5 py-2">
-                                        <p className="text-lg font-bold tabular-nums text-amber-200">{auditorium.stats.outside || 0}</p>
-                                        <p className="text-[9px] uppercase tracking-wide text-amber-200/60">Outside</p>
-                                    </div>
-                                </div>
-                                <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full bg-[#0ECCEE]"
-                                        style={{
-                                            width: `${auditorium.stats.totalSeats
-                                                ? Math.min(100, Math.round(((auditorium.stats.totalFilled || 0) / auditorium.stats.totalSeats) * 100))
-                                                : 0}%`,
-                                        }}
-                                    />
-                                </div>
-                                <div className="space-y-1 text-[11px] text-gray-400">
-                                    <p className="flex justify-between"><span>Today</span><span className="text-white tabular-nums">{auditorium.stats.todayCount || 0}</span></p>
-                                    <p className="flex justify-between"><span>Missing ID</span><span className={`tabular-nums ${(auditorium.stats.missingIdCount || 0) > 0 ? 'text-rose-300' : 'text-white'}`}>{auditorium.stats.missingIdCount || 0}</span></p>
-                                    <p className="flex justify-between"><span>Reg open</span><span className={auditorium.config?.registrationOpen ? 'text-emerald-300' : 'text-amber-300'}>{auditorium.config?.registrationOpen ? 'Yes' : 'Closed'}</span></p>
-                                    <p className="flex justify-between"><span>Invite uses left</span><span className="text-white tabular-nums">{auditorium.stats.inviteUsesLeft || 0}</span></p>
-                                </div>
-                                {(auditorium.stats.categories || []).filter((c) => c.channel === 'public').slice(0, 4).map((c) => (
-                                    <div key={c.id} className="flex items-center justify-between text-[11px]">
-                                        <span className="text-gray-500 truncate">{c.label}</span>
-                                        <span className={`tabular-nums ${c.full ? 'text-amber-300' : 'text-white/70'}`}>
-                                            {c.filled}/{c.seats}
-                                        </span>
-                                    </div>
-                                ))}
-                            </>
-                        ) : (
-                            <p className="text-xs text-gray-500">Loading auditorium…</p>
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => navigate(`/fest-organizer/fests/${festId}/auditorium`)}
-                            className="w-full py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-semibold"
-                        >
-                            Open auditorium ops
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate(`/fest-organizer/fests/${festId}/auditorium/scan`)}
-                            className="w-full py-2.5 rounded-xl border border-emerald-400/30 text-emerald-200 text-sm font-medium"
-                        >
-                            Gate scanner
-                        </button>
-                    </div>
-                    {Array.isArray(auditorium?.risks) && auditorium.risks.length ? (
-                        <div className="rounded-2xl border border-amber-400/25 bg-amber-500/5 p-3 space-y-1.5">
-                            <p className="text-[10px] uppercase tracking-wide text-amber-300 font-semibold">Watch</p>
-                            {auditorium.risks.slice(0, 4).map((r) => (
-                                <p key={r} className="text-[11px] text-amber-100/85 leading-snug">{r}</p>
-                            ))}
-                        </div>
-                    ) : null}
-                </aside>
-            ) : null}
             </div>
         </div>
     );
