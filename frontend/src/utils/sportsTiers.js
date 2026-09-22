@@ -115,7 +115,9 @@ export function sportsDiscountPercent(event) {
     const original = sportsOriginalFee(event);
     const payable = minSportsFee(event);
     if (!original || !payable || original <= payable) return 0;
-    return Math.round(((original - payable) / original) * 100);
+    // Two decimals when needed (e.g. 34.23% for ₹149 → ₹98).
+    const raw = ((original - payable) / original) * 100;
+    return Math.round(raw * 100) / 100;
 }
 
 /** Optional per-person booking add-on from admin (checkbox on book page). */

@@ -1,9 +1,10 @@
 /**
  * Create / update THE RUSH — University Rush (27 Sep 2026) as a live published run.
- * Entry ₹149 · coupon RUSH = ₹51 off → ₹98.
+ * Early bird: ₹98 (was ₹149 · ~34.22% off). No coupon — when early bird ends, set fee to 149 and originalFee to 0.
  *
  * Run: node scripts/create-the-rush-university-rush.js
  * Skip poster re-upload: SKIP_POSTER=1 node scripts/create-the-rush-university-rush.js
+ * End early bird: END_EARLY_BIRD=1 node scripts/create-the-rush-university-rush.js
  */
 require('dotenv').config();
 
@@ -17,9 +18,11 @@ const Coupon = require('../src/model/coupon_model');
 
 const SLUG = 'university-rush-sppu-27-sep-2026';
 const CLUB_SLUG = 'the-rush';
-const COUPON_CODE = 'RUSH';
-const ENTRY_FEE = 149;
-const COUPON_FLAT_OFF = 51; // → ₹98
+const LIST_FEE = 149;
+const EARLY_BIRD_FEE = 98;
+const END_EARLY_BIRD = process.env.END_EARLY_BIRD === '1';
+const PAYABLE_FEE = END_EARLY_BIRD ? LIST_FEE : EARLY_BIRD_FEE;
+const ORIGINAL_FEE = END_EARLY_BIRD ? 0 : LIST_FEE;
 const POSTER = path.join(__dirname, 'assets', 'university-rush-poster.png');
 
 cloudinary.config({
@@ -27,6 +30,10 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+const EARLY_BIRD_LINE = END_EARLY_BIRD
+  ? `Entry ₹${LIST_FEE}.`
+  : `Early bird ₹${EARLY_BIRD_FEE} (was ₹${LIST_FEE} · ~34.22% off).`;
 
 const DESCRIPTION = [
   '⚡ THE RUSH — UNIVERSITY RUSH',
@@ -40,7 +47,7 @@ const DESCRIPTION = [
   '• Content-worthy moments',
   '• The Rush community experience',
   '',
-  'Entry ₹149 · use coupon RUSH for ₹51 off (pay ₹98).',
+  EARLY_BIRD_LINE,
   '',
   'This isn’t just a run.',
   'It’s your next Rush. ⚡',
@@ -49,33 +56,11 @@ const DESCRIPTION = [
   'Run. Connect. Experience.',
 ].join('\n');
 
-async function upsertRushCoupon() {
-  let coupon = await Coupon.findOne({ code: COUPON_CODE });
-  const payload = {
-    code: COUPON_CODE,
-    description: 'University Rush — ₹51 off entry (pay ₹98)',
-    discountType: 'flat',
-    discountPercent: 0,
-    flatDiscountAmount: COUPON_FLAT_OFF,
-    maxDiscountAmount: 0,
-    active: true,
-    startsAt: null,
-    expiresAt: new Date('2026-09-27T18:30:00.000Z'),
-    maxTotalUses: 0,
-    maxUsesPerUser: 5,
-    minPeople: 1,
-    maxPeople: 0,
-    minAmount: 0,
-    festId: null,
-    competitionIds: [],
-    applicableEntityTypes: ['sports'],
-  };
-  if (coupon) {
-    Object.assign(coupon, payload);
-    await coupon.save();
-  } else {
-    coupon = await Coupon.create(payload);
-  }
+async function disableRushCoupon() {
+  const coupon = await Coupon.findOne({ code: 'RUSH' });
+  if (!coupon) return null;
+  coupon.active = false;
+  await coupon.save();
   return coupon;
 }
 
@@ -88,7 +73,6 @@ async function main() {
     $or: [{ slug: SLUG }, { title: 'University Rush', runClubId: club._id }],
   });
 
-  // Portrait / WhatsApp: designed poster. Wide/upcoming: set by community-photos script when present.
   let coverUrl = event?.coverImage || '';
   const skipPoster = process.env.SKIP_POSTER === '1' && coverUrl;
   if (!skipPoster) {
@@ -106,6 +90,24 @@ async function main() {
     ? (event.coverImages.toObject?.() || event.coverImages)
     : {};
   const existingImages = Array.isArray(event?.images) ? event.images.filter(Boolean) : [];
+  const existingSchema = Array.isArray(event?.registration?.formSchema)
+    ? event.registration.formSchema
+    : [];
+  const formSchema = existingSchema.length
+    ? existingSchema
+    : [
+      {
+        id: 'instagram_id',
+        label: 'Instagram ID',
+        fieldName: 'instagram_id',
+        type: 'text',
+        required: true,
+        placeholder: '@your_instagram_id',
+        options: [],
+        optionCoupons: {},
+        bookingStep: 2,
+      },
+    ];
 
   // 27 Sep 2026 06:30 IST = 01:00 UTC
   const eventDate = new Date('2026-09-27T01:00:00.000Z');
@@ -119,8 +121,8 @@ async function main() {
     city: 'Pune',
     eventDate,
     reportingTime: '6:30 AM onwards',
-    registrationFee: ENTRY_FEE,
-    originalFee: 0,
+    registrationFee: PAYABLE_FEE,
+    originalFee: ORIGINAL_FEE,
     pricingMode: 'single',
     distance: '3 KM',
     runCategory: 'Community Runs',
@@ -135,7 +137,6 @@ async function main() {
       page: coverUrl,
       portrait: coverUrl,
       square: coverUrl,
-      // Keep community wide/landscape/hero if already set by update-university-rush-community-photos.js
       wide: existingCovers.wide || coverUrl,
       landscape: existingCovers.landscape || coverUrl,
       hero: existingCovers.hero || coverUrl,
@@ -156,7 +157,9 @@ async function main() {
       },
       {
         title: 'ENTRY',
-        details: `₹${ENTRY_FEE} entry · use coupon ${COUPON_CODE} for ₹${COUPON_FLAT_OFF} off (pay ₹${ENTRY_FEE - COUPON_FLAT_OFF}).`,
+        details: END_EARLY_BIRD
+          ? `Entry ₹${LIST_FEE}.`
+          : `Early bird ₹${EARLY_BIRD_FEE} (was ₹${LIST_FEE} · ~34.22% off). Limited early-bird pricing.`,
       },
     ],
     detailBoxes: [
@@ -181,8 +184,10 @@ async function main() {
       requireLogin: true,
       allowCoupons: true,
       maxPeoplePerBooking: 10,
-      formInstructions: `Entry ₹${ENTRY_FEE}. Use coupon ${COUPON_CODE} for ₹${COUPON_FLAT_OFF} off — pay ₹${ENTRY_FEE - COUPON_FLAT_OFF}.`,
-      formSchema: [],
+      formInstructions: END_EARLY_BIRD
+        ? `Entry ₹${LIST_FEE}. Spots fill fast — book your Rush.`
+        : `Early bird ₹${EARLY_BIRD_FEE} (was ₹${LIST_FEE} · ~34.22% off). Spots fill fast — book your Rush.`,
+      formSchema,
     },
   };
 
@@ -193,7 +198,7 @@ async function main() {
     event = await SportsEvent.create(payload);
   }
 
-  const coupon = await upsertRushCoupon();
+  const coupon = await disableRushCoupon();
 
   console.log(JSON.stringify({
     ok: true,
@@ -201,17 +206,15 @@ async function main() {
     slug: event.slug,
     title: event.title,
     club: club.name,
+    earlyBird: !END_EARLY_BIRD,
     fee: event.registrationFee,
     originalFee: event.originalFee,
-    coupon: {
-      code: coupon.code,
-      type: coupon.discountType,
-      flatOff: coupon.flatDiscountAmount,
-      payAfter: ENTRY_FEE - COUPON_FLAT_OFF,
-    },
+    discountPercent: ORIGINAL_FEE
+      ? Math.round(((ORIGINAL_FEE - PAYABLE_FEE) / ORIGINAL_FEE) * 10000) / 100
+      : 0,
+    rushCouponActive: coupon ? coupon.active : null,
     eventDate: event.eventDate,
     status: event.status,
-    coverImage: event.coverImage,
     path: `/sports/run/${event.slug}`,
   }, null, 2));
 }
