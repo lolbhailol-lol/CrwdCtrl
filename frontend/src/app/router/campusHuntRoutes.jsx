@@ -28,6 +28,7 @@ import CampusHuntAdminLoginPage from '../../features/campus-hunt/admin/CampusHun
  */
 export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
+    <Route path="/campus-hunt/admin" element={<CampusHuntAdminDashboard />} />
     <Route path="/campus-hunt/offline/i/:token" element={<OfflineHuntInstallPage />} />
     <Route path="/campus-hunt/admin/login" element={<CampusHuntAdminLoginPage />} />
     <Route path="/campus-hunt/offline" element={<OfflineHuntLandingPage />} />
