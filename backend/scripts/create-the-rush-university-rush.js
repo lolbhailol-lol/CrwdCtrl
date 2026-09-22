@@ -1,11 +1,9 @@
 /**
  * Create / update THE RUSH — University Rush (27 Sep 2026) as a live published run.
- * Price: ₹98 with ₹149 list (strike). No coupon / no % label.
- * When offer ends: END_EARLY_BIRD=1 → fee 149, originalFee 0.
+ * Simple price: ₹98 (no strike / no coupon / no % label).
  *
  * Run: node scripts/create-the-rush-university-rush.js
  * Skip poster re-upload: SKIP_POSTER=1 node scripts/create-the-rush-university-rush.js
- * End offer: END_EARLY_BIRD=1 node scripts/create-the-rush-university-rush.js
  */
 require('dotenv').config();
 
@@ -19,11 +17,7 @@ const Coupon = require('../src/model/coupon_model');
 
 const SLUG = 'university-rush-sppu-27-sep-2026';
 const CLUB_SLUG = 'the-rush';
-const LIST_FEE = 149;
-const EARLY_BIRD_FEE = 98;
-const END_EARLY_BIRD = process.env.END_EARLY_BIRD === '1';
-const PAYABLE_FEE = END_EARLY_BIRD ? LIST_FEE : EARLY_BIRD_FEE;
-const ORIGINAL_FEE = END_EARLY_BIRD ? 0 : LIST_FEE;
+const ENTRY_FEE = 98;
 const POSTER = path.join(__dirname, 'assets', 'university-rush-poster.png');
 
 cloudinary.config({
@@ -116,8 +110,8 @@ async function main() {
     city: 'Pune',
     eventDate,
     reportingTime: '6:30 AM onwards',
-    registrationFee: PAYABLE_FEE,
-    originalFee: ORIGINAL_FEE,
+    registrationFee: ENTRY_FEE,
+    originalFee: 0,
     pricingMode: 'single',
     distance: '3 KM',
     runCategory: 'Community Runs',
@@ -152,9 +146,7 @@ async function main() {
       },
       {
         title: 'ENTRY',
-        details: END_EARLY_BIRD
-          ? `Entry ₹${LIST_FEE}.`
-          : `₹${EARLY_BIRD_FEE} entry · listed ₹${LIST_FEE}.`,
+        details: `Entry ₹${ENTRY_FEE}.`,
       },
     ],
     detailBoxes: [
@@ -199,7 +191,6 @@ async function main() {
     slug: event.slug,
     title: event.title,
     club: club.name,
-    offerActive: !END_EARLY_BIRD,
     fee: event.registrationFee,
     originalFee: event.originalFee,
     rushCouponActive: coupon ? coupon.active : null,
