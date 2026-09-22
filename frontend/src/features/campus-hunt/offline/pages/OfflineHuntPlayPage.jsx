@@ -258,14 +258,15 @@ export default function OfflineHuntPlayPage() {
   useEffect(() => {
     if (!bundle || !session || !state) return undefined;
     if (state.currentStage !== 'CLUE_4_ACTIVE') return undefined;
-    if (bundle.clues?.clue4?.gridAccessCode) return undefined;
+    if (bundle.clues?.clue4?.gridAccessCode && !bundle.gridResetPending) return undefined;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return undefined;
     let cancelled = false;
     (async () => {
-      const data = await ensureOfflineGridKey(bundle);
+      const data = await ensureOfflineGridKey(bundle, { forceReset: Boolean(bundle.gridResetPending) });
       if (cancelled || !data?.gridAccessCode) return;
       const nextPack = {
         ...bundle,
+        gridResetPending: false,
         clues: {
           ...bundle.clues,
           clue4: {

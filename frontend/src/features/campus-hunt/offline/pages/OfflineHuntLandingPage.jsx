@@ -13,7 +13,10 @@ export default function OfflineHuntLandingPage() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
 
-  useEffect(() => armOfflineNetworkGuard(), []);
+  useEffect(() => {
+    const cleanup = armOfflineNetworkGuard();
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

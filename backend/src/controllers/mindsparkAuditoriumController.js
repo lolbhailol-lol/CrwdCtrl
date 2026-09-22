@@ -1113,6 +1113,26 @@ exports.listRoster = async (req, res) => {
   }
 };
 
+/** Organizer-only removal of an Auditorium ticket, including its seat claim. */
+exports.deleteTicket = async (req, res) => {
+  try {
+    const competition = await ensureAuditoriumCompetition(req.festId);
+    const registration = await Registration.findOneAndDelete({
+      _id: req.params.registrationId,
+      fest: req.festId,
+      competitionId: competition._id,
+      'responses.auditorium_category_id': { $exists: true, $ne: '' },
+    });
+    if (!registration) return res.status(404).json({ success: false, message: 'Auditorium ticket not found' });
+    await TicketClaim.deleteMany({ registrationId: registration._id });
+    await syncCategoryCounter(competition._id, registration.responses?.auditorium_category_id);
+    return res.json({ success: true, message: 'Auditorium ticket deleted' });
+  } catch (error) {
+    console.error('[auditorium.deleteTicket]', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed to delete ticket' });
+  }
+};
+
 exports.lookupByPhone = async (req, res) => {
   try {
     const competition = await ensureAuditoriumCompetition(req.festId);

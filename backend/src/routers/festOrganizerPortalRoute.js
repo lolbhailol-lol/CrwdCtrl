@@ -42,6 +42,7 @@ router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAcc
 router.get('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.getOrganizerOps);
 router.patch('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.updateOrganizerConfig);
 router.get('/fests/:festId/auditorium/roster', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.listRoster);
+router.delete('/fests/:festId/auditorium/roster/:registrationId', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deleteTicket);
 router.get('/fests/:festId/auditorium/lookup', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.lookupByPhone);
 router.post('/fests/:festId/auditorium/invites', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.createInvite);
 router.post('/fests/:festId/auditorium/invites/:inviteId/deactivate', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deactivateInvite);

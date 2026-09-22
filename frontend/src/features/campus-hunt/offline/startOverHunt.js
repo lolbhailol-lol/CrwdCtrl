@@ -263,6 +263,16 @@ export async function startOverHunt({
 
       await warmupOfflineHunt().catch(() => {});
     }
+    if (!online && pack) {
+      // Clear the local Zip key now; reconnecting will force a fresh server session.
+      pack = {
+        ...pack,
+        gridResetPending: true,
+        clues: { ...pack.clues, clue4: { ...(pack.clues?.clue4 || {}), gridAccessCode: '' } },
+        team: { ...pack.team, gridAccessCode: '' },
+      };
+      await saveOfflineBundle(pack);
+    }
     // Offline local wipe — leave appliedResetAt alone so a later admin stamp still wins.
 
     if (reloadAppIfWaiting && updateWaiting) {

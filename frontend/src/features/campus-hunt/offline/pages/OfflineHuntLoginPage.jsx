@@ -19,7 +19,10 @@ export default function OfflineHuntLoginPage() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => armOfflineNetworkGuard(), []);
+  useEffect(() => {
+    const cleanup = armOfflineNetworkGuard();
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

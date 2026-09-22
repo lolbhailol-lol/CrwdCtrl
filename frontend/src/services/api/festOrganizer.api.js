@@ -647,6 +647,12 @@ export async function fetchFestOrganizerAuditoriumRoster(festId, params = {}) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/roster${q ? `?${q}` : ''}`);
 }
 
+export async function deleteFestOrganizerAuditoriumTicket(festId, registrationId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/roster/${registrationId}`, {
+        method: 'DELETE',
+    });
+}
+
 export async function lookupFestOrganizerAuditoriumPhone(festId, phone) {
     const qs = new URLSearchParams({ phone: String(phone || '') });
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/lookup?${qs}`);

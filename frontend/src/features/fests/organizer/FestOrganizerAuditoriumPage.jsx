@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft, RefreshCw, Ticket, QrCode, ToggleLeft, ToggleRight,
     Loader, Plus, Ban, Copy, Users, ScanLine, AlertTriangle, UserCheck,
-    IdCard, CalendarDays, ShieldAlert,
+    IdCard, CalendarDays, ShieldAlert, Trash2,
 } from 'lucide-react';
 import {
     fetchFestOrganizerAuditorium,
@@ -12,6 +12,7 @@ import {
     deactivateFestOrganizerAuditoriumInvite,
     issueFestOrganizerAuditoriumDesk,
     uploadFestOrganizerImage,
+    deleteFestOrganizerAuditoriumTicket,
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
@@ -68,6 +69,21 @@ export default function FestOrganizerAuditoriumPage() {
     const [deskBusy, setDeskBusy] = useState(false);
     const [issuedTicket, setIssuedTicket] = useState(null);
     const [rosterFilter, setRosterFilter] = useState('all');
+    const [deletingTicket, setDeletingTicket] = useState('');
+
+    const deleteTicket = async (ticket) => {
+        if (!ticket?.id || !window.confirm(`Delete the Auditorium pass for ${ticket.fullName || 'this participant'}?`)) return;
+        setDeletingTicket(ticket.id);
+        try {
+            await deleteFestOrganizerAuditoriumTicket(festId, ticket.id);
+            toast('Auditorium pass deleted');
+            await load();
+        } catch (e) {
+            toast(e.message || 'Could not delete pass');
+        } finally {
+            setDeletingTicket('');
+        }
+    };
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -570,6 +586,15 @@ export default function FestOrganizerAuditoriumPage() {
                                         ) : (
                                             <span className="text-[9px] text-rose-300">No ID</span>
                                         )}
+                                        <button
+                                            type="button"
+                                            title="Delete pass"
+                                            disabled={deletingTicket === t.id}
+                                            onClick={() => deleteTicket(t)}
+                                            className="mt-1 rounded-md p-1 text-rose-300/80 hover:bg-rose-500/15 disabled:opacity-40"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
