@@ -11,7 +11,7 @@ import LazyMap from '../../../components/LazyMap';
 import TrekDetailIcon from '../../../components/TrekDetailIcon';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 import { primaryCoverUrl, resolveCoverImage } from '../../../utils/coverImages';
-import { absoluteUrl, breadcrumbSchema, eventSchema } from '../../../utils/seo';
+import { toOgShareImageUrl, breadcrumbSchema, eventSchema } from '../../../utils/seo';
 import { shareContent } from '../../../utils/externalLink';
 import { eventCommunityEventPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import { eventDetailTabBoxes, eventMapSideFacts, resolveRunMapPin } from '../../../utils/trekDetailBoxes';
@@ -409,7 +409,11 @@ export default function EventCommunityEventPage() {
     const coverImg = resolveCoverImage(event, 'hero')
         || primaryCoverUrl(event.coverImages || {}, event.coverImage || event.image)
         || null;
-    const shareImage = coverImg;
+    const shareRaw =
+        resolveCoverImage(event, 'cardPortrait')
+        || primaryCoverUrl(event.coverImages || {}, event.coverImage)
+        || coverImg;
+    const shareImage = toOgShareImageUrl(shareRaw, { contain: true, portrait: true });
     // Gallery uploads only — strip any card/cover URLs that leaked into images[]
     const coverSlots = event.coverImages || {};
     const coverSet = new Set(
@@ -443,15 +447,16 @@ export default function EventCommunityEventPage() {
             : []);
     const termSections = groupTermsAndConditions(terms);
 
+    const canonicalPath = eventCommunityEventPath(event || { id });
+
     const handleShare = () => {
+        const shareUrl = `${window.location.origin}${canonicalPath || window.location.pathname}`;
         shareContent({
             title: event.title,
-            url: window.location.href,
-            imageUrl: shareImage ? absoluteUrl(shareImage) : undefined,
+            url: shareUrl,
+            imageUrl: shareImage || undefined,
         });
     };
-
-    const canonicalPath = eventCommunityEventPath(event || { id });
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
