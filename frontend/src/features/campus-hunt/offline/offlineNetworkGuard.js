@@ -8,34 +8,43 @@ const ALLOW = /\/api\/campus-hunt\/events\/[^/]+\/offline-(progress|pull|grid-en
 
 let armed = false;
 let originalFetch = null;
+let leases = 0;
 
 export function isOfflineEventRoute(pathname = window.location?.pathname || '') {
   return String(pathname).startsWith('/campus-hunt/offline');
 }
 
 export function armOfflineNetworkGuard() {
-  if (armed || typeof window === 'undefined' || typeof window.fetch !== 'function') {
+  if (typeof window === 'undefined' || typeof window.fetch !== 'function') {
     return () => {};
   }
-  originalFetch = window.fetch.bind(window);
-  armed = true;
-  window.fetch = (input, init) => {
-    const url = typeof input === 'string' ? input : (input?.url || '');
-    const text = String(url);
-    if (ALLOW.test(text)) {
+  leases += 1;
+  if (!armed) {
+    originalFetch = window.fetch.bind(window);
+    armed = true;
+    window.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : (input?.url || '');
+      const text = String(url);
+      if (ALLOW.test(text)) return originalFetch(input, init);
+      if (BLOCK.test(text)) {
+        const err = new Error('Offline Event Mode: gameplay does not use the network');
+        err.code = 'OFFLINE_EVENT_MODE';
+        return Promise.reject(err);
+      }
       return originalFetch(input, init);
-    }
-    if (BLOCK.test(text)) {
-      const err = new Error('Offline Event Mode: gameplay does not use the network');
-      err.code = 'OFFLINE_EVENT_MODE';
-      return Promise.reject(err);
-    }
-    return originalFetch(input, init);
+    };
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    disarmOfflineNetworkGuard();
   };
-  return disarmOfflineNetworkGuard;
 }
 
 export function disarmOfflineNetworkGuard() {
+  leases = Math.max(0, leases - 1);
+  if (leases > 0) return;
   if (!armed || !originalFetch) return;
   window.fetch = originalFetch;
   originalFetch = null;

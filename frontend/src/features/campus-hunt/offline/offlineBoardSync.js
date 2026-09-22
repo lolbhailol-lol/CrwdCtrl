@@ -8,6 +8,17 @@ import { signPayload } from './offlineQr';
 const QUEUE_KEY = 'progress_queue';
 const DEVICE_KEY = 'device_id';
 const SYNC_PAUSE_KEY = 'ch_offline_board_sync_paused';
+const NETWORK_TIMEOUT_MS = 6000;
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** Block interval / online pushes while Start over is resetting the live board. */
 export function pauseOfflineBoardSync() {
@@ -203,7 +214,7 @@ export async function flushOfflineProgressQueue(bundle) {
     for (const base of bases) {
       try {
         const url = buildProgressUrl(base, item.event);
-        const res = await fetch(url, {
+        const res = await fetchWithTimeout(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(item),
@@ -300,7 +311,7 @@ export async function ensureOfflineGridKey(bundle, { forceReset = false } = {}) 
         : base.endsWith('/api')
           ? `${base}${path}`
           : `${base}/api${path}`;
-      const res = await fetch(url, {
+      const res = await fetchWithTimeout(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -345,7 +356,7 @@ export async function pullOfflineBoardState(bundle) {
   const bases = resolveApiBases(bundle);
   for (const base of bases) {
     try {
-      const res = await fetch(pullUrl(base, payload.event), {
+      const res = await fetchWithTimeout(pullUrl(base, payload.event), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
