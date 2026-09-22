@@ -70,18 +70,19 @@ function pickShareImage(entity, { preferPortrait = false } = {}) {
   return undefined;
 }
 
-/** Landscape 1200×630 or portrait card 800×1040 (10:13) for WhatsApp. */
-function toOgImageUrl(url, { contain = true, padColor = 'auto', portrait = false } = {}) {
+/** Landscape 1200×630 or run-club portrait card 800×1040 (10:13, dark shell). */
+function toOgImageUrl(url, { contain = true, padColor, portrait = false } = {}) {
   if (!url || typeof url !== 'string') return undefined;
   const trimmed = url.trim();
   if (!trimmed) return undefined;
   const w = portrait ? 800 : 1200;
   const h = portrait ? 1040 : 630;
+  const bg = padColor || (portrait ? 'rgb:0B0C0D' : 'auto');
   if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
     if (contain) {
       return trimmed.replace(
         /\/image\/upload\//i,
-        `/image/upload/c_pad,w_${w},h_${h},b_${padColor},f_jpg,q_auto/`,
+        `/image/upload/c_pad,w_${w},h_${h},b_${bg},f_jpg,q_auto/`,
       );
     }
     return trimmed.replace(
@@ -158,7 +159,11 @@ const ROUTES = [
     build: (e, path) => buildEvent(
       e.title,
       e.description,
-      toOgImageUrl(pickShareImage(e, { preferPortrait: true }), { contain: true, portrait: true }),
+      toOgImageUrl(pickShareImage(e, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
       e.venue || e.city,
       e.registrationFee,
       e.runClub?.name || e.organizer,
@@ -175,7 +180,11 @@ const ROUTES = [
     build: (c, path) => buildPage(
       `${c.name} — Running Club`,
       c.aboutUs,
-      toOgImageUrl(pickShareImage(c, { preferPortrait: true }), { contain: true, portrait: true }),
+      toOgImageUrl(pickShareImage(c, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
       path,
       'Sports',
       '/sports',
@@ -190,7 +199,11 @@ const ROUTES = [
     build: (e, path) => buildEvent(
       e.title,
       e.description,
-      toOgImageUrl(pickShareImage(e, { preferPortrait: true }), { contain: true, portrait: true }),
+      toOgImageUrl(pickShareImage(e, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
       e.venue || e.city,
       e.registrationFee,
       e.runClub?.name || e.organizer,
@@ -207,7 +220,11 @@ const ROUTES = [
     build: (c, path) => buildPage(
       `${c.name} — Community`,
       c.aboutUs || c.tagline || c.description,
-      toOgImageUrl(pickShareImage(c, { preferPortrait: true }), { contain: true, portrait: true }),
+      toOgImageUrl(pickShareImage(c, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
       path,
       'Events',
       '/events',
@@ -244,7 +261,7 @@ function buildEvent(name, description, image, location, price, organizer, path, 
     image: shareImage,
     imageWidth: portrait ? 800 : 1200,
     imageHeight: portrait ? 1040 : 630,
-    twitterCard: portrait ? 'summary' : 'summary_large_image',
+    twitterCard: 'summary_large_image',
     fallback: { h1: safeName, intro: desc },
     jsonLd: [
       breadcrumbSchema([
@@ -276,7 +293,7 @@ function buildPage(title, description, image, path, parentName, parentPath, crum
     image: shareImage,
     imageWidth: portrait ? 800 : 1200,
     imageHeight: portrait ? 1040 : 630,
-    twitterCard: portrait ? 'summary' : 'summary_large_image',
+    twitterCard: 'summary_large_image',
     fallback: { h1: title, intro: desc },
     jsonLd: [
       webPageSchema({ name: title, description: desc, url: path }),

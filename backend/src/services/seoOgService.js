@@ -68,15 +68,17 @@ function pickShareImage(entity, { preferPortrait = false } = {}) {
   return undefined;
 }
 
-/** WhatsApp / OG share image — landscape 1200×630 or portrait card 800×1040 (10:13). */
+/** WhatsApp / OG — landscape 1200×630, or run-club portrait card 800×1040 (10:13). */
 function toOgImageUrl(url, { contain = true, padColor, portrait = false } = {}) {
   if (!url || typeof url !== 'string') return DEFAULT_IMAGE;
   const trimmed = url.trim();
   if (!trimmed) return DEFAULT_IMAGE;
+  // Match .card-portrait-image (10:13) + dark shell used on run club RunCards.
   const w = portrait ? 800 : 1200;
   const h = portrait ? 1040 : 630;
+  const defaultPad = portrait ? 'rgb:0B0C0D' : 'auto';
   if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
-    const bg = padColor || (contain ? 'auto' : null);
+    const bg = padColor || (contain ? defaultPad : null);
     const padBg = contain ? `,b_${bg}` : '';
     return trimmed.replace(
       /\/image\/upload\//i,
@@ -220,10 +222,10 @@ async function loadSportsEvent(id, { preferPortrait = false } = {}) {
     title: event.title,
     description: event.description,
     image: pickShareImage(event, { preferPortrait }),
-    // Full poster in portrait card frame (10:13) for WhatsApp.
+    // Full poster in run-club portrait card frame (10:13, dark shell).
     containShareImage: true,
     portraitShareImage: preferPortrait,
-    padColor: 'auto',
+    padColor: preferPortrait ? 'rgb:0B0C0D' : 'auto',
   };
 }
 
@@ -239,7 +241,7 @@ async function loadRunClub(id, suffix, { preferPortrait = false } = {}) {
     image: pickShareImage(club, { preferPortrait }),
     containShareImage: true,
     portraitShareImage: preferPortrait,
-    padColor: 'auto',
+    padColor: preferPortrait ? 'rgb:0B0C0D' : 'auto',
   };
 }
 
@@ -281,7 +283,7 @@ function buildOgHtml({
   <meta property="og:image:width" content="${ogW}" />
   <meta property="og:image:height" content="${ogH}" />
   <meta property="og:image:alt" content="${escapeHtml(safeTitle)}" />
-  <meta name="twitter:card" content="${portraitShareImage ? 'summary' : 'summary_large_image'}" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(safeTitle)}" />
   <meta name="twitter:description" content="${escapeHtml(desc)}" />
   <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
