@@ -15,7 +15,7 @@ function assertProductionEnv() {
   // Campus Hunt is feature-flagged. When enabled, its offline bundle signing key
   // must be distinct from JWT_SECRET so it can be rotated independently.
   if (process.env.CAMPUS_HUNT_ENABLED === 'true') {
-    required.push('OFFLINE_BUNDLE_KEY', 'CAMPUS_HUNT_CREDENTIAL_KEY');
+    required.push('OFFLINE_BUNDLE_KEY', 'CAMPUS_HUNT_CREDENTIAL_KEY', 'CAMPUS_HUNT_ADMIN_USERNAME', 'CAMPUS_HUNT_ADMIN_PASSWORD_HASH');
   }
 
   const missing = required.filter((key) => !process.env[key]?.trim());

@@ -20,6 +20,7 @@ import OfflineHuntTeamPage from '../../features/campus-hunt/offline/pages/Offlin
 import OfflineHuntRoundsPage from '../../features/campus-hunt/offline/pages/OfflineHuntRoundsPage';
 import OfflineHuntPlayPage from '../../features/campus-hunt/offline/pages/OfflineHuntPlayPage';
 import OfflineHuntInstallPage from '../../features/campus-hunt/offline/pages/OfflineHuntInstallPage';
+import CampusHuntAdminLoginPage from '../../features/campus-hunt/admin/CampusHuntAdminLoginPage';
 
 /**
  * Campus Hunt player routes — only when VITE_ENABLE_CAMPUS_HUNT=true.
@@ -28,6 +29,7 @@ import OfflineHuntInstallPage from '../../features/campus-hunt/offline/pages/Off
 export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
     <Route path="/campus-hunt/offline/i/:token" element={<OfflineHuntInstallPage />} />
+    <Route path="/campus-hunt/admin/login" element={<CampusHuntAdminLoginPage />} />
     <Route path="/campus-hunt/offline" element={<OfflineHuntLandingPage />} />
     <Route path="/campus-hunt/offline/login" element={<OfflineHuntLoginPage />} />
     <Route path="/campus-hunt/offline/team" element={<OfflineHuntTeamPage />} />

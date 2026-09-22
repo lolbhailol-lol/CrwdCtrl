@@ -125,7 +125,10 @@ export async function getAdminToken({ redirectOnFail = true } = {}) {
 
 export async function adminFetch(path, options = {}) {
   const { redirectOnFail = true, timeout = 45000, ...fetchOptions } = options;
-  const token = await getAdminToken({ redirectOnFail });
+  const campusScoped = path.startsWith('/campus-hunt/admin');
+  const token = campusScoped
+    ? localStorage.getItem('campus_hunt_admin_token')
+    : await getAdminToken({ redirectOnFail });
   if (!token) throw new Error('Admin session expired');
 
   const buildOptions = (accessToken) => ({
@@ -140,6 +143,11 @@ export async function adminFetch(path, options = {}) {
   let response = await fetchAcrossBases(path, () => buildOptions(token), { timeout });
 
   if (response.status === 401 || response.status === 403) {
+    if (campusScoped) {
+      localStorage.removeItem('campus_hunt_admin_token');
+      if (redirectOnFail) window.location.href = '/campus-hunt/admin/login';
+      throw new Error('Campus Hunt session expired');
+    }
     try {
       const freshToken = await refreshAdminToken();
       response = await fetchAcrossBases(path, () => buildOptions(freshToken), { timeout });

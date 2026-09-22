@@ -1,11 +1,26 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const adminAuth = require('../../../middleware/adminAuth');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { getJwtSecret } = require('../../../config/jwtSecret');
+const adminAuth = require('../middleware/adminAuth');
 const { campusHuntAdminLimiter } = require('../../../middleware/rateLimiter');
 const adminController = require('../controllers/adminController');
 const finaleController = require('../controllers/finaleController');
 
 const router = express.Router();
+
+router.post('/login', async (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const expected = process.env.CAMPUS_HUNT_ADMIN_USERNAME?.trim();
+  const hash = process.env.CAMPUS_HUNT_ADMIN_PASSWORD_HASH?.trim();
+  const valid = Boolean(expected && hash && username === expected)
+    && await bcrypt.compare(password, hash).catch(() => false);
+  if (!valid) return res.status(401).json({ success: false, message: 'Invalid Campus Hunt credentials' });
+  const accessToken = jwt.sign({ role: 'campus_hunt_admin', scope: 'campus_hunt', username: expected }, getJwtSecret(), { expiresIn: '8h' });
+  return res.json({ success: true, accessToken, user: { username: expected, role: 'campus_hunt_admin' } });
+});
 
 function requireDbReady(req, res, next) {
   if (mongoose.connection.readyState === 1) return next();
