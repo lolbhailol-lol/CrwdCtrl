@@ -103,6 +103,21 @@ export function formatInr(amount) {
     return `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 }
 
+/** List / MRP price for strike-through when higher than the payable fee. */
+export function sportsOriginalFee(event) {
+    const original = Math.max(0, Number(event?.originalFee) || 0);
+    const payable = minSportsFee(event);
+    if (original > payable && payable > 0) return original;
+    return 0;
+}
+
+export function sportsDiscountPercent(event) {
+    const original = sportsOriginalFee(event);
+    const payable = minSportsFee(event);
+    if (!original || !payable || original <= payable) return 0;
+    return Math.round(((original - payable) / original) * 100);
+}
+
 /** Optional per-person booking add-on from admin (checkbox on book page). */
 export function resolveOptionalAddOn(event) {
     const raw = event?.optionalAddOn;

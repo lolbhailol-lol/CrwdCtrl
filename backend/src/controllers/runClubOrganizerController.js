@@ -123,6 +123,9 @@ function sanitizeOrganizerEventBody(body = {}, { partial = false, existing = nul
     if (body.registrationFee !== undefined) {
         payload.registrationFee = Math.max(0, Number(body.registrationFee) || 0);
     }
+    if (body.originalFee !== undefined) {
+        payload.originalFee = Math.max(0, Number(body.originalFee) || 0);
+    }
     // registrationLink / mode stay admin-owned — do not accept organizer overrides
 
     if (body.registration !== undefined && body.registration && typeof body.registration === 'object') {
@@ -757,6 +760,7 @@ exports.createEvent = async (req, res) => {
             eventDate: body.eventDate || null,
             reportingTime: body.reportingTime || '',
             registrationFee: body.registrationFee ?? 0,
+            originalFee: body.originalFee ?? 0,
             registrationLink: body.registrationLink || '',
             maxParticipants: body.maxParticipants || 0,
             distance: body.distance || '',

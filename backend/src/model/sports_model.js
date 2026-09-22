@@ -23,6 +23,8 @@ const sportsEventSchema = new mongoose.Schema(
         eventDate: { type: Date },
         reportingTime: { type: String, trim: true },
         registrationFee: { type: Number, default: 0 },
+        /** Optional list / MRP price for strikethrough “was ₹X” UI (charge remains registrationFee). */
+        originalFee: { type: Number, default: 0, min: 0 },
         /**
          * Pricing style:
          * - single: use registrationFee only

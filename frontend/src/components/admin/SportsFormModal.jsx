@@ -24,6 +24,7 @@ const EMPTY = {
     eventDate: '',
     reportingTime: '',
     registrationFee: 0,
+    originalFee: 0,
     pricingMode: 'single',
     tiers: [],
     optionalAddOn: { enabled: false, label: '', fee: 0 },
@@ -221,6 +222,7 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                 eventDate: form.eventDate || null,
                 reportingTime: form.reportingTime?.trim() || '',
                 registrationFee,
+                originalFee: Number(form.originalFee) || 0,
                 pricingMode,
                 tiers,
                 optionalAddOn: sanitizeOptionalAddOn(form.optionalAddOn),
@@ -410,6 +412,9 @@ export default function SportsFormModal({ event, runClubId, clubName, onClose, o
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <Field label="Registration Fee (₹)">
                                     <input type="number" min="0" value={form.registrationFee} onChange={(e) => set('registrationFee', e.target.value)} className={inp} />
+                                </Field>
+                                <Field label="Original / MRP (₹)" hint="Shown struck-through when higher than fee">
+                                    <input type="number" min="0" value={form.originalFee || 0} onChange={(e) => set('originalFee', e.target.value)} className={inp} />
                                 </Field>
                                 <Field label="Max Participants" hint="0 = unlimited">
                                     <input type="number" min="0" value={form.maxParticipants} onChange={(e) => set('maxParticipants', e.target.value)} className={inp} />

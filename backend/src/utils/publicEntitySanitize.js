@@ -191,6 +191,7 @@ const SPORTS_LIST_SELECT = [
   'eventDate',
   'reportingTime',
   'registrationFee',
+  'originalFee',
   'pricingMode',
   'tiers.id',
   'tiers.name',
