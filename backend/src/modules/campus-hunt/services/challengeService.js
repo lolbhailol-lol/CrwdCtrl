@@ -1329,6 +1329,7 @@ async function rewindPreviousStepUnsafe({ team, userId, isLeader }) {
 }
 
 async function buildPlayerProgress(team, userId, isLeader) {
+  const now = new Date();
   const [clue1, clue2, clue3, clue4, routeChallenges] = await Promise.all([
     team.clue1ChallengeId
       ? CampusHuntChallenge.findOne({
