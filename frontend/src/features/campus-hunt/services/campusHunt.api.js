@@ -460,6 +460,16 @@ export async function useGridHint(sessionToken, path = []) {
   );
 }
 
+export async function useGridUndo(sessionToken, steps = 1) {
+  return publicFetchJSON(
+    `${BASE}/grid/session/${encodeURIComponent(sessionToken)}/undo`,
+    withGridClientHeaders({
+      method: 'POST',
+      body: JSON.stringify({ steps }),
+    }),
+  );
+}
+
 /* Volunteer */
 const VOL_SESSION_KEY = 'campus_hunt_volunteer_session';
 

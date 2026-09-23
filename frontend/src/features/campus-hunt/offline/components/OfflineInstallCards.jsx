@@ -1,50 +1,26 @@
 import { useState } from 'react';
 import { CAMPUS_HUNT_PATHS } from '../../config';
-import { PUBLIC_WEB_ORIGIN } from '../../../../utils/publicWebOrigin';
+import { publicWebUrl } from '../../../../utils/publicWebOrigin';
 
 function installUrl(token) {
-  const origin = typeof window !== 'undefined' ? window.location.origin : PUBLIC_WEB_ORIGIN;
-  try {
-    const u = new URL(origin);
-    if (u.hostname === 'crwdctrl.in') u.hostname = 'www.crwdctrl.in';
-    return `${u.origin}${CAMPUS_HUNT_PATHS.offlineInstall(token)}`;
-  } catch {
-    return `${PUBLIC_WEB_ORIGIN}${CAMPUS_HUNT_PATHS.offlineInstall(token)}`;
-  }
+  return publicWebUrl(CAMPUS_HUNT_PATHS.offlineInstall(token));
 }
 
 export function teamWhatsAppText(row) {
   const url = installUrl(row.token);
-  const size = Number(row.teamSize) || 10;
   return [
-    `Hunt — ${row.teamCode} (leader pack)`,
+    `Campus Hunt — ${row.teamCode}`,
+    'Leader phone only.',
     '',
-    `FOR THE TEAM LEADER ONLY — 1 pack · 1 phone.`,
-    `Your team walks together (~${size} people). Only you install & play.`,
-    '',
-    'INSTALL TODAY (Wi‑Fi / data ON):',
     url,
     `Password: ${row.password || '(ask organizer)'}`,
     '',
-    '1. Open the link in Chrome (⋮ in WhatsApp → Open in Chrome / Safari)',
-    '2. Wait until Pack saved (shows latest export)',
-    '3. If it says Update ready — tap reload',
-    '4. Tap Download Hunt / Install app (name it Hunt — not CrwdCtrl)',
-    '5. Open Hunt → password → play',
-    '   Re-open this same link later on Wi‑Fi to refresh pack + app.',
-    '   If it opens old CrwdCtrl rounds — delete that shortcut and install Hunt again from this link.',
+    '1. Open the link',
+    '2. Download Hunt',
+    '3. Save the pack',
+    '4. Wait for the organizer code',
     '',
-    'AT THE FEST (offline OK):',
-    '• Only your phone — whole team walks with you',
-    '• Clue 1: type place → orange scan',
-    '• Clue 2: digit slips → type number → green scan',
-    '• Clue 3: unique lockbox code → blue scan',
-    '• Clue 4: Zip Grid on laptop → purple scan',
-    '• Clue 5: unique letter word → red scan',
-    '• Finish at Mindspark Lobby with organizer code',
-    '',
-    'Do not forward this to every teammate. One pack for the leader phone only.',
-    'Do not wait until start time to install. Pack must be on the phone first.',
+    'Powered by CrwdCtrl',
   ].join('\n');
 }
 

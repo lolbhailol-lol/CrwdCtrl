@@ -4,6 +4,7 @@ const {
   submitLevelPath,
   failTimedOutLevel,
   useHint,
+  useUndo,
 } = require('../services/grid/gridSessionService');
 const { assertLaptopClient } = require('../grid/laptopOnly');
 
@@ -82,10 +83,25 @@ async function hint(req, res, next) {
   }
 }
 
+async function undo(req, res, next) {
+  try {
+    assertLaptopClient(req);
+    const steps = Number(req.body?.steps) || 1;
+    const result = await useUndo(req.params.sessionToken, steps);
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
+    }
+    return next(err);
+  }
+}
+
 module.exports = {
   join,
   getSession,
   submitLevel,
   timeoutLevel,
   hint,
+  undo,
 };

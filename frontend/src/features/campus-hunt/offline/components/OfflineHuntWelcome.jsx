@@ -54,10 +54,7 @@ export default function OfflineHuntWelcome({
           </p>
 
           <p className="mt-5 max-w-[22rem] text-[15px] leading-relaxed text-white/65">
-            A campus-wide clue run across COEP — powered by{' '}
-            <span className="font-semibold text-white">CrwdCtrl</span>
-            {' '}in collaboration with{' '}
-            <span className="font-semibold text-white">Mindspark · COEP Fest</span>.
+            Six clues. Leader phone only. Wait for the organizer, then start.
           </p>
 
           {(teamCode || startName) ? (
@@ -90,10 +87,6 @@ export default function OfflineHuntWelcome({
             </p>
           </div>
 
-          <p className="mt-5 text-sm text-white/45">
-            Ranking updates as you clear clues. Play the course — the leaderboard decides.
-          </p>
-
           <div className="mt-auto pt-10">
             <button
               type="button"
@@ -102,8 +95,8 @@ export default function OfflineHuntWelcome({
             >
               Continue
             </button>
-            <p className="mt-3 text-center text-[11px] text-white/35">
-              Next: wait for the organizer start code
+            <p className="mt-3 text-center text-[11px] text-white/40">
+              Powered by CrwdCtrl
             </p>
           </div>
         </div>

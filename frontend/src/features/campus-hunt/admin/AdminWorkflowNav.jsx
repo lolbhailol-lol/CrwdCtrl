@@ -3,9 +3,8 @@ const STEPS = [
   { id: 'clues', label: '2 · Clues' },
   { id: 'teams', label: '3 · Teams' },
   { id: 'links', label: '4 · Links' },
-  { id: 'playtest', label: '5 · Test' },
-  { id: 'live', label: '6 · Live' },
-  { id: 'results', label: '7 · Results' },
+  { id: 'live', label: '5 · Live' },
+  { id: 'results', label: '6 · Results' },
 ];
 
 const STATUS_DOT = {

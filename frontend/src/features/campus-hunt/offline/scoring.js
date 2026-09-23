@@ -60,7 +60,7 @@ export const DEFAULT_SCORING_CONFIG = {
     ],
   },
   clue6: {
-    basePoints: 30,
+    basePoints: 50,
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',

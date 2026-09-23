@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getHuntStartGate } from '../offlineEngine';
 import OfflineHuntWelcome from './OfflineHuntWelcome';
-import HuntColorFlowGuide from '../../components/HuntColorFlowGuide';
 
 const WELCOME_KEY = 'ch_hunt_welcome_seen';
 
@@ -97,25 +96,13 @@ export default function OfflineHuntBriefing({
           ) : null}
         </div>
 
-        <HuntColorFlowGuide title="Clue flow · colors" />
-
-        <div className="rounded-2xl border border-amber-400/25 bg-amber-500/[0.08] px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/90">
-            Mindspark 2026
-          </p>
-          <p className="mt-1.5 text-sm leading-snug text-amber-50/90">
-            Top <span className="font-bold">10 teams</span> get a chance to volunteer at
-            Mindspark 2026.
-          </p>
-        </div>
-
         {expectsGo ? (
           <div className="rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-4">
             <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
               Organizer start code
             </p>
             <p className="mt-2 text-center text-sm text-white/70">
-              Wait at the gather point. When the organizer tells everyone the code, type it below — then Start.
+              Stay at the meet point. Type the code the organizer says, then Start.
             </p>
             <label className="mt-4 block text-xs uppercase tracking-wide text-white/45">
               Code
@@ -135,45 +122,38 @@ export default function OfflineHuntBriefing({
         ) : null}
 
         <p className="text-center text-[11px] text-white/40">
-          Powered by CrwdCtrl · Mindspark COEP Fest collaboration
+          Powered by CrwdCtrl
         </p>
 
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
         {gateHint ? <p className="text-sm text-amber-200/90">{gateHint}</p> : null}
 
         {isLeader ? (
-          <>
-            <button
-              type="button"
-              disabled={starting}
-              onClick={() => {
-                const latest = getHuntStartGate(bundle, new Date(), { goCode });
-                setGate(latest);
-                if (!latest.open) {
-                  setGateHint(
-                    goCode.trim()
-                      ? 'Not the right start code — ask the organizer and try again.'
-                      : 'Type the organizer start code (GO) above first, then tap Start.',
-                  );
-                  return;
-                }
-                setGateHint('');
-                onStartHunt?.(goCode);
-              }}
-              className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
-            >
-              {starting
-                ? 'Starting…'
-                : gate.open
-                  ? 'Start the hunt'
-                  : 'Type start code, then tap here'}
-            </button>
-            {!gate.open ? (
-              <p className="text-center text-xs text-amber-200/80">
-                Start stays locked until the organizer code is entered (works offline).
-              </p>
-            ) : null}
-          </>
+          <button
+            type="button"
+            disabled={starting}
+            onClick={() => {
+              const latest = getHuntStartGate(bundle, new Date(), { goCode });
+              setGate(latest);
+              if (!latest.open) {
+                setGateHint(
+                  goCode.trim()
+                    ? 'Not the right start code — ask the organizer and try again.'
+                    : 'Type the organizer start code above first, then tap Start.',
+                );
+                return;
+              }
+              setGateHint('');
+              onStartHunt?.(goCode);
+            }}
+            className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
+          >
+            {starting
+              ? 'Starting…'
+              : gate.open
+                ? 'Start the hunt'
+                : 'Type start code, then tap here'}
+          </button>
         ) : (
           <p className="text-center text-sm text-white/50">
             Use the leader phone to start.

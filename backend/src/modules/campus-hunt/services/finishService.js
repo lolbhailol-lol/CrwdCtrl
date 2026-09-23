@@ -15,7 +15,6 @@ const { writeAudit } = require('./auditService');
 const { normalizeAnswer, matchesAnyAccepted } = require('../utils/answerNormalize');
 const { resolveOrganizerFinishCode } = require('./stationCatalogService');
 const { applyAward } = require('./scoringService');
-const { DEFAULT_SCORING_CONFIG } = require('../constants');
 
 const FINISH_READY_STAGES = new Set(['CLUE_6_COMPLETED', 'CLUE_6_FAILED']);
 const FINISH_ENTRY_STAGES = new Set([
@@ -161,11 +160,7 @@ async function completeClue6ForFinish(team, { userId, now = new Date() } = {}) {
     });
   }
 
-  const basePts = Number(
-    challenge?.basePoints
-    ?? DEFAULT_SCORING_CONFIG.clue6?.basePoints
-    ?? 25,
-  ) || 0;
+  const basePts = 50;
 
   if (challenge) {
     await CampusHuntTeamProgress.findOneAndUpdate(

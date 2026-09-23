@@ -1,6 +1,6 @@
 /* Hunt install: when a new shell activates, reload offline Hunt tabs once.
    Old precache was painting “everyone scans / 1 of 6” on a fresh pack. */
-const HUNT_SHELL_RELOAD_FLAG = 'crwdctrl-hunt-shell-reload-v14';
+const HUNT_SHELL_RELOAD_FLAG = 'crwdctrl-hunt-shell-reload-v15';
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {

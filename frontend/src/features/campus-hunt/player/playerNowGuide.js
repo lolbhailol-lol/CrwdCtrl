@@ -46,7 +46,7 @@ export function buildPlayerNowGuide({
       tone: 'final',
       eyebrow: 'Mindspark Lobby',
       title: 'Enter the finish code',
-      body: 'Ask the organizer for the finish code to lock your score.',
+      body: 'Organizer finish code. Correct code adds 50 points and locks the score.',
       steps: [],
     };
   }
@@ -174,7 +174,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 4 · Field Terminal',
       title: 'Borrow a laptop · play Zip Grid',
-      body: 'Device key on this phone → laptop · Zip Grid 4 rounds (Easy→Hard) → type GRID-XXXX here.',
+      body: 'Device key on this phone → laptop. Four harder Zip rounds. Each undo −20. Type GRID-XXXX here.',
       steps: [],
     };
   }
@@ -203,7 +203,7 @@ export function buildPlayerNowGuide({
       tone: 'final',
       eyebrow: 'Mindspark Lobby',
       title: 'Type the finish code',
-      body: 'Organizer gives the code — type it to lock your score.',
+      body: 'Organizer finish code. Correct code adds 50 points and locks the score.',
       steps: [],
     };
   }

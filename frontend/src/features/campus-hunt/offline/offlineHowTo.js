@@ -33,7 +33,7 @@ export const OFFLINE_CLUE_HOW_TO = {
     steps: [
       'Borrow a laptop with internet.',
       'Open Zip Grid · type the device key from this phone.',
-      'Clear 4 rounds · type GRID-XXXX here · scan purple once.',
+      'Clear 4 harder rounds. Each undo −20. Type GRID-XXXX here · scan purple once.',
     ],
   },
   5: {
@@ -48,8 +48,8 @@ export const OFFLINE_CLUE_HOW_TO = {
     title: 'Finish · lobby',
     steps: [
       'Go to Mindspark Lobby together.',
-      'Ask organizer for the finish code.',
-      'Type it to lock your score.',
+      'Ask the organizer for the finish code.',
+      'Correct code adds 50 points and locks the score.',
     ],
   },
 };
@@ -68,4 +68,4 @@ export const OFFLINE_CLUE_PROMPTS = {
 };
 
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 17;
+export const OFFLINE_PLAYER_COPY_REVISION = 18;

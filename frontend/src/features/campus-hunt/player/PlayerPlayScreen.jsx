@@ -10,7 +10,6 @@ import {
 } from '../types/stageTheme';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
-import HuntColorFlowGuide from '../components/HuntColorFlowGuide';
 import { pullOfflineBoardState } from '../offline/offlineBoardSync';
 import {
   submitChallengeAnswer,
@@ -125,10 +124,8 @@ export default function PlayerPlayScreen({
   const checkpointStatus = asLeaderOnlyCheckpoint(data?.checkpointStatus);
   const submitFinishCodeFn = actions?.submitFinishCode || submitFinishCode;
   const isLeader = Boolean(team?.isLeader);
-  const teamCapacity = Math.max(2, Number(data?.event?.teamCapacity) || 0);
   const eventId = eventIdProp || data?.event?.id || null;
-  const round1Label = roundLabel
-    || (teamCapacity ? `The Hunt · ${teamCapacity} teams` : 'The Hunt');
+  const round1Label = roundLabel || 'Campus Hunt';
   const finalsHint = offlineMode
     ? 'Hunt complete — check the live leaderboard. Top 10 teams get a chance to volunteer at Mindspark 2026.'
     : 'Hunt complete — check the leaderboard for ranks. Organizers lock scores after finish/import.';
@@ -828,7 +825,7 @@ export default function PlayerPlayScreen({
                   {team.startingPoint?.name
                     ? `Meet at ${team.startingPoint.name}. `
                     : ''}
-                  When the organizer tells everyone the code, the leader types it — then Start.
+                  Type the code the organizer says, then Start.
                 </p>
                 {isLeader ? (
                   <form
@@ -893,7 +890,9 @@ export default function PlayerPlayScreen({
                   </p>
                 )}
               </section>
-              <HuntColorFlowGuide title="Clue flow · colors" />
+              <p className="text-center text-[11px] text-white/40">
+                Powered by CrwdCtrl
+              </p>
             </div>
           )}
 
@@ -1663,6 +1662,12 @@ export default function PlayerPlayScreen({
             >
               Refresh
             </button>
+          )}
+
+          {!waitingForRelease && (
+            <p className="pt-2 text-center text-[11px] text-white/35">
+              Powered by CrwdCtrl
+            </p>
           )}
         </div>
       </div>

@@ -9,5 +9,6 @@ router.get('/session/:sessionToken', gridController.getSession);
 router.post('/session/:sessionToken/submit', campusHuntAnswerLimiter, gridController.submitLevel);
 router.post('/session/:sessionToken/timeout', campusHuntAnswerLimiter, gridController.timeoutLevel);
 router.post('/session/:sessionToken/hint', campusHuntAnswerLimiter, gridController.hint);
+router.post('/session/:sessionToken/undo', campusHuntAnswerLimiter, gridController.undo);
 
 module.exports = router;

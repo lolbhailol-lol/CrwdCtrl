@@ -878,14 +878,16 @@ export function markReachedStart(bundle, session, state, finishCode = '', now = 
   } else if (next.currentStage === 'CLUE_6_ACTIVE') {
     throw huntError('Enter the organizer finish code', 400, 'NO_FINISH_CODE');
   }
+  let finishAward = 0;
   if (next.currentStage === 'CLUE_6_ACTIVE' && canTransition(next.currentStage, 'CLUE_6_COMPLETED')) {
     next.currentStage = 'CLUE_6_COMPLETED';
     const row = next.clueProgress[6] || emptyClue();
     row.state = 'COMPLETED';
-    row.awardedPoints = Number(scoring(bundle, 6).basePoints || 30) || 0;
+    row.awardedPoints = 50;
+    finishAward = 50;
     row.completedAt = now.toISOString();
     next.clueProgress[6] = row;
-    next.score = (Number(next.score) || 0) + (Number(row.awardedPoints) || 0);
+    next.score = (Number(next.score) || 0) + 50;
   }
   if (next.currentStage !== 'FINISH_COMPLETED' && canTransition(next.currentStage, 'FINISH_COMPLETED')) {
     next.currentStage = 'FINISH_COMPLETED';
@@ -898,7 +900,10 @@ export function markReachedStart(bundle, session, state, finishCode = '', now = 
   return {
     state: next,
     meta: {
-      message: 'Score locked at Mindspark Lobby. Export results for the desk.',
+      message: finishAward
+        ? 'Finish code accepted. +50 points. Score locked.'
+        : 'Score locked.',
+      awardedPoints: finishAward,
       finalScore: next.score,
       scoreLocked: true,
     },

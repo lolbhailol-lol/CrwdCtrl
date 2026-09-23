@@ -6,6 +6,7 @@ import {
   submitGridLevel,
   timeoutGridLevel,
   useGridHint as requestGridHint,
+  useGridUndo as requestGridUndo,
 } from '../services/campusHunt.api';
 
 function copyText(text, onDone) {
@@ -18,6 +19,7 @@ function ScorePills({
   score = 0,
   maxScore = 140,
   hintsUsed = 0,
+  undosUsed = 0,
   hintCost = 20,
   currentLevel = 1,
   totalLevels = 4,
@@ -93,9 +95,12 @@ function ScorePills({
           );
         })}
       </div>
-      {hintsUsed > 0 && (
+      {(hintsUsed > 0 || undosUsed > 0) && (
         <p className="text-center text-[11px] text-amber-200/80">
-          Hints {hintsUsed} × −{hintCost} = −{hintsUsed * hintCost} pts
+          {hintsUsed > 0 ? `Hints ${hintsUsed} × −${hintCost}` : ''}
+          {hintsUsed > 0 && undosUsed > 0 ? ' · ' : ''}
+          {undosUsed > 0 ? `Undos ${undosUsed} × −${hintCost}` : ''}
+          {` = −${(hintsUsed + undosUsed) * hintCost} pts`}
         </p>
       )}
     </div>
@@ -191,16 +196,48 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
     return () => clearTimeout(id);
   }, [levelFlash]);
 
-  const handleUndo = () => {
-    if (path.length <= 1) setPath([]);
-    else setPath(path.slice(0, -1));
-    setHintCell(null);
+  const chargeUndo = async (steps) => {
+    const res = await requestGridUndo(sessionToken, steps);
+    const payload = res.data;
+    if (payload?.view) setData(payload.view);
+    setFeedback(payload?.message || `Undo −${payload?.undoCost || 20}`);
+    return payload;
   };
 
-  const handleReset = () => {
-    setPath([]);
-    setHintCell(null);
-    setFeedback('');
+  const handleUndo = async () => {
+    if (busy || timeLeft === 0 || path.length === 0) return;
+    setBusy(true);
+    try {
+      await chargeUndo(1);
+      setPath(path.length <= 1 ? [] : path.slice(0, -1));
+      setHintCell(null);
+    } catch (err) {
+      setFeedback(err.message || 'Undo failed');
+      if (err.data?.view) setData(err.data.view);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (busy) return;
+    if (path.length === 0) {
+      setHintCell(null);
+      setFeedback('');
+      return;
+    }
+    if (timeLeft === 0) return;
+    setBusy(true);
+    try {
+      await chargeUndo(path.length);
+      setPath([]);
+      setHintCell(null);
+    } catch (err) {
+      setFeedback(err.message || 'Reset failed');
+      if (err.data?.view) setData(err.data.view);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleHint = async () => {
@@ -390,7 +427,8 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
             score={data?.score || 0}
             maxScore={data?.maxScore || 140}
             hintsUsed={data?.hintsUsed || 0}
-            hintCost={data?.hintCost || 20}
+            undosUsed={data?.undosUsed || 0}
+            hintCost={data?.hintCost || data?.undoCost || 20}
             currentLevel={data?.currentLevel || 1}
             totalLevels={data?.totalLevels || 4}
           />
@@ -424,18 +462,18 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
         <button
           type="button"
           onClick={handleReset}
-          disabled={busy}
-          className="rounded-xl border border-white/15 py-3 text-xs font-bold uppercase tracking-wide text-white/75"
+          disabled={busy || path.length === 0 || timeLeft === 0}
+          className="rounded-xl border border-rose-400/25 py-3 text-xs font-bold uppercase tracking-wide text-rose-100/80 disabled:opacity-40"
         >
-          Reset
+          Clear −20×
         </button>
         <button
           type="button"
           onClick={handleUndo}
-          disabled={busy || path.length === 0}
-          className="rounded-xl border border-white/15 py-3 text-xs font-bold uppercase tracking-wide text-white/75"
+          disabled={busy || path.length === 0 || timeLeft === 0}
+          className="rounded-xl border border-rose-400/35 bg-rose-500/10 py-3 text-xs font-bold uppercase tracking-wide text-rose-100 disabled:opacity-40"
         >
-          Undo
+          Undo −{data?.undoCost || data?.hintCost || 20}
         </button>
         <button
           type="button"
@@ -457,8 +495,8 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
 
       <p className="text-center text-[11px] leading-relaxed text-white/40">
         Draw through every open cell. Hit numbers in order (1 → 2 → 3…).
-        Miss the timer → 0 for that round, keep going. All 4 rounds count. Hints −20 from total.
-        This is a team Zip score — not account ranking.
+        Miss the timer → 0 for that round. Each undo −20. Each hint −20.
+        Powered by CrwdCtrl.
       </p>
 
       {onSwitchTeam && (

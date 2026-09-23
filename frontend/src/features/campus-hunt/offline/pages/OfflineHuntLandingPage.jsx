@@ -79,7 +79,7 @@ export default function OfflineHuntLandingPage() {
           Challenge
         </p>
         <p className="mt-3 text-sm text-white/50">
-          Powered by CrwdCtrl · Mindspark COEP Fest collaboration
+          Powered by CrwdCtrl
         </p>
 
         {hasPack ? (

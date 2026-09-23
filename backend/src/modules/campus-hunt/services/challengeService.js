@@ -169,6 +169,12 @@ function scoringForChallenge(event, challengeNumber) {
     }
   }
 
+  if (Number(challengeNumber) === 6) {
+    merged.basePoints = 50;
+    merged.awardMode = 'flat_base';
+    merged.speedBonusBands = [];
+  }
+
   merged.hintCost = Number(merged.hintCost ?? cfg.hintCost ?? defaults.hintCost) || 20;
   return merged;
 }
@@ -441,19 +447,21 @@ async function submitAnswer({
         finishCode: answer,
         now,
       });
+      const finishAward = !finish.alreadyProcessed && team.currentStage === 'CLUE_6_ACTIVE' ? 50 : 0;
       return {
         correct: true,
         state: 'COMPLETED',
         attemptsLeft: 0,
-        awardedPoints: 0,
+        awardedPoints: finishAward,
         destinationInstruction:
-          'Score locked at Mindspark Lobby — check the leaderboard when it goes live.',
+          'Score locked. Check the leaderboard.',
         teamStage: finish.team?.currentStage,
         currentScore: finish.team?.currentScore,
         finalScore: finish.finalScore ?? finish.team?.finalScore,
         scoreLocked: true,
-        message: finish.message
-          || 'Finish code accepted — score locked at Mindspark Lobby',
+        message: finishAward
+          ? 'Finish code accepted — +50 points. Score locked.'
+          : (finish.message || 'Score locked.'),
       };
     }
   }

@@ -48,7 +48,14 @@ function anyLevelCleared(session) {
   return (session.levelProgress || []).some((lp) => lp?.completed || lp?.failed || lp?.timedOut);
 }
 
-/** True when session is missing any of the current Zip rounds (legacy 2/3 packs). */
+function zipMatchesCurrentDifficulty(session) {
+  if (!hasFullZipPack(session)) return false;
+  return LEVEL_TEMPLATES.every((template, i) => {
+    const puzzle = session.puzzles[i];
+    return Number(puzzle?.rows) === template.rows && Number(puzzle?.cols) === template.cols;
+  });
+}
+
 function hasFullZipPack(session) {
   if (!session || !Array.isArray(session.puzzles) || session.puzzles.length !== TOTAL_LEVELS) {
     return false;
@@ -82,6 +89,7 @@ function applyFreshZipPuzzles(session, now = new Date()) {
   session.currentLevelIndex = 0;
   session.scoreEarned = 0;
   session.hintsUsed = 0;
+  session.undosUsed = 0;
   session.score = 0;
   session.sessionToken = crypto.randomBytes(16).toString('hex');
   session.status = 'active';
@@ -165,7 +173,8 @@ function isLevelTimedOut(session, puzzle) {
 function recomputeScore(session) {
   const earned = Number(session.scoreEarned) || 0;
   const hints = Number(session.hintsUsed) || 0;
-  session.score = Math.max(0, earned - hints * GRID_HINT_COST);
+  const undos = Number(session.undosUsed) || 0;
+  session.score = Math.max(0, earned - (hints + undos) * GRID_HINT_COST);
   return session.score;
 }
 
@@ -400,7 +409,9 @@ function sessionPublicView(session) {
     score: session.score,
     scoreEarned: session.scoreEarned || 0,
     hintsUsed: session.hintsUsed || 0,
+    undosUsed: session.undosUsed || 0,
     hintCost: GRID_HINT_COST,
+    undoCost: GRID_HINT_COST,
     maxScore: MAX_GRID_POINTS,
     status: session.status,
     completed: active.completed,
@@ -653,6 +664,42 @@ async function useHint(sessionToken, path = []) {
   };
 }
 
+/**
+ * Undo: each removed step costs GRID_HINT_COST, same as a hint.
+ * Client sends how many path cells it is about to drop.
+ */
+async function useUndo(sessionToken, steps = 1) {
+  const session = await loadActiveSession(sessionToken);
+  if (session.status === 'completed') {
+    throw gridError('Session already complete', 'ALREADY_COMPLETE');
+  }
+
+  const levelIndex = session.currentLevelIndex;
+  const puzzle = session.puzzles[levelIndex];
+  if (isLevelTimedOut(session, puzzle)) {
+    applyTimeoutIfNeeded(session);
+    await session.save();
+    throw gridError('Time expired for this level', 'LEVEL_TIMEOUT', 400);
+  }
+
+  const count = Math.max(1, Math.min(40, Number(steps) || 1));
+  session.undosUsed = (Number(session.undosUsed) || 0) + count;
+  recomputeScore(session);
+  await session.save();
+
+  return {
+    ok: true,
+    undoCost: GRID_HINT_COST,
+    steps: count,
+    undosUsed: session.undosUsed,
+    score: session.score,
+    message: count === 1
+      ? `Undo (−${GRID_HINT_COST} pts).`
+      : `Cleared ${count} steps (−${count * GRID_HINT_COST} pts).`,
+    view: sessionPublicView(session),
+  };
+}
+
 /** Read-only check — does not mark the code as used. */
 async function validateCompletionCode(completionCode, { teamId, missionRunId } = {}) {
   const normalized = String(completionCode || '').trim().toUpperCase();
@@ -788,8 +835,10 @@ async function ensureRound1FieldTerminalGrid(team, {
     if (preferred.startsWith('GRID-') && existing.completionCode !== preferred) {
       existing.completionCode = preferred;
     }
-    // Upgrade legacy 2/3-round (or corrupt) sessions to the current 4-round Zip pack.
-    if (!hasFullZipPack(existing)) {
+    // Upgrade legacy packs, and replace unstarted old boards with the current harder Zip.
+    const staleBoard = !hasFullZipPack(existing)
+      || (!anyLevelCleared(existing) && !zipMatchesCurrentDifficulty(existing));
+    if (staleBoard) {
       return reviveRound1GridSession(existing, {
         durationMinutes,
         preferredCompletionCode: preferred,
@@ -827,6 +876,7 @@ module.exports = {
   submitLevelPath,
   failTimedOutLevel,
   useHint,
+  useUndo,
   validateCompletionCode,
   claimCompletionCode,
   expireGridSessionForRun,

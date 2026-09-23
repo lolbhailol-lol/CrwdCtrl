@@ -109,8 +109,8 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,webp,woff2,webmanifest}'],
         globIgnores: ['**/firebase-messaging-sw.js'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        // v14 — drop stale “everyone scans” shells; leader phone only
-        cacheId: 'crwdctrl-v14',
+        // v15 — start/clue copy, Zip undo, finish +50
+        cacheId: 'crwdctrl-v15',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

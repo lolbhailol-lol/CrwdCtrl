@@ -307,7 +307,7 @@ const DEFAULT_SCORING_CONFIG = {
   },
   // Clue 6: finish code.
   clue6: {
-    basePoints: 30,
+    basePoints: 50,
     maxAttempts: 3,
     timerSeconds: 0,
     awardMode: 'flat_base',
