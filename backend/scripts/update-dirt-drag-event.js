@@ -81,6 +81,20 @@ const MAP_URL =
       instagramId: '',
     },
     {
+      name: 'Vineet Mane',
+      role: 'Enquiries & Registrations',
+      phone: '+917745882845',
+      email: '',
+      instagramId: '',
+    },
+    {
+      name: 'Ankur Mirkale',
+      role: 'Enquiries & Registrations',
+      phone: '+917498811455',
+      email: '',
+      instagramId: '',
+    },
+    {
       name: 'Elite Octane',
       role: 'Presented by',
       phone: '+918910701010',

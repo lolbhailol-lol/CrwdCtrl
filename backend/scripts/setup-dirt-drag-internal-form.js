@@ -40,27 +40,38 @@ const f = (id, label, fieldName, type, required = true, options = [], placeholde
 (async () => {
   await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
 
-  const tiers = CLASSES.map((c, i) => ({
-    id: c.id,
-    name: c.name,
-    description: 'Participation fee Rs 10,000 per class. Register again to enter another class.',
-    fee: 10000,
-    participantCount: 1,
-    inclusions: [
-      'Competitor entry for selected class',
-      'Timed & categorised dirt-drag run',
-      'Staging, recovery & first-aid access',
-    ],
-    order: i,
-  }));
+  const tiers = [
+    {
+      id: 'tier_spectator',
+      name: 'Spectators',
+      description: 'Spectate Dirt Drag — free entry. No competition class.',
+      fee: 0,
+      participantCount: 1,
+      inclusions: ['Spectator access', 'Viewing area access'],
+      order: -1,
+    },
+    ...CLASSES.map((c, i) => ({
+      id: c.id,
+      name: c.name,
+      description: 'Rs 10,000 per class. Select multiple classes — total adds up.',
+      fee: 10000,
+      participantCount: 1,
+      inclusions: [
+        'Competitor entry for selected class',
+        'Timed & categorised dirt-drag run',
+        'Staging, recovery & first-aid access',
+      ],
+      order: i,
+    })),
+  ];
 
   const steps = [
     {
       stepNumber: 1,
-      stepTitle: 'Competitor details',
-      stepDescription: "Competitor contact and emergency information.",
+      stepTitle: 'Personal details',
+      stepDescription: 'Your contact and emergency information.',
       fields: [
-        f('f_full_name', 'Full Name', 'full_name', 'text', true, [], 'Competitor full name'),
+        f('f_full_name', 'Full Name', 'full_name', 'text', true, [], 'Full name'),
         f('f_mobile', 'Mobile Number', 'mobile', 'tel', true, [], '10-digit mobile'),
         f('f_email', 'Email', 'email', 'email', true, [], 'you@email.com'),
         f(
@@ -158,9 +169,9 @@ const f = (id, label, fieldName, type, required = true, options = [], placeholde
       stepDescription: 'Provide current vehicle insurance and personal accident insurance details.',
       fields: [
         f('f_car_insured', 'Is the vehicle currently insured?', 'car_insured', 'select', true, ['Yes', 'No']),
-        f('f_car_ins_co', 'Car Insurance Company', 'car_insurance_company', 'text', true),
-        f('f_car_ins_policy', 'Car Insurance Policy Number', 'car_insurance_policy_number', 'text', true),
-        f('f_car_ins_until', 'Car Insurance Policy Valid Until', 'car_insurance_valid_until', 'date', true),
+        f('f_car_ins_co', 'Car Insurance Company', 'car_insurance_company', 'text', false),
+        f('f_car_ins_policy', 'Car Insurance Policy Number', 'car_insurance_policy_number', 'text', false),
+        f('f_car_ins_until', 'Car Insurance Policy Valid Until', 'car_insurance_valid_until', 'date', false),
         f('f_pa_insured', 'Do you have Personal Accident Insurance?', 'pa_insured', 'select', true, [
           'Yes',
           'No',
@@ -293,16 +304,16 @@ const f = (id, label, fieldName, type, required = true, options = [], placeholde
         tiers,
         ticketPrice: 10000,
         platformFeePercent: 0,
-        priceLabel: 'From Rs 10,000 / class',
+        priceLabel: 'Rs 10,000 / class · Spectators free',
         registrationLink: '',
         bookingLink: '',
         registration,
         registrationProcess: [
-          'Tap Book / Register and choose your competition class (Rs 10,000 per class).',
-          'Complete the multi-step competitor form (details, vehicle, insurance, declarations).',
-          'Pay online via Cashfree. Entry is subject to payment confirmation and technical scrutiny.',
-          'Download and sign the Indemnity Bond; submit the signed copy as instructed by the Organiser.',
-          'To enter another class, register again and select that class.',
+          'Tap Register and enter your personal details.',
+          'Choose Participant or Spectator.',
+          'Participants complete vehicle & insurance details, then select one or more classes (Rs 10,000 each — total adds up).',
+          'Spectators register free with no class selection.',
+          'Pay online via Cashfree when a fee applies. Download and sign the Indemnity Bond as instructed by the Organiser.',
         ].join('\n'),
       },
     },

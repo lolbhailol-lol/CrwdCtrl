@@ -391,9 +391,10 @@ export default function EventDetailsPage() {
         });
       };
 
-      // Book now → choose tier first (login happens on register page after)
+      // Book now → choose tier first (login happens on register page after).
+      // Multi-class events (Dirt Drag): collect details first; class pick is inside the form.
       const tiers = isEventShowTiersPricing(event) ? getEventShowTiers(event) : [];
-      if (tiers.length) {
+      if (tiers.length && !event.tiersMultiSelect) {
         trackBookNowClick({
           entityType: 'events',
           entityId: event?.id || '',
@@ -472,7 +473,15 @@ export default function EventDetailsPage() {
     ? isEventRegistrationExplicitlyClosed(reg)
     : !(event.registrationLink || event.bookingLink);
   const couponsOn = reg.allowCoupons !== false;
-  const fromFee = minEventShowFee(event);
+  const fromFee = (() => {
+    if (event.tiersMultiSelect && packageTiers.length) {
+      const paid = packageTiers
+        .map((t) => Math.max(0, Number(t.fee) || 0))
+        .filter((fee) => fee > 0);
+      if (paid.length) return Math.min(...paid);
+    }
+    return minEventShowFee(event);
+  })();
   const hasVenue = Boolean(event.venue) && event.venue !== 'Venue TBA';
   const mapQuery = hasVenue ? event.venue : (event.city || '');
   const directionsUrl = event.mapUrl

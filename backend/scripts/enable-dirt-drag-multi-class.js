@@ -27,19 +27,30 @@ const CLASSES = [
 (async () => {
   await mongoose.connect(process.env.MONGODB_URI || process.env.MONGO_URI);
 
-  const tiers = CLASSES.map((c, i) => ({
-    id: c.id,
-    name: c.name,
-    description: 'Rs 10,000 per class. Select multiple classes — total adds up.',
-    fee: 10000,
-    participantCount: 1,
-    inclusions: [
-      'Competitor entry for selected class',
-      'Timed & categorised dirt-drag run',
-      'Staging, recovery & first-aid access',
-    ],
-    order: i,
-  }));
+  const tiers = [
+    {
+      id: 'tier_spectator',
+      name: 'Spectators',
+      description: 'Spectate Dirt Drag — free entry. No competition class.',
+      fee: 0,
+      participantCount: 1,
+      inclusions: ['Spectator access', 'Viewing area access'],
+      order: -1,
+    },
+    ...CLASSES.map((c, i) => ({
+      id: c.id,
+      name: c.name,
+      description: 'Rs 10,000 per class. Select multiple classes — total adds up.',
+      fee: 10000,
+      participantCount: 1,
+      inclusions: [
+        'Competitor entry for selected class',
+        'Timed & categorised dirt-drag run',
+        'Staging, recovery & first-aid access',
+      ],
+      order: i,
+    })),
+  ];
 
   const updated = await EventShow.findByIdAndUpdate(
     EVENT_ID,
@@ -49,13 +60,16 @@ const CLASSES = [
         tiersMultiSelect: true,
         tiers,
         ticketPrice: 10000,
-        priceLabel: 'Rs 10,000 / class',
+        priceLabel: 'Rs 10,000 / class · Spectators free',
         registrationProcess: [
-          'Tap Register and select one or more competition classes (Rs 10,000 each — total adds up).',
-          'Complete the multi-step competitor form.',
-          'Pay the combined amount online via Cashfree.',
-          'Download and sign the Indemnity Bond; submit as instructed by the Organiser.',
+          'Tap Register and enter your personal details.',
+          'Choose Participant or Spectator.',
+          'Participants complete vehicle & insurance details, then select one or more classes (Rs 10,000 each — total adds up).',
+          'Spectators register free with no class selection.',
+          'Pay online via Cashfree when a fee applies. Download and sign the Indemnity Bond as instructed by the Organiser.',
         ].join('\n'),
+        'registration.steps.0.stepTitle': 'Personal details',
+        'registration.steps.0.stepDescription': 'Your contact and emergency information.',
       },
     },
     { new: true },

@@ -66,6 +66,9 @@ const DRIVE_ONLY_OPTION = 'Drive only (Free)';
 const DRIVE_AND_TRACKDAY_OPTION = 'Drive + Trackday';
 const TRACKDAY_ONLY_OPTION = 'Trackday only';
 const SPECTATOR_OPTION = 'Spectators (Free)';
+const ENTRY_TYPE_FIELD = 'entry_type';
+const PARTICIPANT_OPTION = 'Participant';
+const SPECTATOR_ENTRY_OPTION = 'Spectator';
 
 function getInitialEventRegistrationUi(eventId, search) {
     if (!eventId) return { paying: false, step: 0 };
@@ -112,6 +115,14 @@ function isTrackdayOnlyChoice(choice) {
 
 function isSpectatorChoice(choice) {
     return normalizeDriveChoice(choice) === SPECTATOR_OPTION;
+}
+
+function isSpectatorEntryType(raw) {
+    return /spectator/i.test(String(raw || '').trim());
+}
+
+function isParticipantEntryType(raw) {
+    return /participant/i.test(String(raw || '').trim());
 }
 
 function pickCustomer(values) {
@@ -311,7 +322,18 @@ export default function EventRegistrationPage() {
         [event, tiersMode, packages],
     );
     const selectedTier = findEventShowTier(pricedEvent, selectedTierId);
-    const multiTierMode = Boolean(event?.tiersMultiSelect) && selectedTierIds.length > 0;
+    const multiClassFlow = Boolean(event?.tiersMultiSelect);
+    const joinDriveRaw = String(
+        values.join_drive || values.join_independence_day_drive || values.independence_day_drive || '',
+    ).trim();
+    const driveChoice = normalizeDriveChoice(joinDriveRaw);
+    const driveOnlyPath = isDriveOnlyChoice(driveChoice);
+    const skippingDrive = isTrackdayOnlyChoice(driveChoice);
+    const entryTypeRaw = String(values[ENTRY_TYPE_FIELD] || '').trim();
+    const spectatorPath = isSpectatorChoice(driveChoice)
+        || (multiClassFlow && isSpectatorEntryType(entryTypeRaw));
+    const participantPath = multiClassFlow && isParticipantEntryType(entryTypeRaw);
+    const multiTierMode = multiClassFlow && !spectatorPath && selectedTierIds.length > 0;
     const selectedTiersList = useMemo(() => {
         if (!multiTierMode) return selectedTier ? [selectedTier] : [];
         return selectedTierIds
@@ -328,13 +350,6 @@ export default function EventRegistrationPage() {
         () => addOns.filter((addOn) => selectedAddOnIds.includes(addOn.id)),
         [addOns, selectedAddOnIds],
     );
-    const joinDriveRaw = String(
-        values.join_drive || values.join_independence_day_drive || values.independence_day_drive || '',
-    ).trim();
-    const driveChoice = normalizeDriveChoice(joinDriveRaw);
-    const driveOnlyPath = isDriveOnlyChoice(driveChoice);
-    const skippingDrive = isTrackdayOnlyChoice(driveChoice);
-    const spectatorPath = isSpectatorChoice(driveChoice);
     const addOnTotal = spectatorPath
         ? 0
         : selectedAddOns.reduce((sum, addOn) => sum + addOn.fee, 0);
@@ -371,17 +386,26 @@ export default function EventRegistrationPage() {
         }
         if (spectatorPath && spectatorTier && selectedTierId !== spectatorTier.id) {
             setSelectedTierId(spectatorTier.id);
+            setSelectedTierIds([]);
             setSelectedAddOnIds([]);
         }
     }, [driveOnlyPath, spectatorPath, driveOnlyTier, spectatorTier, selectedTierId]);
 
-    // If they leave a free first-step path, clear that package so they must pick Trackday
+    // If they leave a free first-step path, clear that package so they must pick Trackday / classes
     useEffect(() => {
         if (driveOnlyPath || spectatorPath) return;
         if (selectedTierId && (isDriveOnlyTier(selectedTier) || isSpectatorTier(selectedTier))) {
             setSelectedTierId('');
+            if (multiClassFlow) setSelectedTierIds([]);
         }
-    }, [driveOnlyPath, spectatorPath, selectedTierId, selectedTier]);
+    }, [driveOnlyPath, spectatorPath, selectedTierId, selectedTier, multiClassFlow]);
+
+    // Keep primary tierId in sync with multi-class selection for payment APIs
+    useEffect(() => {
+        if (!multiClassFlow || spectatorPath) return;
+        if (!selectedTierIds.length) return;
+        if (selectedTierId !== selectedTierIds[0]) setSelectedTierId(selectedTierIds[0]);
+    }, [multiClassFlow, spectatorPath, selectedTierIds, selectedTierId]);
 
     useBookingSuccessPopup(done, {
         name: title,
@@ -402,6 +426,51 @@ export default function EventRegistrationPage() {
         const fields = (reg.formSchema || []).filter((f) => f.label && f.fieldName);
             return fields.length ? [{ title: 'Your Details', description: '', fields }] : [];
         })();
+
+        // Dirt Drag / multi-class: Personal → Participant|Spectator → (participant path) details + classes
+        if (multiClassFlow && configuredSteps.length > 0) {
+            const personal = {
+                ...configuredSteps[0],
+                title: /personal|competitor|your details/i.test(configuredSteps[0].title)
+                    ? (configuredSteps[0].title.replace(/competitor/i, 'Personal') || 'Personal details')
+                    : 'Personal details',
+                description: configuredSteps[0].description
+                    || 'Your contact details for this booking.',
+            };
+            if (/competitor details/i.test(personal.title)) personal.title = 'Personal details';
+
+            const entryStep = {
+                title: 'Participant or Spectator',
+                description: 'Choose how you are joining. Spectators skip vehicle and class selection.',
+                fields: [{
+                    id: 'f_entry_type',
+                    label: 'I am registering as',
+                    fieldName: ENTRY_TYPE_FIELD,
+                    type: 'select',
+                    required: true,
+                    placeholder: '',
+                    options: [PARTICIPANT_OPTION, SPECTATOR_ENTRY_OPTION],
+                }],
+            };
+
+            const steps = [personal, entryStep];
+            if (spectatorPath) return steps;
+            if (!participantPath) return steps;
+
+            configuredSteps.slice(1).forEach((s) => {
+                const fields = (s.fields || []).filter((f) => String(f.fieldName) !== ENTRY_TYPE_FIELD);
+                if (!fields.length && !(s.fields || []).length) return;
+                steps.push({ ...s, fields: fields.length ? fields : s.fields });
+            });
+            steps.push({
+                title: 'Select classes',
+                description: 'Pick one or more competition classes — ₹10,000 each; total adds up.',
+                packageSelect: true,
+                multiSelect: true,
+                fields: [],
+            });
+            return steps;
+        }
 
         const driveFields = [];
         const detailFields = [];
@@ -598,7 +667,7 @@ export default function EventRegistrationPage() {
         });
 
         return steps;
-    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, spectatorPath, skippingDrive, addOns.length, event, packages, location.search, location.state?.tierId]);
+    }, [reg.formType, reg.steps, reg.formSchema, tiersMode, driverCount, driveOnlyPath, spectatorPath, participantPath, multiClassFlow, skippingDrive, addOns.length, event, packages, location.search, location.state?.tierId]);
 
     // Sync tier from query; clear drive-only if they answered No
     useEffect(() => {
@@ -636,7 +705,7 @@ export default function EventRegistrationPage() {
     useEffect(() => {
         setCouponInfo(null);
         autoAppliedCouponRef.current = '';
-    }, [selectedTierId, selectedAddOnIds]);
+    }, [selectedTierId, selectedTierIds, selectedAddOnIds]);
 
     const allSteps = useMemo(
         () => (spectatorPath
@@ -805,8 +874,15 @@ export default function EventRegistrationPage() {
         const s = allSteps[idx];
         if (!s || s.payment) return true;
         if (s.packageSelect) {
+            if (s.multiSelect || multiClassFlow) {
+                if (!selectedTierIds.length) {
+                    setError('Please select at least one competition class.');
+                    return false;
+                }
+                return true;
+            }
             if (tiersMode && !findEventShowTier(pricedEvent, selectedTierId)) {
-                setError('Please select a Trackday package.');
+                setError(multiClassFlow ? 'Please select a competition class.' : 'Please select a Trackday package.');
                 return false;
             }
             if (isDriveOnlyTier(selectedTier)) {
@@ -876,6 +952,14 @@ export default function EventRegistrationPage() {
             submissionValues.join_drive = driveRaw;
         }
 
+        if (isSpectatorEntryType(submissionValues[ENTRY_TYPE_FIELD])) {
+            submissionValues.registration_type = 'spectator';
+            submissionValues[ENTRY_TYPE_FIELD] = SPECTATOR_ENTRY_OPTION;
+        } else if (isParticipantEntryType(submissionValues[ENTRY_TYPE_FIELD])) {
+            submissionValues.registration_type = 'participant';
+            submissionValues[ENTRY_TYPE_FIELD] = PARTICIPANT_OPTION;
+        }
+
         if (driverCount > 1 && !isDriveOnlyTier(tierToUse) && !isSpectatorTier(tierToUse)) {
             // Party size for couple / group tickets (one person registers on behalf of all)
             submissionValues.guest_count = String(driverCount);
@@ -898,7 +982,7 @@ export default function EventRegistrationPage() {
                 textResponses[f.fieldName] = submissionValues[f.fieldName];
             }
         });
-        ['name', 'email', 'phone', 'blood_group', 'vehicle_details', 'join_drive', 'driver_count', 'guest_count', 'leader_name', 'package_name', 'registration_type', 'payment_screenshot_url', 'transaction_id'].forEach((key) => {
+        ['name', 'email', 'phone', 'blood_group', 'vehicle_details', 'join_drive', 'driver_count', 'guest_count', 'leader_name', 'package_name', 'registration_type', 'entry_type', 'full_name', 'mobile', 'payment_screenshot_url', 'transaction_id'].forEach((key) => {
             if (submissionValues[key] !== undefined && textResponses[key] === undefined) {
                 textResponses[key] = submissionValues[key];
             }
@@ -1099,11 +1183,15 @@ export default function EventRegistrationPage() {
                 setSelectedTierId(driveOnlyTier.id);
             } else if (spectatorPath && spectatorTier?.id) {
                 setSelectedTierId(spectatorTier.id);
+            } else if (multiClassFlow && selectedTierIds.length) {
+                setSelectedTierId(selectedTierIds[0]);
             } else {
                 setError(
                     driveOnlyPath || spectatorPath
                         ? 'Free package is missing. Please refresh.'
-                        : 'Please select a Trackday package.',
+                        : multiClassFlow
+                            ? 'Please select at least one competition class.'
+                            : 'Please select a Trackday package.',
                 );
                 const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
                 if (pkgIdx >= 0) setStep(pkgIdx);
@@ -1112,11 +1200,16 @@ export default function EventRegistrationPage() {
         }
 
         // Drive-only / Spectators / free package — submit directly (no Cashfree)
-        const feeNow = Math.max(0, Number(resolveEventShowFee(
-            pricedEvent,
-            selectedTierId || (spectatorPath ? spectatorTier?.id : driveOnlyTier?.id),
-        ).fee) || 0)
-            + (spectatorPath ? 0 : addOnTotal);
+        const feeNow = Math.max(0, Number(
+            spectatorPath
+                ? 0
+                : (multiTierMode || (multiClassFlow && selectedTierIds.length)
+                    ? packagePrice
+                    : resolveEventShowFee(
+                        pricedEvent,
+                        selectedTierId || (spectatorPath ? spectatorTier?.id : driveOnlyTier?.id),
+                    ).fee)
+        ) || 0) + (spectatorPath ? 0 : addOnTotal);
         if (feeNow <= 0) {
             setPaying(true);
             try {
@@ -1172,7 +1265,11 @@ export default function EventRegistrationPage() {
         const draftPayload = {
             values,
             tierId: selectedTierId,
-            selectedTierIds: multiTierMode ? selectedTierIds : (selectedTierId ? [selectedTierId] : []),
+            selectedTierIds: multiClassFlow
+                ? (spectatorPath
+                    ? (spectatorTier?.id ? [spectatorTier.id] : [])
+                    : selectedTierIds)
+                : (multiTierMode ? selectedTierIds : (selectedTierId ? [selectedTierId] : [])),
             selectedAddOnIds,
             couponCode: couponsEnabled ? couponCode.trim() : '',
             eventShowId: String(showId || eventId),
@@ -1194,7 +1291,11 @@ export default function EventRegistrationPage() {
                 body: JSON.stringify({
                     eventShowId: showIdStr,
                     tierId: String(selectedTierId || '').trim() || undefined,
-                    selectedTierIds: multiTierMode ? selectedTierIds : undefined,
+                    selectedTierIds: multiClassFlow
+                        ? (spectatorPath
+                            ? (spectatorTier?.id ? [spectatorTier.id] : undefined)
+                            : selectedTierIds)
+                        : (multiTierMode ? selectedTierIds : undefined),
                     selectedAddOnIds,
                     customerName: customer.name || user?.name || 'Customer',
                     customerEmail: customer.email || user?.email || '',
@@ -1622,7 +1723,7 @@ export default function EventRegistrationPage() {
                     </div>
 
                     {/* Selected ticket summary — show price; fees breakdown at checkout */}
-                    {selectedTier && !current?.packageSelect && (
+                    {(selectedTier || multiTierMode) && !current?.packageSelect && (
                         <div className={`rounded-2xl border px-4 py-3 animate-step-enter ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-sm'}`}>
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -1636,7 +1737,13 @@ export default function EventRegistrationPage() {
                                     }`}>
                                         {packagePrice > 0 ? formatInr(packagePrice) : 'Free'}
                                     </p>
-                                    {selectedTier.name ? (
+                                    {multiTierMode && selectedTiersList.length > 0 ? (
+                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            {selectedTiersList.length} class{selectedTiersList.length === 1 ? '' : 'es'}
+                                            {' · '}
+                                            {selectedTiersList.map((t) => t.name).join(', ')}
+                                        </p>
+                                    ) : selectedTier?.name ? (
                                         <p className={`text-[11px] mt-0.5 truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
                                             {selectedTier.name}
                                             {driverCount > 1 ? ` · ${driverCount} guests` : ''}
@@ -1647,7 +1754,7 @@ export default function EventRegistrationPage() {
                                         </p>
                                     ) : null}
                                     <p className={`text-[11px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        Use Back to change ticket · fees at checkout
+                                        Use Back to change · fees at checkout
                                     </p>
                                 </div>
                             </div>
@@ -1659,13 +1766,77 @@ export default function EventRegistrationPage() {
                     {!isPaymentStep && current?.packageSelect && (
                         <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {skippingDrive
-                                    ? 'Select a Trackday package.'
-                                    : 'Select your Trackday package. Independence Day Drive is included free.'}
+                                {current.multiSelect || multiClassFlow
+                                    ? 'Select one or more classes. Fee is ₹10,000 per class — total adds up at checkout.'
+                                    : skippingDrive
+                                        ? 'Select a Trackday package.'
+                                        : 'Select your Trackday package. Independence Day Drive is included free.'}
                                 {platformFeePercent > 0 ? ' A CrwdCtrl platform fee is added at checkout for this show.' : ''}
                             </p>
+                            {(current.multiSelect || multiClassFlow) && selectedTierIds.length > 0 ? (
+                                <p className={`text-sm font-semibold mb-3 tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    Total {formatInr(packagePrice)}
+                                    <span className={`font-normal ml-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                        · {selectedTierIds.length} class{selectedTierIds.length === 1 ? '' : 'es'}
+                                    </span>
+                                </p>
+                            ) : null}
                             <div className="space-y-4">
-                                {(() => {
+                                {(current.multiSelect || multiClassFlow) ? (
+                                    <div className="space-y-2">
+                                        {visiblePackages.map((tier) => {
+                                            const selected = selectedTierIds.includes(tier.id);
+                                            const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+                                            return (
+                                                <button
+                                                    key={tier.id}
+                                                    type="button"
+                                                    aria-pressed={selected}
+                                                    onClick={() => {
+                                                        setSelectedTierIds((prev) => {
+                                                            const next = selected
+                                                                ? prev.filter((id) => id !== tier.id)
+                                                                : [...prev, tier.id];
+                                                            setSelectedTierId(next[0] || '');
+                                                            return next;
+                                                        });
+                                                        setCouponInfo(null);
+                                                    }}
+                                                    className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+                                                        selected
+                                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
+                                                            : isDark
+                                                                ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
+                                                                : 'border-gray-200 bg-white hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    <span className="flex items-start gap-3">
+                                                        <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border-2 ${
+                                                            selected
+                                                                ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                                                : isDark ? 'border-gray-600' : 'border-gray-300 bg-white'
+                                                        }`}>
+                                                            {selected ? <Check size={13} strokeWidth={3} /> : null}
+                                                        </span>
+                                                        <span className="min-w-0 flex-1 flex items-start justify-between gap-3">
+                                                            <span className="min-w-0">
+                                                                <span className={`block text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</span>
+                                                                {tier.description ? (
+                                                                    <span className={`block text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                        {tier.description}
+                                                                    </span>
+                                                                ) : null}
+                                                            </span>
+                                                            <span className={`shrink-0 text-sm font-bold ${Number(tier.fee) > 0 ? 'text-[#0ECCEE]' : 'text-green-500'}`}>
+                                                                {feeLabel}
+                                                            </span>
+                                                        </span>
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (() => {
                                     const groups = [
                                         {
                                             key: 'solo',
@@ -1970,7 +2141,9 @@ export default function EventRegistrationPage() {
                                     if (spectatorPath && !isPaymentStep) {
                                         setError('');
                                         if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
-                                        if (!validateStep(step)) return;
+                                        for (let i = 0; i <= step; i += 1) {
+                                            if (!validateStep(i)) return;
+                                        }
                                     }
                                     handleFinalSubmit();
                                 }}
