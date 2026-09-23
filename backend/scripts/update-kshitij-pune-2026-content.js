@@ -198,6 +198,7 @@ async function main() {
       boardroomImg,
       'crwdctrl/fests/kshitij-pune-regionals-2026/competitions/the-boardroom',
     );
+    eventCoverUrls['The Boardroom Battle'] = up.secure_url;
     eventCoverUrls['The Boardroom'] = up.secure_url;
   }
 

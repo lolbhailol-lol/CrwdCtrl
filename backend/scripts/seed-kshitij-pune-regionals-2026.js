@@ -96,18 +96,16 @@ const competitions = [
     ],
   },
   {
-    name: 'The Boardroom', subtitle: 'Group Discussion - Project Volt', competitionType: 'business', category: 'ACADEMIC', module: 'BUSINESS EVENTS', eventCategory: 'Business Event', eventFormat: 'Direct Finals',
+    name: 'The Boardroom Battle', subtitle: 'Group Discussion', competitionType: 'business', category: 'ACADEMIC', module: 'BUSINESS EVENTS', eventCategory: 'Popular', eventFormat: 'Direct Finals',
     imageSource: 'https://images.pexels.com/photos/31739411/pexels-photo-31739411.jpeg?auto=compress&cs=tinysrgb&w=1200',
-    description: 'A role-based boardroom simulation where eight stakeholders debate whether a company should deploy an AI system capable of performing 40% of employee work, balancing growth, safety, jobs, sustainability, and public trust.',
+    description: 'The Corporate Clash is a high-stakes group discussion event where 8 participants will have conflicting corporate stakeholder roles to debate a major strategic business decision and negotiate a realistic unified resolution under pressure.',
     dateTime: '29 Sep 2026, 11:00 AM - 1:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 1, teamSizeMax: 1, teamSizeLabel: 'Solo',
     prizePool: '1st Place: ₹2,000/-',
-    commonRules: ['This is a direct final with eight participants, each assigned a stakeholder role.', 'Participants receive 10 minutes of individual preparation and may not communicate during that time.', 'Phones, internet, AI tools, and external assistance are prohibited.', 'Participants must remain in character and argue from their assigned stakeholder’s priorities, objectives, and constraints.', 'Participants may challenge arguments, but personal attacks, disrespect, and unnecessary interruptions are prohibited.', 'Every participant must have an opportunity to speak; excessive domination or deliberately blocking others may affect scoring.', 'When the moderator introduces the twist, participants must adapt their arguments to the new information.', 'Participants may not reject or ignore the case or twist; any change in position must be logically justified.', 'All participants must work toward a realistic joint decision with an action plan, safeguards, timeline, and responsibility.', 'The moderator and judges have the final decision; rule violations, external assistance, or serious misconduct may lead to penalties or disqualification.'],
+    commonRules: ['Further rules & regulations and topics will be revealed on the day of the event.'],
     judgingCriteria: [],
     rounds: [
-      { roundNumber: 1, title: 'Preparation', description: 'Ten minutes of individual preparation with no communication. Participants study their role, objective, arguments, counterarguments, opposition, and possible developments.', dateTime: '29 Sep 2026', venue: 'Classroom, MIT-WPU Campus, Pune' },
-      { roundNumber: 2, title: 'The Boardroom GD', description: 'A 15-20 minute stakeholder discussion on Project Volt.', dateTime: '29 Sep 2026', venue: 'Classroom, MIT-WPU Campus, Pune' },
-      { roundNumber: 3, title: 'The Twist', description: 'Eight to ten minutes into the discussion, a government compensation/tax policy for AI-led job replacement is announced. After a 30-second pause, participants must adapt.', dateTime: '29 Sep 2026', venue: 'Classroom, MIT-WPU Campus, Pune' },
+      { roundNumber: 1, title: 'Direct Finals', description: 'Details and topics will be revealed on the day of the event.', dateTime: '29 Sep 2026, 11:00 AM - 1:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune' },
     ],
   },
   {
