@@ -53,6 +53,7 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
     const [event, setEvent] = useState(null);
     const [responses, setResponses] = useState({});
     const [tierId, setTierId] = useState('');
+    const [selectedTierIds, setSelectedTierIds] = useState([]);
     const [selectedAddOnIds, setSelectedAddOnIds] = useState([]);
     const [paymentStatus, setPaymentStatus] = useState('paid');
     const [note, setNote] = useState('');
@@ -71,6 +72,7 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
                 const fields = collectFormFields(ev?.registration || {});
                 setResponses(defaultResponses(fields));
                 setTierId('');
+                setSelectedTierIds([]);
                 setSelectedAddOnIds([]);
                 setPaymentStatus('paid');
                 setNote('');
@@ -90,9 +92,11 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
     }, [event]);
     const addOns = useMemo(() => sanitizeEventShowAddOns(event?.addOns), [event]);
 
+    const multiClass = Boolean(event?.tiersMultiSelect);
     const joinDrive = String(responses.join_drive || responses.join_independence_day_drive || '').trim();
+    const entryType = String(responses.entry_type || '').trim();
     const driveOnly = /drive only/i.test(joinDrive) || (/^yes/i.test(joinDrive) && /free/i.test(joinDrive) && !/trackday/i.test(joinDrive));
-    const spectator = /spectator/i.test(joinDrive);
+    const spectator = /spectator/i.test(joinDrive) || /spectator/i.test(entryType);
     const needsTrackdayPackage = Boolean(joinDrive) && !driveOnly && !spectator;
 
     const visiblePackages = useMemo(() => {
@@ -103,7 +107,10 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
     }, [packages, driveOnly, spectator]);
 
     const selectedTier = packages.find((t) => t.id === tierId) || null;
-    const packageFee = Math.max(0, Number(selectedTier?.fee) || 0);
+    const selectedMulti = packages.filter((t) => selectedTierIds.includes(t.id));
+    const packageFee = multiClass && !spectator
+        ? selectedMulti.reduce((sum, t) => sum + Math.max(0, Number(t.fee) || 0), 0)
+        : Math.max(0, Number(selectedTier?.fee) || 0);
     const addOnTotal = spectator
         ? 0
         : addOns.filter((a) => selectedAddOnIds.includes(a.id)).reduce((sum, a) => sum + a.fee, 0);
@@ -121,6 +128,7 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
         if (spectator) {
             const spec = packages.find(isSpectatorTier);
             if (spec && tierId !== spec.id) setTierId(spec.id);
+            setSelectedTierIds([]);
             setSelectedAddOnIds((ids) => (ids.length ? [] : ids));
             setPaymentStatus((s) => (s === 'free' ? s : 'free'));
             return;
@@ -221,20 +229,41 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
             setError('Email or phone is required');
             return;
         }
-        if (fields.some((f) => DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))) && !joinDrive) {
+        if (multiClass) {
+            if (!entryType) {
+                setError('Choose Participant or Spectator');
+                return;
+            }
+            if (!spectator && !selectedTierIds.length) {
+                setError('Select at least one competition class');
+                return;
+            }
+        } else if (fields.some((f) => DRIVE_FIELD_NAMES.has(String(f.fieldName || ''))) && !joinDrive) {
             setError('Choose what they are joining');
             return;
-        }
-        if (packages.length && !tierId) {
+        } else if (packages.length && !tierId) {
             setError(needsTrackdayPackage ? 'Select a Trackday package' : 'Select a package');
             return;
         }
 
         setSaving(true);
         try {
+            const payloadResponses = { ...responses };
+            if (spectator) {
+                payloadResponses.entry_type = 'Spectator';
+                payloadResponses.registration_type = 'spectator';
+            } else if (multiClass && /participant/i.test(entryType)) {
+                payloadResponses.entry_type = 'Participant';
+                payloadResponses.registration_type = 'participant';
+            }
             await createEventOrganizerManualParticipant(eventId, {
-                responses,
-                tierId: tierId || undefined,
+                responses: payloadResponses,
+                tierId: spectator
+                    ? (tierId || undefined)
+                    : (selectedTierIds[0] || tierId || undefined),
+                selectedTierIds: spectator
+                    ? (tierId ? [tierId] : [])
+                    : (multiClass ? selectedTierIds : undefined),
                 selectedAddOnIds: spectator ? [] : selectedAddOnIds,
                 paymentStatus: total > 0 ? paymentStatus : 'free',
                 status: 'approved',
@@ -284,12 +313,64 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
                             </div>
                         ) : null}
 
-                        {(driveFields.length
+                        {multiClass ? (
+                            <label className="block space-y-1.5">
+                                <span className="text-xs font-medium text-gray-400">Participant or Spectator *</span>
+                                <select
+                                    value={entryType}
+                                    onChange={(e) => setField('entry_type', e.target.value)}
+                                    required
+                                    className="w-full rounded-xl bg-[#111213] border border-gray-800 px-3 py-2.5 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
+                                >
+                                    <option value="">Select…</option>
+                                    <option value="Participant">Participant</option>
+                                    <option value="Spectator">Spectator</option>
+                                </select>
+                            </label>
+                        ) : (driveFields.length
                             ? driveFields
                             : [{ fieldName: 'join_drive', label: 'What are they joining?', type: 'select', required: true, options: DRIVE_OPTIONS }]
                         ).map((field) => renderField(field))}
 
-                        {packages.length > 0 && (
+                        {packages.length > 0 && multiClass && !spectator ? (
+                            <div className="space-y-2">
+                                <p className="text-xs font-medium text-gray-400">
+                                    Competition classes * · Total {formatInr(packageFee)}
+                                </p>
+                                <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-xl border border-gray-800 p-2">
+                                    {visiblePackages.map((tier) => {
+                                        const selected = selectedTierIds.includes(tier.id);
+                                        return (
+                                            <button
+                                                key={tier.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedTierIds((prev) => {
+                                                        const next = selected
+                                                            ? prev.filter((id) => id !== tier.id)
+                                                            : [...prev, tier.id];
+                                                        setTierId(next[0] || '');
+                                                        return next;
+                                                    });
+                                                }}
+                                                className={`w-full text-left rounded-lg border px-3 py-2 text-xs ${
+                                                    selected
+                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-white'
+                                                        : 'border-gray-800 text-gray-300'
+                                                }`}
+                                            >
+                                                <span className="font-semibold">{tier.name}</span>
+                                                <span className="float-right text-[#0ECCEE]">
+                                                    {Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free'}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {packages.length > 0 && !multiClass ? (
                             <label className="block space-y-1.5">
                                 <span className="text-xs font-medium text-gray-400">
                                     {needsTrackdayPackage ? 'Trackday package *' : 'Package *'}
@@ -309,7 +390,7 @@ export default function EventOrganizerManualAddModal({ eventId, open, onClose, o
                                     ))}
                                 </select>
                             </label>
-                        )}
+                        ) : null}
 
                         {isGroupPackage ? (
                             <div className="space-y-4">

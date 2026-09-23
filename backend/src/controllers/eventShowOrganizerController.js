@@ -37,6 +37,9 @@ function formatEvent(event) {
         title: plain.displayName || plain.title || 'Event',
         registrationStatus: plain.registration?.status || 'closed',
         registrationMode: plain.registration?.mode || '',
+        tiersMultiSelect: Boolean(plain.tiersMultiSelect),
+        priceLabel: plain.priceLabel || '',
+        pricingMode: plain.pricingMode || '',
     };
 }
 
@@ -46,17 +49,33 @@ function isDriveOnlyTierName(name) {
 
 function isSpectatorTier(reg = {}) {
     if (/tier_spectator/i.test(String(reg.tierId || ''))) return true;
+    if (Array.isArray(reg.selectedTierIds) && reg.selectedTierIds.some((id) => /tier_spectator/i.test(String(id)))) {
+        return true;
+    }
     return /\bspectator/i.test(String(reg.tierName || ''));
+}
+
+function isCompetitionClassTier(reg = {}) {
+    const id = String(reg.tierId || '');
+    if (/^class_/i.test(id)) return true;
+    if (Array.isArray(reg.selectedTierIds) && reg.selectedTierIds.some((tid) => /^class_/i.test(String(tid)))) {
+        return true;
+    }
+    return false;
 }
 
 function resolveRegistrationCategory(reg, responses = {}) {
     const explicit = String(
         responses.registration_type
+        || responses.entry_type
         || reg.registrationType
         || '',
     ).trim().toLowerCase();
     if (explicit === 'spectator' || isSpectatorTier(reg)) {
         return 'spectator';
+    }
+    if (explicit === 'participant' || isCompetitionClassTier(reg)) {
+        return 'participant';
     }
     if (['drive_only', 'drive_and_trackday', 'trackday_only'].includes(explicit)) {
         return explicit;
@@ -73,6 +92,7 @@ function resolveRegistrationCategory(reg, responses = {}) {
         || responses.independence_day_drive
         || '',
     ).trim().toLowerCase();
+    if (/spectator/i.test(joinDrive)) return 'spectator';
     const joinsDrive = joinDrive === 'yes'
         || /drive only/i.test(joinDrive)
         || /drive \+ trackday|drive and trackday/i.test(joinDrive);
@@ -80,7 +100,9 @@ function resolveRegistrationCategory(reg, responses = {}) {
     if (joinsDrive) return 'drive_and_trackday';
     if (joinDrive === 'no' || /trackday only/i.test(joinDrive)) return 'trackday_only';
     // Paid track packages without a drive answer → trackday
-    if (tierName && !isDriveOnlyTierName(tierName)) return 'trackday_only';
+    if (tierName && !isDriveOnlyTierName(tierName) && !/\bspectator/i.test(tierName)) {
+        return 'trackday_only';
+    }
     return 'unknown';
 }
 
@@ -89,6 +111,7 @@ function categoryLabel(category) {
     if (category === 'drive_and_trackday') return 'Drive + Trackday';
     if (category === 'trackday_only') return 'Trackday only';
     if (category === 'spectator') return 'Spectator';
+    if (category === 'participant') return 'Participant';
     return 'Other';
 }
 
@@ -233,6 +256,12 @@ function formatParticipant(reg) {
     ).trim();
     const category = resolveRegistrationCategory(reg, responses);
     const drivers = extractDrivers(responses);
+    const selectedTierIds = Array.isArray(reg.selectedTierIds)
+        ? reg.selectedTierIds.map((id) => String(id || '').trim()).filter(Boolean)
+        : [];
+    const selectedTierNames = Array.isArray(reg.selectedTierNames)
+        ? reg.selectedTierNames.map((n) => String(n || '').trim()).filter(Boolean)
+        : [];
     const additionalEntries = Array.isArray(reg.additionalEntries)
         ? reg.additionalEntries.map((entry) => {
             const entryResponses = entry?.responses && typeof entry.responses === 'object'
@@ -263,13 +292,27 @@ function formatParticipant(reg) {
     // amountPaid on doc is already a running total after merge; fall back to primary+addons
     const totalAmountPaid = Number(reg.amountPaid) || 0;
     const primaryAmount = Math.max(0, totalAmountPaid - addOnPaid);
-    const allTier = [
+    const responseClassNames = String(responses.selected_classes || responses.package_name || '')
+        .split(/\s*\|\s*|\s*,\s*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const allClasses = [
+        ...selectedTierNames,
         reg.tierName || null,
         ...additionalEntries.map((e) => e.tierName).filter(Boolean),
+        ...responseClassNames,
     ].filter(Boolean);
+    const uniqueClasses = [...new Set(allClasses)];
+    const allTier = uniqueClasses;
     const repeatLabel = reRegistrationCount > 0
         ? `Registered again · +${reRegistrationCount}`
         : null;
+    const vehicleSummary = [
+        responses.vehicle_make,
+        responses.vehicle_model,
+        responses.vehicle_registration_number,
+    ].map((v) => String(v || '').trim()).filter(Boolean).join(' · ')
+        || String(responses.vehicle_details || responses.vehicle || '').trim();
 
     return {
         id: String(reg._id),
@@ -279,7 +322,11 @@ function formatParticipant(reg) {
         totalAmountPaid,
         primaryAmountPaid: primaryAmount,
         tierId: reg.tierId || null,
-        tierName: reg.tierName || null,
+        tierName: reg.tierName || uniqueClasses[0] || null,
+        selectedTierIds,
+        selectedTierNames: uniqueClasses,
+        classCount: uniqueClasses.length || (reg.tierName ? 1 : 0),
+        allClasses: uniqueClasses,
         allTier,
         additionalEntries,
         reRegistrationCount,
@@ -290,6 +337,26 @@ function formatParticipant(reg) {
         userName: formName || user?.name || '',
         userEmail: formEmail || user?.email || '',
         userPhone: formPhone || user?.phone || user?.phoneNumber || '',
+        city: String(responses.city || '').trim(),
+        emergencyContactName: String(responses.emergency_contact_name || '').trim(),
+        emergencyContactNumber: String(responses.emergency_contact_number || '').trim(),
+        driverName: String(responses.driver_name || '').trim(),
+        ageGroup: String(responses.age_group || '').trim(),
+        gender: String(responses.gender || '').trim(),
+        drivingLicenceNumber: String(responses.driving_licence_number || '').trim(),
+        vehicleMake: String(responses.vehicle_make || '').trim(),
+        vehicleModel: String(responses.vehicle_model || '').trim(),
+        vehicleRegistrationNumber: String(responses.vehicle_registration_number || '').trim(),
+        fuelType: String(responses.fuel_type || '').trim(),
+        engineCapacity: String(responses.engine_capacity || '').trim(),
+        driveConfiguration: String(responses.drive_configuration || '').trim(),
+        wheelbaseClassification: String(responses.wheelbase_classification || '').trim(),
+        carInsured: String(responses.car_insured || '').trim(),
+        carInsuranceCompany: String(responses.car_insurance_company || '').trim(),
+        carInsurancePolicyNumber: String(responses.car_insurance_policy_number || '').trim(),
+        carInsuranceValidUntil: String(responses.car_insurance_valid_until || '').trim(),
+        paInsured: String(responses.pa_insured || '').trim(),
+        entryType: String(responses.entry_type || responses.registration_type || category || '').trim(),
         joinDrive: String(
             responses.join_drive
             || responses.join_independence_day_drive
@@ -309,8 +376,9 @@ function formatParticipant(reg) {
             ))),
         hasTrackday: category === 'drive_and_trackday' || category === 'trackday_only',
         isSpectator: category === 'spectator',
+        isParticipant: category === 'participant',
         bloodGroup: String(responses.blood_group || '').trim(),
-        vehicleDetails: String(responses.vehicle_details || responses.vehicle || '').trim(),
+        vehicleDetails: vehicleSummary,
         driverCount: responses.driver_count != null && responses.driver_count !== ''
             ? Number(responses.driver_count) || String(responses.driver_count)
             : (drivers.length || null),
@@ -713,7 +781,7 @@ exports.getDashboard = async (req, res) => {
             EventShowRegistration.find({
                 eventShow: oid,
                 status: { $in: ['pending', 'approved'] },
-            }).select('tierId tierName amountPaid paymentStatus status additionalEntries').lean(),
+            }).select('tierId tierName selectedTierIds selectedTierNames amountPaid paymentStatus status additionalEntries').lean(),
             EventShowRegistration.find({ eventShow: oid })
                 .populate('user', 'name email phone')
                 .sort({ createdAt: -1 })
@@ -882,13 +950,34 @@ exports.getDashboard = async (req, res) => {
             const entriesTotal = entries.reduce((s, e) => s + (Number(e?.amountPaid) || 0), 0);
             const primaryPortion = Math.max(0, (Number(reg.amountPaid) || 0) - entriesTotal);
             const primaryPaidAmt = reg.paymentStatus === 'paid' ? primaryPortion : 0;
-            bumpTier(
-                reg.tierId,
-                reg.tierName,
-                1,
-                primaryPaidAmt > 0 ? 1 : 0,
-                primaryPaidAmt,
-            );
+            const multiIds = Array.isArray(reg.selectedTierIds)
+                ? reg.selectedTierIds.map((id) => String(id || '').trim()).filter(Boolean)
+                : [];
+            const multiNames = Array.isArray(reg.selectedTierNames)
+                ? reg.selectedTierNames.map((n) => String(n || '').trim()).filter(Boolean)
+                : [];
+            if (multiIds.length > 1) {
+                const perClassPaid = multiIds.length
+                    ? Math.round((primaryPaidAmt / multiIds.length) * 100) / 100
+                    : 0;
+                multiIds.forEach((id, idx) => {
+                    bumpTier(
+                        id,
+                        multiNames[idx] || reg.tierName || id,
+                        1,
+                        perClassPaid > 0 ? 1 : 0,
+                        perClassPaid,
+                    );
+                });
+            } else {
+                bumpTier(
+                    reg.tierId || multiIds[0] || null,
+                    reg.tierName || multiNames[0] || null,
+                    1,
+                    primaryPaidAmt > 0 ? 1 : 0,
+                    primaryPaidAmt,
+                );
+            }
             for (const entry of entries) {
                 if (!entry || entry.status === 'rejected') continue;
                 const entryAmt = entry.paymentStatus === 'paid' ? (Number(entry.amountPaid) || 0) : 0;
@@ -965,7 +1054,7 @@ exports.listParticipants = async (req, res) => {
             .lean();
 
         let formatted = regs.map(formatParticipant);
-        if (['drive_only', 'drive_and_trackday', 'trackday_only', 'independence_drive', 'trackday', 'spectator'].includes(category)) {
+        if (['drive_only', 'drive_and_trackday', 'trackday_only', 'independence_drive', 'trackday', 'spectator', 'participant'].includes(category)) {
             formatted = formatted.filter((p) => {
                 if (category === 'independence_drive') return p.joinsIndependenceDrive;
                 if (category === 'trackday') return p.hasTrackday;
@@ -993,6 +1082,10 @@ exports.listParticipants = async (req, res) => {
                     p.userEmail,
                     p.userPhone,
                     p.tierName,
+                    (p.allClasses || []).join(' '),
+                    p.city,
+                    p.vehicleDetails,
+                    p.entryType,
                     p.joinDrive,
                     p.categoryLabel,
                     p.bloodGroup,
@@ -1234,17 +1327,46 @@ exports.createManualParticipant = async (req, res) => {
         }
 
         let tierId = String(req.body.tierId || cleanResponses.tier_id || '').trim();
+        const selectedTierIdsRaw = req.body.selectedTierIds || req.body.tierIds || cleanResponses.selectedTierIds;
+        let selectedTierIds = [];
+        if (Array.isArray(selectedTierIdsRaw)) {
+            selectedTierIds = selectedTierIdsRaw.map((id) => String(id || '').trim()).filter(Boolean);
+        } else if (typeof selectedTierIdsRaw === 'string' && selectedTierIdsRaw.trim()) {
+            try {
+                const parsed = JSON.parse(selectedTierIdsRaw);
+                if (Array.isArray(parsed)) selectedTierIds = parsed.map((id) => String(id || '').trim()).filter(Boolean);
+            } catch {
+                selectedTierIds = selectedTierIdsRaw.split(/[,|]/).map((id) => id.trim()).filter(Boolean);
+            }
+        }
+        if (tierId && !selectedTierIds.includes(tierId)) selectedTierIds = [tierId, ...selectedTierIds];
+
         const selectedAddOnIds = Array.isArray(req.body.selectedAddOnIds)
             ? req.body.selectedAddOnIds
             : (Array.isArray(req.body.addOnIds) ? req.body.addOnIds : []);
 
+        const entryTypeRaw = String(
+            cleanResponses.entry_type
+            || cleanResponses.registration_type
+            || req.body.entryType
+            || '',
+        ).trim();
+        if (/spectator/i.test(entryTypeRaw)) {
+            cleanResponses.entry_type = 'Spectator';
+            cleanResponses.registration_type = 'spectator';
+        } else if (/participant/i.test(entryTypeRaw)) {
+            cleanResponses.entry_type = 'Participant';
+            cleanResponses.registration_type = 'participant';
+        }
+
         let selectedTier = null;
+        let selectedTiers = [];
         let packageFee = Math.max(0, Number(event.ticketPrice) || 0);
         if (event.pricingMode === 'tiers' || (Array.isArray(event.tiers) && event.tiers.length > 0)) {
             const tiers = getSportsTiers({ ...event.toObject?.() || event, pricingMode: 'tiers' });
-            if (!tierId) {
-                // Free drive / spectator from join_drive answer when no package picked
-                const join = String(cleanResponses.join_drive || '').toLowerCase();
+            if (!tierId && !selectedTierIds.length) {
+                // Free drive / spectator from join_drive / entry_type when no package picked
+                const join = String(cleanResponses.join_drive || cleanResponses.entry_type || '').toLowerCase();
                 if (/spectator/i.test(join)) {
                     const spectator = tiers.find((t) => /tier_spectator/i.test(t.id) || /\bspectator/i.test(t.name));
                     if (spectator) tierId = spectator.id;
@@ -1253,19 +1375,37 @@ exports.createManualParticipant = async (req, res) => {
                     if (drive) tierId = drive.id;
                 }
             }
+            if (!tierId && selectedTierIds.length) tierId = selectedTierIds[0];
             if (!tierId) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Select a package (or Drive only / Spectators).',
+                    message: event.tiersMultiSelect
+                        ? 'Select Spectator or at least one competition class.'
+                        : 'Select a package (or Drive only / Spectators).',
                 });
             }
             try {
-                const priced = resolveSportsPerPersonFee(
-                    { ...event.toObject?.() || event, pricingMode: 'tiers', registrationFee: event.ticketPrice },
-                    tierId,
-                );
-                selectedTier = priced.tier;
-                packageFee = Math.max(0, Number(priced.fee) || 0);
+                if (event.tiersMultiSelect && selectedTierIds.length) {
+                    const { resolveSportsMultiTierFee } = require('../utils/sportsPricing');
+                    const priced = resolveSportsMultiTierFee(
+                        { ...event.toObject?.() || event, pricingMode: 'tiers', registrationFee: event.ticketPrice },
+                        selectedTierIds,
+                    );
+                    selectedTiers = priced.tiers;
+                    selectedTier = priced.tier;
+                    packageFee = Math.max(0, Number(priced.fee) || 0);
+                    selectedTierIds = priced.tierIds;
+                    tierId = priced.tierIds[0] || tierId;
+                } else {
+                    const priced = resolveSportsPerPersonFee(
+                        { ...event.toObject?.() || event, pricingMode: 'tiers', registrationFee: event.ticketPrice },
+                        tierId,
+                    );
+                    selectedTier = priced.tier;
+                    selectedTiers = selectedTier ? [selectedTier] : [];
+                    packageFee = Math.max(0, Number(priced.fee) || 0);
+                    selectedTierIds = selectedTier ? [selectedTier.id] : [tierId];
+                }
             } catch (tierErr) {
                 return res.status(400).json({
                     success: false,
@@ -1309,6 +1449,13 @@ exports.createManualParticipant = async (req, res) => {
         if (phone) cleanResponses.phone = phone;
         cleanResponses.manual_entry = 'yes';
         cleanResponses.added_by_organizer = 'yes';
+        if (selectedTiers.length) {
+            cleanResponses.package_name = selectedTiers.map((t) => t.name).join(', ');
+            cleanResponses.selected_classes = cleanResponses.package_name;
+            cleanResponses.class_count = String(selectedTiers.length);
+        } else if (selectedTier?.name) {
+            cleanResponses.package_name = selectedTier.name;
+        }
         if (req.body.note) {
             cleanResponses.organizer_note = String(req.body.note).trim().slice(0, 500);
         }
@@ -1378,7 +1525,14 @@ exports.createManualParticipant = async (req, res) => {
                 paymentStatus,
                 amountPaid,
                 tierId: selectedTier?.id || tierId || null,
-                tierName: selectedTier?.name || null,
+                tierName: selectedTier?.name
+                    || (selectedTiers.length ? selectedTiers.map((t) => t.name).join(', ') : null),
+                selectedTierIds: selectedTierIds.length
+                    ? selectedTierIds
+                    : (selectedTier?.id ? [selectedTier.id] : []),
+                selectedTierNames: selectedTiers.length
+                    ? selectedTiers.map((t) => t.name)
+                    : (selectedTier?.name ? [selectedTier.name] : []),
                 selectedAddOns: addOns.selected,
                 additionalEntries: [],
                 reRegistrationCount: 0,
@@ -1451,15 +1605,40 @@ exports.exportParticipants = async (req, res) => {
             'name',
             'email',
             'phone',
+            'city',
+            'category',
+            'entry_type',
+            'classes',
+            'class_count',
             'package',
             'all_packages',
             're_registration_count',
-            'category',
             'join_drive',
-            'blood_group',
+            'driver_name',
+            'age_group',
+            'gender',
+            'driving_licence_number',
+            'vehicle_make',
+            'vehicle_model',
+            'vehicle_registration_number',
+            'fuel_type',
+            'engine_capacity',
+            'drive_configuration',
+            'wheelbase_classification',
             'vehicle_details',
+            'car_insured',
+            'car_insurance_company',
+            'car_insurance_policy_number',
+            'car_insurance_valid_until',
+            'pa_insured',
+            'emergency_contact_name',
+            'emergency_contact_number',
+            'blood_group',
             'driver_count',
             ...driverHeaders,
+            'payment_gateway',
+            'payment_order_id',
+            'payment_id',
             'transaction_id',
             'payment_screenshot_url',
             'status',
@@ -1483,15 +1662,40 @@ exports.exportParticipants = async (req, res) => {
                 p.userName,
                 p.userEmail,
                 p.userPhone,
+                p.city || '',
+                p.categoryLabel || '',
+                p.entryType || '',
+                (p.allClasses || []).join(' | '),
+                p.classCount || 0,
                 p.tierName || '',
                 (p.allTier || []).join(' | '),
                 p.reRegistrationCount || 0,
-                p.categoryLabel || '',
                 p.joinDrive || '',
-                p.bloodGroup || '',
+                p.driverName || '',
+                p.ageGroup || '',
+                p.gender || '',
+                p.drivingLicenceNumber || '',
+                p.vehicleMake || '',
+                p.vehicleModel || '',
+                p.vehicleRegistrationNumber || '',
+                p.fuelType || '',
+                p.engineCapacity || '',
+                p.driveConfiguration || '',
+                p.wheelbaseClassification || '',
                 p.vehicleDetails || '',
+                p.carInsured || '',
+                p.carInsuranceCompany || '',
+                p.carInsurancePolicyNumber || '',
+                p.carInsuranceValidUntil || '',
+                p.paInsured || '',
+                p.emergencyContactName || '',
+                p.emergencyContactNumber || '',
+                p.bloodGroup || '',
                 p.driverCount != null ? p.driverCount : '',
                 ...driverCells,
+                p.payment_gateway || '',
+                p.payment_order_id || '',
+                p.payment_id || '',
                 p.transactionId || '',
                 p.paymentScreenshotUrl || '',
                 p.status,
