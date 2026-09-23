@@ -35,8 +35,8 @@ const EVENT_COVER_MAP = {
   Badminton: 'Shuttle Showdown',
   'Bollywood group dance': 'Bollywood Dhamaka',
   'Bollywood solo singing': 'Sur Taal',
-  'Family Feud': 'Know It All',
-  FIFA: 'Kick and Conquer',
+  'Family Feud': 'Family Feud',
+  FIFA: 'Fifa',
 };
 
 /** Extra gallery photos (strong event shots) — after the ’25 set */

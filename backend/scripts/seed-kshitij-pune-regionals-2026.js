@@ -32,7 +32,7 @@ const personFields = [
 
 const competitions = [
   {
-    name: 'Know It All', subtitle: 'Family Feud', competitionType: 'quiz', category: 'QUIZ', module: 'INFORMALS', eventCategory: 'USP', eventFormat: 'Eliminations + Finals',
+    name: 'Family Feud', subtitle: '', competitionType: 'quiz', category: 'QUIZ', module: 'INFORMALS', eventCategory: 'USP', eventFormat: 'Eliminations + Finals',
     imageSource: 'https://images.pexels.com/photos/1181396/pexels-photo-1181396.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'Put your guessing skills, pop-culture knowledge, and quick thinking to the ultimate test across two exciting rounds: race against the clock to answer category-based questions, then take on Family Feud to match the crowd’s answers.',
     dateTime: '29 Sep 2026, 11:00 AM - 2:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
@@ -139,12 +139,19 @@ const competitions = [
     dateTime: '30 Sep 2026, 1:30 PM - 3:00 PM', venue: 'Auditorium, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 6, teamSizeMax: 8, teamSizeLabel: '6-8 members',
     prizePool: '1st Place: ₹6,000/-',
-    commonRules: ['Performance duration: 2-3 minutes.', 'Props are allowed.', 'Costumes are mandatory.', 'Only Bollywood and Hindi album songs are allowed.', 'Voice-overs are allowed.'],
+    commonRules: [
+      'Performance duration: 2-3 minutes.',
+      'Props are allowed.',
+      'Costumes are mandatory.',
+      'Only Bollywood and Hindi album songs are allowed.',
+      'Voice-overs are allowed.',
+      'A pen drive consisting of one track only should be submitted at the Re-registration Desk in .mp3 or .wav format only.',
+    ],
     judgingCriteria: [],
     rounds: [{ roundNumber: 1, title: 'Direct Finals', description: 'Bollywood group dance final.', dateTime: '30 Sep 2026, 1:30 PM - 3:00 PM', venue: 'Auditorium, MIT-WPU Campus, Pune' }],
   },
   {
-    name: 'Kick and Conquer', subtitle: 'FIFA', competitionType: 'esports', category: 'GAMING', module: 'GAMING AND SPORTS', eventCategory: 'Popular', eventFormat: 'Knockouts',
+    name: 'Fifa', subtitle: '', competitionType: 'esports', category: 'GAMING', module: 'GAMING AND SPORTS', eventCategory: 'Popular', eventFormat: 'Knockouts',
     imageSource: 'https://images.pexels.com/photos/34543044/pexels-photo-34543044.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'Fast-paced football knockout matches where every pass, tackle, and goal matters. Each match is six minutes (three minutes per half) with a four-minute buffer. With Legendary difficulty and exciting twists, only the best will rise to the top and win the crown.',
     dateTime: '30 Sep 2026, 11:00 AM - 2:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
