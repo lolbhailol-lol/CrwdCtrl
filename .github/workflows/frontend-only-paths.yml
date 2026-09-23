@@ -1,5 +1,5 @@
-# Fail PRs from non-owners that change anything outside frontend/.
-# Owners (listed below) are exempt so backend/infra PRs still work.
+# Restrict non-owner PRs to frontend/ only.
+# Owners always get a green check so master can still require this status.
 name: Frontend-only path check
 
 on:
@@ -10,15 +10,15 @@ jobs:
   frontend-only:
     name: Only frontend/ changes
     runs-on: ubuntu-latest
-    # Exempt repo maintainers — add GitHub usernames here
-    if: ${{ !contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
     steps:
       - name: Checkout
+        if: ${{ !contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Reject non-frontend paths
+        if: ${{ !contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
@@ -39,3 +39,7 @@ jobs:
             exit 1
           fi
           echo "OK — all changes are under frontend/."
+
+      - name: Owner exempt
+        if: ${{ contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
+        run: echo "Owner PR — path check skipped."
