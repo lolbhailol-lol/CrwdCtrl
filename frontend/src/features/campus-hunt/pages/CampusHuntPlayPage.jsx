@@ -145,9 +145,9 @@ export default function CampusHuntPlayPage() {
     && canResume
     ? lastRound
     : null;
-  // Single-game: skip Survival/Finale hub — open the hunt when live / resumable.
+  // Password → play. Organizer start code is the wait, not a "go live" hub.
   const onlyHunt = roundsReady && rounds.length === 1 && rounds[0]?.id === 'round1';
-  const autoOpen = !urlRound && onlyHunt && rounds[0]?.open && !rounds[0]?.comingSoon
+  const autoOpen = !urlRound && onlyHunt && !rounds[0]?.comingSoon && !rounds[0]?.teamLocked
     ? 'round1'
     : null;
   const activeRound = urlRound || resumeRound || autoOpen;
@@ -164,7 +164,7 @@ export default function CampusHuntPlayPage() {
   useEffect(() => {
     if (!roundsReady || !urlRound) return;
     const card = rounds.find((r) => r.id === urlRound);
-    if (!card || !card.open || card.comingSoon) {
+    if (!card || card.teamLocked || card.comingSoon) {
       clearHuntLastRound();
       setSearchParams({}, { replace: true });
     }
@@ -240,7 +240,7 @@ export default function CampusHuntPlayPage() {
     ? rounds.find((r) => r.id === activeRound)
     : null;
 
-  if (activeRound && roundsReady && (!roundCard || !roundCard.open)) {
+  if (activeRound && roundsReady && (!roundCard || roundCard.teamLocked || roundCard.comingSoon)) {
     return <HubBoot {...hubProps} rounds={rounds} />;
   }
 

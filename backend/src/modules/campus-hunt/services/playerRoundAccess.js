@@ -50,15 +50,14 @@ function buildPlayerRoundsHub({
       globallyOpen: access.round1,
       teamLocked: Boolean(teamLocks.round1),
       eligible: true,
-      open: access.round1 && !teamLocks.round1 && round1Live,
-      statusHint: String(round1Status || '').toLowerCase() || null,
+      // Start code is the gate — same as offline. Do not block on round "live".
+      open: access.round1 && !teamLocks.round1,
+      statusHint: round1Live ? 'live' : (String(round1Status || '').toLowerCase() || 'waiting'),
       lockedReason: !access.round1
         ? 'Organizers have locked the hunt'
         : teamLocks.round1
           ? 'Locked for your team'
-          : !round1Live
-            ? 'Not live yet — wait for organizers to start'
-            : null,
+          : null,
     },
   ];
 
