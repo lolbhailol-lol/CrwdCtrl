@@ -35,8 +35,11 @@ export const CAMPUS_HUNT_PATHS = {
   profileLogin: '/campus-hunt/enter',
   volunteerLogin: '/campus-hunt-volunteer/login',
   volunteerCheckpoint: '/campus-hunt-volunteer/checkpoint',
-  admin: '/admin/campus-hunt',
-  adminEvent: (eventId) => `/admin/campus-hunt/${eventId}`,
+  admin: '/campus-hunt/admin',
+  adminEvent: (eventId) => `/campus-hunt/admin/${eventId}`,
+  /** Inside CrwdCtrl /admin shell (needs main admin_token) */
+  adminCrwdCtrl: '/admin/campus-hunt',
+  adminCrwdCtrlEvent: (eventId) => `/admin/campus-hunt/${eventId}`,
   offline: '/campus-hunt/offline',
   offlineLogin: '/campus-hunt/offline/login',
   offlineTeam: '/campus-hunt/offline/team',

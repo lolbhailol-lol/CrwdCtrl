@@ -1,7 +1,16 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getApiBaseCandidates } from '../../../config/apiBase.js';
 
+function safeHuntAdminReturnPath(candidate) {
+  const path = String(candidate || '').trim();
+  if (!path.startsWith('/campus-hunt/admin')) return '/campus-hunt/admin';
+  if (path.startsWith('/campus-hunt/admin/login')) return '/campus-hunt/admin';
+  return path;
+}
+
 export default function CampusHuntAdminLoginPage() {
+  const location = useLocation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -13,7 +22,8 @@ export default function CampusHuntAdminLoginPage() {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) { setError(data.message || 'Invalid username or password'); return; }
         localStorage.setItem('campus_hunt_admin_token', data.accessToken);
-        window.location.href = '/admin/campus-hunt';
+        // Stay on Hunt-only admin (never bounce to /admin/login).
+        window.location.href = safeHuntAdminReturnPath(location.state?.from);
         return;
       } catch { /* try next configured API base */ }
     }
