@@ -841,14 +841,27 @@ export default function PlayerPlayScreen({
                         setStartErr('Type the organizer start code first.');
                         return;
                       }
+                      if (!team?.id) {
+                        setStartErr('Team not loaded — tap Refresh and try again.');
+                        return;
+                      }
                       void (async () => {
                         setBusy(true);
                         try {
-                          await startHuntWithCode(team.id, code);
+                          const res = await startHuntWithCode(team.id, code);
+                          const resData = res?.data || res;
                           setStartCode('');
-                          onRefresh?.({ force: true, burst: true });
+                          // Apply start payload immediately — don't wait on a soft poll.
+                          const applied = onActionResult?.(resData);
+                          if (!applied) {
+                            await onRefresh?.({ force: true, burst: true });
+                          } else {
+                            void onRefresh?.({ force: true, burst: true });
+                          }
                         } catch (err) {
                           setStartErr(err?.message || 'Not the right start code');
+                          // Stage may have flipped server-side even if progress load failed.
+                          void onRefresh?.({ force: true, burst: true });
                         } finally {
                           setBusy(false);
                         }

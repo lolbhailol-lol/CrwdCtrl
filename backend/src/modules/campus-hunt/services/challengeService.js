@@ -1482,7 +1482,7 @@ async function buildPlayerProgress(team, userId, isLeader) {
       memberIndex: idx,
       includeHint: Boolean(p?.hintUsed) && expose,
       hintText,
-      now,
+      now: now || new Date(),
       scoring,
       revealedLocation,
       revealedAnswer,

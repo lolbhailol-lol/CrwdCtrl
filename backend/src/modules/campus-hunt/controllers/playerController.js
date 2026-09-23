@@ -1123,7 +1123,27 @@ async function startHuntWithCode(req, res, next) {
       const { publishTeamProgress } = require('../services/teamProgressBus');
       publishTeamProgress(fresh._id);
     } catch { /* poll still works */ }
-    const progress = await buildPlayerProgress(fresh, req.user.userId, true);
+    let progress;
+    try {
+      progress = await buildPlayerProgress(fresh, req.user.userId, true);
+    } catch (progressErr) {
+      // Hunt already started in DB — never strand the leader on the GO screen.
+      console.error('[startHuntWithCode] progress after start failed', progressErr?.message || progressErr);
+      return res.json({
+        success: true,
+        data: {
+          alreadyStarted: false,
+          message: 'Hunt started — solve Clue 1 on this leader phone.',
+          team: publicTeamView(fresh, {
+            isLeader: true,
+            userId: req.user.userId,
+          }),
+          challenges: [],
+          checkpointStatus: null,
+          serverTime: new Date().toISOString(),
+        },
+      });
+    }
     return res.json({
       success: true,
       data: {

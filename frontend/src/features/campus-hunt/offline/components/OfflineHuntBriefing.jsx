@@ -28,10 +28,12 @@ export default function OfflineHuntBriefing({
   });
 
   const [goCode, setGoCode] = useState('');
+  const [gateHint, setGateHint] = useState('');
   const [gate, setGate] = useState(() => getHuntStartGate(bundle, new Date(), { goCode: '' }));
 
   useEffect(() => {
     setGate(getHuntStartGate(bundle, new Date(), { goCode }));
+    setGateHint('');
   }, [bundle, goCode]);
 
   const markWelcomeDone = () => {
@@ -137,6 +139,7 @@ export default function OfflineHuntBriefing({
         </p>
 
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
+        {gateHint ? <p className="text-sm text-amber-200/90">{gateHint}</p> : null}
 
         {isLeader ? (
           <>
@@ -144,13 +147,17 @@ export default function OfflineHuntBriefing({
               type="button"
               disabled={starting}
               onClick={() => {
-                if (!gate.open) {
-                  setGate((g) => ({
-                    ...g,
-                    message: 'Type the organizer start code above first, then tap Start.',
-                  }));
+                const latest = getHuntStartGate(bundle, new Date(), { goCode });
+                setGate(latest);
+                if (!latest.open) {
+                  setGateHint(
+                    goCode.trim()
+                      ? 'Not the right start code — ask the organizer and try again.'
+                      : 'Type the organizer start code (GO) above first, then tap Start.',
+                  );
                   return;
                 }
+                setGateHint('');
                 onStartHunt?.(goCode);
               }}
               className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
