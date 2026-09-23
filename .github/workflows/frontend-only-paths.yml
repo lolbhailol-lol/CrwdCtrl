@@ -1,0 +1,41 @@
+# Fail PRs from non-owners that change anything outside frontend/.
+# Owners (listed below) are exempt so backend/infra PRs still work.
+name: Frontend-only path check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  frontend-only:
+    name: Only frontend/ changes
+    runs-on: ubuntu-latest
+    # Exempt repo maintainers — add GitHub usernames here
+    if: ${{ !contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject non-frontend paths
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          CHANGED=$(git diff --name-only "$BASE...$HEAD" || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No file changes detected."
+            exit 0
+          fi
+          echo "Changed files:"
+          echo "$CHANGED"
+          BAD=$(echo "$CHANGED" | grep -vE '^frontend/' || true)
+          if [ -n "$BAD" ]; then
+            echo ""
+            echo "::error::This PR changes files outside frontend/. You may only edit frontend/."
+            echo "$BAD"
+            exit 1
+          fi
+          echo "OK — all changes are under frontend/."
