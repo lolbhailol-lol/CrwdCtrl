@@ -758,10 +758,11 @@ const Dashboard = () => {
             if (timestamp) {
                 const age = Date.now() - parseInt(timestamp);
                 if (age > CACHE_DURATION * 0.8 && age < CACHE_DURATION) {
-                    fetchCatalogJSON('/fests/all', { timeout: 5000, retries: 0 })
+                    // Prefer single /home aggregate — avoid hammering /fests/all during rushes
+                    fetchCatalogJSON('/home', { timeout: 8000, retries: 0 })
                         .then(response => {
                             const data = response.data;
-                            const festsList = Array.isArray(data?.fests) ? data.fests : Array.isArray(data) ? data : [];
+                            const festsList = Array.isArray(data?.fests) ? data.fests : [];
                             if (festsList.length > 0) {
                                 setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
                             }
@@ -774,7 +775,7 @@ const Dashboard = () => {
         // Periodic check keeps a continuously-open dashboard fresh, but warmCache
         // only actually fetches when the cache is 80-100% expired AND the tab is
         // visible — far lighter than the old unconditional 30s fetch loop.
-        const warmingInterval = setInterval(warmCache, 60000);
+        const warmingInterval = setInterval(warmCache, 180000);
         document.addEventListener('visibilitychange', warmCache);
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => {

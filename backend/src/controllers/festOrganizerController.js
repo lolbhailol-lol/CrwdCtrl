@@ -33,7 +33,7 @@ const cache = {
     fests: {
         data: new Map(), // Use Map for better performance
         timestamp: 0,
-        duration: 30 * 1000 // 30 seconds cache for fests list
+        duration: 45 * 1000 // 45 seconds — absorb registration-day homepage thrash
     },
     competitions: {
         data: new Map(),

@@ -250,13 +250,21 @@ function publicMetaPayload(competition, stats, inviteCategory = null) {
   };
 }
 
-/** GET /mindspark/auditorium/meta?code= */
+/** GET /mindspark/auditorium/meta?code= — cache unscoped meta briefly under rush. */
+const auditoriumMetaCache = { at: 0, payload: null };
+const AUDITORIUM_META_TTL_MS = 10_000;
+
 exports.getPublicMeta = async (req, res) => {
   try {
+    const code = String(req.query.code || '').trim();
+    if (!code && auditoriumMetaCache.payload && Date.now() - auditoriumMetaCache.at < AUDITORIUM_META_TTL_MS) {
+      res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+      return res.json(auditoriumMetaCache.payload);
+    }
+
     const competition = await ensureAuditoriumCompetition(MINDSPARK_FEST_ID);
     const stats = await buildCategoryStats(competition);
     let inviteCategory = null;
-    const code = String(req.query.code || '').trim();
     if (code) {
       const invite = await findInvite(competition._id, code);
       if (invite?.active && invite.usedCount < invite.maxUses) {
@@ -266,7 +274,15 @@ exports.getPublicMeta = async (req, res) => {
         }
       }
     }
-    return res.json({ success: true, data: publicMetaPayload(competition, stats, inviteCategory) });
+    const body = { success: true, data: publicMetaPayload(competition, stats, inviteCategory) };
+    if (!code) {
+      auditoriumMetaCache.at = Date.now();
+      auditoriumMetaCache.payload = body;
+      res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+    } else {
+      res.set('Cache-Control', 'private, max-age=5');
+    }
+    return res.json(body);
   } catch (error) {
     console.error('[auditorium.getPublicMeta]', error);
     return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed' });

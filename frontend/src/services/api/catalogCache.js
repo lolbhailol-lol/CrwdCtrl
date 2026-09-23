@@ -1,7 +1,7 @@
 import { publicFetchJSONRetry } from './client.js';
 
 /** In-memory catalog cache — dedupes parallel hub-page fetches across navigation. */
-const TTL_MS = 2 * 60 * 1000;
+const TTL_MS = 3 * 60 * 1000;
 const cache = new Map();
 const inFlight = new Map();
 

@@ -1146,7 +1146,7 @@ export default function EventRegistrationPage() {
 
         setPaying(true);
         tryComplete();
-        const interval = window.setInterval(tryComplete, 2000);
+        const interval = window.setInterval(tryComplete, 4000);
 
         const onVisible = () => {
             if (!document.hidden) tryComplete();
