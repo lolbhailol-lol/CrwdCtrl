@@ -4,7 +4,7 @@
  */
 
 const BLOCK = /\/api\/|railway\.app|firestore\.googleapis|identitytoolkit|securetoken\.google|fcm\.googleapis|firebaseio\.com|crashlytics/i;
-const ALLOW = /\/api\/campus-hunt\/events\/[^/]+\/offline-progress|\/api\/campus-hunt\/events\/[^/]+\/offline-grid-ensure|\/api\/campus-hunt\/offline-install\//i;
+const ALLOW = /\/api\/campus-hunt\/events\/[^/]+\/offline-progress|\/api\/campus-hunt\/events\/[^/]+\/offline-pull|\/api\/campus-hunt\/events\/[^/]+\/offline-grid-ensure|\/api\/campus-hunt\/offline-install\//i;
 
 let armed = false;
 let originalFetch = null;

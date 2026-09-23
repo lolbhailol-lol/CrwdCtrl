@@ -18,7 +18,8 @@ export function buildPlayerNowGuide({
   activeChallenge,
 }) {
   const startName = team?.startingPoint?.name || team?.startingPoint?.code || 'your starting point';
-  const onePhone = Boolean(checkpointStatus?.onePhoneMode ?? true);
+  // Always leader-only. Never fall back to “everyone scans” if a pack still says team size.
+  const onePhone = true;
 
   if (locked) {
     return {
@@ -35,7 +36,7 @@ export function buildPlayerNowGuide({
       tone: 'wait',
       eyebrow: 'Before start',
       title: `Meet at ${startName}`,
-      body: 'Clue 1 unlocks when the hunt starts. Leader phone only.',
+      body: 'Leader types the organizer start code. Leader phone only.',
       steps: [],
     };
   }

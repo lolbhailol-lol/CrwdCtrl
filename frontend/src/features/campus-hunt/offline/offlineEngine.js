@@ -871,13 +871,6 @@ export function markReachedStart(bundle, session, state, finishCode = '', now = 
       clue6?.answer,
       ...(clue6?.acceptedAnswers || []),
       bundle.event?.organizerFinishCode,
-      bundle.event?.destinationName,
-      'MSFINISH',
-      'FINISH',
-      'LOBBY',
-      'MINDSPARK',
-      'Mindspark Lobby',
-      'Mindspark Lobby',
     ].filter(Boolean);
     if (!matchesAnyAccepted(code, accepted)) {
       throw huntError('Wrong finish code — ask the organizer at Mindspark Lobby', 400, 'BAD_FINISH_CODE');

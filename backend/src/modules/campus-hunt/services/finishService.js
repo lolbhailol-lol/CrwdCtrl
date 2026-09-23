@@ -13,10 +13,7 @@ const { applyCheckpointCompletionCascade, canTransition } = require('./stateMach
 const { completionMs } = require('./timerService');
 const { writeAudit } = require('./auditService');
 const { normalizeAnswer, matchesAnyAccepted } = require('../utils/answerNormalize');
-const {
-  resolveDestinationName,
-  resolveOrganizerFinishCode,
-} = require('./stationCatalogService');
+const { resolveOrganizerFinishCode } = require('./stationCatalogService');
 const { applyAward } = require('./scoringService');
 const { DEFAULT_SCORING_CONFIG } = require('../constants');
 
@@ -117,24 +114,13 @@ async function markTeamReachedAtStart({
 }
 
 /**
- * Accepted finish codes: event code + Clue 6 answers + common lobby aliases.
+ * Accepted finish codes: organizer code + this team's Clue 6 answer only.
  */
 async function acceptedFinishCodes(team) {
   const event = await CampusHuntEvent.findById(team.eventId)
-    .select('organizerFinishCode destinationName');
-  const dest = resolveDestinationName(event);
+    .select('organizerFinishCode');
   const finish = resolveOrganizerFinishCode(event);
-  const codes = [
-    finish,
-    dest,
-    'MSFINISH',
-    'FINISH',
-    'LOBBY',
-    'MINDSPARK',
-    'Mindspark Lobby',
-    'MINDSPARKLOBBY',
-    'FINALE ASSEMBLY',
-  ];
+  const codes = [finish];
   if (team.clue6ChallengeId) {
     const ch = await CampusHuntChallenge.findById(team.clue6ChallengeId)
       .select('+answer acceptedAnswers');

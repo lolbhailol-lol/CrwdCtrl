@@ -109,12 +109,12 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,webp,woff2,webmanifest}'],
         globIgnores: ['**/firebase-messaging-sw.js'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        // v13 — drop stale Survival/Finale offline shells from phones
-        cacheId: 'crwdctrl-v13',
+        // v14 — drop stale “everyone scans” shells; leader phone only
+        cacheId: 'crwdctrl-v14',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
-        importScripts: ['/firebase-messaging-sw.js'],
+        importScripts: ['/firebase-messaging-sw.js', '/hunt-shell-activate.js'],
         // Only the offline hunt shell may use cached HTML. Google / Chrome / in-app
         // navigations must hit the network — SW-cached index.html was reload-looping phones.
         navigateFallback: 'index.html',

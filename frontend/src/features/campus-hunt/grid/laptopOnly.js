@@ -50,18 +50,25 @@ export function collectDeviceSignals() {
   const shortSide = Math.min(sw, sh) || 0;
   const longSide = Math.max(sw, sh) || 0;
 
+  const platform = `${navigator.platform || ''} ${navigator.userAgentData?.platform || ''}`;
+
   return {
     shortSide,
     longSide,
     touchPoints,
-    coarse: mq('(pointer: coarse)'),
-    hoverNone: mq('(hover: none)'),
+    coarse: mq('(pointer: coarse)') || mq('(any-pointer: coarse)'),
+    hoverNone: mq('(hover: none)') || mq('(any-hover: none)'),
     fineHover: mq('(hover: hover) and (pointer: fine)'),
-    // Survives “Desktop site” — uses device screen, not layout viewport
-    maxDeviceNarrow: mq('(max-device-width: 900px)'),
+    realMouse: mq('(any-hover: hover) and (any-pointer: fine)'),
+    // Either edge — rotation makes device-width the long side
+    phoneEdge: mq('(max-device-width: 540px), (max-device-height: 540px)'),
+    portrait: mq('(orientation: portrait)'),
+    // Mobile browsers keep this in “Desktop site”; laptops do not
+    hasOrientation: typeof window.orientation === 'number',
     uaMobile: isMobileUserAgent(ua),
     chMobile: navigator.userAgentData?.mobile === true,
     iPadAsMac: /Macintosh/i.test(ua) && touchPoints > 1,
+    mobilePlatform: /Android|iPhone|iPad|iPod/i.test(platform),
   };
 }
 
@@ -71,28 +78,25 @@ export function collectDeviceSignals() {
  */
 export function isPhoneOrTabletClient() {
   const s = collectDeviceSignals();
+  const touch = s.touchPoints > 0 || s.coarse || s.hoverNone;
 
-  if (s.chMobile || s.uaMobile || s.iPadAsMac) return true;
+  if (s.chMobile || s.uaMobile || s.iPadAsMac || s.mobilePlatform) return true;
 
-  // Phone/tablet hardware even when UA says desktop
-  if (s.maxDeviceNarrow && (s.touchPoints > 0 || s.coarse || s.hoverNone)) {
-    return true;
-  }
+  // Phone-sized edge survives rotate + “Desktop site” (viewport is faked, screen is not)
+  if (s.phoneEdge && touch) return true;
+  if (s.shortSide > 0 && s.shortSide <= 540 && touch) return true;
 
-  // Small physical screen + touch, no real mouse hover
-  if (s.shortSide > 0 && s.shortSide <= 600 && s.touchPoints > 0 && !s.fineHover) {
-    return true;
-  }
+  // No real mouse/trackpad — desktop mode does not add one
+  if (touch && !s.realMouse) return true;
 
-  // Compact tablets / large phones
-  if (s.shortSide > 0 && s.shortSide <= 820 && s.touchPoints > 1 && (s.coarse || s.hoverNone) && !s.fineHover) {
-    return true;
-  }
+  // window.orientation stays on phones after a desktop-UA spoof
+  if (s.hasOrientation && touch) return true;
 
-  // Narrow CSS viewport + coarse (fallback)
-  if (s.coarse && mq('(max-width: 900px)') && s.touchPoints > 0) {
-    return true;
-  }
+  // Portrait + touch is a phone/tablet, including landscape-to-portrait
+  if (s.portrait && touch && s.shortSide > 0 && s.shortSide <= 900) return true;
+
+  // Tablets that report a fine pointer but still have a compact screen
+  if (s.shortSide > 0 && s.shortSide <= 900 && s.touchPoints > 1 && !s.realMouse) return true;
 
   return false;
 }
@@ -109,7 +113,10 @@ export function gridClientHeaders() {
       `tp=${s.touchPoints}`,
       `coarse=${s.coarse ? 1 : 0}`,
       `hover=${s.hoverNone ? 0 : 1}`,
-      `dmax=${s.maxDeviceNarrow ? 1 : 0}`,
+      `mouse=${s.realMouse ? 1 : 0}`,
+      `dmin=${s.phoneEdge ? 1 : 0}`,
+      `orient=${s.hasOrientation ? 1 : 0}`,
+      `portrait=${s.portrait ? 1 : 0}`,
     ].join(';'),
   };
 }

@@ -35,6 +35,7 @@ const {
   rewindStep,
   forceUnlockClue2,
   submitFinishCode,
+  startHuntWithCode,
 } = require('../controllers/playerController');
 
 const router = express.Router();
@@ -110,6 +111,14 @@ router.post(
   requireTeamLeader,
   campusHuntAnswerLimiter,
   revealTimedChallenge,
+);
+router.post(
+  '/teams/:teamId/start',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  campusHuntAnswerLimiter,
+  startHuntWithCode,
 );
 router.post(
   '/teams/:teamId/finish',

@@ -10,7 +10,6 @@ import {
 } from '../types/stageTheme';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import CampusHuntBackLink from '../components/CampusHuntBackLink';
-import UnlockHoldingCard from '../components/UnlockHoldingCard';
 import HuntColorFlowGuide from '../components/HuntColorFlowGuide';
 import { pullOfflineBoardState } from '../offline/offlineBoardSync';
 import {
@@ -21,19 +20,38 @@ import {
   confirmStationCheckpoint,
   forceUnlockClue2,
   submitFinishCode,
+  startHuntWithCode,
   fetchPublicLeaderboard,
 } from '../services/campusHunt.api';
 import PlayerInstructionBox from './PlayerInstructionBox';
 import { buildPlayerNowGuide } from './playerNowGuide';
 import { sanitizePlayerCopy } from './sanitizePlayerCopy';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
-import { STAGE_THEMES } from '../types/stageTheme';
 import ClueHowTo from '../components/ClueHowTo';
 import { OFFLINE_CLUE_HOW_TO, OFFLINE_CLUE_PROMPTS } from '../offline/offlineHowTo';
 
 function activeChallengeNumber(stage) {
   const m = String(stage || '').match(/^CLUE_(\d)_ACTIVE$/);
   return m ? Number(m[1]) : null;
+}
+
+/** Play UI is always one leader scan — ignore stale pack/API “N of teamSize” counts. */
+function asLeaderOnlyCheckpoint(status) {
+  if (!status) return status;
+  const scanned = Boolean(status.youScanned) || Number(status.verifiedCount || 0) > 0;
+  return {
+    ...status,
+    requiredCount: 1,
+    membersNeeded: 0,
+    onePhoneMode: true,
+    awaitingTeamCodeConfirm: false,
+    scanRoster: [],
+    youScanned: scanned,
+    verifiedCount: scanned ? Math.min(1, Number(status.verifiedCount || 1)) : 0,
+    publicInstruction: sanitizePlayerCopy(
+      status.publicInstruction || 'Leader scans this poster once — next clue unlocks.',
+    ),
+  };
 }
 
 function needsStationScan(stage) {
@@ -104,7 +122,7 @@ export default function PlayerPlayScreen({
   const team = data?.team;
   const challenges = data?.challenges || [];
   const serverTime = data?.serverTime || team?.serverTime;
-  const checkpointStatus = data?.checkpointStatus;
+  const checkpointStatus = asLeaderOnlyCheckpoint(data?.checkpointStatus);
   const submitFinishCodeFn = actions?.submitFinishCode || submitFinishCode;
   const isLeader = Boolean(team?.isLeader);
   const teamCapacity = Math.max(2, Number(data?.event?.teamCapacity) || 0);
@@ -115,12 +133,11 @@ export default function PlayerPlayScreen({
     ? 'Hunt complete — check the live leaderboard. Top 10 teams get a chance to volunteer at Mindspark 2026.'
     : 'Hunt complete — check the leaderboard for ranks. Organizers lock scores after finish/import.';
   const activeNum = activeChallengeNumber(team?.currentStage);
-  const hasStartGate = Boolean(team?.startStatus || team?.scheduledStartAt);
   const released = Boolean(
     team?.actualStartAt
     || ['RELEASED', 'ACTIVE', 'COMPLETED'].includes(team?.startStatus),
   );
-  const waitingForRelease = !offlineMode && hasStartGate && !released;
+  const waitingForRelease = !offlineMode && String(team?.currentStage || '') === 'WAITING';
 
   const [liveRank, setLiveRank] = useState(null);
   const [liveFieldSize, setLiveFieldSize] = useState(null);
@@ -190,6 +207,8 @@ export default function PlayerPlayScreen({
 
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(false);
+  const [startCode, setStartCode] = useState('');
+  const [startErr, setStartErr] = useState('');
   const busyRef = useRef(false);
   const lastScanRawRef = useRef('');
   const [instructionEnded, setInstructionEnded] = useState(false);
@@ -801,19 +820,66 @@ export default function PlayerPlayScreen({
 
           {waitingForRelease && (
             <div className="space-y-4">
-              <UnlockHoldingCard
-                accentHex={STAGE_THEMES.clue1.hex}
-                eyebrow="Clue 1 unlocks on"
-                unlockAt={team.scheduledStartAt}
-                meetLabel={team.startingPoint?.name}
-                meetHint="stay together"
-                steps={[]}
-                paused={Boolean(team.releasePaused)}
-                pausedText="Releases paused — stay at your start."
-                emptyText="Waiting for organizers to set your unlock time."
-                serverTime={serverTime}
-                onReady={() => onRefresh?.({ force: true })}
-              />
+              <section className="rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-4">
+                <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
+                  Organizer start code
+                </p>
+                <p className="mt-2 text-center text-sm text-white/70">
+                  {team.startingPoint?.name
+                    ? `Meet at ${team.startingPoint.name}. `
+                    : ''}
+                  When the organizer tells everyone the code, the leader types it — then Start.
+                </p>
+                {isLeader ? (
+                  <form
+                    className="mt-4 space-y-3"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setStartErr('');
+                      const code = String(startCode || '').trim();
+                      if (!code) {
+                        setStartErr('Type the organizer start code first.');
+                        return;
+                      }
+                      void (async () => {
+                        setBusy(true);
+                        try {
+                          await startHuntWithCode(team.id, code);
+                          setStartCode('');
+                          onRefresh?.({ force: true, burst: true });
+                        } catch (err) {
+                          setStartErr(err?.message || 'Not the right start code');
+                        } finally {
+                          setBusy(false);
+                        }
+                      })();
+                    }}
+                  >
+                    <input
+                      value={startCode}
+                      onChange={(e) => setStartCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))}
+                      placeholder="Organizer will tell you"
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center font-mono text-xl tracking-[0.2em] outline-none focus:border-[#0ECCEE]"
+                    />
+                    {startErr ? (
+                      <p className="text-center text-xs text-rose-300">{startErr}</p>
+                    ) : null}
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
+                    >
+                      {busy ? 'Starting…' : 'Start the hunt'}
+                    </button>
+                  </form>
+                ) : (
+                  <p className="mt-4 text-center text-sm text-white/55">
+                    Use the leader phone to start.
+                  </p>
+                )}
+              </section>
               <HuntColorFlowGuide title="Clue flow · colors" />
             </div>
           )}

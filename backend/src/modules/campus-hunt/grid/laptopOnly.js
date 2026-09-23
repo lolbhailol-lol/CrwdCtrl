@@ -23,7 +23,11 @@ function parseDeviceSignals(raw = '') {
     touchPoints: 0,
     coarse: false,
     hover: true,
+    mouse: false,
     deviceNarrow: false,
+    phoneEdge: false,
+    orientation: false,
+    portrait: false,
   };
   String(raw || '').split(';').forEach((part) => {
     const [k, v] = String(part).split('=');
@@ -35,18 +39,30 @@ function parseDeviceSignals(raw = '') {
     if (key === 'tp') out.touchPoints = Number(val) || 0;
     if (key === 'coarse') out.coarse = val === '1';
     if (key === 'hover') out.hover = val !== '0';
+    if (key === 'mouse') out.mouse = val === '1';
     if (key === 'dmax') out.deviceNarrow = val === '1';
+    if (key === 'dmin') out.phoneEdge = val === '1';
+    if (key === 'orient') out.orientation = val === '1';
+    if (key === 'portrait') out.portrait = val === '1';
   });
   return out;
 }
 
 function looksLikePhoneFromSignals(signals) {
   if (!signals) return false;
-  const { shortSide, touchPoints, coarse, hover, deviceNarrow } = signals;
+  const {
+    shortSide, touchPoints, coarse, hover, mouse, deviceNarrow, phoneEdge, orientation, portrait,
+  } = signals;
+  const touch = touchPoints > 0 || coarse || !hover;
 
-  if (deviceNarrow && (touchPoints > 0 || coarse || !hover)) return true;
-  if (shortSide > 0 && shortSide <= 600 && touchPoints > 0 && !hover) return true;
-  if (shortSide > 0 && shortSide <= 820 && touchPoints > 1 && (coarse || !hover)) return true;
+  // Rotate / desktop-site: short edge or window.orientation still gives the phone away
+  if (phoneEdge && touch) return true;
+  if (shortSide > 0 && shortSide <= 540 && touch) return true;
+  if (touch && !mouse && !hover) return true;
+  if (orientation && touch) return true;
+  if (portrait && touch && shortSide > 0 && shortSide <= 900) return true;
+  if (deviceNarrow && touch) return true;
+  if (shortSide > 0 && shortSide <= 900 && touchPoints > 1 && !mouse) return true;
   return false;
 }
 

@@ -146,6 +146,11 @@ export async function enqueueOfflineProgress(bundle, state, { startOver = false 
     score: Number(state.score) || 0,
     stage: state.currentStage,
     seq: Number(state.seq) || 0,
+    huntStartedAt: state.huntStartedAt || undefined,
+    finishedAt: state.finishedAt || undefined,
+    clue4Points: state.clueProgress?.[4]?.state === 'COMPLETED'
+      ? Number(state.clueProgress[4].awardedPoints)
+      : undefined,
     deviceId: getOfflineDeviceId(),
     takeover: takeover || undefined,
     startOver: startOver || undefined,

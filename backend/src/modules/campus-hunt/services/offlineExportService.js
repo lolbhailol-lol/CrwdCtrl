@@ -996,9 +996,28 @@ async function ingestOfflineProgress(eventId, payload) {
   }
 
   const score = Math.max(0, Number(body.score) || 0);
-  const nextScore = Math.min(score, maxPlausible);
+  let nextScore = Math.min(score, maxPlausible);
   const nextStage = body.stage ? String(body.stage) : team.currentStage;
   const nextSeq = Math.max(storedSeq, incomingSeq);
+
+  // Phone awards flat Clue 4 points. Live rank uses the laptop Zip session score.
+  const flatClue4 = Number(body.clue4Points);
+  if (Number.isFinite(flatClue4) && flatClue4 >= 0) {
+    try {
+      const CampusHuntGridSession = require('../models/CampusHuntGridSession');
+      const grid = await CampusHuntGridSession.findOne({
+        teamId: team._id,
+        status: 'completed',
+      }).sort({ updatedAt: -1 }).select('score').lean();
+      if (grid && Number.isFinite(Number(grid.score))) {
+        nextScore = Math.max(0, Math.min(
+          maxPlausible,
+          nextScore - flatClue4 + Number(grid.score),
+        ));
+      }
+    } catch (_) { /* keep phone score */ }
+  }
+
   const $set = {
     currentScore: nextScore,
     currentStage: nextStage,
@@ -1006,6 +1025,19 @@ async function ingestOfflineProgress(eventId, payload) {
     status: 'active',
   };
   if (incomingDevice) $set.offlineDeviceId = incomingDevice;
+  if (nextStage === 'SCORE_LOCKED') {
+    $set.finalScore = nextScore;
+    const finished = body.finishedAt ? new Date(body.finishedAt) : new Date();
+    if (!Number.isNaN(finished.getTime())) {
+      $set.finishedAt = finished;
+      $set.scoreLockedAt = finished;
+    }
+    const started = body.huntStartedAt ? new Date(body.huntStartedAt) : null;
+    if (started && $set.finishedAt && !Number.isNaN(started.getTime())) {
+      const ms = $set.finishedAt.getTime() - started.getTime();
+      if (ms > 0) $set['stats.totalCompletionMs'] = ms;
+    }
+  }
 
   await CampusHuntTeam.updateOne(
     { _id: team._id },

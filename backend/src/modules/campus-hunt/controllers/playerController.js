@@ -1067,6 +1067,84 @@ async function postOfflineGridEnsure(req, res, next) {
   }
 }
 
+/** Same start as offline: organizer shouts the code, leader types it, Clue 1 opens. */
+async function startHuntWithCode(req, res, next) {
+  try {
+    if (!req.isHuntLeader) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the leader phone can start',
+        code: 'LEADER_ONLY',
+      });
+    }
+    const team = req.huntTeam;
+    if (String(team.currentStage || '') !== 'WAITING') {
+      const progress = await buildPlayerProgress(team, req.user.userId, true);
+      return res.json({
+        success: true,
+        data: {
+          alreadyStarted: true,
+          team: publicTeamView(progress.team, {
+            isLeader: true,
+            start: progress.start,
+            userId: req.user.userId,
+            teamSize: progress.teamSize,
+          }),
+          challenges: progress.challenges,
+          checkpointStatus: progress.checkpointStatus || null,
+          serverTime: progress.serverTime,
+        },
+      });
+    }
+    const event = await CampusHuntEvent.findById(team.eventId).select('organizerStartCode');
+    const expected = String(event?.organizerStartCode || 'GO').trim().toUpperCase();
+    const got = String(req.body?.code || req.body?.goCode || '').trim().toUpperCase();
+    if (!got || got !== expected) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not the right start code',
+        code: 'BAD_START_CODE',
+      });
+    }
+    const updated = await CampusHuntTeam.findOneAndUpdate(
+      { _id: team._id, currentStage: 'WAITING' },
+      {
+        $set: {
+          currentStage: 'CLUE_1_ACTIVE',
+          startStatus: 'RELEASED',
+          actualStartAt: new Date(),
+          status: 'active',
+        },
+      },
+      { new: true },
+    );
+    const fresh = updated || await CampusHuntTeam.findById(team._id);
+    try {
+      const { publishTeamProgress } = require('../services/teamProgressBus');
+      publishTeamProgress(fresh._id);
+    } catch { /* poll still works */ }
+    const progress = await buildPlayerProgress(fresh, req.user.userId, true);
+    return res.json({
+      success: true,
+      data: {
+        alreadyStarted: false,
+        message: 'Hunt started — solve Clue 1 on this leader phone.',
+        team: publicTeamView(progress.team, {
+          isLeader: true,
+          start: progress.start,
+          userId: req.user.userId,
+          teamSize: progress.teamSize,
+        }),
+        challenges: progress.challenges,
+        checkpointStatus: progress.checkpointStatus || null,
+        serverTime: progress.serverTime,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function submitFinishCode(req, res, next) {
   try {
     const { submitOrganizerFinishCode } = require('../services/finishService');
@@ -1126,6 +1204,7 @@ module.exports = {
   submitChallengeAnswer,
   submitClue1,
   submitFinishCode,
+  startHuntWithCode,
   requestChallengeHint,
   revealTimedChallenge,
   getLeaderboard,

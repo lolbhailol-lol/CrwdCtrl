@@ -12,8 +12,14 @@ function compareTeamsForLeaderboard(a, b) {
   const scoreB = Number(b.finalScore ?? b.currentScore ?? 0);
   if (scoreB !== scoreA) return scoreB - scoreA;
 
-  const timeA = Number(a.stats?.totalCompletionMs ?? Number.POSITIVE_INFINITY);
-  const timeB = Number(b.stats?.totalCompletionMs ?? Number.POSITIVE_INFINITY);
+  const completionMs = (team) => {
+    const n = Number(team.stats?.totalCompletionMs);
+    // 0 is "never finished" (Start over), not the fastest time
+    if (!Number.isFinite(n) || n <= 0) return Number.POSITIVE_INFINITY;
+    return n;
+  };
+  const timeA = completionMs(a);
+  const timeB = completionMs(b);
   if (timeA !== timeB) return timeA - timeB;
 
   const hintsA = Number(a.stats?.hintsUsed ?? 0);

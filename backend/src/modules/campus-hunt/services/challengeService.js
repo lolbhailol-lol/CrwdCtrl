@@ -395,10 +395,11 @@ async function submitAnswer({
   requestId,
   now = new Date(),
 }) {
-  if (Number(challengeNumber) === 1 && team.currentStage === 'WAITING') {
-    const { releaseTeamIfDue } = require('./teamReleaseService');
-    const released = await releaseTeamIfDue({ team, now });
-    team = released.team;
+  if (team.currentStage === 'WAITING') {
+    const err = new Error('Type the organizer start code on the leader phone first.');
+    err.status = 403;
+    err.code = 'NEED_START_CODE';
+    throw err;
   }
   if (Number(challengeNumber) === 1 && !isLeader) {
     const err = new Error('Only the team leader can submit Clue 1');
@@ -519,18 +520,10 @@ async function submitAnswer({
   // Clue 6: also accept the live event organizer finish code (+ destination name)
   if (Number(challengeNumber) === 6) {
     try {
-      const {
-        resolveOrganizerFinishCode,
-        resolveDestinationName,
-      } = require('./stationCatalogService');
+      const { resolveOrganizerFinishCode } = require('./stationCatalogService');
       const ev = event || await CampusHuntEvent.findById(team.eventId)
         .select('organizerFinishCode destinationName');
-      accepted.push(
-        resolveOrganizerFinishCode(ev),
-        resolveDestinationName(ev),
-        'mindspark lobby',
-        'finale assembly',
-      );
+      accepted.push(resolveOrganizerFinishCode(ev));
     } catch (_) {
       /* keep challenge answers only */
     }
@@ -685,6 +678,12 @@ async function submitAnswer({
       || Number(challengeNumber) === 4
       || Number(challengeNumber) === 5,
   });
+
+  // Zip Grid: rank the laptop session score (hints already deducted), not flat Clue 4 base.
+  if (gridSessionClaim && Number.isFinite(Number(gridSessionClaim.score))) {
+    award.total = Math.max(0, Number(gridSessionClaim.score));
+    award.late = false;
+  }
 
   const lateOrRevealed = Boolean(
     award.late
@@ -1330,19 +1329,6 @@ async function rewindPreviousStepUnsafe({ team, userId, isLeader }) {
 }
 
 async function buildPlayerProgress(team, userId, isLeader) {
-  const now = new Date();
-  if (team.currentStage === 'WAITING' && team.scheduledStartAt) {
-    try {
-      const { releaseTeamIfDue } = require('./teamReleaseService');
-      const result = await releaseTeamIfDue({ team, now });
-      team = result.team;
-    } catch (error) {
-      if (!['START_NOT_DUE', 'RELEASES_PAUSED', 'ROUND_NOT_LIVE', 'SCHEDULE_NOT_LOCKED'].includes(error.code)) {
-        throw error;
-      }
-      team = await CampusHuntTeam.findById(team._id);
-    }
-  }
   const [clue1, clue2, clue3, clue4, routeChallenges] = await Promise.all([
     team.clue1ChallengeId
       ? CampusHuntChallenge.findOne({

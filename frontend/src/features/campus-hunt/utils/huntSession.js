@@ -82,6 +82,10 @@ export function redirectCampusHuntAuthLoss() {
   const path = window.location.pathname || '';
   if (!path.startsWith('/campus-hunt')) return false;
   clearHuntAuth();
+  if (path.startsWith('/campus-hunt/offline')) {
+    window.location.assign('/campus-hunt/offline/login');
+    return true;
+  }
   const session = readHuntSession();
   if (session?.teamLoginPath) {
     window.location.assign(session.teamLoginPath);

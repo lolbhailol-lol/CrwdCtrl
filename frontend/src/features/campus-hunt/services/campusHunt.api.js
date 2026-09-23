@@ -292,6 +292,14 @@ export async function submitChallengeAnswer(teamId, challengeNumber, answer, req
   });
 }
 
+/** Leader types the shouted organizer start code — same gate as offline. */
+export async function startHuntWithCode(teamId, code) {
+  return huntJson(`${BASE}/teams/${teamId}/start`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
 /** Leader types organizer finish code at Mindspark Lobby (after Clue 6). */
 export async function submitFinishCode(teamId, finishCode) {
   return huntJson(`${BASE}/teams/${teamId}/finish`, {
