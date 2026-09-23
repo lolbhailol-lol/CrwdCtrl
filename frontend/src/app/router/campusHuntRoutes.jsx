@@ -1,4 +1,4 @@
-import { Route } from 'react-router-dom';
+import { Route, Navigate } from 'react-router-dom';
 import { isCampusHuntEnabled, isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 import {
   CampusHuntLandingPage,
@@ -28,9 +28,10 @@ import CampusHuntAdminLoginPage from '../../features/campus-hunt/admin/CampusHun
  */
 export const campusHuntRoutes = isCampusHuntEnabled() ? (
   <>
+    {/* Login before /admin so /campus-hunt/admin/login is never swallowed */}
+    <Route path="/campus-hunt/admin/login" element={<CampusHuntAdminLoginPage />} />
     <Route path="/campus-hunt/admin" element={<CampusHuntAdminDashboard />} />
     <Route path="/campus-hunt/offline/i/:token" element={<OfflineHuntInstallPage />} />
-    <Route path="/campus-hunt/admin/login" element={<CampusHuntAdminLoginPage />} />
     <Route path="/campus-hunt/offline" element={<OfflineHuntLandingPage />} />
     <Route path="/campus-hunt/offline/login" element={<OfflineHuntLoginPage />} />
     <Route path="/campus-hunt/offline/team" element={<OfflineHuntTeamPage />} />
@@ -41,8 +42,8 @@ export const campusHuntRoutes = isCampusHuntEnabled() ? (
     <Route path="/campus-hunt/grid" element={<CampusHuntGridPage />} />
     <Route path="/campus-hunt/:slug/team/:teamCode" element={<CampusHuntTeamLoginPage />} />
     <Route path="/campus-hunt/:slug/login" element={<CampusHuntLoginHubPage />} />
-    <Route path="/campus-hunt/:slug" element={<CampusHuntLandingPage />} />
     <Route path="/campus-hunt/:slug/play" element={<CampusHuntPlayPage />} />
+    <Route path="/campus-hunt/:slug" element={<CampusHuntLandingPage />} />
     <Route path="/campus-hunt-volunteer/login" element={<VolunteerLoginPage />} />
     <Route path="/campus-hunt-volunteer/checkpoint" element={<VolunteerCheckpointPage />} />
   </>
@@ -53,6 +54,8 @@ export function campusHuntAdminChildRoutes() {
   return (
     <>
       <Route path="campus-hunt" element={<CampusHuntAdminDashboard />} />
+      {/* /admin/campus-hunt/login was matching :eventId = "login" and crashing APIs */}
+      <Route path="campus-hunt/login" element={<Navigate to="/campus-hunt/admin/login" replace />} />
       <Route path="campus-hunt/:eventId" element={<CampusHuntEventControl />} />
     </>
   );

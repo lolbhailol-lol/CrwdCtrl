@@ -41,6 +41,7 @@ import { STATION_TARGET_COUNT } from './campusHuntFormat';
 
 export default function CampusHuntEventControl() {
   const { eventId } = useParams();
+  const validEventId = Boolean(eventId && /^[a-f\d]{24}$/i.test(String(eventId)));
   const [overview, setOverview] = useState(null);
   const [teams, setTeams] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -60,6 +61,7 @@ export default function CampusHuntEventControl() {
   const [refreshError, setRefreshError] = useState('');
 
   const refresh = useCallback(async () => {
+    if (!validEventId) return;
     const softMsg = (err) => {
       const status = err?.status;
       if (status === 503 || status === 502 || status === 504 || err?.code === 'DB_UNAVAILABLE') {
@@ -114,9 +116,10 @@ export default function CampusHuntEventControl() {
         : null;
     setLastRefresh(new Date());
     setRefreshError(softFail ? softMsg(softFail) : '');
-  }, [eventId, tab, activeRound]);
+  }, [eventId, validEventId, tab, activeRound]);
 
   useEffect(() => {
+    if (!validEventId) return undefined;
     refresh().catch((err) => {
       const status = err?.status;
       if (status === 503 || status === 502 || err?.code === 'DB_UNAVAILABLE') {
@@ -296,6 +299,17 @@ export default function CampusHuntEventControl() {
     () => (leaderboard || []).slice(0, competitionFormat.teamCapacity),
     [leaderboard, competitionFormat.teamCapacity],
   );
+
+  if (!validEventId) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
+        <p className="text-lg font-semibold">Invalid event link</p>
+        <Link to={CAMPUS_HUNT_PATHS.admin} className="text-[#0ECCEE] underline">
+          Back to Campus Hunt admin
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 p-4 text-white md:p-6">

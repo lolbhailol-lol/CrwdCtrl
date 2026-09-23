@@ -13,8 +13,22 @@ export const ORGANIZER_PORTAL_PREFIXES = [
     '/mindspark-payments',
 ];
 
+/** Campus Hunt player + offline + volunteer — always dark (avoids light-mode white-on-white). */
+export function isCampusHuntDarkPath(pathname = '') {
+    const path = String(pathname || '');
+    return (
+        path === '/campus-hunt'
+        || path.startsWith('/campus-hunt/')
+        || path === '/campus-hunt-volunteer'
+        || path.startsWith('/campus-hunt-volunteer/')
+        || path === '/admin/campus-hunt'
+        || path.startsWith('/admin/campus-hunt/')
+    );
+}
+
 export function isOrganizerPortalPath(pathname = '') {
     const path = String(pathname || '');
+    if (isCampusHuntDarkPath(path)) return true;
     return ORGANIZER_PORTAL_PREFIXES.some((prefix) => (
         path === prefix || path.startsWith(`${prefix}/`)
     ));

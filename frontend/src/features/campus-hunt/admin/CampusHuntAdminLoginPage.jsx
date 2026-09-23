@@ -13,7 +13,7 @@ export default function CampusHuntAdminLoginPage() {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) { setError(data.message || 'Invalid username or password'); return; }
         localStorage.setItem('campus_hunt_admin_token', data.accessToken);
-        window.location.href = '/campus-hunt/admin';
+        window.location.href = '/admin/campus-hunt';
         return;
       } catch { /* try next configured API base */ }
     }

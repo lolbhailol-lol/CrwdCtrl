@@ -42,7 +42,10 @@
     (function () {
       try {
         var p = location.pathname || '';
-        var forceOrganizerDark = /^\/(event-community-organizer|run-club-organizer|trek-organizer|fest-organizer|event-organizer|mindspark-payments)(\/|$)/.test(p);
+        var forceOrganizerDark = /^\/(event-community-organizer|run-club-organizer|trek-organizer|fest-organizer|event-organizer|mindspark-payments)(\/|$)/.test(p)
+          || /^\/campus-hunt(\/|$)/.test(p)
+          || /^\/campus-hunt-volunteer(\/|$)/.test(p)
+          || /^\/admin\/campus-hunt(\/|$)/.test(p);
         if (forceOrganizerDark) {
           document.documentElement.classList.add('dark');
           document.documentElement.dataset.organizerDark = '1';

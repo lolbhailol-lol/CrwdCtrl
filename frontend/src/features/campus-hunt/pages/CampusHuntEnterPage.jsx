@@ -96,10 +96,10 @@ export default function CampusHuntEnterPage() {
               <select
                 value={college}
                 onChange={(e) => onCollegeChange(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE]"
+                className="mt-2 w-full rounded-xl border border-white/15 bg-[#111213] px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE] [color-scheme:dark]"
               >
                 {colleges.map((c) => (
-                  <option key={c.college} value={c.college}>
+                  <option key={c.college} value={c.college} className="bg-[#111213] text-white">
                     {c.college}
                   </option>
                 ))}
@@ -112,10 +112,10 @@ export default function CampusHuntEnterPage() {
                 <select
                   value={eventSlug}
                   onChange={(e) => setEventSlug(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE]"
+                  className="mt-2 w-full rounded-xl border border-white/15 bg-[#111213] px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE] [color-scheme:dark]"
                 >
                   {events.map((ev) => (
-                    <option key={ev.id || ev.slug} value={ev.slug}>
+                    <option key={ev.id || ev.slug} value={ev.slug} className="bg-[#111213] text-white">
                       {ev.name}
                     </option>
                   ))}
@@ -129,7 +129,7 @@ export default function CampusHuntEnterPage() {
                 value={teamCode}
                 onChange={(e) => setTeamCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
                 placeholder="CC001"
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-3 text-center font-mono text-xl tracking-[0.2em] outline-none focus:border-[#0ECCEE]"
+                className="mt-2 w-full rounded-xl border border-white/15 bg-[#111213] px-3 py-3 text-center font-mono text-xl tracking-[0.2em] text-white outline-none focus:border-[#0ECCEE] [color-scheme:dark]"
                 autoComplete="off"
               />
             </label>

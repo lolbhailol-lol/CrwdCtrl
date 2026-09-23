@@ -126,9 +126,14 @@ export async function getAdminToken({ redirectOnFail = true } = {}) {
 export async function adminFetch(path, options = {}) {
   const { redirectOnFail = true, timeout = 45000, ...fetchOptions } = options;
   const campusScoped = path.startsWith('/campus-hunt/admin');
-  const token = campusScoped
-    ? localStorage.getItem('campus_hunt_admin_token')
+  // Prefer Hunt-only token; fall back to main CrwdCtrl admin (backend accepts both).
+  let token = campusScoped
+    ? (localStorage.getItem('campus_hunt_admin_token') || await getAdminToken({ redirectOnFail: false }))
     : await getAdminToken({ redirectOnFail });
+  if (!token && campusScoped && redirectOnFail) {
+    window.location.href = '/campus-hunt/admin/login';
+    throw new Error('Campus Hunt session expired');
+  }
   if (!token) throw new Error('Admin session expired');
 
   const buildOptions = (accessToken) => ({
@@ -145,6 +150,14 @@ export async function adminFetch(path, options = {}) {
   if (response.status === 401 || response.status === 403) {
     if (campusScoped) {
       localStorage.removeItem('campus_hunt_admin_token');
+      // Retry once with main admin token if we were on Hunt-only token
+      const mainToken = await getAdminToken({ redirectOnFail: false });
+      if (mainToken && mainToken !== token) {
+        response = await fetchAcrossBases(path, () => buildOptions(mainToken), { timeout });
+        if (response.ok || (response.status !== 401 && response.status !== 403)) {
+          return response;
+        }
+      }
       if (redirectOnFail) window.location.href = '/campus-hunt/admin/login';
       throw new Error('Campus Hunt session expired');
     }

@@ -172,7 +172,7 @@ export default function CampusHuntLeaderboardPage() {
               isDark
                 ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
                 : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
-            }`}
+            } ${typeof document !== 'undefined' && document.documentElement.dataset.organizerDark === '1' ? 'hidden' : ''}`}
           >
             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
