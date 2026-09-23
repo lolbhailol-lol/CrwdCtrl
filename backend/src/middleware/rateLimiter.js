@@ -33,9 +33,9 @@ function paymentIdentityKey(req) {
 function paymentRateLimitMax(req) {
   const userId = bearerUserId(req);
   if (userId) {
-    return isDev ? 500 : Number(process.env.PAYMENT_RATE_LIMIT_MAX) || 120;
+    return isDev ? 500 : Number(process.env.PAYMENT_RATE_LIMIT_MAX) || 240;
   }
-  return isDev ? 500 : Number(process.env.PAYMENT_IP_RATE_LIMIT_MAX) || 300;
+  return isDev ? 500 : Number(process.env.PAYMENT_IP_RATE_LIMIT_MAX) || 600;
 }
 
 function registrationIdentityKey(req) {
@@ -45,9 +45,9 @@ function registrationIdentityKey(req) {
 function registrationRateLimitMax(req) {
   const userId = bearerUserId(req);
   if (userId) {
-    return isDev ? 300 : Number(process.env.REGISTRATION_RATE_LIMIT_MAX) || 60;
+    return isDev ? 300 : Number(process.env.REGISTRATION_RATE_LIMIT_MAX) || 120;
   }
-  return isDev ? 300 : Number(process.env.REGISTRATION_IP_RATE_LIMIT_MAX) || 150;
+  return isDev ? 300 : Number(process.env.REGISTRATION_IP_RATE_LIMIT_MAX) || 300;
 }
 
 /**
@@ -183,7 +183,7 @@ const bundleQuoteLimiter = rateLimit({
 
 const bundlePaymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 1000 : Number(process.env.BUNDLE_PAYMENT_RATE_LIMIT_MAX) || 400,
+  max: isDev ? 1000 : Number(process.env.BUNDLE_PAYMENT_RATE_LIMIT_MAX) || 800,
   keyGenerator: (req) => `bundle:${String(req.params?.token || ipKeyGenerator(req.ip)).slice(0, 100)}`,
   standardHeaders: true,
   legacyHeaders: false,

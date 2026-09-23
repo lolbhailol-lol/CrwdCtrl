@@ -158,11 +158,19 @@ function formatTicket(reg, competition) {
   };
 }
 
+const auditoriumCompetitionCache = new Map();
+const AUDITORIUM_COMPETITION_TTL_MS = 30_000;
+
 async function ensureAuditoriumCompetition(festId = MINDSPARK_FEST_ID) {
   if (!isMindSparkFestId(festId)) {
     const err = new Error('Auditorium is only available for MindSpark');
     err.status = 400;
     throw err;
+  }
+  const cacheKey = String(festId);
+  const cached = auditoriumCompetitionCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < AUDITORIUM_COMPETITION_TTL_MS) {
+    return cached.doc;
   }
   let competition = await Competition.findOne({
     fest: festId,
@@ -176,6 +184,7 @@ async function ensureAuditoriumCompetition(festId = MINDSPARK_FEST_ID) {
       competition.slotsAllotted = sumSeats(cfg.categories);
       await competition.save();
     }
+    auditoriumCompetitionCache.set(cacheKey, { at: Date.now(), doc: competition });
     return competition;
   }
 
@@ -207,6 +216,7 @@ async function ensureAuditoriumCompetition(festId = MINDSPARK_FEST_ID) {
     auditorium: cfg,
     isApproved: true,
   });
+  auditoriumCompetitionCache.set(cacheKey, { at: Date.now(), doc: competition });
   return competition;
 }
 

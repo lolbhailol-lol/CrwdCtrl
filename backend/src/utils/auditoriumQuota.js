@@ -32,19 +32,42 @@ async function countTotalFilled(competitionId) {
 async function buildCategoryStats(competition) {
   const categories = sanitizeCategories(competition?.auditorium?.categories || []);
   const competitionId = competition._id || competition;
-  const stats = [];
-  for (const cat of categories) {
-    const filled = await countCategoryFilled(competitionId, cat.id);
+  if (!categories.length) {
+    return { categories: [], totalSeats: 0, totalFilled: 0, totalLeft: null };
+  }
+
+  // Prefer seat counters (1 query). Fall back to one aggregation if any category is missing.
+  const counters = await AuditoriumSeatCounter.find({ competitionId })
+    .select('categoryId filled')
+    .lean();
+  const filledById = new Map(
+    counters.map((c) => [String(c.categoryId), Math.max(0, Math.floor(Number(c.filled) || 0))]),
+  );
+  const missing = categories.some((cat) => !filledById.has(String(cat.id)));
+  if (missing) {
+    const rows = await Registration.aggregate([
+      { $match: occupiedFilter(competitionId) },
+      { $group: { _id: '$responses.auditorium_category_id', filled: { $sum: 1 } } },
+    ]);
+    for (const row of rows) {
+      const id = String(row._id || '');
+      if (!id) continue;
+      filledById.set(id, Math.max(filledById.get(id) || 0, Number(row.filled) || 0));
+    }
+  }
+
+  const stats = categories.map((cat) => {
+    const filled = filledById.get(String(cat.id)) || 0;
     const seats = Number(cat.seats) || 0;
-    stats.push({
+    return {
       ...cat,
       filled,
       left: seats > 0 ? Math.max(0, seats - filled) : null,
       full: seats > 0 && filled >= seats,
-    });
-  }
+    };
+  });
   const totalSeats = categories.reduce((n, c) => n + (Number(c.seats) || 0), 0);
-  const totalFilled = await countTotalFilled(competitionId);
+  const totalFilled = stats.reduce((n, s) => n + s.filled, 0);
   return {
     categories: stats,
     totalSeats,

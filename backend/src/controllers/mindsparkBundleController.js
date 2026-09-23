@@ -5,7 +5,7 @@ const PaymentOrder = require('../model/payment_order_model');
 const User = require('../model/usermodel');
 const { FEST_ID, BUNDLE_COMPETITION_IDS, DISCOUNT_PERCENT, BUNDLE_SIZE, BUNDLE_GROUP, isBundleEligible, groupFor } = require('../modules/fest/plugins/mindsparkBundle');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
-const { assertCompetitionAcceptsRegistration } = require('../utils/competitionSlots');
+const { assertCompetitionsAcceptRegistration } = require('../utils/competitionSlots');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
 const {
   createCashfreeOrder,
@@ -93,6 +93,9 @@ async function competitions() {
   }));
 }
 
+const offerCache = { at: 0, payload: null };
+const OFFER_TTL_MS = 30_000;
+
 function subcategoryFieldOf(competition) {
   const fields = Array.isArray(competition?.registration?.personFields)
     ? competition.registration.personFields
@@ -123,9 +126,13 @@ function resolveSubcategory(competition, rawValue) {
 }
 
 exports.offer = async (_req, res) => {
+  if (offerCache.payload && Date.now() - offerCache.at < OFFER_TTL_MS) {
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+    return res.json(offerCache.payload);
+  }
   const list = await competitions();
   const shaped = list.map(c => ({ ...c, group: groupFor(c._id) }));
-  res.json({
+  const payload = {
     success: true,
     festId: FEST_ID,
     discountPercent: DISCOUNT_PERCENT,
@@ -134,10 +141,19 @@ exports.offer = async (_req, res) => {
     // Back-compat for older clients
     technical: shaped,
     nonTechnical: shaped,
-  });
+  };
+  offerCache.at = Date.now();
+  offerCache.payload = payload;
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  res.json(payload);
 };
 
-async function validateItems(rawItems) {
+/**
+ * @param {object[]} rawItems
+ * @param {{ checkSlots?: boolean }} [opts] — quote is display-only; skip slot DB work under rush.
+ */
+async function validateItems(rawItems, opts = {}) {
+  const checkSlots = opts.checkSlots !== false;
   if (!Array.isArray(rawItems) || rawItems.length !== BUNDLE_SIZE) {
     const e = new Error(`Select exactly ${BUNDLE_SIZE} different competitions from the bundle list.`);
     e.status = 400;
@@ -149,11 +165,17 @@ async function validateItems(rawItems) {
     e.status = 400;
     throw e;
   }
-  const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID }).populate('fest');
+  // No fest populate — pricing/slots only need competition fields (avoids N+1 under quote spam).
+  const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID })
+    .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration slotsAllotted registrationsOpen')
+    .lean();
   if (docs.length !== BUNDLE_SIZE) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
+  if (checkSlots) {
+    await assertCompetitionsAcceptRegistration(docs);
+  }
   const byId = new Map(docs.map(c => [String(c._id), c]));
-  return Promise.all(rawItems.map(async raw => {
-    const competition = byId.get(String(raw.competitionId)); await assertCompetitionAcceptsRegistration(competition);
+  return rawItems.map(raw => {
+    const competition = byId.get(String(raw.competitionId));
     const roster = raw.roster && typeof raw.roster === 'object' ? raw.roster : {};
     if (!clean(roster.full_name, 100) || phone(roster.phone).length !== 10 || !validEmail(roster.email)) { const e = new Error(`${competition.name}: team leader name, valid WhatsApp number, and email are required.`); e.status = 400; throw e; }
     const members = Array.isArray(roster.team_members)
@@ -211,12 +233,12 @@ async function validateItems(rawItems) {
       roster: rosterOut,
       originalAmount: priced.ticketPrice,
     };
-  }));
+  });
 }
 
 exports.quote = async (req, res) => {
   try {
-    const items = await validateItems(req.body.items);
+    const items = await validateItems(req.body.items, { checkSlots: false });
     const subtotal = items.reduce((s, x) => s + x.originalAmount, 0);
     const totalAmount = Math.round(subtotal * PAYABLE_RATIO);
     res.json({

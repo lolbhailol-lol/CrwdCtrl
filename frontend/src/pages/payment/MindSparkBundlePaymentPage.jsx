@@ -9,7 +9,7 @@ export default function MindSparkBundlePaymentPage() {
   const [data, setData] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(true);
   const refresh = useCallback(async () => { const next = params.get('returned') === '1' ? await verifyMindSparkBundlePayment(token) : await fetchMindSparkBundlePayment(token); setData(next); return next; }, [params, token]);
   useEffect(() => { refresh().catch(e => setError(e.message)).finally(() => setBusy(false)); }, [refresh]);
-  useEffect(() => { if (!data || ['paid','failed','expired','paid_review'].includes(data.status)) return; const timer = setInterval(() => verifyMindSparkBundlePayment(token).then(setData).catch(() => {}), 3500); return () => clearInterval(timer); }, [data, token]);
+  useEffect(() => { if (!data || ['paid','failed','expired','paid_review'].includes(data.status)) return; const timer = setInterval(() => verifyMindSparkBundlePayment(token).then(setData).catch(() => {}), 5000); return () => clearInterval(timer); }, [data, token]);
   const openCheckout = async payment => { const cashfree = await load({ mode: payment.cashfreeMode || 'production' }); const result = await cashfree.checkout({ paymentSessionId: payment.paymentSessionId, redirectTarget: '_self' }); if (result?.error) throw new Error(result.error.message); };
   const pay = async () => { setBusy(true); try { await openCheckout(data); } catch (e) { setError(e.message); } finally { setBusy(false); } };
   const retry = async () => { setBusy(true); try { const next = await reissueMindSparkBundlePayment(token); setData(next); if (next.paymentSessionId) await openCheckout(next); } catch(e) { setError(e.message); } finally { setBusy(false); } };

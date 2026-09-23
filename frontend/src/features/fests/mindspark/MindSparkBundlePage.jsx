@@ -121,7 +121,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
       } catch {
         /* keep polling */
       }
-    }, 3000);
+    }, 5000);
     return () => window.clearInterval(timer);
   }, [desk, deskPay?.paymentToken, deskPay?.status]);
   useEffect(() => {
@@ -187,8 +187,21 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   })();
 
   useEffect(() => {
-    if (!detailsValid || !formsValid) { setQuote(null); return; }
-    quoteMindSparkBundle(items).then(data => { setQuote(data); setError(''); }).catch(e => { setQuote(null); setError(e.message); });
+    if (!detailsValid || !formsValid) { setQuote(null); return undefined; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      quoteMindSparkBundle(items)
+        .then((data) => {
+          if (!cancelled) { setQuote(data); setError(''); }
+        })
+        .catch((e) => {
+          if (!cancelled) { setQuote(null); setError(e.message); }
+        });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [detailsValid, formsValid, items]);
 
   const setForm = (i, field, value) => setForms(all => all.map((form, index) => index === i ? { ...form, [field]: value } : form));
