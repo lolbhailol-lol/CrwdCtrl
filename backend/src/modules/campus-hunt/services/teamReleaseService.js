@@ -62,6 +62,33 @@ async function releaseTeamIfDue({
   if (fresh.startStatus === 'CANCELLED') {
     throw releaseError('Team start is cancelled', 'START_CANCELLED');
   }
+  // A team may already be beyond WAITING after an offline/admin checkpoint
+  // update while an older startStatus remains behind. Repair that flag instead
+  // of making the release button silently return without changing anything.
+  if (fresh.currentStage !== 'WAITING') {
+    const repaired = await CampusHuntTeam.findOneAndUpdate(
+      {
+        _id: fresh._id,
+        currentStage: fresh.currentStage,
+        startStatus: { $in: ['WAITING', 'READY'] },
+      },
+      {
+        $set: {
+          startStatus: fresh.currentStage === 'SCORE_LOCKED' ? 'COMPLETED' : 'ACTIVE',
+          status: fresh.currentStage === 'SCORE_LOCKED' ? 'finished' : 'active',
+          ...(!fresh.actualStartAt ? { actualStartAt: now } : {}),
+        },
+      },
+      { new: true },
+    );
+    const current = repaired || await CampusHuntTeam.findById(fresh._id);
+    return {
+      team: current,
+      released: false,
+      alreadyReleased: true,
+      repaired: Boolean(repaired),
+    };
+  }
   const [round, startingPoint] = await Promise.all([
     CampusHuntRound.findById(fresh.roundId),
     CampusHuntStartingPoint.findById(fresh.startingPointId),

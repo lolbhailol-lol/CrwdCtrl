@@ -127,6 +127,45 @@ function sanitizeCashfreeOrderTags(raw = {}, maxKeys = 15) {
   return out;
 }
 
+function compactCashfreeCustomer(details = {}) {
+  const rawName = String(details.customer_name || 'Customer');
+  const customerName = rawName
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9 .'-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100) || 'Customer';
+  const rawEmail = String(details.customer_email || '').trim().toLowerCase();
+  const customerEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+    ? rawEmail.slice(0, 100)
+    : 'customer@crwdctrl.com';
+  return {
+    customer_id: String(details.customer_id || `guest_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50),
+    customer_name: customerName,
+    customer_email: customerEmail,
+    customer_phone: normalizePhone(details.customer_phone),
+  };
+}
+
+function cashfreeCreateError(error, orderId) {
+  const upstreamStatus = Number(error?.response?.status || 0);
+  const body = error?.response?.data;
+  const upstreamMessage = typeof body === 'string'
+    ? body.slice(0, 300)
+    : String(body?.message || body?.type || body?.code || '').slice(0, 300);
+  console.error('[cashfree.createOrder] rejected', {
+    orderId,
+    upstreamStatus,
+    upstreamCode: body?.code || body?.type || null,
+    upstreamMessage: upstreamMessage || null,
+  });
+  const wrapped = new Error('Payment service could not start the checkout. Please tap Pay again.');
+  wrapped.status = 503;
+  wrapped.code = 'CASHFREE_ORDER_UNAVAILABLE';
+  wrapped.upstreamStatus = upstreamStatus;
+  return wrapped;
+}
+
 async function createCashfreeOrder({
   orderAmount,
   currency = 'INR',
@@ -160,8 +199,36 @@ async function createCashfreeOrder({
     order_tags: sanitizeCashfreeOrderTags(orderTags),
   };
 
-  const response = await axios.post(`${getBaseUrl(m)}/orders`, payload, { headers: getHeaders(m) });
-  return { ...response.data, cashfreeMerchant: m };
+  const url = `${getBaseUrl(m)}/orders`;
+  const headers = getHeaders(m);
+  try {
+    const response = await axios.post(url, payload, { headers });
+    return { ...response.data, cashfreeMerchant: m };
+  } catch (error) {
+    // Cashfree can reject optional metadata or unclean Google-profile names with
+    // HTTP 400. Retry once with the same business data and a minimal payload.
+    if (Number(error?.response?.status) === 400) {
+      const retryOrderId = generateOrderId();
+      const retryPayload = {
+        order_id: retryOrderId,
+        order_amount: payload.order_amount,
+        order_currency: payload.order_currency,
+        customer_details: compactCashfreeCustomer(payload.customer_details),
+        order_meta: { return_url: payload.order_meta.return_url },
+      };
+      try {
+        const response = await axios.post(url, retryPayload, { headers });
+        console.warn('[cashfree.createOrder] recovered after compact retry', {
+          rejectedOrderId: orderId,
+          orderId: retryOrderId,
+        });
+        return { ...response.data, cashfreeMerchant: m };
+      } catch (retryError) {
+        throw cashfreeCreateError(retryError, retryOrderId);
+      }
+    }
+    throw cashfreeCreateError(error, orderId);
+  }
 }
 
 async function fetchOrder(orderId, { merchant = 'platform' } = {}) {

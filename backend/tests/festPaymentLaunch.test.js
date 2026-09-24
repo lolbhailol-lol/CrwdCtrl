@@ -10,11 +10,13 @@ const {
   shouldInvalidateCashfreeLookupError,
 } = require('../src/utils/paymentOrderIdempotency');
 const {
+  createCashfreeOrder,
   mapOrderStatus,
   firstValidCustomerPhone,
   normalizePhone,
   normalizeCashfreeReturnUrl,
 } = require('../src/services/cashfreeService');
+const axios = require('axios');
 const { buildPaymentOrderNote } = require('../src/utils/paymentOrderNote');
 
 test('mapOrderStatus treats user-dropped checkout as cancelled', () => {
@@ -169,4 +171,46 @@ test('Cashfree customer phone uses the first real 10-digit number and dummies on
   assert.equal(normalizePhone(''), '9999999999');
   assert.equal(normalizePhone('9876543210'), '9876543210');
   assert.equal(normalizePhone('9999999999'), '9999999999');
+});
+
+test('Cashfree order creation retries one 400 with a compact customer payload', async () => {
+  const originalPost = axios.post;
+  const originalId = process.env.CASHFREE_CLIENT_ID;
+  const originalSecret = process.env.CASHFREE_CLIENT_SECRET;
+  const calls = [];
+  process.env.CASHFREE_CLIENT_ID = 'test-client';
+  process.env.CASHFREE_CLIENT_SECRET = 'test-secret';
+  axios.post = async (_url, payload) => {
+    calls.push(payload);
+    if (calls.length === 1) {
+      const error = new Error('bad request');
+      error.response = { status: 400, data: { message: 'invalid optional field' } };
+      throw error;
+    }
+    return { data: { order_id: payload.order_id, payment_session_id: 'session-ok' } };
+  };
+  try {
+    const order = await createCashfreeOrder({
+      orderAmount: 174,
+      customerDetails: {
+        customerId: 'user-1',
+        customerName: 'Test 🚀 User',
+        customerEmail: 'TEST@example.com',
+        customerPhone: '9876543210',
+      },
+      orderNote: 'optional note',
+      orderTags: { bundleId: 'bundle-1' },
+    });
+    assert.equal(order.payment_session_id, 'session-ok');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].customer_details.customer_name, 'Test User');
+    assert.equal(calls[1].order_note, undefined);
+    assert.equal(calls[1].order_tags, undefined);
+  } finally {
+    axios.post = originalPost;
+    if (originalId === undefined) delete process.env.CASHFREE_CLIENT_ID;
+    else process.env.CASHFREE_CLIENT_ID = originalId;
+    if (originalSecret === undefined) delete process.env.CASHFREE_CLIENT_SECRET;
+    else process.env.CASHFREE_CLIENT_SECRET = originalSecret;
+  }
 });
