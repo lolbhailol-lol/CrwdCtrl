@@ -76,6 +76,7 @@ function CompetitionScrollCard({
   busy = false,
   hideFee = false,
   largeCover = false,
+  eagerCover = false,
 }) {
   const compName = typeof comp.name === 'string' ? comp.name : 'Competition';
   const feeLabel = formatCompFee(comp);
@@ -113,6 +114,7 @@ function CompetitionScrollCard({
           alt={compName}
           preset="cardSm"
           placeholder="muted"
+          eager={eagerCover}
           containerClassName="absolute inset-0 w-full h-full"
         />
         <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
@@ -212,9 +214,9 @@ function EventDetailsPage() {
     fetchGenRef.current += 1;
     setEventData(seed);
     setCurrentHeroImage(festHeroUrl(seed));
-    // Cached fest data can paint the stable shell immediately, but its competition
-    // categories may be outdated. Keep them hidden until this route refreshes.
-    setFetchDone(false);
+    // Fresh network fetch still runs below; paint cached competitions immediately
+    // so the competitions section does not sit on a skeleton after the hero.
+    setFetchDone(Boolean(seed && festHasCompetitionGroups(seed)));
     setError(null);
     setActiveTab('GROUP');
     setShowFullOverview(false);
@@ -410,9 +412,10 @@ function EventDetailsPage() {
     }
   }, [isAuthenticated, showLogin, showRegister, openBundleAfterLogin]);
 
-  // Get available competition tabs based on event data
-  const availableTabs = fetchDone ? Object.keys(eventData?.competitions || {}) : [];
+  // Get available competition tabs based on event data (cache or live)
+  const availableTabs = Object.keys(eventData?.competitions || {});
   const visibleTab = availableTabs.includes(activeTab) ? activeTab : (availableTabs[0] || '');
+  const showCompetitionSkeleton = !fetchDone && availableTabs.length === 0;
 
   // Set initial active tab to the first available tab
   useEffect(() => {
@@ -900,12 +903,12 @@ function EventDetailsPage() {
                 ) : null}
 
                 {/* Competitions */}
-                {!fetchDone ? (
+                {showCompetitionSkeleton ? (
                   <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6`}>
                     <CompetitionSectionSkeleton isDark={isDark} />
                   </div>
                 ) : availableTabs.length > 0 ? (
-                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`} style={kshitijPage ? { contentVisibility: 'auto', containIntrinsicSize: '420px' } : undefined}>
+                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`}>
                     <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {pageEvent.competitionsHeading || "Competitions"}
                     </h2>
@@ -944,6 +947,7 @@ function EventDetailsPage() {
                             fill={smoothFestLayout}
                             hideFee={false}
                             largeCover={mindSparkDesktop}
+                            eagerCover={idx < 6}
                             isDark={isDark}
                             isFavorite={isFavorite(comp.id)}
                             onToggleFavorite={() => toggleFavorite(comp.id, {
@@ -1487,7 +1491,7 @@ function EventDetailsPage() {
             </button>
           </div>
         ) : null}
-        {!fetchDone ? (
+        {showCompetitionSkeleton ? (
           <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
             <CompetitionSectionSkeleton isDark={isDark} mobile />
           </section>
@@ -1524,6 +1528,7 @@ function EventDetailsPage() {
                     comp={comp}
                     hideFee={false}
                     largeCover={mindSparkDesktop}
+                    eagerCover={idx < 4}
                     isDark={isDark}
                     isFavorite={isFavorite(comp.id)}
                     onToggleFavorite={() => toggleFavorite(comp.id, {
