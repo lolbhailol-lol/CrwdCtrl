@@ -20,6 +20,8 @@ const {
 const { publishTeamProgress } = require('./teamProgressBus');
 const {
   CHECKPOINT_SCAN_REQUIRED,
+  TEAM_STAGES,
+  CHECKPOINT_NEXT_STAGE,
 } = require('../constants');
 
 function notifyTeam(teamOrId) {
@@ -111,6 +113,23 @@ async function findTeamByCode(eventId, teamCode) {
 
 function checkpointProgressionKey(checkpoint) {
   return String(checkpoint.progressionKey || checkpoint.checkpointKey).toUpperCase();
+}
+
+function stageRank(stage) {
+  const index = TEAM_STAGES.indexOf(String(stage || ''));
+  return index < 0 ? -1 : index;
+}
+
+/** Team already left this poster (red scan → lobby, and the same for earlier stops). */
+function stageAlreadyPastCheckpoint(stage, progressionKey) {
+  const key = String(progressionKey || '').toUpperCase() === 'FINISH'
+    ? 'FINISH'
+    : Number(progressionKey);
+  const next = CHECKPOINT_NEXT_STAGE[key];
+  if (!next) return false;
+  const now = stageRank(stage);
+  const gate = stageRank(next);
+  return now >= 0 && gate >= 0 && now >= gate;
 }
 
 function pendingCheckpointKeyForStage(stage) {
@@ -283,7 +302,7 @@ function assertTeamEligibleForCheckpoint(team, checkpoint) {
   const allowed = stagesAllowingCheckpoint(key);
   if (!allowed.includes(team.currentStage)) {
     let message = 'Team is not eligible for this checkpoint yet';
-    if (/CLUE_\d_ACTIVE/.test(String(team.currentStage || ''))) {
+    if (/^CLUE_[1-5]_ACTIVE$/.test(String(team.currentStage || ''))) {
       message = 'Type your clue answer on this phone first — then scan the poster.';
     } else if (neededKey && String(neededKey) !== String(key)) {
       message = `Wrong poster color — you need ${scanColorLabel(neededKey)}, not ${scanColorLabel(key)}.`;
@@ -869,6 +888,30 @@ async function playerScanStation({ team, userId, raw, now = new Date() }) {
 
   assertLeaderPhone(team, userId);
   const requiredCount = await scanRequiredForTeam(team);
+  if (stageAlreadyPastCheckpoint(team.currentStage, progressionKey)) {
+    const stageStr = String(team.currentStage || '');
+    return {
+      alreadyComplete: true,
+      verifiedCount: requiredCount,
+      requiredCount,
+      youScanned: true,
+      awaitingTeamCodeConfirm: false,
+      teamStage: team.currentStage,
+      unlockedNext: true,
+      unlockedClue2: stageStr.includes('CLUE_2'),
+      unlockedClue3: stageStr.includes('CLUE_3'),
+      unlockedClue4: stageStr.includes('CLUE_4'),
+      unlockedClue5: stageStr.includes('CLUE_5'),
+      unlockedClue6: stageStr.includes('CLUE_6') || stageStr === 'SCORE_LOCKED',
+      checkpoint: {
+        id: String(checkpoint._id),
+        checkpointKey: progressionKey,
+        code: checkpoint.code || checkpoint.checkpointKey,
+        locationName: checkpoint.locationName,
+      },
+      message: 'Station cleared — next clue unlocked.',
+    };
+  }
   assertTeamEligibleForCheckpoint(team, checkpoint);
   if (!team.includesUser(userId)) {
     const err = new Error('You are not on this team');

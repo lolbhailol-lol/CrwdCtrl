@@ -130,9 +130,6 @@ export default function PlayerPlayScreen({
   const isLeader = Boolean(team?.isLeader);
   const eventId = eventIdProp || data?.event?.id || null;
   const round1Label = roundLabel || 'Campus Hunt';
-  const finalsHint = offlineMode
-    ? 'Hunt complete — check the live leaderboard. Top 10 teams get a chance to volunteer at Mindspark 2026.'
-    : 'Hunt complete — check the leaderboard for ranks. Organizers lock scores after finish/import.';
   const activeNum = activeChallengeNumber(team?.currentStage);
   const released = Boolean(
     team?.actualStartAt
@@ -934,57 +931,71 @@ export default function PlayerPlayScreen({
           )}
 
           {locked && (
-            <section className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-5 text-center">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
-                Hunt complete
-              </p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {offlineMode
-                  ? (
-                    <>
-                      Score locked
-                      {Number(displayRank) > 0
-                        ? ` · #${displayRank}${Number(displayFieldSize) > 0 ? ` of ${displayFieldSize}` : ''}`
-                        : ''}
-                    </>
-                  )
-                  : (
-                    <>
-                      Score locked · {team.finalScore ?? team.currentScore ?? 0} pts
-                      {Number(team.leaderboardRank) > 0
-                        ? ` · #${team.leaderboardRank}${Number(team.leaderboardSize) > 0 ? ` of ${team.leaderboardSize}` : ''}`
-                        : ''}
-                    </>
-                  )}
-              </p>
-              <p className="mt-2 text-sm text-white/60">
-                {finalsHint}
-              </p>
-              {offlineMode && Number(displayRank) > 0 && Number(displayRank) <= 10 ? (
-                <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-50">
-                  You’re in the Top 10 — chance to volunteer at Mindspark 2026.
+            <section
+              className="overflow-hidden rounded-3xl border text-center"
+              style={{
+                borderColor: `${STAGE_THEMES.destination.hex}99`,
+                background: `linear-gradient(180deg, ${STAGE_THEMES.destination.softBg} 0%, rgba(20,14,4,0.94) 58%)`,
+                boxShadow: `0 0 48px -18px ${STAGE_THEMES.destination.hex}`,
+              }}
+            >
+              <div className="h-1 w-full" style={{ background: STAGE_THEMES.destination.hex }} />
+              <div className="px-5 py-7">
+                <p
+                  className="text-[10px] font-semibold uppercase tracking-[0.22em]"
+                  style={{ color: STAGE_THEMES.destination.hex }}
+                >
+                  Mindspark Lobby
                 </p>
-              ) : null}
-
-              {offlineMode && isLeader && typeof onStartOver === 'function' ? (
-                <div className="mt-5 rounded-xl border border-amber-400/30 bg-black/25 px-3 py-3 text-left">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-200/80">
-                    Disclaimer
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-white/55">
-                    Start over wipes this phone’s progress and may reset live ranking / Zip Grid.
-                    Use only for a retest or if organizers ask. After reset you must enter the start code again.
-                  </p>
-                  <button
-                    type="button"
-                    disabled={startOverBusy}
-                    onClick={onStartOver}
-                    className="mt-3 w-full rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-bold text-white disabled:opacity-40"
+                <h2 className="mt-3 text-3xl font-black tracking-tight text-white">Thank you</h2>
+                <p className="mt-2 text-sm text-white/70">
+                  {teamPrimaryLabel(team)} finished the hunt.
+                </p>
+                <div className="mx-auto mt-6 max-w-[16rem] rounded-2xl border border-white/10 bg-black/35 px-4 py-4">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Your score</p>
+                  <p
+                    className="mt-1 font-mono text-5xl font-black tabular-nums"
+                    style={{ color: STAGE_THEMES.destination.hex }}
                   >
-                    {startOverBusy ? 'Starting over…' : 'Start over'}
-                  </button>
+                    {team.finalScore ?? team.currentScore ?? 0}
+                  </p>
+                  {Number(displayRank) > 0 ? (
+                    <p className="mt-1 text-sm font-semibold text-white/80">
+                      #{displayRank}
+                      {Number(displayFieldSize) > 0 ? ` of ${displayFieldSize}` : ''}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-white/45">Place updates on the leaderboard</p>
+                  )}
                 </div>
-              ) : null}
+                <p className="mt-5 text-sm leading-relaxed text-white/65">
+                  Thanks for playing. That score is locked.
+                </p>
+                {offlineMode && Number(displayRank) > 0 && Number(displayRank) <= 10 ? (
+                  <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-50">
+                    You’re in the Top 10 — chance to volunteer at Mindspark 2026.
+                  </p>
+                ) : null}
+                {offlineMode && isLeader && typeof onStartOver === 'function' ? (
+                  <div className="mt-5 rounded-xl border border-white/10 bg-black/25 px-3 py-3 text-left">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">
+                      Disclaimer
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-white/45">
+                      Start over wipes this phone’s progress and may reset live ranking / Zip Grid.
+                      Use only for a retest or if organizers ask. After reset you must enter the start code again.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={startOverBusy}
+                      onClick={onStartOver}
+                      className="mt-3 w-full rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-bold text-white disabled:opacity-40"
+                    >
+                      {startOverBusy ? 'Starting over…' : 'Start over'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </section>
           )}
 
@@ -1002,7 +1013,10 @@ export default function PlayerPlayScreen({
             </p>
           ) : null}
 
-          {feedback ? (
+          {feedback && !(locked && feedbackTone !== 'err') && !(
+            /scan didn.t register/i.test(feedback)
+            && !needsStationScan(team?.currentStage)
+          ) ? (
             <p
               className={`rounded-xl px-3 py-2.5 text-center text-sm ${
                 feedbackTone === 'err'

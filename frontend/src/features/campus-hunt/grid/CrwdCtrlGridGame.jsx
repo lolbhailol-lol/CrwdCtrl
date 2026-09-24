@@ -351,10 +351,15 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
             ))}
           </div>
 
-          {(data.hintsUsed > 0) && (
-            <p className="mt-3 text-xs text-amber-200">
-              −{data.hintsUsed * (data.hintCost || 20)} from {data.hintsUsed} hint(s)
-            </p>
+          {((data.hintsUsed > 0) || (data.undosUsed > 0)) && (
+            <div className="mt-3 space-y-1 text-xs text-amber-200">
+              {data.hintsUsed > 0 && (
+                <p>−{data.hintsUsed * (data.hintCost || 20)} from {data.hintsUsed} hint(s)</p>
+              )}
+              {data.undosUsed > 0 && (
+                <p>−{data.undosUsed * (data.undoCost || data.hintCost || 20)} from {data.undosUsed} undo(s)</p>
+              )}
+            </div>
           )}
 
           <div className="mt-6 rounded-2xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/10 px-4 py-4">

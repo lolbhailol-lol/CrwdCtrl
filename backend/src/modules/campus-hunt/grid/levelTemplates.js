@@ -36,8 +36,8 @@ const LEVEL_TEMPLATES = [
     rows: 7,
     cols: 7,
     wallCount: 6,
-    numberCount: 14,
-    timeSeconds: 80,
+    numberCount: 17,
+    timeSeconds: 70,
     points: 40,
   },
   {
@@ -47,8 +47,8 @@ const LEVEL_TEMPLATES = [
     rows: 8,
     cols: 8,
     wallCount: 8,
-    numberCount: 16,
-    timeSeconds: 95,
+    numberCount: 20,
+    timeSeconds: 80,
     points: 50,
   },
 ];

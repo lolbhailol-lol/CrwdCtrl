@@ -746,8 +746,21 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
   const next = advanceIfClueAlreadyResolved(tickTimers(bundle, state, now));
   const key = pendingCheckpointKey(next.currentStage);
   if (!key) {
-    if (/CLUE_\d_ACTIVE/.test(String(next.currentStage || ''))) {
+    const stage = String(next.currentStage || '');
+    if (/^CLUE_[1-5]_ACTIVE$/.test(stage)) {
       throw huntError('Type your clue answer first — then scan the poster', 409, 'WRONG_STAGE');
+    }
+    if (/CLUE_6|SCORE_LOCKED|FINISH_COMPLETED/.test(stage)) {
+      return {
+        state: next,
+        meta: {
+          message: 'Checkpoint passed',
+          alreadyComplete: true,
+          unlockedNext: true,
+          verifiedCount: 1,
+          requiredCount: 1,
+        },
+      };
     }
     throw huntError('No station scan needed right now — follow the instruction on your phone', 409, 'WRONG_STAGE');
   }

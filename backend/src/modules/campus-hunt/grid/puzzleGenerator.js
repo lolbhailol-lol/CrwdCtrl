@@ -89,7 +89,77 @@ function buildCoveringPath(rows, cols, walls, rng) {
   return serpentinePath(rows, cols);
 }
 
-function placeWalls(rows, cols, wallCount, rng) {
+function neighborCells(r, c, rows, cols, blocked) {
+  const out = [];
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (let i = 0; i < dirs.length; i += 1) {
+    const nr = r + dirs[i][0];
+    const nc = c + dirs[i][1];
+    if (nr < 0 || nc < 0 || nr >= rows || nc >= cols) continue;
+    if (blocked.has(cellKey(nr, nc))) continue;
+    out.push({ r: nr, c: nc });
+  }
+  return out;
+}
+
+/**
+ * Last two rounds: a winding fill instead of a straight row-snake,
+ * so the numbered path is harder to see. Falls back to null if the
+ * search budget runs out.
+ */
+function windingCover(rows, cols, walls, rng) {
+  const blocked = new Set((walls || []).map((w) => cellKey(w.r, w.c)));
+  const total = rows * cols - blocked.size;
+  if (total < 2) return null;
+  const seen = new Set();
+  const path = [];
+  let steps = 0;
+  const budget = 14000;
+
+  function openCount(r, c) {
+    let n = 0;
+    const cells = neighborCells(r, c, rows, cols, blocked);
+    for (let i = 0; i < cells.length; i += 1) {
+      if (!seen.has(cellKey(cells[i].r, cells[i].c))) n += 1;
+    }
+    return n;
+  }
+
+  function dfs(r, c) {
+    steps += 1;
+    if (steps > budget) return false;
+    seen.add(cellKey(r, c));
+    path.push({ r, c });
+    if (path.length === total) return true;
+    const next = neighborCells(r, c, rows, cols, blocked)
+      .filter((cell) => !seen.has(cellKey(cell.r, cell.c)))
+      .sort((a, b) => openCount(a.r, a.c) - openCount(b.r, b.c) || (rng() - 0.5));
+    for (let i = 0; i < next.length; i += 1) {
+      if (dfs(next[i].r, next[i].c)) return true;
+      if (steps > budget) break;
+    }
+    path.pop();
+    seen.delete(cellKey(r, c));
+    return false;
+  }
+
+  const starts = [];
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (!blocked.has(cellKey(r, c))) starts.push({ r, c });
+    }
+  }
+  const tries = shuffle(starts, rng).slice(0, 3);
+  for (let i = 0; i < tries.length; i += 1) {
+    steps = 0;
+    seen.clear();
+    path.length = 0;
+    if (dfs(tries[i].r, tries[i].c)) return path.slice();
+  }
+  return null;
+}
+
+function pickEdgeWalls(rows, cols, wallCount, rng) {
   if (wallCount <= 0) return [];
   // Punch a few edge cells that row/column serpentines can still skip.
   // Prefer far edges so the fill path stays a single corridor.
@@ -101,7 +171,12 @@ function placeWalls(rows, cols, wallCount, rng) {
       if (edge && !corner) candidates.push({ r, c });
     }
   }
-  const picked = shuffle(candidates, rng).slice(0, Math.min(wallCount, candidates.length));
+  return shuffle(candidates, rng).slice(0, Math.min(wallCount, candidates.length));
+}
+
+function placeWalls(rows, cols, wallCount, rng) {
+  const picked = pickEdgeWalls(rows, cols, wallCount, rng);
+  if (!picked.length) return [];
   // Only keep walls if at least one serpentine variant still covers the rest.
   const wallSet = picked;
   const probe = buildCoveringPath(rows, cols, wallSet, rng);
@@ -168,8 +243,18 @@ function generatePuzzle(levelIndex, seed = Date.now()) {
   const timeJitter = Math.floor((rng() - 0.5) * 12); // ±6s
   const timed = Math.max(50, Number(timeSeconds) + timeJitter);
 
-  const walls = placeWalls(rows, cols, wallCount, rng);
-  const solutionPath = buildCoveringPath(rows, cols, walls, rng);
+  let walls = placeWalls(rows, cols, wallCount, rng);
+  let solutionPath = buildCoveringPath(rows, cols, walls, rng);
+  // Rounds 3 and 4: bend the fill and keep walls when a path still exists.
+  if (levelIndex >= 2) {
+    const hardWalls = pickEdgeWalls(rows, cols, wallCount, rng);
+    const wound = windingCover(rows, cols, hardWalls, rng)
+      || windingCover(rows, cols, [], rng);
+    if (wound) {
+      solutionPath = wound;
+      walls = wound.length === rows * cols ? [] : hardWalls;
+    }
+  }
   const numbers = pickNumberCells(solutionPath, numberCount, rng);
   const start = { r: numbers[0].r, c: numbers[0].c };
   const end = { r: numbers[numbers.length - 1].r, c: numbers[numbers.length - 1].c };

@@ -15,6 +15,14 @@ async function acquireCameraStream() {
     throw new Error('Camera not supported on this device');
   }
   const attempts = [
+    {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+      },
+      audio: false,
+    },
     { video: { facingMode: { ideal: 'environment' } }, audio: false },
     { video: { facingMode: 'environment' }, audio: false },
     { video: true, audio: false },
@@ -124,15 +132,21 @@ export default function HuntQrScanner({
     if (!video || !canvas) return;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
+    // Full-camera frames made jsQR take well over a second. A short edge
+    // locks the poster QR in a few frames, inside about 1 second.
     const tick = () => {
       if (!video.videoWidth) {
         rafRef.current = requestAnimationFrame(tick);
         return;
       }
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const maxEdge = 420;
+      const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
+      const w = Math.max(1, Math.round(video.videoWidth * scale));
+      const h = Math.max(1, Math.round(video.videoHeight * scale));
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      ctx.drawImage(video, 0, 0, w, h);
+      const image = ctx.getImageData(0, 0, w, h);
       const code = jsQR(image.data, image.width, image.height, {
         inversionAttempts: 'dontInvert',
       });

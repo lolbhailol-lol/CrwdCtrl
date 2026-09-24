@@ -1345,14 +1345,6 @@ export default function TeamManagerPanel({
         </div>
         {eventMeta?.slug && demoReady && (
           <div className="mt-3 flex flex-wrap gap-2">
-            <a
-              href={absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/CC001`)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex rounded-lg bg-black/30 px-3 py-2 text-xs font-semibold text-[#0ECCEE]"
-            >
-              Open CC001 login ↗
-            </a>
             <button
               type="button"
               onClick={() => {

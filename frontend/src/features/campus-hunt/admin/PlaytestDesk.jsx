@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   adminRevealTeamAccess,
   adminMarkTeamStartReached,
@@ -7,7 +6,6 @@ import {
   adminPlaytestResetTeam,
   adminRepairTeamRosters,
 } from '../services/campusHunt.api';
-import { CAMPUS_HUNT_PATHS } from '../config';
 import { stageLabel } from '../types/stages';
 import { teamInlineLabel } from '../utils/teamLabel';
 
@@ -90,7 +88,6 @@ function teamRosterLooksReady(team, teamSize = 4) {
  */
 export default function PlaytestDesk({
   eventId,
-  eventSlug,
   teams = [],
   stations = [],
   teamSize = 4,
@@ -136,13 +133,6 @@ export default function PlaytestDesk({
   const red = stationForTeam(stations, team?.teamCode, '5');
   const stationByScan = { 1: Orange, 2: green, 3: blue, 4: purple, 5: red };
 
-  const playPath = eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : '';
-  const teamLoginPath = eventSlug && team?.teamCode
-    ? CAMPUS_HUNT_PATHS.teamLogin(eventSlug, team.teamCode)
-    : '';
-  const absoluteTeamLogin = teamLoginPath
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}${teamLoginPath}`
-    : '';
 
   const paste = (station) => station?.pasteHint || (station?.pasteCode ? `CH-${station.pasteCode}` : '');
 
@@ -376,48 +366,14 @@ export default function PlaytestDesk({
         </button>
       </div>
 
-      {/* Setup row — no schedule / release (offline = start code on phone) */}
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {teamLoginPath ? (
-          <a
-            href={teamLoginPath}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:bg-white/10"
-          >
-            <p className="text-[11px] font-semibold uppercase text-white/40">Step 1</p>
-            <p className="text-sm font-bold text-white">Open team link ↗</p>
-            <p className="mt-0.5 text-[11px] text-white/45">Password → leader phone</p>
-          </a>
-        ) : (
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 opacity-40">
-            <p className="text-sm text-white/50">Login link</p>
-          </div>
-        )}
-
-        {playPath ? (
-          <Link
-            to={playPath}
-            target="_blank"
-            className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:bg-white/10"
-          >
-            <p className="text-[11px] font-semibold uppercase text-white/40">Step 2</p>
-            <p className="text-sm font-bold text-white">Open play ↗</p>
-            <p className="mt-0.5 text-[11px] text-white/45">Or use offline install pack</p>
-          </Link>
-        ) : (
-          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 opacity-40">
-            <p className="text-sm text-white/50">Play link</p>
-          </div>
-        )}
-
+      <div className="mt-4">
         <button
           type="button"
           disabled={Boolean(busy) || !teamId}
           onClick={markFinish}
           className="rounded-xl border border-rose-400/40 bg-rose-500/15 px-3 py-3 text-left disabled:opacity-40"
         >
-          <p className="text-[11px] font-semibold uppercase text-rose-200/70">Last</p>
+          <p className="text-[11px] font-semibold uppercase text-rose-200/70">Finish</p>
           <p className="text-sm font-bold text-rose-100">
             {busy === 'finish' ? '…' : 'Mark finish'}
           </p>
@@ -425,11 +381,10 @@ export default function PlaytestDesk({
         </button>
       </div>
 
-      {/* Shared team login — one link + one password */}
       <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
-            Team login (leader phone)
+            Team password
           </p>
           <button
             type="button"
@@ -440,23 +395,8 @@ export default function PlaytestDesk({
             {busy === 'reveal' ? 'Loading…' : 'Refresh password'}
           </button>
         </div>
-        {absoluteTeamLogin && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <code className="max-w-full break-all rounded-lg bg-white/10 px-2.5 py-1.5 font-mono text-[11px] text-[#0ECCEE]">
-              {absoluteTeamLogin}
-            </code>
-            <button
-              type="button"
-              className="rounded-lg bg-[#0ECCEE]/20 px-2.5 py-1.5 text-xs font-semibold text-[#0ECCEE]"
-              onClick={() => copyText(absoluteTeamLogin, () => setNote('Team login link copied'))}
-            >
-              Copy link
-            </button>
-          </div>
-        )}
         {teamPass ? (
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
-            <p className="w-full text-[11px] uppercase tracking-wide text-amber-200/70">Password</p>
             <code className="rounded-lg bg-white/10 px-2.5 py-1.5 font-mono text-xs text-white/90">
               {teamPass}
             </code>
@@ -464,11 +404,11 @@ export default function PlaytestDesk({
               type="button"
               className="rounded-lg bg-amber-400/20 px-2.5 py-1.5 text-xs font-semibold text-amber-100"
               onClick={() => copyText(
-                `${absoluteTeamLogin}\nPassword: ${teamPass}\nNames: ${memberNames.join(', ')}`,
-                () => setNote('Team access pack copied'),
+                `Password: ${teamPass}${memberNames.length ? `\nNames: ${memberNames.join(', ')}` : ''}`,
+                () => setNote('Password copied'),
               )}
             >
-              Copy access pack
+              Copy password
             </button>
             {memberNames.length > 0 && (
               <p className="w-full text-xs text-white/55">
