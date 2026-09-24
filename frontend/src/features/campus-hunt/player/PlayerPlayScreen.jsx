@@ -28,6 +28,7 @@ import { sanitizePlayerCopy } from './sanitizePlayerCopy';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import ClueHowTo from '../components/ClueHowTo';
 import HuntColorFlowGuide from '../components/HuntColorFlowGuide';
+import PoweredByCrwdCtrl from '../components/PoweredByCrwdCtrl';
 import OfflineHuntWelcome from '../offline/components/OfflineHuntWelcome';
 import { OFFLINE_CLUE_HOW_TO, OFFLINE_CLUE_PROMPTS } from '../offline/offlineHowTo';
 
@@ -923,9 +924,7 @@ export default function PlayerPlayScreen({
                 </div>
               </section>
               <HuntColorFlowGuide title="Six clues" />
-              <p className="text-center text-[11px] text-white/40">
-                Powered by CrwdCtrl
-              </p>
+              <PoweredByCrwdCtrl />
             </div>
           )}
 
@@ -1698,9 +1697,9 @@ export default function PlayerPlayScreen({
           )}
 
           {!waitingForRelease && (
-            <p className="pt-2 text-center text-[11px] text-white/35">
-              Powered by CrwdCtrl
-            </p>
+            <div className="pt-2">
+              <PoweredByCrwdCtrl />
+            </div>
           )}
         </div>
       </div>

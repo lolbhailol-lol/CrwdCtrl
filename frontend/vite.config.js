@@ -109,8 +109,8 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,webp,woff2,webmanifest}'],
         globIgnores: ['**/firebase-messaging-sw.js'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        // v17 — shared welcome and clue colors
-        cacheId: 'crwdctrl-v17',
+        // v18 — powered-by logo footer + welcome cleanup
+        cacheId: 'crwdctrl-v18',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

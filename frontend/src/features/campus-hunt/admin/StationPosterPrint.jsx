@@ -125,7 +125,6 @@ export default function StationPosterPrint({
             <article class="card">
               <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)}</p>
               <p class="place">${escapeHtml(pack.locationName)}</p>
-              <p class="eyebrow">Shared station QR</p>
               <h1>${escapeHtml(pack.locationName)}</h1>
               <p class="code">${escapeHtml(pack.code || poster.stationCode || '')}</p>
               <img src="${qr}" alt="Station QR" width="${qrPx}" height="${qrPx}" />
@@ -152,7 +151,7 @@ export default function StationPosterPrint({
           <div class="sheet-head">
             <div>
               <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)} · A3</p>
-              <h2>All ${allCards.length} shared QRs — one page</h2>
+              <h2>All ${allCards.length} QRs — one page</h2>
               <p>Cut along dashed lines · tape one card per campus place</p>
             </div>
           </div>
@@ -167,7 +166,7 @@ export default function StationPosterPrint({
           <section class="sheet">
             <div class="sheet-head">
               <div>
-                <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)} · shared QR</p>
+                <p class="badge">${escapeHtml(colorLabel)} · ${escapeHtml(scanLabel)}</p>
                 <h2>${escapeHtml(pack.locationName)}</h2>
                 <p>1 QR for this place · all teams scan the same poster</p>
               </div>

@@ -1,4 +1,5 @@
 import { HUNT_COLOR_RAIL } from '../../components/HuntColorFlowGuide';
+import PoweredByCrwdCtrl from '../../components/PoweredByCrwdCtrl';
 
 /** First screen before the organizer code. No web fonts — those break taps offline. */
 
@@ -57,13 +58,6 @@ export default function OfflineHuntWelcome({
             style={{ background: `linear-gradient(90deg, ${HUNT_COLOR_RAIL})` }}
           />
 
-          <div className="mt-5 inline-flex items-center gap-2 self-start rounded-full border border-white/15 bg-white/[0.05] px-3 py-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#EAB308]" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">
-              Collaboration · COEP Fest
-            </p>
-          </div>
-
           {(teamCode || startName) ? (
             <div className="mt-7 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]">
               <div className="h-px w-full bg-gradient-to-r from-transparent via-[#0ECCEE] to-transparent" />
@@ -102,9 +96,7 @@ export default function OfflineHuntWelcome({
             >
               Continue
             </button>
-            <p className="mt-3 text-center text-[11px] text-white/40">
-              Powered by CrwdCtrl
-            </p>
+            <PoweredByCrwdCtrl />
           </div>
         </div>
       </div>

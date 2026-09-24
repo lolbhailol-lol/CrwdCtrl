@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GridBoard from './GridBoard';
 import { formatTime, freeCellCount, isCompletePath } from './gridUtils';
+import PoweredByCrwdCtrl from '../components/PoweredByCrwdCtrl';
 import {
   fetchGridSession,
   submitGridLevel,
@@ -496,8 +497,8 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
       <p className="text-center text-[11px] leading-relaxed text-white/40">
         Draw through every open cell. Hit numbers in order (1 → 2 → 3…).
         Miss the timer → 0 for that round. Each undo −20. Each hint −20.
-        Powered by CrwdCtrl.
       </p>
+      <PoweredByCrwdCtrl />
 
       {onSwitchTeam && (
         <button

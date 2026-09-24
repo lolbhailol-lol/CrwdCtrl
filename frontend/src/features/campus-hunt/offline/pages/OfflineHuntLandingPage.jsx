@@ -4,6 +4,7 @@ import { loadOfflineBundle, loadOfflineSession } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
+import PoweredByCrwdCtrl from '../../components/PoweredByCrwdCtrl';
 import { startOverHunt, applyServerStartOverIfNeeded } from '../startOverHunt';
 
 /** Pack hub — brand first, then enter hunt. */
@@ -78,9 +79,9 @@ export default function OfflineHuntLandingPage() {
         <p className="mt-1 text-xl font-bold tracking-wide text-[#0ECCEE]">
           Challenge
         </p>
-        <p className="mt-3 text-sm text-white/50">
-          Powered by CrwdCtrl
-        </p>
+        <div className="mt-3">
+          <PoweredByCrwdCtrl />
+        </div>
 
         {hasPack ? (
           <>

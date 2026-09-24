@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getHuntStartGate } from '../offlineEngine';
 import OfflineHuntWelcome from './OfflineHuntWelcome';
 import HuntColorFlowGuide from '../../components/HuntColorFlowGuide';
+import PoweredByCrwdCtrl from '../../components/PoweredByCrwdCtrl';
 
 const WELCOME_KEY = 'ch_hunt_welcome_seen';
 
@@ -162,9 +163,7 @@ export default function OfflineHuntBriefing({
 
         <HuntColorFlowGuide title="Six clues" />
 
-        <p className="text-center text-[11px] text-white/40">
-          Powered by CrwdCtrl
-        </p>
+        <PoweredByCrwdCtrl />
       </div>
     </div>
   );
