@@ -43,6 +43,13 @@ test('blue cascade unlocks Clue 4', () => {
   assert.equal(stage, 'CLUE_4_ACTIVE');
 });
 
+test('Field Terminal completion waits for purple scan, which unlocks Clue 5', () => {
+  const team = { currentStage: 'CLUE_4_COMPLETED' };
+  const stage = applyCheckpointCompletionCascade(team, '4');
+  assert.equal(stage, 'CLUE_5_ACTIVE');
+  assert.equal(team.currentStage, 'CLUE_5_ACTIVE');
+});
+
 test('fifth scan cascade unlocks Clue 6 destination', () => {
   const team = { currentStage: 'CLUE_5_COMPLETED' };
   const stage = applyCheckpointCompletionCascade(team, '5');

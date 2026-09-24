@@ -160,5 +160,10 @@ firebase-service-account.json
 # Local source photos for content scripts (upload via script; do not commit)
 scripts/assets/kshitij-pune-regionals/
 
+# Private attendee exports (PII/payment references; keep local only)
+scripts/assets/aarohan-stall-leads-with-teams.json
+scripts/assets/aarohan26-form-responses-1.csv
+scripts/assets/aarohan26-responses.xlsx
+
 # Generated email HTML previews (regenerate with previewStallCouponEmail.js)
 scripts/preview-*-email.html

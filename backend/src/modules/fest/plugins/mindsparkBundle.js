@@ -2,7 +2,7 @@ const FEST_ID = '6a7f1010ed26d983b34e55c2';
 
 /**
  * MindSpark competition bundle — any 3 distinct events from this list, 65% off.
- * Updated per Events Head (Harsh) 17 Sep 2026.
+ * Updated per Events Head (Harsh) 24 Sep 2026.
  */
 const BUNDLE_COMPETITION_IDS = [
   '6a7f158e0e5ff505e2a4c495', // CODE JUNKIE
@@ -19,7 +19,6 @@ const BUNDLE_COMPETITION_IDS = [
   '6a7f158f0e5ff505e2a4c4b9', // ASSEMBLIX
   '6a7f158f0e5ff505e2a4c4a4', // BEYOND SUITS
   '6a7f158f0e5ff505e2a4c4a7', // FANDOM
-  '6a7f158f0e5ff505e2a4c4bf', // SHERLOCKED
   '6a7f15b543825c1b6ced805c', // GOOGLER
   '6a7f15900e5ff505e2a4c4d9', // EDIFEX
   '6a7f15900e5ff505e2a4c4dc', // UTOPIA

@@ -2,8 +2,8 @@
  * Best-effort live board sync — never blocks play.
  */
 
-import { getApiBaseCandidates } from '../../../config/apiBase';
-import { signPayload } from './offlineQr';
+import { getApiBaseCandidates } from '../../../config/apiBase.js';
+import { signPayload } from './offlineQr.js';
 
 const QUEUE_KEY = 'progress_queue';
 const DEVICE_KEY = 'device_id';
@@ -222,6 +222,7 @@ export async function flushOfflineProgressQueue(bundle) {
 
   for (const item of queue) {
     let ok = false;
+    let terminalAck = false;
     let deviceBound = false;
     let boundHint;
     for (const base of bases) {
@@ -254,6 +255,9 @@ export async function flushOfflineProgressQueue(bundle) {
             ok = false;
             lastIgnoreReason = String(body?.reason || 'IGNORED');
             if (body?.seq != null) lastSeq = Number(body.seq);
+            // A locked score is final on the server. Retrying the same snapshot
+            // on every reconnect can never change it, so acknowledge and drop it.
+            terminalAck = lastIgnoreReason === 'SCORE_LOCKED';
             break;
           }
           ok = true;
@@ -283,7 +287,7 @@ export async function flushOfflineProgressQueue(bundle) {
         boundDeviceHint: boundHint,
       };
     }
-    if (!ok) kept.push(item);
+    if (!ok && !terminalAck) kept.push(item);
   }
   saveQueue(kept);
   const result = {

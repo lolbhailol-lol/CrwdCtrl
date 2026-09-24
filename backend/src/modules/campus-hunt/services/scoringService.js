@@ -135,7 +135,7 @@ function removeManualPenalty(currentScore, penalty) {
   return (Number(currentScore) || 0) + Math.abs(Number(penalty) || 0);
 }
 
-/** Max: start 100 + c1 50 + c2 50 + c3 65 + c4 50 + c5 75 + c6 30 = 420 */
+/** Flat configured ceiling before Clue 6 is replaced by its finish-place ladder award. */
 function theoreticalMaxScore(scoringConfig) {
   const start = scoringConfig?.startingScore ?? 100;
   const c1Mode = scoringConfig?.clue1?.awardMode || 'flat_base';

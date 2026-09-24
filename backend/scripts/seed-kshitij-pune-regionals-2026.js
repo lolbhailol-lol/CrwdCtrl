@@ -154,7 +154,7 @@ const competitions = [
     name: 'Solo Crossover', subtitle: 'Solo Street Showcase', competitionType: 'dance', category: 'DANCE', module: 'PERFORMING ARTS', eventCategory: 'Popular', eventFormat: 'Direct Finals',
     imageSource: 'https://images.pexels.com/photos/1701202/pexels-photo-1701202.jpeg?auto=compress&cs=tinysrgb&w=1200',
     description: 'A high-energy solo dance competition where dancers take the stage to showcase their individual style, musicality, expressions, and street-dance skills. Participants can explore styles such as B-Boying, Popping, Locking, Krumping, Waacking, Breaking, and Tutting while creating their own unique performance and owning the stage.',
-    dateTime: '29 Sep 2026, 11:00 AM - 1:30 PM', venue: 'Auditorium, MIT-WPU Campus, Pune', slotsAllotted: 16,
+    dateTime: '29 Sep 2026, 11:00 AM - 1:30 PM', venue: 'Auditorium, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 1, teamSizeMax: 1, teamSizeLabel: 'Solo',
     prizePool: '1st Place: ₹2,000/-',
     commonRules: [

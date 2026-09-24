@@ -9,6 +9,7 @@ const {
   theoreticalMaxScore,
 } = require('../../src/modules/campus-hunt/services/scoringService');
 const { DEFAULT_SCORING_CONFIG } = require('../../src/modules/campus-hunt/constants');
+const { pointsForFinishPlace } = require('../../src/modules/campus-hunt/services/finishService');
 
 test('clue5 time bands: 30 / 15 / 5', () => {
   const bands = DEFAULT_SCORING_CONFIG.clue5.speedBonusBands;
@@ -125,8 +126,16 @@ test('applyAward adds points', () => {
   assert.equal(applyAward(100, 50), 150);
 });
 
-test('theoreticalMaxScore is 420 (100+50+50+65+50+75+30)', () => {
-  assert.equal(theoreticalMaxScore(DEFAULT_SCORING_CONFIG), 420);
+test('configured flat-score placeholder is 440 before the finish-place swap', () => {
+  assert.equal(theoreticalMaxScore(DEFAULT_SCORING_CONFIG), 440);
+});
+
+test('Clue 6 finish ladder awards 200, then 190, then 180, with a 10-point floor', () => {
+  assert.equal(pointsForFinishPlace(1), 200);
+  assert.equal(pointsForFinishPlace(2), 190);
+  assert.equal(pointsForFinishPlace(3), 180);
+  assert.equal(pointsForFinishPlace(20), 10);
+  assert.equal(pointsForFinishPlace(21), 10);
 });
 
 test('scoringForChallenge forces Clue 2 flat / no timer', () => {

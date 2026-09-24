@@ -659,6 +659,37 @@ function verifyResultsSignature(eventId, payload) {
   return Boolean(payload?.sig) && payload.sig === expected;
 }
 
+function reconcileOfflineGridScore({ phoneScore, flatClue4, gridScore, maxPlausible }) {
+  const flat = Number(flatClue4);
+  if (!Number.isFinite(flat) || flat < 0) {
+    return { ready: true, score: Number(phoneScore) || 0 };
+  }
+  if (gridScore == null || !Number.isFinite(Number(gridScore))) {
+    return { ready: false, score: Number(phoneScore) || 0 };
+  }
+  return {
+    ready: true,
+    score: Math.max(0, Math.min(
+      Number(maxPlausible),
+      (Number(phoneScore) || 0) - flat + Number(gridScore),
+    )),
+  };
+}
+
+function reconcileOfflineFinishScore({ phoneScore, includedClue6, finishPoints, maxPlausible }) {
+  if (finishPoints == null || !Number.isFinite(Number(finishPoints))) {
+    return { ready: false, score: Number(phoneScore) || 0 };
+  }
+  const included = Number.isFinite(Number(includedClue6)) ? Number(includedClue6) : 50;
+  return {
+    ready: true,
+    score: Math.max(0, Math.min(
+      Number(maxPlausible),
+      (Number(phoneScore) || 0) - included + Number(finishPoints),
+    )),
+  };
+}
+
 function previewOfflineImport(eventId, payload) {
   const body = payload?.t ? payload : (payload?.data || payload);
   return {
@@ -1035,31 +1066,62 @@ async function ingestOfflineProgress(eventId, payload) {
   // Phone awards flat Clue 4 points. Live rank uses the laptop Zip session score.
   const flatClue4 = Number(body.clue4Points);
   if (Number.isFinite(flatClue4) && flatClue4 >= 0) {
+    let gridScore = null;
     try {
       const CampusHuntGridSession = require('../models/CampusHuntGridSession');
       const grid = await CampusHuntGridSession.findOne({
         teamId: team._id,
         status: 'completed',
+        missionRunId: null,
+        entryId: null,
       }).sort({ updatedAt: -1 }).select('score').lean();
       if (grid && Number.isFinite(Number(grid.score))) {
-        nextScore = Math.max(0, Math.min(
-          maxPlausible,
-          nextScore - flatClue4 + Number(grid.score),
-        ));
+        gridScore = Number(grid.score);
       }
-    } catch (_) { /* keep phone score */ }
+    } catch (_) { /* retry from the phone queue */ }
+    const reconciled = reconcileOfflineGridScore({
+      phoneScore: nextScore,
+      flatClue4,
+      gridScore,
+      maxPlausible,
+    });
+    if (!reconciled.ready) {
+      return {
+        teamCode: team.teamCode,
+        ignored: true,
+        reason: 'GRID_RESULT_PENDING',
+        accepted: false,
+        seq: storedSeq,
+      };
+    }
+    nextScore = reconciled.score;
   }
 
   // Finish code: first team in gets 200, then −10 each, floor 10.
   // Phone score does not include that ladder (clue6Points is the flat amount already inside it).
   if (nextStage === 'SCORE_LOCKED' && team.currentStage !== 'SCORE_LOCKED') {
+    let claim = null;
     try {
       const { claimFinishPlace } = require('./finishService');
-      const claim = await claimFinishPlace(team);
-      const included = Number.isFinite(Number(body.clue6Points)) ? Number(body.clue6Points) : 50;
-      nextScore = Math.max(0, Math.min(maxPlausible, nextScore - included + claim.points));
-      finishMeta = claim;
-    } catch (_) { /* keep phone score */ }
+      claim = await claimFinishPlace(team);
+    } catch (_) { /* retry from the phone queue */ }
+    const reconciled = reconcileOfflineFinishScore({
+      phoneScore: nextScore,
+      includedClue6: body.clue6Points,
+      finishPoints: claim?.points,
+      maxPlausible,
+    });
+    if (!reconciled.ready) {
+      return {
+        teamCode: team.teamCode,
+        ignored: true,
+        reason: 'FINISH_AWARD_PENDING',
+        accepted: false,
+        seq: storedSeq,
+      };
+    }
+    nextScore = reconciled.score;
+    finishMeta = claim;
   }
 
   const $set = {
@@ -1253,4 +1315,6 @@ module.exports = {
   resetTeamHuntProgress,
   ensureOfflineGridAccess,
   bundleSigningKey,
+  reconcileOfflineGridScore,
+  reconcileOfflineFinishScore,
 };

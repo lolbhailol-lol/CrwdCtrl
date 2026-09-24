@@ -41,7 +41,7 @@ export function getSameOriginApiBase() {
 }
 
 function envApiBase() {
-  const fromEnv = import.meta.env.VITE_API_BASE_URL;
+  const fromEnv = import.meta.env?.VITE_API_BASE_URL;
   if (fromEnv && String(fromEnv).trim()) {
     return String(fromEnv).replace(/\/$/, '');
   }

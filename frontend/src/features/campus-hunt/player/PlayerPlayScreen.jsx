@@ -1313,11 +1313,7 @@ export default function PlayerPlayScreen({
                     e.preventDefault();
                     const code = String(finishCode || '').trim();
                     if (!code) return;
-                    let result = await runAction(() => submitFinishCodeFn(team.id, code));
-                    if (!result.ok && activeNum === 6) {
-                      result = await runAction(() =>
-                        submitChallengeAnswerFn(team.id, 6, code, `${team.id}-finish-${Date.now()}`));
-                    }
+                    const result = await runAction(() => submitFinishCodeFn(team.id, code));
                     if (!result.ok) return;
                     setFinishCode('');
                     celebrate(result.payload?.message || 'Score locked');

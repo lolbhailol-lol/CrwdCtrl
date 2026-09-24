@@ -21,9 +21,9 @@ test('generates 4 Zip levels with 20/30/40/50 points', () => {
   assert.equal(LEVEL_TEMPLATES[3].points, 50);
   assert.equal(MAX_GRID_POINTS, 140);
   assert.equal(GRID_HINT_COST, 20);
-  assert.equal(LEVEL_TEMPLATES[0].rows, 4);
-  assert.equal(LEVEL_TEMPLATES[1].rows, 5);
-  assert.equal(LEVEL_TEMPLATES[2].rows, 6);
+  assert.equal(LEVEL_TEMPLATES[0].rows, 5);
+  assert.equal(LEVEL_TEMPLATES[1].rows, 6);
+  assert.equal(LEVEL_TEMPLATES[2].rows, 7);
   assert.equal(LEVEL_TEMPLATES[3].rows, 8);
 });
 

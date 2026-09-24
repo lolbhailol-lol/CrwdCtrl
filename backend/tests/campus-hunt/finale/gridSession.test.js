@@ -10,6 +10,7 @@ const {
   sessionPublicView,
   isLevelTimedOut,
   levelTimeRemainingSeconds,
+  applyTimeoutIfNeeded,
 } = require('../../../src/modules/campus-hunt/services/grid/gridSessionService');
 
 test('12 simulated access codes are all unique', () => {
@@ -68,6 +69,47 @@ test('level timer detects expiry server-side', () => {
   };
   assert.equal(isLevelTimedOut(session, puzzles[0]), true);
   assert.equal(levelTimeRemainingSeconds(session, puzzles[0]), 0);
+});
+
+test('each expired round unlocks the next and the last timeout produces the completion code', () => {
+  const puzzles = generateAllLevels();
+  const session = {
+    currentLevelIndex: 0,
+    puzzles,
+    levelProgress: puzzles.map((_, levelIndex) => ({
+      levelIndex,
+      completed: false,
+      failed: false,
+      timedOut: false,
+      moves: 0,
+      pointsAwarded: 0,
+      hintsUsed: 0,
+    })),
+    scoreEarned: 0,
+    hintsUsed: 0,
+    undosUsed: 0,
+    clearsUsed: 0,
+    score: 0,
+    status: 'active',
+    markModified() {},
+  };
+
+  for (let levelIndex = 0; levelIndex < puzzles.length; levelIndex += 1) {
+    session.levelProgress[levelIndex].startedAt = new Date(
+      Date.now() - (puzzles[levelIndex].timeSeconds + 2) * 1000,
+    );
+    assert.equal(applyTimeoutIfNeeded(session), true);
+    assert.equal(session.levelProgress[levelIndex].timedOut, true);
+    assert.equal(session.levelProgress[levelIndex].pointsAwarded, 0);
+    if (levelIndex < puzzles.length - 1) {
+      assert.equal(session.currentLevelIndex, levelIndex + 1);
+      assert.equal(session.status, 'active');
+    }
+  }
+
+  assert.equal(session.status, 'completed');
+  assert.match(session.completionCode, /^GRID-[A-Z0-9]{4}$/);
+  assert.equal(session.score, 0);
 });
 
 test('validateCompletionCode is read-only', async () => {

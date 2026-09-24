@@ -1,6 +1,7 @@
 /**
  * Pure-logic integration of Round 1 scoring path (no Mongo).
- * start 100 → c1 50 → c2 50 → c3 65 → c4 50 → c5 75 → c6 30 = 420
+ * start 100 → c1 50 → c2 50 → c3 65 → c4 50 → c5 75
+ * → first-place finish award 200 = 590
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,6 +12,7 @@ const {
   applyHintDeduction,
 } = require('../../src/modules/campus-hunt/services/scoringService');
 const { DEFAULT_SCORING_CONFIG } = require('../../src/modules/campus-hunt/constants');
+const { pointsForFinishPlace } = require('../../src/modules/campus-hunt/services/finishService');
 const {
   canTransition,
   applyCheckpointCompletionCascade,
@@ -91,14 +93,10 @@ test('full happy-path score and stages without hints', () => {
   applyCheckpointCompletionCascade(team, '5');
   assert.equal(team.currentStage, 'CLUE_6_ACTIVE');
 
-  const c6 = computeChallengeAward({
-    challengeNumber: 6,
-    basePoints: DEFAULT_SCORING_CONFIG.clue6.basePoints,
-    awardMode: 'flat_base',
-  });
-  score = applyAward(score, c6.total);
-  assert.equal(c6.total, 30);
-  assert.equal(score, 420);
+  const finishAward = pointsForFinishPlace(1);
+  score = applyAward(score, finishAward);
+  assert.equal(finishAward, 200);
+  assert.equal(score, 590);
   team.currentStage = 'CLUE_6_COMPLETED';
   applyCheckpointCompletionCascade(team, 'FINISH');
   assert.equal(team.currentStage, 'SCORE_LOCKED');
@@ -121,8 +119,8 @@ test('late clue still awards 0 but path continues', () => {
   assert.equal(c5.late, true);
 });
 
-test('one hint path yields 400 from max 420', () => {
-  let score = 420;
+test('one hint path yields 570 from a first-place 590 path', () => {
+  let score = 590;
   score = applyHintDeduction(score, 20);
-  assert.equal(score, 400);
+  assert.equal(score, 570);
 });

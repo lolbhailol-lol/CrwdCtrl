@@ -256,6 +256,39 @@ export default function PrizePoolPodium({
     || (hasPodium && places[0]?.amount)
     || trimmed.replace(/^(?:rs\.?|inr)\s*/i, '₹').replace(/^₹\s*/, '₹');
 
+  // One cash prize: a full-width bar in the same card style as the rest of the page.
+  if (!showTitle && hasPodium && places.length === 1) {
+    const place = places[0];
+    const amount = String(place.amount || '').replace(/\s*\/-\s*$/g, '').trim();
+    return (
+      <div
+        className={`flex items-center gap-3.5 rounded-2xl ${compact ? 'px-4 py-3' : 'px-5 py-4'} ${
+          isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'
+        } ${className}`}
+        aria-label={`${place.label} ${amount}`}
+      >
+        <div
+          className={`flex shrink-0 items-center justify-center rounded-xl ${compact ? 'h-12 w-12' : 'h-14 w-14'} ${
+            isDark ? 'bg-[#2A2410]' : 'bg-amber-100'
+          }`}
+        >
+          <ClassicMedalSvg rank={place.rank} size={compact ? 34 : 40} />
+        </div>
+        <div className="min-w-0">
+          <p className={`text-[11px] font-medium uppercase tracking-[0.14em] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+            Prize
+          </p>
+          <p className={`mt-0.5 font-semibold leading-tight ${compact ? 'text-[15px]' : 'text-lg'} ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {place.label}
+          </p>
+        </div>
+        <p className={`ml-auto shrink-0 font-bold tabular-nums tracking-tight leading-none ${compact ? 'text-[1.65rem]' : 'text-4xl'} ${amountClass}`}>
+          {amount}
+        </p>
+      </div>
+    );
+  }
+
   // Techfest: one highlighted box — "Prize Pool" + amount inside
   if (showTitle) {
     return (

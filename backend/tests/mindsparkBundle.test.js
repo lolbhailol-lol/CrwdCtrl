@@ -12,10 +12,11 @@ const { allocate } = require('../src/services/mindsparkBundleService');
 test('MindSpark bundle is any 3 from the approved list at 65% off', () => {
   assert.equal(DISCOUNT_PERCENT, 65);
   assert.equal(BUNDLE_SIZE, 3);
-  assert.equal(BUNDLE_COMPETITION_IDS.length, 21);
+  assert.equal(BUNDLE_COMPETITION_IDS.length, 20);
   assert.equal(new Set(BUNDLE_COMPETITION_IDS).size, BUNDLE_COMPETITION_IDS.length);
   assert.equal(isBundleEligible('6a7f158e0e5ff505e2a4c495'), true); // CODE JUNKIE
   assert.equal(isBundleEligible('6a7f158f0e5ff505e2a4c4ad'), false); // HACKATHON not in list
+  assert.equal(isBundleEligible('6a7f158f0e5ff505e2a4c4bf'), false); // SHERLOCKED removed
   assert.equal(groupFor('6a7f158e0e5ff505e2a4c48f'), 'bundle'); // TAKE OFF
 });
 

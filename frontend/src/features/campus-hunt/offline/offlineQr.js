@@ -1,4 +1,4 @@
-import { OFFLINE_QR_TYPES } from './constants';
+import { OFFLINE_QR_TYPES } from './constants.js';
 
 async function hmacHex(key, message) {
   const enc = new TextEncoder();
