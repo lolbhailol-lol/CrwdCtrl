@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getHuntStartGate } from '../offlineEngine';
 import OfflineHuntWelcome from './OfflineHuntWelcome';
+import HuntColorFlowGuide from '../../components/HuntColorFlowGuide';
 
 const WELCOME_KEY = 'ch_hunt_welcome_seen';
 
@@ -97,20 +98,22 @@ export default function OfflineHuntBriefing({
         </div>
 
         {expectsGo ? (
-          <div className="rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-4">
-            <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
+          <div className="overflow-hidden rounded-3xl border border-[#0ECCEE]/35 bg-[#071016] shadow-[0_0_48px_-24px_rgba(14,204,238,0.9)]">
+            <div className="h-1 w-full bg-[#0ECCEE]" />
+            <div className="px-4 py-5">
+            <p className="text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-[#0ECCEE]">
               Organizer start code
             </p>
-            <p className="mt-2 text-center text-sm text-white/70">
-              Stay at the meet point. Type the code the organizer says, then Start.
+            <p className="mt-2 text-center text-sm text-white/65">
+              Type the code, then Start.
             </p>
-            <label className="mt-4 block text-xs uppercase tracking-wide text-white/45">
+            <label className="mt-4 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
               Code
               <input
                 value={goCode}
                 onChange={(e) => setGoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))}
                 placeholder="Organizer will tell you"
-                className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center font-mono text-xl tracking-[0.2em] outline-none focus:border-[#0ECCEE]"
+                className="mt-2 w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3.5 text-center font-mono text-2xl tracking-[0.28em] text-white outline-none focus:border-[#0ECCEE]"
                 autoComplete="off"
                 autoCapitalize="characters"
               />
@@ -118,12 +121,9 @@ export default function OfflineHuntBriefing({
             {goCode && !gate.open ? (
               <p className="mt-2 text-center text-xs text-rose-300">Not the right code yet</p>
             ) : null}
+            </div>
           </div>
         ) : null}
-
-        <p className="text-center text-[11px] text-white/40">
-          Powered by CrwdCtrl
-        </p>
 
         {error ? <p className="text-sm text-red-300">{error}</p> : null}
         {gateHint ? <p className="text-sm text-amber-200/90">{gateHint}</p> : null}
@@ -146,7 +146,7 @@ export default function OfflineHuntBriefing({
               setGateHint('');
               onStartHunt?.(goCode);
             }}
-            className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
+            className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black shadow-[0_16px_40px_-16px_rgba(14,204,238,0.85)] disabled:opacity-40"
           >
             {starting
               ? 'Starting…'
@@ -159,6 +159,12 @@ export default function OfflineHuntBriefing({
             Use the leader phone to start.
           </p>
         )}
+
+        <HuntColorFlowGuide title="Six clues" />
+
+        <p className="text-center text-[11px] text-white/40">
+          Powered by CrwdCtrl
+        </p>
       </div>
     </div>
   );

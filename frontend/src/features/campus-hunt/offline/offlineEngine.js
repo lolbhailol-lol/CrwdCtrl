@@ -215,8 +215,8 @@ export function isHuntWaiting(state) {
  */
 export function getHuntStartGate(bundle, now = new Date(), { goCode = '' } = {}) {
   void now;
-  const expected = String(bundle?.event?.organizerStartCode || 'GO').trim().toUpperCase();
-  const got = String(goCode || '').trim().toUpperCase();
+  const expected = String(bundle?.event?.organizerStartCode || 'GO').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const got = String(goCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   if (!expected) {
     return {

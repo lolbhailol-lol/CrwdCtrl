@@ -4,6 +4,8 @@ import {
   adminImportOfflineResults,
   adminListOfflineInstalls,
   adminPreviewOfflineImport,
+  adminSetAllTeamPasswords,
+  adminUpdateEvent,
 } from '../services/campusHunt.api';
 import OfflineInstallCards from '../offline/components/OfflineInstallCards';
 import { downloadOfflinePacks } from '../offline/downloadOfflinePacks';
@@ -16,6 +18,9 @@ export default function SendLinksPanel({
   teamCapacity = 20,
   teamSize = 10,
   readiness = null,
+  organizerStartCode = 'GO',
+  organizerFinishCode = 'MSFINISH',
+  onChanged,
 }) {
   const [installs, setInstalls] = useState([]);
   const [statusRows, setStatusRows] = useState([]);
@@ -25,6 +30,14 @@ export default function SendLinksPanel({
   const [error, setError] = useState('');
   const [importPreview, setImportPreview] = useState(null);
   const [pendingImport, setPendingImport] = useState(null);
+  const [startCode, setStartCode] = useState(String(organizerStartCode || 'GO').toUpperCase());
+  const [finishCode, setFinishCode] = useState(String(organizerFinishCode || 'MSFINISH').toUpperCase());
+  const [leaderPassword, setLeaderPassword] = useState('');
+
+  useEffect(() => {
+    setStartCode(String(organizerStartCode || 'GO').toUpperCase());
+    setFinishCode(String(organizerFinishCode || 'MSFINISH').toUpperCase());
+  }, [organizerStartCode, organizerFinishCode]);
 
   const teamsTotal = Number(readiness?.teamsTotal) || 0;
   const passwordsReady = Number(readiness?.passwordsReady ?? readiness?.teamsReady) || 0;
@@ -42,6 +55,52 @@ export default function SendLinksPanel({
   useEffect(() => {
     refreshStatus();
   }, [refreshStatus]);
+
+  const saveCodes = useCallback(async () => {
+    if (!eventId || busy) return;
+    const start = String(startCode || 'GO').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || 'GO';
+    const finish = String(finishCode || 'MSFINISH').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') || 'MSFINISH';
+    setBusy('codes');
+    setError('');
+    setMessage('');
+    try {
+      await adminUpdateEvent(eventId, {
+        organizerStartCode: start,
+        organizerFinishCode: finish,
+      });
+      setStartCode(start);
+      setFinishCode(finish);
+      setMessage(`Saved. Start code ${start}. Finish code ${finish}. Create leader packs again so phones get them.`);
+      onChanged?.();
+    } catch (err) {
+      setError(err.message || 'Could not save codes');
+    } finally {
+      setBusy('');
+    }
+  }, [busy, eventId, finishCode, onChanged, startCode]);
+
+  const saveLeaderPassword = useCallback(async () => {
+    const password = String(leaderPassword || '').trim();
+    if (!eventId || busy) return;
+    if (password.length < 4) {
+      setError('Password needs at least 4 characters');
+      return;
+    }
+    if (!window.confirm(`Set password "${password}" for every team?`)) return;
+    setBusy('password');
+    setError('');
+    setMessage('');
+    try {
+      const res = await adminSetAllTeamPasswords(eventId, password);
+      setLeaderPassword('');
+      setMessage(res.data?.message || `Password set for ${res.data?.teamsUpdated || 0} teams. Create leader packs again so WhatsApp includes it.`);
+      onChanged?.();
+    } catch (err) {
+      setError(err.message || 'Could not set passwords');
+    } finally {
+      setBusy('');
+    }
+  }, [busy, eventId, leaderPassword, onChanged]);
 
   const exportLinks = useCallback(async (perTeam = false) => {
     if (!eventId || busy) return;
@@ -166,6 +225,60 @@ export default function SendLinksPanel({
           Installed · {installedCount}/{statusRows.length}
         </div>
       ) : null}
+
+      <section className="rounded-2xl border border-[#0ECCEE]/35 bg-[#0a1218] p-4">
+        <h3 className="text-sm font-bold text-white">Password and codes</h3>
+        <p className="mt-1 text-xs text-white/50">
+          Leaders type the password after download. They type the start code when you say it. Finish code is at the lobby.
+          Passwords ready {passwordsReady}/{teamsTotal || teamCapacity}.
+        </p>
+        <label className="mt-3 block text-xs text-white/60">
+          Leader password for all teams
+          <div className="mt-1 flex flex-wrap gap-2">
+            <input
+              value={leaderPassword}
+              onChange={(e) => setLeaderPassword(e.target.value)}
+              placeholder="At least 4 characters"
+              className="min-w-[12rem] flex-1 rounded-xl border border-white/15 bg-black/40 px-3 py-2 font-mono text-sm text-white"
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              disabled={Boolean(busy) || !eventId}
+              onClick={saveLeaderPassword}
+              className="rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              {busy === 'password' ? 'Saving…' : 'Set password'}
+            </button>
+          </div>
+        </label>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="block text-xs text-white/60">
+            Start code
+            <input
+              value={startCode}
+              onChange={(e) => setStartCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))}
+              className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-center font-mono text-lg tracking-[0.2em] text-white"
+            />
+          </label>
+          <label className="block text-xs text-white/60">
+            Finish code
+            <input
+              value={finishCode}
+              onChange={(e) => setFinishCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))}
+              className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-center font-mono text-lg tracking-[0.2em] text-white"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          disabled={Boolean(busy) || !eventId}
+          onClick={saveCodes}
+          className="mt-3 rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black disabled:opacity-40"
+        >
+          {busy === 'codes' ? 'Saving…' : 'Save codes'}
+        </button>
+      </section>
 
       <section className="rounded-2xl border border-[#0ECCEE]/35 bg-[#0a1218] p-4">
         <h3 className="text-sm font-bold text-white">Create & send</h3>

@@ -115,6 +115,8 @@ function ClueBox({
   teamSize,
   teamsPerWait,
   teamsPerStation,
+  organizerStartCode = 'GO',
+  organizerFinishCode = 'MSFINISH',
 }) {
   const theme = themeForChallengeNumber(clue.number);
   const [updating, setUpdating] = useState(false);
@@ -351,6 +353,8 @@ function ClueBox({
                 roundId={roundId}
                 campusStarts={campusStarts}
                 destinationName={DESTINATION_PLACE.name}
+                organizerStartCode={organizerStartCode}
+                organizerFinishCode={organizerFinishCode}
                 onChanged={() => {
                   onClueContentChanged?.();
                   onChanged?.();
@@ -399,6 +403,8 @@ export default function Round1ClueFormat({
   stationCount: stationCountProp,
   teamCapacity = 20,
   teamSize = 4,
+  organizerStartCode = 'GO',
+  organizerFinishCode = 'MSFINISH',
 }) {
   const [localCapacity, setLocalCapacity] = useState(teamCapacity);
   const [localTeamSize, setLocalTeamSize] = useState(teamSize);
@@ -543,6 +549,8 @@ export default function Round1ClueFormat({
           teamSize={geometry.teamSize}
           teamsPerWait={geometry.teamsPerWait}
           teamsPerStation={geometry.teamsPerStation}
+          organizerStartCode={organizerStartCode}
+          organizerFinishCode={organizerFinishCode}
         />
       ))}
     </div>

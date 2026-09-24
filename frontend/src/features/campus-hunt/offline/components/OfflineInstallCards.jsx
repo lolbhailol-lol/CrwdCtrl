@@ -18,7 +18,6 @@ export function teamWhatsAppText(row) {
     '1. Open the link',
     '2. Download Hunt',
     '3. Save the pack',
-    '4. Wait for the organizer code',
     '',
     'Powered by CrwdCtrl',
   ].join('\n');

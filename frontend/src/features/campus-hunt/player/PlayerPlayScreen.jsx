@@ -27,6 +27,8 @@ import { buildPlayerNowGuide } from './playerNowGuide';
 import { sanitizePlayerCopy } from './sanitizePlayerCopy';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import ClueHowTo from '../components/ClueHowTo';
+import HuntColorFlowGuide from '../components/HuntColorFlowGuide';
+import OfflineHuntWelcome from '../offline/components/OfflineHuntWelcome';
 import { OFFLINE_CLUE_HOW_TO, OFFLINE_CLUE_PROMPTS } from '../offline/offlineHowTo';
 
 function activeChallengeNumber(stage) {
@@ -206,6 +208,7 @@ export default function PlayerPlayScreen({
   const [busy, setBusy] = useState(false);
   const [startCode, setStartCode] = useState('');
   const [startErr, setStartErr] = useState('');
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const busyRef = useRef(false);
   const lastScanRawRef = useRef('');
   const [instructionEnded, setInstructionEnded] = useState(false);
@@ -472,6 +475,16 @@ export default function PlayerPlayScreen({
     return null;
   }, [atStartReport, challenges]);
 
+  const welcomeTeamKey = String(team?.teamCode || team?.id || '');
+  useEffect(() => {
+    if (!welcomeTeamKey) return;
+    try {
+      if (sessionStorage.getItem(`ch_hunt_welcome_seen_${welcomeTeamKey}`) === '1') {
+        setWelcomeDismissed(true);
+      }
+    } catch { /* ignore */ }
+  }, [welcomeTeamKey]);
+
   if (!team) {
     return (
       <div className="mx-auto max-w-lg animate-pulse px-4 pb-10 pt-8 text-white">
@@ -718,6 +731,22 @@ export default function PlayerPlayScreen({
     }
   };
 
+  if (waitingForRelease && !welcomeDismissed && team) {
+    return (
+      <OfflineHuntWelcome
+        teamCode={team.teamCode || teamPrimaryLabel(team)}
+        teamName={team.teamName || teamSecondaryName(team)}
+        startName={team.startingPoint?.name}
+        onContinue={() => {
+          try {
+            sessionStorage.setItem(`ch_hunt_welcome_seen_${welcomeTeamKey}`, '1');
+          } catch { /* ignore */ }
+          setWelcomeDismissed(true);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
       {/* Ambient stage wash */}
@@ -817,15 +846,17 @@ export default function PlayerPlayScreen({
 
           {waitingForRelease && (
             <div className="space-y-4">
-              <section className="rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-4">
-                <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
+              <section className="overflow-hidden rounded-3xl border border-[#0ECCEE]/35 bg-[#071016] shadow-[0_0_48px_-24px_rgba(14,204,238,0.9)]">
+                <div className="h-1 w-full bg-[#0ECCEE]" />
+                <div className="px-4 py-5">
+                <p className="text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-[#0ECCEE]">
                   Organizer start code
                 </p>
-                <p className="mt-2 text-center text-sm text-white/70">
+                <p className="mt-2 text-center text-sm text-white/65">
                   {team.startingPoint?.name
                     ? `Meet at ${team.startingPoint.name}. `
                     : ''}
-                  Type the code the organizer says, then Start.
+                  Type the code, then Start.
                 </p>
                 {isLeader ? (
                   <form
@@ -871,7 +902,7 @@ export default function PlayerPlayScreen({
                       placeholder="Organizer will tell you"
                       autoComplete="off"
                       autoCapitalize="characters"
-                      className="w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center font-mono text-xl tracking-[0.2em] outline-none focus:border-[#0ECCEE]"
+                      className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3.5 text-center font-mono text-2xl tracking-[0.28em] text-white outline-none focus:border-[#0ECCEE]"
                     />
                     {startErr ? (
                       <p className="text-center text-xs text-rose-300">{startErr}</p>
@@ -879,7 +910,7 @@ export default function PlayerPlayScreen({
                     <button
                       type="submit"
                       disabled={busy}
-                      className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
+                      className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black shadow-[0_16px_40px_-16px_rgba(14,204,238,0.85)] disabled:opacity-40"
                     >
                       {busy ? 'Starting…' : 'Start the hunt'}
                     </button>
@@ -889,7 +920,9 @@ export default function PlayerPlayScreen({
                     Use the leader phone to start.
                   </p>
                 )}
+                </div>
               </section>
+              <HuntColorFlowGuide title="Six clues" />
               <p className="text-center text-[11px] text-white/40">
                 Powered by CrwdCtrl
               </p>

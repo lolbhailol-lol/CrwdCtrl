@@ -1097,8 +1097,8 @@ async function startHuntWithCode(req, res, next) {
       });
     }
     const event = await CampusHuntEvent.findById(team.eventId).select('organizerStartCode');
-    const expected = String(event?.organizerStartCode || 'GO').trim().toUpperCase();
-    const got = String(req.body?.code || req.body?.goCode || '').trim().toUpperCase();
+    const expected = String(event?.organizerStartCode || 'GO').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const got = String(req.body?.code || req.body?.goCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!got || got !== expected) {
       return res.status(400).json({
         success: false,

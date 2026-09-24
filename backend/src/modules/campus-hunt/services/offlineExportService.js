@@ -1123,6 +1123,10 @@ async function pullOfflineBoardState(eventId, payload) {
     }));
   } catch (_) { /* best-effort */ }
 
+  const codeEvent = await CampusHuntEvent.findById(eventId)
+    .select('organizerStartCode organizerFinishCode')
+    .lean();
+
   return {
     teamCode: team.teamCode,
     stage: team.currentStage,
@@ -1135,6 +1139,8 @@ async function pullOfflineBoardState(eventId, payload) {
     rank,
     fieldSize,
     top10,
+    organizerStartCode: String(codeEvent?.organizerStartCode || 'GO').trim().toUpperCase(),
+    organizerFinishCode: String(codeEvent?.organizerFinishCode || 'MSFINISH').trim().toUpperCase(),
   };
 }
 

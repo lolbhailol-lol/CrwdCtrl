@@ -5,7 +5,7 @@
  * NEVER delete workbox/precache caches — that breaks airplane-mode Hunt.
  */
 
-const SHELL_BUST_PREFIX = 'ch_hunt_shell_bust_v15_';
+const SHELL_BUST_PREFIX = 'ch_hunt_shell_bust_v17_';
 
 /** Soft clear only API / transient caches. Keep precache for offline play. */
 export async function purgeHuntAppCaches() {

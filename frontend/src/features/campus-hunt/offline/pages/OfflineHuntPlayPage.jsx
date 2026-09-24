@@ -15,6 +15,7 @@ import {
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntBriefing from '../components/OfflineHuntBriefing';
 import { startOverHunt, applyServerStartOverIfNeeded } from '../startOverHunt';
+import { pullOfflineBoardState } from '../offlineBoardSync';
 import {
   confirmStation,
   ensureClueActive,
@@ -76,6 +77,45 @@ export default function OfflineHuntPlayPage() {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { sessionRef.current = session; }, [session]);
   useEffect(() => { bundleRef.current = bundle; }, [bundle]);
+
+  useEffect(() => {
+    if (!bundle?.signingKey) return undefined;
+    let cancelled = false;
+    const syncCodes = async () => {
+      const pack = bundleRef.current;
+      if (!pack) return;
+      const data = await pullOfflineBoardState(pack);
+      if (cancelled || !data) return;
+      const start = String(data.organizerStartCode || '').trim().toUpperCase();
+      const finish = String(data.organizerFinishCode || '').trim().toUpperCase();
+      if (!start && !finish) return;
+      const prevStart = String(pack.event?.organizerStartCode || '').trim().toUpperCase();
+      const prevFinish = String(pack.event?.organizerFinishCode || '').trim().toUpperCase();
+      if (start === prevStart && finish === prevFinish) return;
+      const nextPack = {
+        ...pack,
+        event: {
+          ...pack.event,
+          ...(start ? { organizerStartCode: start } : {}),
+          ...(finish ? { organizerFinishCode: finish } : {}),
+        },
+      };
+      try {
+        await saveOfflineBundle(nextPack);
+      } catch { /* keep playing with the pack already on the phone */ }
+      if (cancelled) return;
+      bundleRef.current = nextPack;
+      setBundle(nextPack);
+    };
+    void syncCodes();
+    const id = window.setInterval(syncCodes, 20000);
+    window.addEventListener('online', syncCodes);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener('online', syncCodes);
+    };
+  }, [bundle?.signingKey, bundle?.team?.teamCode]);
 
   const persistState = useCallback(async (nextState, nextSession = sessionRef.current, opts = {}) => {
     if (!nextState || !nextSession) return nextState;

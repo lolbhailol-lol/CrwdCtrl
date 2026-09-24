@@ -1452,9 +1452,8 @@ export default function TeamManagerPanel({
           <p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]/80">
             Set password for all teams
           </p>
-          <p className="mt-1 text-[11px] text-amber-100/75">
-            Dry-run only. One shared password lets anyone open any /team/CC00x link.
-            For hunt day use a different password per team.
+          <p className="mt-1 text-[11px] text-white/55">
+            One password for every leader phone. Then open Links and create packs so WhatsApp includes it.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <input

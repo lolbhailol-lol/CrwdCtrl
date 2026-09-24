@@ -435,6 +435,8 @@ export default function CampusHuntEventControl() {
               stationCount={overview?.stationCount ?? overview?.event?.stationCount}
               teamCapacity={competitionFormat.teamCapacity}
               teamSize={competitionFormat.teamSize}
+              organizerStartCode={overview?.event?.organizerStartCode || 'GO'}
+              organizerFinishCode={overview?.event?.organizerFinishCode || 'MSFINISH'}
               onChanged={() => refresh().catch(() => {})}
             />
           )}
@@ -491,6 +493,9 @@ export default function CampusHuntEventControl() {
               teamCapacity={competitionFormat.teamCapacity}
               teamSize={competitionFormat.teamSize}
               readiness={readiness}
+              organizerStartCode={overview?.event?.organizerStartCode || 'GO'}
+              organizerFinishCode={overview?.event?.organizerFinishCode || 'MSFINISH'}
+              onChanged={() => refresh().catch(() => {})}
             />
           )}
 
