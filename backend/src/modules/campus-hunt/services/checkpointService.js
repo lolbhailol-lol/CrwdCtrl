@@ -8,6 +8,7 @@ const {
   stagesAllowingCheckpoint,
   applyCheckpointCompletionCascade,
   canTransition,
+  resolvedStageForChallenge,
 } = require('./stateMachine');
 const { isRoundClosed, completionMs } = require('./timerService');
 const { writeAudit } = require('./auditService');
@@ -809,11 +810,50 @@ async function resolveStationCheckpoint({ team, raw }) {
 }
 
 /**
+ * Answer already saved but the team stage is still CLUE_N_ACTIVE
+ * (late scan, or a progress poll landed between submit and the stage write).
+ * Move to the scan stage so the poster is accepted.
+ */
+async function advanceStageIfClueAlreadyResolved(team) {
+  const match = String(team?.currentStage || '').match(/^CLUE_(\d)_ACTIVE$/);
+  if (!match || !team?._id) return team;
+  const n = Number(match[1]);
+  if (n < 1 || n > 5) return team;
+
+  const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
+  const progress = await CampusHuntTeamProgress.findOne({
+    teamId: team._id,
+    challengeNumber: n,
+  }).select('state');
+  const state = String(progress?.state || '');
+  let outcome = null;
+  if (state === 'COMPLETED') outcome = 'completed';
+  else if (state === 'FAILED') outcome = 'failed';
+  else if (state === 'TIMED_OUT') outcome = 'timeout';
+  if (!outcome) return team;
+
+  let nextStage = resolvedStageForChallenge(n, outcome);
+  if (!nextStage && outcome === 'timeout') {
+    nextStage = resolvedStageForChallenge(n, 'failed')
+      || resolvedStageForChallenge(n, 'completed');
+  }
+  if (!nextStage || !canTransition(team.currentStage, nextStage)) return team;
+
+  const updated = await CampusHuntTeam.findOneAndUpdate(
+    { _id: team._id, currentStage: team.currentStage },
+    { $set: { currentStage: nextStage } },
+    { new: true },
+  );
+  return updated || (await CampusHuntTeam.findById(team._id)) || team;
+}
+
+/**
  * Player scans station QR at the physical checkpoint.
  * All 4 members must scan before Clue 2 (or next stage) unlocks.
  * Production fallback: paste short station code from the poster / admin list.
  */
 async function playerScanStation({ team, userId, raw, now = new Date() }) {
+  team = await advanceStageIfClueAlreadyResolved(team);
   const checkpoint = await resolveStationCheckpoint({ team, raw });
   const progressionKey = checkpointProgressionKey(checkpoint);
 

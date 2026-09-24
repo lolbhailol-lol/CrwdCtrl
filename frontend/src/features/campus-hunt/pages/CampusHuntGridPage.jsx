@@ -144,6 +144,7 @@ export default function CampusHuntGridPage() {
       }}
     >
       <div className="mx-auto max-w-lg space-y-6">
+        {!session && (
         <header className="text-center">
           <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-violet-300/90">
             Field Terminal · Clue 4
@@ -159,29 +160,10 @@ export default function CampusHuntGridPage() {
             Zip Grid
           </h1>
           <p className="mt-3 text-sm text-white/65">
-            Connect numbers in order · fill every cell · <strong className="text-white">4 rounds</strong>
-          </p>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-[11px]">
-            <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1 text-emerald-100">
-              Easy · 20
-            </span>
-            <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2.5 py-1 text-sky-100">
-              Medium · 30
-            </span>
-            <span className="rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-1 text-violet-100">
-              Difficult · 40
-            </span>
-            <span className="rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-1 text-orange-100">
-              Hard · 50
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-white/50">
-              Hint −20
-            </span>
-          </div>
-          <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-amber-200/75">
-            Laptop only · no phones · no account ranking
+            Laptop only. 4 rounds. Enter the device key from the leader phone.
           </p>
         </header>
+        )}
 
         {blocked ? (
           <LaptopOnlyGate />
@@ -215,9 +197,6 @@ export default function CampusHuntGridPage() {
             >
               {loading ? 'Joining…' : 'Start Zip · 4 rounds'}
             </button>
-            <p className="mt-3 text-center text-[11px] leading-relaxed text-white/40">
-              Difficulty climbs each round. Miss a timer → 0 for that round, keep going.
-            </p>
           </form>
         ) : (
           <CrwdCtrlGridGame

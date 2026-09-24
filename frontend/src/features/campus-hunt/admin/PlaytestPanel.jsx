@@ -17,6 +17,8 @@ export default function PlaytestPanel({
   busy = false,
   canStart = true,
   onChanged,
+  organizerStartCode = 'GO',
+  organizerFinishCode = 'MSFINISH',
 }) {
   const size = Number(teamSize) || 4;
 
@@ -25,9 +27,24 @@ export default function PlaytestPanel({
       <div>
         <h2 className="text-xl font-bold">Dry run</h2>
         <p className="mt-1 text-sm text-white/55">
-          Cheat-scan one team, or Start over to wipe board + Zip. Fest day: shout the start code — phones unlock themselves.
+          Start over one team, and copy each station code. Fest day: shout the start code — phones unlock themselves.
         </p>
       </div>
+
+      <section className="grid gap-2 sm:grid-cols-2">
+        <div className="rounded-2xl border border-[#0ECCEE]/35 bg-[#0a1218] px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/45">Start code</p>
+          <p className="mt-1 font-mono text-2xl font-black tracking-[0.18em] text-[#0ECCEE]">
+            {String(organizerStartCode || 'GO').toUpperCase()}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-rose-400/35 bg-[#140a0c] px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/45">Finish code</p>
+          <p className="mt-1 font-mono text-2xl font-black tracking-[0.18em] text-rose-200">
+            {String(organizerFinishCode || 'MSFINISH').toUpperCase()}
+          </p>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-4">
         <div className="flex flex-wrap items-center gap-3">

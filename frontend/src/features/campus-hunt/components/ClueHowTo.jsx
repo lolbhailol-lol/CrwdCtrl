@@ -7,7 +7,7 @@ export default function ClueHowTo({ challenge, accentHex = '#0ECCEE' }) {
 
   const howTo = challenge.howTo;
   const n = Number(challenge.challengeNumber);
-  const steps = Array.isArray(howTo?.steps) ? howTo.steps.slice(0, 4) : [];
+  const steps = Array.isArray(howTo?.steps) ? howTo.steps.slice(0, 5) : [];
 
   if (!steps.length) return null;
 

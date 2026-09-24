@@ -5,6 +5,7 @@ import CountdownTimer from '../components/CountdownTimer';
 import HuntQrScanner, { releaseHuntCameraSession } from '../components/HuntQrScanner';
 import HuntProgressTrack from '../components/HuntProgressTrack';
 import {
+  STAGE_THEMES,
   themeForChallengeNumber,
   themeForPlayerContext,
 } from '../types/stageTheme';
@@ -504,7 +505,7 @@ export default function PlayerPlayScreen({
   const nowThemeHex = atCheckpoint
     ? checkpointTheme.hex
     : atLobbyFinish
-      ? '#EF4444'
+      ? STAGE_THEMES.destination.hex
       : waitingForRelease
         ? '#F97316'
         : activeNum
@@ -554,8 +555,6 @@ export default function PlayerPlayScreen({
           'Correct! Head to Orange scan',
         ));
         setAwardedFlash(flashPts);
-        // Open camera as soon as Clue 1 unlocks orange scan (don't wait for effect race).
-        setShowScanner(true);
       } else if (activeNum === 2) {
         celebrate(winMsg(
           pts > 0
@@ -564,7 +563,6 @@ export default function PlayerPlayScreen({
           'Correct — green scan next',
         ));
         setAwardedFlash(flashPts);
-        setShowScanner(true);
       } else if (activeNum === 3) {
         celebrate(winMsg(
           pts > 0
@@ -573,7 +571,6 @@ export default function PlayerPlayScreen({
           'Decoded — blue scan next',
         ));
         setAwardedFlash(flashPts);
-        setShowScanner(true);
       } else if (activeNum === 4) {
         celebrate(winMsg(
           pts > 0
@@ -582,7 +579,6 @@ export default function PlayerPlayScreen({
           'GRID cleared — purple scan next',
         ));
         setAwardedFlash(flashPts);
-        setShowScanner(true);
       } else if (activeNum === 5) {
         celebrate(winMsg(
           pts > 0
@@ -591,7 +587,6 @@ export default function PlayerPlayScreen({
           'Correct — go scan red, then Mindspark Lobby',
         ));
         setAwardedFlash(flashPts);
-        setShowScanner(true);
       } else if (activeNum === 6) {
         celebrate(
           result.payload?.scoreLocked
@@ -605,6 +600,12 @@ export default function PlayerPlayScreen({
       } else {
         celebrate(winMsg(pts > 0 ? `Correct! +${pts} pts` : 'Correct!', 'Correct!'));
         setAwardedFlash(flashPts);
+      }
+      // Camera only after the phone is actually on the scan stage.
+      // Opening it while the stage is still CLUE_*_ACTIVE made a late red scan
+      // bounce back to "type the clue".
+      if (needsStationScan(resData?.team?.currentStage)) {
+        setShowScanner(true);
       }
       setFeedback(sanitizePlayerCopy(resData.message || resData.destinationInstruction || ''));
     } else if (resData?.revealed) {
@@ -648,7 +649,11 @@ export default function PlayerPlayScreen({
     const result = await runAction(() => scanStationCheckpointFn(team.id, value));
     if (!result.ok) {
       if (result.error) {
-        setFeedback(result.error.message || 'Scan failed — use the station poster QR');
+        let msg = result.error.message || 'Scan failed — use the station poster QR';
+        if (/type your clue answer/i.test(msg) && needsStationScan(team?.currentStage)) {
+          msg = 'Scan didn’t register — point at the poster QR again';
+        }
+        setFeedback(msg);
         setFeedbackTone('err');
       }
       // Allow retry of the same QR after a miss
@@ -1250,7 +1255,14 @@ export default function PlayerPlayScreen({
           )}
 
           {atLobbyFinish && (
-            <section className={`${panel} space-y-3 text-center`} style={{ borderColor: '#EF444455' }}>
+            <section
+              className={`${panel} space-y-3 text-center`}
+              style={{
+                borderColor: `${STAGE_THEMES.destination.hex}99`,
+                background: `linear-gradient(180deg, ${STAGE_THEMES.destination.softBg} 0%, rgba(20,14,4,0.92) 100%)`,
+                boxShadow: `0 0 36px -16px ${STAGE_THEMES.destination.hex}`,
+              }}
+            >
               {timerRevealAtStart && (
                 <div className="rounded-xl bg-amber-500/10 px-3 py-3 text-left text-sm">
                   <p className="text-amber-100/80">
@@ -1261,7 +1273,10 @@ export default function PlayerPlayScreen({
                   </p>
                 </div>
               )}
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-red-300/80">
+              <p
+                className="text-[10px] font-semibold uppercase tracking-[0.16em]"
+                style={{ color: STAGE_THEMES.destination.hex }}
+              >
                 Mindspark Lobby
               </p>
               <p className="font-mono text-4xl font-semibold tracking-wide">{team.teamCode || '—'}</p>
@@ -1292,13 +1307,17 @@ export default function PlayerPlayScreen({
                     onChange={(e) => setFinishCode(e.target.value.toUpperCase())}
                     placeholder="Finish code"
                     autoComplete="off"
-                    className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-center font-mono text-lg tracking-wider uppercase outline-none focus:border-white/25"
+                    className="w-full rounded-xl border bg-black/40 px-4 py-3 text-center font-mono text-lg tracking-wider uppercase text-white outline-none"
+                    style={{ borderColor: `${STAGE_THEMES.destination.hex}88` }}
                   />
                   <button
                     type="submit"
                     disabled={busy || !String(finishCode || '').trim()}
-                    className="w-full rounded-2xl py-3.5 text-sm font-bold text-black disabled:opacity-50"
-                    style={{ background: '#EF4444' }}
+                    className="w-full rounded-2xl py-3.5 text-sm font-bold disabled:opacity-50"
+                    style={{
+                      background: STAGE_THEMES.destination.hex,
+                      color: STAGE_THEMES.destination.ink,
+                    }}
                   >
                     {busy ? 'Locking…' : 'Lock score'}
                   </button>
@@ -1356,6 +1375,15 @@ export default function PlayerPlayScreen({
                         : activeChallenge.challengeNumber === 5
                           ? 'Final'
                           : `Clue ${activeChallenge.challengeNumber}`}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-white">
+                    {activeChallenge.challengeNumber === 4
+                      ? 'Worth your Zip score'
+                      : activeChallenge.challengeNumber === 3
+                        ? 'Worth 65 points'
+                        : activeChallenge.challengeNumber === 5
+                          ? 'Worth 45 points'
+                          : 'Worth 50 points'}
                   </p>
                 </div>
                 {activeChallenge.challengeNumber === 2

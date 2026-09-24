@@ -87,10 +87,7 @@ function ScorePills({
               <p className="mt-0.5 font-mono text-sm font-bold tabular-nums">
                 {row.completed || row.failed || row.timedOut
                   ? `+${row.pointsAwarded}`
-                  : `—/${row.maxPoints}`}
-              </p>
-              <p className="text-[9px] text-white/40">
-                {row.completed ? 'cleared' : row.failed || row.timedOut ? 'missed' : Number(row.level) === Number(currentLevel) ? 'now' : 'next'}
+                  : row.maxPoints}
               </p>
             </div>
           );
@@ -117,6 +114,8 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
   const [timeLeft, setTimeLeft] = useState(initialData?.puzzle?.timeSeconds || 90);
   const [levelFlash, setLevelFlash] = useState(null);
   const timeoutSent = useRef(false);
+  const clockPuzzleRef = useRef(null);
+  const clockRemainingRef = useRef(null);
 
   const puzzle = data?.puzzle;
   const canSubmit = useMemo(() => isCompletePath(path, puzzle), [path, puzzle]);
@@ -138,8 +137,19 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
       : Date.now();
     const limit = data?.levelTimeSeconds ?? puzzle.timeSeconds;
     const compute = () => Math.max(0, limit - Math.floor((Date.now() - startedMs) / 1000));
-    setTimeLeft(data?.levelTimeRemaining ?? compute());
-    const id = setInterval(() => setTimeLeft(compute()), 250);
+    const remaining = Number.isFinite(Number(data?.levelTimeRemaining))
+      ? Math.max(0, Number(data.levelTimeRemaining))
+      : compute();
+    // Publish the new round's clock before any timeout check. A leftover 0
+    // from the previous round must not mark this round timed out.
+    clockPuzzleRef.current = puzzle.puzzleId;
+    clockRemainingRef.current = remaining;
+    setTimeLeft(remaining);
+    const id = setInterval(() => {
+      const left = compute();
+      clockRemainingRef.current = left;
+      setTimeLeft(left);
+    }, 250);
     return () => clearInterval(id);
   }, [
     puzzle?.puzzleId,
@@ -164,6 +174,8 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
 
   // Auto-advance when timer hits 0 (0 pts for level, continue)
   useEffect(() => {
+    if (clockPuzzleRef.current !== puzzle?.puzzleId) return undefined;
+    if (clockRemainingRef.current !== 0) return undefined;
     if (data?.completed || timeLeft !== 0 || busy || timeoutSent.current) return undefined;
     timeoutSent.current = true;
     let cancelled = false;
@@ -189,7 +201,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
       }
     })();
     return () => { cancelled = true; };
-  }, [timeLeft, data?.completed, busy, sessionToken, refresh, onComplete]);
+  }, [timeLeft, data?.completed, busy, sessionToken, refresh, onComplete, puzzle?.puzzleId]);
 
   useEffect(() => {
     if (!levelFlash) return undefined;
@@ -308,9 +320,6 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
         >
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Zip complete</p>
           <h2 className="mt-2 text-3xl font-black text-white">Game finished</h2>
-          <p className="mt-2 text-sm text-white/60">
-            Points from levels you solved (missed timers = 0). Hints already deducted.
-          </p>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
             <p className="text-[10px] uppercase tracking-wide text-white/45">Your grid score</p>
@@ -336,7 +345,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
                   <span className="text-xs text-white/40">/{row.maxPoints}</span>
                 </p>
                 <p className="text-[10px] text-white/45">
-                  {row.completed ? 'Solved' : 'Timed out'}
+                  {row.completed ? 'Solved' : '0'}
                 </p>
               </div>
             ))}
@@ -401,13 +410,9 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-violet-300">
-              Zip · number path
-            </p>
             <p className="text-sm font-bold text-white">{data?.teamLabel || data?.teamCode || 'Team'}</p>
             <p className="mt-0.5 text-[11px] text-white/50">
               Round {data?.currentLevel || 1} of {data?.totalLevels || 4}
-              {puzzle?.points != null && ` · worth ${puzzle.points} pts`}
             </p>
           </div>
           <div className="text-right">
@@ -435,12 +440,6 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
           />
         </div>
       </header>
-
-      {puzzle?.label && (
-        <p className="text-center text-xs uppercase tracking-wide text-violet-200/70">
-          {puzzle.label} · connect 1→{puzzle.numbers?.length || 'N'} · fill every open cell
-        </p>
-      )}
 
       <GridBoard
         puzzle={puzzle}
@@ -494,10 +493,6 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
         </button>
       </div>
 
-      <p className="text-center text-[11px] leading-relaxed text-white/40">
-        Draw through every open cell. Hit numbers in order (1 → 2 → 3…).
-        Miss the timer → 0 for that round. Each undo −20. Each hint −20.
-      </p>
       <PoweredByCrwdCtrl />
 
       {onSwitchTeam && (

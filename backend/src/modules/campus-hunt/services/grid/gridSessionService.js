@@ -48,6 +48,56 @@ function anyLevelCleared(session) {
   return (session.levelProgress || []).some((lp) => lp?.completed || lp?.failed || lp?.timedOut);
 }
 
+function levelWasPlayed(lp) {
+  if (!lp) return false;
+  return Boolean(lp.completed) || Number(lp.moves) > 0 || Number(lp.hintsUsed) > 0;
+}
+
+/**
+ * Pack creation used to start the round-1 clock immediately, so opening Zip
+ * later looked "timed out" and skipped ahead. If nobody has played, go back
+ * to round 1 and start the clock now.
+ */
+function healUntouchedRound1Zip(session) {
+  if (!session || session.missionRunId || session.entryId) return false;
+  if (session.status === 'completed') return false;
+  const progress = session.levelProgress || [];
+  if (progress.some((lp) => levelWasPlayed(lp))) return false;
+
+  const index = Number(session.currentLevelIndex) || 0;
+  const puzzle = session.puzzles?.[0];
+  const first = progress[0];
+  const falseFail = progress.some((lp) => (lp?.timedOut || lp?.failed) && !levelWasPlayed(lp));
+  const clockDead = Boolean(
+    first?.startedAt
+    && puzzle
+    && levelTimeRemainingSeconds(session, puzzle, 0) <= 0,
+  );
+  const offRoundOne = index !== 0;
+  if (!falseFail && !clockDead && !offRoundOne && session.status === 'active') return false;
+
+  const now = new Date();
+  const count = Math.max(session.puzzles?.length || 0, TOTAL_LEVELS);
+  session.status = 'active';
+  session.currentLevelIndex = 0;
+  session.scoreEarned = 0;
+  session.hintsUsed = 0;
+  session.undosUsed = 0;
+  session.score = 0;
+  session.set('levelProgress', Array.from({ length: count }, (_, i) => ({
+    levelIndex: i,
+    completed: false,
+    failed: false,
+    timedOut: false,
+    moves: 0,
+    pointsAwarded: 0,
+    hintsUsed: 0,
+    startedAt: i === 0 ? now : undefined,
+  })));
+  session.markModified('levelProgress');
+  return true;
+}
+
 function zipMatchesCurrentDifficulty(session) {
   if (!hasFullZipPack(session)) return false;
   return LEVEL_TEMPLATES.every((template, i) => {
@@ -84,7 +134,7 @@ function applyFreshZipPuzzles(session, now = new Date()) {
     moves: 0,
     pointsAwarded: 0,
     hintsUsed: 0,
-    startedAt: i === 0 ? now : undefined,
+    startedAt: undefined,
   })));
   session.currentLevelIndex = 0;
   session.scoreEarned = 0;
@@ -354,7 +404,7 @@ async function createGridSession({
       moves: 0,
       pointsAwarded: 0,
       hintsUsed: 0,
-      startedAt: i === 0 ? now : undefined,
+      startedAt: undefined,
     })),
     currentLevelIndex: 0,
     scoreEarned: 0,
@@ -438,10 +488,14 @@ async function loadActiveSession(sessionToken) {
   ) {
     session = await reviveRound1GridSession(session, { forceReset: true });
   }
-  if (session.status === 'active') {
-    ensureLevelStarted(session, session.currentLevelIndex);
-    if (applyTimeoutIfNeeded(session)) {
-      await session.save();
+  if (session.status === 'active' || session.status === 'expired') {
+    const healed = healUntouchedRound1Zip(session);
+    if (session.status === 'active' || healed) {
+      session.status = healed ? 'active' : session.status;
+      ensureLevelStarted(session, session.currentLevelIndex);
+      if (applyTimeoutIfNeeded(session) || healed) {
+        await session.save();
+      }
     }
   }
   return session;
@@ -479,8 +533,9 @@ async function joinByAccessCode(accessCode) {
 
   assertSessionActive(session);
   if (session.status === 'active') {
+    const healed = healUntouchedRound1Zip(session);
     ensureLevelStarted(session, session.currentLevelIndex);
-    if (applyTimeoutIfNeeded(session)) {
+    if (applyTimeoutIfNeeded(session) || healed) {
       await session.save();
     } else {
       if (isRound1GridSession(session)) {

@@ -122,6 +122,43 @@ function progressFingerprint(data) {
   ].join('|');
 }
 
+/** Play order. Failed/timeout share the scan rank so they don't rewind a completed clue. */
+const STAGE_RANK = {
+  WAITING: 0,
+  CLUE_1_ACTIVE: 10,
+  CLUE_1_COMPLETED: 20,
+  CHECKPOINT_1_COMPLETED: 30,
+  CLUE_2_ACTIVE: 40,
+  CLUE_2_COMPLETED: 50,
+  CLUE_2_FAILED: 50,
+  CLUE_2_TIMEOUT: 50,
+  CHECKPOINT_2_COMPLETED: 60,
+  CLUE_3_ACTIVE: 70,
+  CLUE_3_COMPLETED: 80,
+  CLUE_3_FAILED: 80,
+  CHECKPOINT_3_COMPLETED: 90,
+  CLUE_4_ACTIVE: 100,
+  CLUE_4_COMPLETED: 110,
+  CLUE_4_FAILED: 110,
+  CLUE_4_TIMEOUT: 110,
+  CHECKPOINT_4_COMPLETED: 120,
+  CLUE_5_ACTIVE: 130,
+  CLUE_5_COMPLETED: 140,
+  CLUE_5_FAILED: 140,
+  CHECKPOINT_5_COMPLETED: 150,
+  CLUE_6_ACTIVE: 160,
+  CLUE_6_COMPLETED: 170,
+  CLUE_6_FAILED: 170,
+  FINISH_COMPLETED: 180,
+  SCORE_LOCKED: 190,
+};
+
+function stageRank(stage) {
+  const key = String(stage || '');
+  if (!key || !Object.prototype.hasOwnProperty.call(STAGE_RANK, key)) return -1;
+  return STAGE_RANK[key];
+}
+
 function stageNeedsCheckpoint(stage) {
   const s = String(stage || '');
   if (!s || s === 'SCORE_LOCKED' || s === 'FINISH_COMPLETED') return false;
@@ -183,6 +220,8 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
   /** Lightweight /progress polls only. */
   const softGenRef = useRef(0);
   const pausePollUntilRef = useRef(0);
+  /** Highest stage accepted. Late polls cannot walk the phone back to "type the clue". */
+  const stageFloorRef = useRef(stageRank(initialData?.team?.currentStage));
   const dataRef = useRef(
     initialData?.team && Array.isArray(initialData?.rounds) ? initialData : null,
   );
@@ -199,10 +238,26 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
     }
   }, [data]);
 
-  const applyMerged = useCallback((incoming, { soft = false } = {}) => {
+  const applyMerged = useCallback((incoming, { soft = false, trusted = false } = {}) => {
     // Never let a progress poll become the first board — it has no rounds/event.
     if (soft && !bootstrappedRef.current && !dataRef.current?.rounds) {
       return;
+    }
+    const incomingStage = String(incoming?.team?.currentStage || '');
+    const incomingRank = stageRank(incomingStage);
+    const floor = stageFloorRef.current;
+    // Admin start-over is WAITING. Any other backward stage is a late poll.
+    if (
+      !trusted
+      && incomingRank >= 0
+      && floor >= 0
+      && incomingRank < floor
+      && incomingStage !== 'WAITING'
+    ) {
+      return;
+    }
+    if (incomingRank >= 0) {
+      stageFloorRef.current = incomingStage === 'WAITING' ? 0 : Math.max(floor, incomingRank);
     }
     const merged = soft
       ? mergeProgress(dataRef.current, incoming)
@@ -318,7 +373,7 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
       ...next,
       rounds: dataRef.current?.rounds,
       event: dataRef.current?.event,
-    }, { soft: false });
+    }, { soft: false, trusted: true });
     teamIdRef.current = next.team?.id || teamIdRef.current;
     setBurstUntil(Date.now() + (pendingScan ? 8000 : 5000));
     setError(null);
@@ -383,7 +438,7 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
             signal: ac.signal,
             onEvent: (evt) => {
               if (evt?.type === 'progress') {
-                pausePollUntilRef.current = 0;
+                if (Date.now() < pausePollUntilRef.current) return;
                 void refreshProgress({ force: true });
               }
             },
@@ -415,7 +470,7 @@ export function useHuntTeam(eventId, { enabled = true, initialData = null } = {}
       const waiting = ['WAITING', 'READY'].includes(current?.team?.startStatus);
       const open = waiting || isActivelyPlaying(current) || stage === 'SCORE_LOCKED';
       if (!open && !current?.checkpointStatus?.checkpointId) return;
-      pausePollUntilRef.current = 0;
+      if (Date.now() < pausePollUntilRef.current) return;
       void refreshProgress({ force: true });
     };
     const onVis = () => {

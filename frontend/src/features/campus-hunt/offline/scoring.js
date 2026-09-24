@@ -18,7 +18,7 @@ export const DEFAULT_SCORING_CONFIG = {
   },
   clue2: {
     basePoints: 50,
-    maxAttempts: 3,
+    maxAttempts: 2,
     timerSeconds: 0,
     timerStartDelaySeconds: 0,
     awardMode: 'flat_base',

@@ -155,7 +155,11 @@ function scoringForChallenge(event, challengeNumber) {
     merged.timerStartDelaySeconds = 0;
     merged.awardMode = 'flat_base';
     merged.speedBonusBands = [];
-    if (Number(challengeNumber) === 2 || Number(challengeNumber) === 4) {
+    if (Number(challengeNumber) === 2) {
+      merged.maxAttempts = 2;
+      merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
+    }
+    if (Number(challengeNumber) === 4) {
       merged.basePoints = Number(merged.basePoints) > 0 ? Number(merged.basePoints) : 50;
     }
     if (Number(challengeNumber) === 3) {
@@ -269,7 +273,7 @@ function publicChallengeView(challenge, progress, {
       howTo: null,
       state,
       attempts: progress?.attempts || 0,
-      maxAttempts: challenge.maxAttempts || scoring?.maxAttempts || 3,
+      maxAttempts: Number(n) === 2 ? 2 : (challenge.maxAttempts || scoring?.maxAttempts || 3),
       attemptsLeft: null,
       awardedPoints: null,
       locked: true,
@@ -296,7 +300,7 @@ function publicChallengeView(challenge, progress, {
       || 'At the red stop: find the letter slips nearby (letters only — not digits).\nJoin them in order into one word. Leader submits.';
   }
 
-  const maxAttempts = challenge.maxAttempts || scoring?.maxAttempts || 3;
+  const maxAttempts = Number(n) === 2 ? 2 : (challenge.maxAttempts || scoring?.maxAttempts || 3);
   const attempts = progress?.attempts || 0;
   const nextAttempt = attempts + 1;
   const attemptBands = scoring?.attemptBands || [];
@@ -497,7 +501,7 @@ async function submitAnswer({
     return {
       correct: progress.state === 'COMPLETED',
       state: progress.state,
-      attemptsLeft: Math.max(0, challenge.maxAttempts - progress.attempts),
+      attemptsLeft: Math.max(0, (Number(challengeNumber) === 2 ? 2 : challenge.maxAttempts) - progress.attempts),
       awardedPoints: progress.awardedPoints ?? 0,
       destinationInstruction: progress.state === 'COMPLETED' ? challenge.destinationInstruction : undefined,
       teamStage: team.currentStage,
@@ -551,7 +555,7 @@ async function submitAnswer({
     }
   }
   const nextAttempts = (progress.attempts || 0) + 1;
-  const maxAttempts = challenge.maxAttempts || scoring.maxAttempts || 3;
+  const maxAttempts = Number(challengeNumber) === 2 ? 2 : (challenge.maxAttempts || scoring.maxAttempts || 3);
 
   if (!correct) {
     const failed = nextAttempts >= maxAttempts;

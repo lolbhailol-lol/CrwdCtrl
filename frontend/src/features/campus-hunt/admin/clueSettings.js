@@ -7,7 +7,7 @@ export const CLUE1_DEFAULT_SETTINGS = {
 export const CLUE2_DEFAULT_SETTINGS = {
   timerStartDelaySeconds: 0,
   timerSeconds: 0,
-  maxAttempts: 3,
+  maxAttempts: 2,
   hintCost: 20,
   awardMode: 'flat_base',
   basePoints: 50,

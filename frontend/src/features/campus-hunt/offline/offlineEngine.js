@@ -433,7 +433,7 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   const accepted = acceptedAnswersForClue(bundle, n, clue);
   const correct = matchesAnyAccepted(answer, accepted, n);
   const nextAttempts = (row.attempts || 0) + 1;
-  const maxAttempts = clue.maxAttempts || cfg.maxAttempts || 3;
+  const maxAttempts = n === 2 ? 2 : (clue.maxAttempts || cfg.maxAttempts || 3);
 
   if (!correct) {
     row.attempts = nextAttempts;
@@ -723,9 +723,27 @@ export function submitStopJoinWord(bundle, session, state, answer, now = new Dat
   };
 }
 
+function advanceIfClueAlreadyResolved(state) {
+  const match = String(state?.currentStage || '').match(/^CLUE_(\d)_ACTIVE$/);
+  if (!match) return state;
+  const n = Number(match[1]);
+  if (n < 1 || n > 5) return state;
+  const row = state.clueProgress?.[n];
+  const progressState = String(row?.state || '');
+  let dest = null;
+  if (progressState === 'COMPLETED') dest = RESOLVED[n]?.completed;
+  else if (progressState === 'FAILED') dest = RESOLVED[n]?.failed;
+  else if (progressState === 'TIMED_OUT') dest = RESOLVED[n]?.timeout || RESOLVED[n]?.failed;
+  if (!dest || !canTransition(state.currentStage, dest)) return state;
+  const next = clone(state);
+  next.currentStage = dest;
+  bump(next);
+  return next;
+}
+
 export function scanStation(bundle, session, state, raw, now = new Date()) {
   assertLeader(session);
-  const next = tickTimers(bundle, state, now);
+  const next = advanceIfClueAlreadyResolved(tickTimers(bundle, state, now));
   const key = pendingCheckpointKey(next.currentStage);
   if (!key) {
     if (/CLUE_\d_ACTIVE/.test(String(next.currentStage || ''))) {

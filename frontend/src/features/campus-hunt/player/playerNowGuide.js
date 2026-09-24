@@ -125,7 +125,7 @@ export function buildPlayerNowGuide({
       eyebrow: 'Clue 1',
       title: 'Name the place',
       body: isLeader
-        ? '3 attempts. Type the campus place, submit, then scan Orange.'
+        ? '3 attempts. Type the campus place, submit, then scan Orange. Worth 50 points.'
         : 'Only the leader phone answers Clue 1.',
       steps: [],
     };
@@ -145,7 +145,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 2 · Digits',
       title: 'Join numbered digit slips',
-      body: '3 tries. Find slips 1→N at green, join digits into one number, type it.',
+      body: '2 tries. Find slips 1→N at green, join digits into one number, type it. Worth 50 points.',
       steps: [],
     };
   }
@@ -164,7 +164,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 3 · Lockbox',
       title: 'Find the lockbox',
-      body: 'Find the physical lockbox nearby. Type the code written on it.',
+      body: 'Find the physical lockbox nearby. Type the code written on it. Worth 65 points.',
       steps: [],
     };
   }
@@ -174,7 +174,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 4 · Field Terminal',
       title: 'Borrow a laptop · play Zip Grid',
-      body: 'Device key on this phone → laptop. Four harder Zip rounds. Each undo −20. Type GRID-XXXX here.',
+      body: 'Device key on this phone → laptop. Four harder Zip rounds. Each undo −20. Type GRID-XXXX here. Worth your Zip score.',
       steps: [],
     };
   }
@@ -193,7 +193,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 5 · Word',
       title: 'Join letter slips into a word',
-      body: '2 tries. Letter slips at red (not digits) — build one word. Hints cost more.',
+      body: '2 tries. Letter slips at red (not digits) — build one word. Hints cost more. Worth 45 points.',
       steps: [],
     };
   }

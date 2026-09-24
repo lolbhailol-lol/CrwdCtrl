@@ -3,6 +3,7 @@ const STEPS = [
   { id: 'clues', label: '2 · Clues' },
   { id: 'teams', label: '3 · Teams' },
   { id: 'links', label: '4 · Links' },
+  { id: 'playtest', label: 'Dry run' },
   { id: 'live', label: '5 · Live' },
   { id: 'results', label: '6 · Results' },
 ];

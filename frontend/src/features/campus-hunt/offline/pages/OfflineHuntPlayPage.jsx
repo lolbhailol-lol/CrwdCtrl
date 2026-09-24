@@ -147,11 +147,22 @@ export default function OfflineHuntPlayPage() {
   const persistState = useCallback(async (nextState, nextSession = sessionRef.current, opts = {}) => {
     if (!nextState || !nextSession) return nextState;
     const prev = stateRef.current;
+    const incomingSeq = Number(nextState.seq) || 0;
+    const prevSeq = Number(prev?.seq) || 0;
+    // A late save must not put the phone back on an earlier clue after a scan.
+    if (prev && incomingSeq < prevSeq && String(nextState.currentStage || '') !== 'WAITING') {
+      return prev;
+    }
     const stageChanged = !prev || prev.currentStage !== nextState.currentStage;
     const scoreChanged = !prev || Number(prev.score) !== Number(nextState.score);
     const shouldBoardSync = opts.syncBoard !== false && (stageChanged || scoreChanged);
 
+    // Publish before the disk write so a scan in flight can't read the old clue stage.
+    stateRef.current = nextState;
     await saveOfflineTeamState(nextSession.teamCode, nextState);
+    if (stateRef.current && Number(stateRef.current.seq) > incomingSeq) {
+      return stateRef.current;
+    }
     stateRef.current = nextState;
     setState(nextState);
     const pack = bundleRef.current;

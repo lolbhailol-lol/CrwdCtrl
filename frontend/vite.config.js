@@ -109,8 +109,8 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ['**/*.{js,css,html,ico,webp,woff2,webmanifest}'],
         globIgnores: ['**/firebase-messaging-sw.js'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        // v20 — start-page clue rules
-        cacheId: 'crwdctrl-v20',
+        // v22 — red scan cannot rewind to the type-clue screen
+        cacheId: 'crwdctrl-v22',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

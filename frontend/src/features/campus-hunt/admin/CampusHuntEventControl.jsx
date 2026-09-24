@@ -421,6 +421,8 @@ export default function CampusHuntEventControl() {
               busy={busy}
               canStart={Boolean(overview?.event) && round1?.status !== 'finalized'}
               onChanged={() => refresh().catch(() => {})}
+              organizerStartCode={overview?.event?.organizerStartCode || 'GO'}
+              organizerFinishCode={overview?.event?.organizerFinishCode || 'MSFINISH'}
             />
           )}
 
