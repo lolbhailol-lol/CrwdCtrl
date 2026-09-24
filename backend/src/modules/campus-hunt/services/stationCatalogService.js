@@ -10,7 +10,7 @@ const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const DEFAULT_CAMPUS_STATIONS = [
   {
     code: 'S01',
-    name: 'Jet Engine',
+    name: 'JET ENGINE',
     zone: 'north',
     riddle:
       'I roar without a voice, I fly without wings,\n'
@@ -20,7 +20,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S05',
-    name: 'Mathematics Department',
+    name: 'MATHEMATICS DEPARTMENT',
     zone: 'south',
     riddle:
       'Where numbers speak and symbols play,\n'
@@ -30,7 +30,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S02',
-    name: 'ENTC Building',
+    name: 'ENTC BUILDING',
     zone: 'north',
     riddle:
       'Where signals travel and circuits hum,\n'
@@ -40,7 +40,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S06',
-    name: 'Metallurgy Garden',
+    name: 'METALLURGY DEPARTMENT',
     zone: 'south',
     riddle:
       'Where iron rests and steel is strong,\n'
@@ -50,7 +50,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S03',
-    name: 'Boat Club Canteen',
+    name: 'BOAT CLUB CANTEEN',
     zone: 'north',
     riddle:
       'Hungry minds and hungry friends meet,\n'
@@ -60,7 +60,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S07',
-    name: 'Geology Museum',
+    name: 'GEOLOGY MUSEUM',
     zone: 'south',
     riddle:
       'Stones tell stories from ages ago,\n'
@@ -70,7 +70,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S04',
-    name: 'Chemistry Labs',
+    name: 'CHEMISTRY LAB',
     zone: 'north',
     riddle:
       'Here flames can burn but not to cook,\n'
@@ -80,7 +80,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S09',
-    name: 'Visvesvaraya Statue',
+    name: 'VISVESVARAYA STATUE',
     zone: 'south',
     riddle:
       'A mind of steel, a vision so wide,\n'
@@ -90,7 +90,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S10',
-    name: 'Bhau Institute',
+    name: 'BHAU INSTITUTE',
     zone: 'north',
     riddle:
       'Dreams take flight and ideas ignite,\n'
@@ -100,7 +100,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S11',
-    name: 'Fountain',
+    name: 'FOUNTAIN',
     zone: 'south',
     riddle:
       'I never rest, I never sleep,\n'
@@ -110,7 +110,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S14',
-    name: 'ENTC Extension Garden',
+    name: 'ENTC GARDEN',
     zone: 'north',
     riddle:
       'Where three buildings form a gentle square,\n'
@@ -120,7 +120,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S12',
-    name: 'Library Pillar',
+    name: 'LIBRARY',
     zone: 'south',
     riddle:
       'Where knowledge is kept in a silent hall,\n'
@@ -130,7 +130,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S18',
-    name: 'Old CS Building',
+    name: 'OLD CSE BUILDING',
     zone: 'north',
     riddle:
       'Where binary language was first understood,\n'
@@ -140,7 +140,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S13',
-    name: 'Fab Lab',
+    name: 'FAB LAB',
     zone: 'south',
     riddle:
       'A workshop of wonders, tools abound,\n'
@@ -150,7 +150,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S15',
-    name: 'Alumni Association',
+    name: 'ALUMNI ASSOCIATION',
     zone: 'south',
     riddle:
       'They studied here, they built their way,\n'
@@ -170,7 +170,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S16',
-    name: 'Gate No. 2',
+    name: 'GATE 2',
     zone: 'south',
     riddle:
       'Not the front, but still a way,\n'
@@ -180,7 +180,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S08',
-    name: 'Subway',
+    name: 'SUBWAY',
     zone: 'common',
     riddle:
       'I run below the ground, yet I’m no train,\n'
@@ -190,7 +190,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S17',
-    name: 'Xerox Center',
+    name: 'XEROX CENTRE',
     zone: 'south',
     riddle:
       'Pages appear though none are written,\n'
@@ -200,7 +200,7 @@ const DEFAULT_CAMPUS_STATIONS = [
   },
   {
     code: 'S20',
-    name: 'Civil Department',
+    name: 'CIVIL DEPARTMENT',
     zone: 'south',
     riddle:
       'Strong as stone, and built to last,\n'
@@ -217,26 +217,26 @@ const DEFAULT_DESTINATION_NAME = 'Mindspark Lobby';
  * Plant slips = one digit each; teams join in order.
  */
 const DEFAULT_STATION_DIGIT_CODES = {
-  S01: '847',
-  S02: '392',
-  S03: '615',
-  S04: '278',
-  S05: '904',
+  S01: '874',
+  S02: '932',
+  S03: '651',
+  S04: '872',
+  S05: '940',
   S06: '531',
-  S07: '186',
-  S08: '759',
+  S07: '861',
+  S08: '957',
   S09: '420',
   S10: '663',
-  S11: '317',
+  S11: '731',
   S12: '850',
-  S13: '294',
-  S14: '701',
-  S15: '468',
-  S16: '935',
-  S17: '142',
-  S18: '576',
-  S19: '803',
-  S20: '259',
+  S13: '942',
+  S14: '710',
+  S15: '864',
+  S16: '953',
+  S17: '421',
+  S18: '765',
+  S19: '830',
+  S20: '952',
 };
 
 /** @deprecated alias — Clue 2 uses digits */

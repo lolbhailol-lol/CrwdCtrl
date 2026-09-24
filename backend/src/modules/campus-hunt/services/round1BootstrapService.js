@@ -401,7 +401,7 @@ function clue5WordForTeam(waitIndex, localTeamNumber, teamsPerWait = TEAMS_PER_W
 const LOCKBOX_CODES = [
   '9407', '3815', '7264', '1598', '6032', '8471', '2956', '4713',
   '5180', '0629', '7346', '1864', '2538', '6901', '8142', '3075',
-  '4286', '1759', '8630', '5924', '0468', '7193', '3641', '2805',
+  '4286', '1756', '8630', '5924', '0468', '7193', '3641', '2805',
 ];
 
 /** Unique Lockbox digit code per global team. */
@@ -738,7 +738,7 @@ async function ensureCheckpointsAndClues(
     const secondStops = rotatingSecondStops(stationIndex, stations, teamGroups);
     const thirdStops = rotatingThirdStops(stationIndex, stations, teamGroups);
     const fourthStops = rotatingFourthStops(stationIndex, stations, teamGroups);
-    const finishWord = CLUE5_WORDS[key] || CLUE4_WORDS[key] || 'QUEST';
+    const fifthStops = rotatingFifthStops(stationIndex, stations, teamGroups);
     const startName = startStation.name;
 
     const firstStopDefs = teamGroups.map((group) => ({
@@ -774,6 +774,13 @@ async function ensureCheckpointsAndClues(
       station: fourthStops[group.slot],
       key: `4-${group.wave}`,
       propCode: gridCodeForTeam(stationIndex, group.localTeamNumber),
+    }));
+
+    const fifthStopDefs = teamGroups.map((group) => ({
+      wave: group.wave,
+      localTeamNumber: group.localTeamNumber,
+      station: fifthStops[group.slot],
+      word: clue5WordForTeam(stationIndex, group.localTeamNumber, teamsPerWait),
     }));
 
     const laterDefs = [
@@ -1082,53 +1089,72 @@ async function ensureCheckpointsAndClues(
     }
 
     if (wantClue(5)) {
-    // eslint-disable-next-line no-await-in-loop
-    const clue5Defaults = routeClueDefaults(5, finishWord, event.teamSize);
-    await CampusHuntChallenge.findOneAndUpdate(
+    for (const fifth of fifthStopDefs) {
+      const variantKey = `${startStation.code}-${fifth.wave}`;
+      const clue5Defaults = routeClueDefaults(
+        5,
+        fifth.word,
+        event.teamSize,
+        fifth.station?.name,
+      );
+      // eslint-disable-next-line no-await-in-loop
+      await CampusHuntChallenge.findOneAndUpdate(
+        {
+          eventId: event._id,
+          roundId: round._id,
+          routeId: route._id,
+          challengeNumber: 5,
+          variantKey,
+        },
+        {
+          $set: {
+            eventId: event._id,
+            roundId: round._id,
+            routeId: route._id,
+            startingPointId: startingPoint?._id,
+            challengeNumber: 5,
+            type: 'decode',
+            prompt: clue5Defaults.prompt,
+            memberPrompts: [],
+            answer: clue5Defaults.answer,
+            acceptedAnswers: [clue5Defaults.answer, clue5Defaults.answer.toLowerCase()],
+            destinationInstruction: clue5Defaults.destinationInstruction,
+            basePoints: scoring.clue5?.basePoints
+              || DEFAULT_SCORING_CONFIG.clue5.basePoints
+              || 45,
+            maxAttempts: scoring.clue5?.maxAttempts
+              || DEFAULT_SCORING_CONFIG.clue5.maxAttempts
+              || 2,
+            timerSeconds: scoring.clue5?.timerSeconds
+              || DEFAULT_SCORING_CONFIG.clue5.timerSeconds
+              || 240,
+            speedBonusBands: scoring.clue5?.speedBonusBands
+              || DEFAULT_SCORING_CONFIG.clue5.speedBonusBands
+              || [],
+            hintText: clue5Defaults.hintText,
+            hintCost: scoring.clue5?.hintCost
+              ?? DEFAULT_SCORING_CONFIG.clue5.hintCost
+              ?? 30,
+            difficulty: 'hard',
+            variantKey,
+            active: true,
+          },
+        },
+        { upsert: true },
+      );
+      clueCount += 1;
+    }
+
+    // Per-team words are authoritative; keep the old route-wide QUEST row retired.
+    await CampusHuntChallenge.updateMany(
       {
         eventId: event._id,
-        roundId: round._id,
         routeId: route._id,
         challengeNumber: 5,
         variantKey: 'DEFAULT',
       },
-      {
-        $set: {
-          eventId: event._id,
-          roundId: round._id,
-          routeId: route._id,
-          startingPointId: startingPoint?._id,
-          challengeNumber: 5,
-          type: 'collaborative',
-          prompt: clue5Defaults.prompt,
-          memberPrompts: clue5Defaults.memberPrompts,
-          answer: clue5Defaults.answer,
-          acceptedAnswers: [clue5Defaults.answer],
-          destinationInstruction: clue5Defaults.destinationInstruction,
-          basePoints: scoring.clue5?.basePoints
-            || DEFAULT_SCORING_CONFIG.clue5.basePoints
-            || 45,
-          maxAttempts: scoring.clue5?.maxAttempts
-            || DEFAULT_SCORING_CONFIG.clue5.maxAttempts
-            || 2,
-          timerSeconds: scoring.clue5?.timerSeconds
-            || DEFAULT_SCORING_CONFIG.clue5.timerSeconds
-            || 240,
-          speedBonusBands: scoring.clue5?.speedBonusBands
-            || DEFAULT_SCORING_CONFIG.clue5.speedBonusBands
-            || [],
-          hintText: clue5Defaults.hintText,
-          hintCost: scoring.clue5?.hintCost
-            ?? DEFAULT_SCORING_CONFIG.clue5.hintCost
-            ?? 30,
-          difficulty: 'hard',
-          variantKey: 'DEFAULT',
-          active: true,
-        },
-      },
-      { upsert: true },
+      { $set: { active: false } },
     );
-    clueCount += 1;
 
     // Retire legacy Final that lived on challengeNumber 4 DEFAULT
     await CampusHuntChallenge.updateMany(
