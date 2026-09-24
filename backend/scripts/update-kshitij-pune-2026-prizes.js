@@ -1,6 +1,5 @@
 /**
  * Set Kshitij Pune Multicity cash prizes (1st place only).
- * Bollywood Dhamaka: ₹6,000 · all other events: ₹2,000
  *
  * Run: node scripts/update-kshitij-pune-2026-prizes.js [--dry-run]
  */
@@ -15,6 +14,12 @@ const SLUG = 'kshitij-pune-multicity-event-2026';
 const LEGACY_SLUG = 'kshitij-pune-regionals-2026';
 
 const PRIZE_BY_NAME = {
+  'The Boardroom Battle': '1st Place: ₹3,000/-',
+  'Shuttle Showdown': '1st Place: ₹2,000/-',
+  Fifa: '1st Place: ₹3,000/-',
+  'Family Feud': '1st Place: ₹3,000/-',
+  'Sur Taal': '1st Place: ₹2,000/-',
+  'Solo Crossover': '1st Place: ₹3,000/-',
   'Bollywood Dhamaka': '1st Place: ₹6,000/-',
 };
 

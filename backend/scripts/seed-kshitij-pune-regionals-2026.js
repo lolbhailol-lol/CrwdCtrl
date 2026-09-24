@@ -37,7 +37,7 @@ const competitions = [
     description: 'Put your guessing skills, pop-culture knowledge, and quick thinking to the ultimate test across two exciting rounds: race against the clock to answer category-based questions, then take on Family Feud to match the crowd’s answers.',
     dateTime: '29 Sep 2026, 11:00 AM - 2:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 2, teamSizeMax: 2, teamSizeLabel: 'Team of 2',
-    prizePool: '1st Place: ₹2,000/-',
+    prizePool: '1st Place: ₹3,000/-',
     commonRules: [],
     judgingCriteria: [],
     rounds: [
@@ -103,7 +103,7 @@ const competitions = [
     description: 'The Corporate Clash is a high-stakes group discussion event where 8 participants will have conflicting corporate stakeholder roles to debate a major strategic business decision and negotiate a realistic unified resolution under pressure.',
     dateTime: '29 Sep 2026, 11:00 AM - 1:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 1, teamSizeMax: 1, teamSizeLabel: 'Solo',
-    prizePool: '1st Place: ₹2,000/-',
+    prizePool: '1st Place: ₹3,000/-',
     commonRules: ['Further rules & regulations and topics will be revealed on the day of the event.'],
     judgingCriteria: [],
     rounds: [
@@ -156,7 +156,7 @@ const competitions = [
     description: 'A high-energy solo dance competition where dancers take the stage to showcase their individual style, musicality, expressions, and street-dance skills. Participants can explore styles such as B-Boying, Popping, Locking, Krumping, Waacking, Breaking, and Tutting while creating their own unique performance and owning the stage.',
     dateTime: '29 Sep 2026, 11:00 AM - 1:30 PM', venue: 'Auditorium, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 1, teamSizeMax: 1, teamSizeLabel: 'Solo',
-    prizePool: '1st Place: ₹2,000/-',
+    prizePool: '1st Place: ₹3,000/-',
     commonRules: [
       'Participants must perform street-style dance forms only.',
       'Vulgar gestures, throwing anything at an opponent, or physical contact with an opponent may lead to consequences.',
@@ -183,7 +183,7 @@ const competitions = [
     description: 'Fast-paced football knockout matches where every pass, tackle, and goal matters. Each match is six minutes (three minutes per half) with a four-minute buffer. With Legendary difficulty and exciting twists, only the best will rise to the top and win the crown.',
     dateTime: '30 Sep 2026, 11:00 AM - 2:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune', slotsAllotted: 0,
     teamSizeMin: 2, teamSizeMax: 2, teamSizeLabel: 'Team of 2',
-    prizePool: '1st Place: ₹2,000/-',
+    prizePool: '1st Place: ₹3,000/-',
     commonRules: ['Basic FIFA rules apply with the event-specific modifications below.', 'Game difficulty is Legendary.', 'Camera view is set to Classic.', 'Only active clubs may be selected; classic teams such as Soccer Aid, Adidas 11, and all-star teams are prohibited.', 'All games use Classic mode.', 'Team management is allowed only before the match or at halftime.', 'Pausing or pressing the Options button during gameplay is prohibited and may have consequences.', 'Technical glitches require a restart.', 'Ties before the semifinals and finals go directly to penalties with no extra time.'],
     judgingCriteria: [],
     rounds: [{ roundNumber: 1, title: 'Knockouts', description: 'Sixteen-team FIFA knockout bracket. Each match is six minutes (three minutes per half) with a four-minute buffer.', dateTime: '30 Sep 2026, 11:00 AM - 2:30 PM', venue: 'Classroom, MIT-WPU Campus, Pune' }],
