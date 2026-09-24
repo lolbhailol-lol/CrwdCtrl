@@ -8,6 +8,8 @@ export default function RunCheckoutPanel({
     isDark,
     payableAmount,
     baseFee,
+    originalAmount = 0,
+    discountPercent = 0,
     chargePerPerson,
     feePerPerson,
     people,
@@ -83,6 +85,16 @@ export default function RunCheckoutPanel({
                         <span className={`text-xs font-medium ${isDark ? 'text-green-400' : 'text-green-600'}`}>
                             −₹{saved.toLocaleString('en-IN')} saved
                         </span>
+                    ) : null}
+                    {!couponApplied && originalAmount > payableAmount ? (
+                        <>
+                            <span className={`text-sm font-medium line-through ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                ₹{Number(originalAmount).toLocaleString('en-IN')}
+                            </span>
+                            <span className={`text-xs font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                                {discountPercent}% OFF
+                            </span>
+                        </>
                     ) : null}
                 </div>
                 <p className={`text-[11px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>

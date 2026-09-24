@@ -19,6 +19,7 @@ const SLUG = 'ritrovo-rush-27-sep-2026';
 const LEGACY_SLUG = 'university-rush-sppu-27-sep-2026';
 const CLUB_SLUG = 'the-rush';
 const ENTRY_FEE = 98;
+const ORIGINAL_FEE = 149;
 const POSTER = path.join(__dirname, 'assets', 'ritrovo-rush-poster.png');
 
 cloudinary.config({
@@ -144,7 +145,7 @@ async function main() {
     eventDate,
     reportingTime: '6:30 AM onwards',
     registrationFee: ENTRY_FEE,
-    originalFee: 0,
+    originalFee: ORIGINAL_FEE,
     pricingMode: 'single',
     distance: '3 KM',
     runCategory: 'Community Runs',

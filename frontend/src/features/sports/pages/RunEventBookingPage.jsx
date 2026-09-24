@@ -56,6 +56,8 @@ import {
     resolveSportsPerPersonFee,
     resolveOptionalAddOn,
     formatInr,
+    sportsOriginalFee,
+    sportsDiscountPercent,
 } from '../../../utils/sportsTiers';
 import { getSuggestedCouponCode, getSuggestedCouponLabel } from '../../../utils/suggestedCoupon';
 import {
@@ -1899,6 +1901,8 @@ export default function RunEventBookingPage() {
                                 isDark={isDark}
                                 payableAmount={payableAmount}
                                 baseFee={baseFee}
+                                originalAmount={(sportsOriginalFee(event) + addOnFeePerPerson) * people}
+                                discountPercent={sportsDiscountPercent(event)}
                                 chargePerPerson={chargePerPerson}
                                 feePerPerson={fee}
                                 people={people}
