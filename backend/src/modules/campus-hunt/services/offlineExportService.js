@@ -914,6 +914,11 @@ async function ingestOfflineProgress(eventId, payload) {
       );
       result.seq = incomingSeq;
     }
+    let standing = null;
+    try {
+      const { standingForTeam } = require('./leaderboardService');
+      standing = await standingForTeam(eventId, team._id);
+    } catch (_) { /* best-effort */ }
     return {
       teamCode: result.team.teamCode,
       score: result.score,
@@ -923,6 +928,8 @@ async function ingestOfflineProgress(eventId, payload) {
       offlineResetAt: result.offlineResetAt,
       startOver: true,
       accepted: true,
+      rank: standing?.rank || null,
+      fieldSize: standing?.size || null,
     };
   }
 
@@ -966,6 +973,11 @@ async function ingestOfflineProgress(eventId, payload) {
       const { publishTeamProgress } = require('./teamProgressBus');
       publishTeamProgress(unlocked._id);
     } catch (_) { /* best-effort */ }
+    let standing = null;
+    try {
+      const { standingForTeam } = require('./leaderboardService');
+      standing = await standingForTeam(eventId, unlocked._id);
+    } catch (_) { /* best-effort */ }
     return {
       teamCode: unlocked.teamCode,
       score: unlocked.currentScore,
@@ -975,6 +987,8 @@ async function ingestOfflineProgress(eventId, payload) {
       offlineResetAt: unlocked.offlineResetAt || null,
       unlocked: true,
       accepted: true,
+      rank: standing?.rank || null,
+      fieldSize: standing?.size || null,
     };
   }
 

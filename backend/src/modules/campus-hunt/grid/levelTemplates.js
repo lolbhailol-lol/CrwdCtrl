@@ -1,9 +1,13 @@
 /** CrwdCtrl Grid (Zip-style) — 4 rounds: Easy → Medium → Difficult → Hard. */
 
 const GRID_HINT_COST = 20;
+/** Flat cost when the player hits Clear (wipe the whole path). */
+const GRID_CLEAR_COST = 10;
+/** Last Zip round only — 5 minutes. Earlier rounds keep short timers. */
+const ZIP_LAST_ROUND_SECONDS = 5 * 60;
 
 /**
- * Round design — rising size, walls, numbers, tighter timers on later rounds.
+ * Round design — rising size, walls, numbers.
  * Each cleared round awards its full points (missed timer = 0 for that round only).
  */
 const LEVEL_TEMPLATES = [
@@ -48,7 +52,7 @@ const LEVEL_TEMPLATES = [
     cols: 8,
     wallCount: 8,
     numberCount: 20,
-    timeSeconds: 80,
+    timeSeconds: ZIP_LAST_ROUND_SECONDS,
     points: 50,
   },
 ];
@@ -59,5 +63,7 @@ module.exports = {
   LEVEL_TEMPLATES,
   TOTAL_LEVELS: LEVEL_TEMPLATES.length,
   GRID_HINT_COST,
+  GRID_CLEAR_COST,
+  ZIP_LAST_ROUND_SECONDS,
   MAX_GRID_POINTS,
 };

@@ -460,12 +460,12 @@ export async function useGridHint(sessionToken, path = []) {
   );
 }
 
-export async function useGridUndo(sessionToken, steps = 1) {
+export async function useGridUndo(sessionToken, steps = 1, { clear = false } = {}) {
   return publicFetchJSON(
     `${BASE}/grid/session/${encodeURIComponent(sessionToken)}/undo`,
     withGridClientHeaders({
       method: 'POST',
-      body: JSON.stringify({ steps }),
+      body: JSON.stringify(clear ? { clear: true } : { steps }),
     }),
   );
 }

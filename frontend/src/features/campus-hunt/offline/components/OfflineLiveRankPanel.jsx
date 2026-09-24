@@ -69,12 +69,20 @@ export default function OfflineLiveRankPanel({
     load();
     const onOnline = () => load();
     const onOffline = () => setOffline(true);
+    const onSynced = (event) => {
+      const detail = event?.detail || {};
+      if (detail.rank != null) setMyRank(Number(detail.rank) || null);
+      if (detail.fieldSize != null) setFieldSize(Number(detail.fieldSize) || 0);
+      void load();
+    };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
-    const tick = window.setInterval(load, 20000);
+    window.addEventListener('ch-offline-board-synced', onSynced);
+    const tick = window.setInterval(load, 12000);
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      window.removeEventListener('ch-offline-board-synced', onSynced);
       window.clearInterval(tick);
     };
   }, [load]);

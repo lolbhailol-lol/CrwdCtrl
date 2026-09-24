@@ -21,7 +21,9 @@ function ScorePills({
   maxScore = 140,
   hintsUsed = 0,
   undosUsed = 0,
+  clearsUsed = 0,
   hintCost = 20,
+  clearCost = 10,
   currentLevel = 1,
   totalLevels = 4,
 }) {
@@ -93,12 +95,14 @@ function ScorePills({
           );
         })}
       </div>
-      {(hintsUsed > 0 || undosUsed > 0) && (
+      {(hintsUsed > 0 || undosUsed > 0 || clearsUsed > 0) && (
         <p className="text-center text-[11px] text-amber-200/80">
-          {hintsUsed > 0 ? `Hints ${hintsUsed} × −${hintCost}` : ''}
-          {hintsUsed > 0 && undosUsed > 0 ? ' · ' : ''}
-          {undosUsed > 0 ? `Undos ${undosUsed} × −${hintCost}` : ''}
-          {` = −${(hintsUsed + undosUsed) * hintCost} pts`}
+          {[
+            hintsUsed > 0 ? `Hints ${hintsUsed} × −${hintCost}` : '',
+            undosUsed > 0 ? `Undos ${undosUsed} × −${hintCost}` : '',
+            clearsUsed > 0 ? `Clear ${clearsUsed} × −${clearCost}` : '',
+          ].filter(Boolean).join(' · ')}
+          {` = −${(hintsUsed + undosUsed) * hintCost + clearsUsed * clearCost} pts`}
         </p>
       )}
     </div>
@@ -111,7 +115,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [hintCell, setHintCell] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(initialData?.puzzle?.timeSeconds || 90);
+  const [timeLeft, setTimeLeft] = useState(initialData?.puzzle?.timeSeconds || 300);
   const [levelFlash, setLevelFlash] = useState(null);
   const timeoutSent = useRef(false);
   const clockPuzzleRef = useRef(null);
@@ -172,7 +176,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
     return res.data;
   }, [sessionToken]);
 
-  // Auto-advance when timer hits 0 (0 pts for level, continue)
+  // Auto-advance when timer hits 0 (0 pts for level, continue / finish)
   useEffect(() => {
     if (clockPuzzleRef.current !== puzzle?.puzzleId) return undefined;
     if (clockRemainingRef.current !== 0) return undefined;
@@ -185,17 +189,24 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
         const res = await timeoutGridLevel(sessionToken);
         if (cancelled) return;
         const payload = res.data;
-        setFeedback(payload.message || 'Time up — 0 points this level.');
-        setLevelFlash({ kind: 'fail', text: 'Time up · 0 pts' });
+        const view = payload.view || null;
+        if (view) setData(view);
+        else await refresh();
         setPath([]);
         setHintCell(null);
-        if (payload.view) setData(payload.view);
-        else await refresh();
-        if (payload.allLevelsComplete) {
-          onComplete?.(payload.completionCode, payload.score);
+        if (payload.allLevelsComplete || view?.completed) {
+          setLevelFlash({ kind: 'fail', text: 'Time up · Zip done' });
+          setFeedback(payload.message || 'Time up — your GRID code is ready.');
+          onComplete?.(payload.completionCode || view?.completionCode, payload.score ?? view?.score);
+        } else {
+          setLevelFlash({ kind: 'fail', text: 'Time up · next round' });
+          setFeedback(payload.message || 'Time up — next round unlocked.');
         }
       } catch (err) {
-        if (!cancelled) setFeedback(err.message || 'Could not advance level');
+        if (!cancelled) {
+          setFeedback(err.message || 'Could not advance level');
+          if (err.data?.view) setData(err.data.view);
+        }
       } finally {
         if (!cancelled) setBusy(false);
       }
@@ -209,11 +220,16 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
     return () => clearTimeout(id);
   }, [levelFlash]);
 
-  const chargeUndo = async (steps) => {
-    const res = await requestGridUndo(sessionToken, steps);
+  const chargeUndo = async (steps, { clear = false } = {}) => {
+    const res = await requestGridUndo(sessionToken, steps, { clear });
     const payload = res.data;
     if (payload?.view) setData(payload.view);
-    setFeedback(payload?.message || `Undo −${payload?.undoCost || 20}`);
+    setFeedback(
+      payload?.message
+      || (clear
+        ? `Clear −${payload?.clearCost || 10}`
+        : `Undo −${payload?.undoCost || 20}`),
+    );
     return payload;
   };
 
@@ -242,11 +258,11 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
     if (timeLeft === 0) return;
     setBusy(true);
     try {
-      await chargeUndo(path.length);
+      await chargeUndo(1, { clear: true });
       setPath([]);
       setHintCell(null);
     } catch (err) {
-      setFeedback(err.message || 'Reset failed');
+      setFeedback(err.message || 'Clear failed');
       if (err.data?.view) setData(err.data.view);
     } finally {
       setBusy(false);
@@ -310,6 +326,8 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
 
   if (data?.completed && data?.completionCode) {
     const breakdown = data.levelBreakdown || [];
+    const solvedCount = breakdown.filter((row) => row.completed).length;
+    const timedCount = breakdown.filter((row) => row.timedOut || (row.failed && !row.completed)).length;
     return (
       <div className="mx-auto max-w-md space-y-4">
         <div
@@ -320,6 +338,10 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
         >
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">Zip complete</p>
           <h2 className="mt-2 text-3xl font-black text-white">Game finished</h2>
+          <p className="mt-2 text-sm text-white/65">
+            {solvedCount} of {breakdown.length || data.totalLevels || 4} rounds solved
+            {timedCount > 0 ? ` · ${timedCount} timed out` : ''}
+          </p>
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 px-4 py-4">
             <p className="text-[10px] uppercase tracking-wide text-white/45">Your grid score</p>
@@ -345,19 +367,22 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
                   <span className="text-xs text-white/40">/{row.maxPoints}</span>
                 </p>
                 <p className="text-[10px] text-white/45">
-                  {row.completed ? 'Solved' : '0'}
+                  {row.completed ? 'Solved' : (row.timedOut || row.failed ? 'Time up' : '0')}
                 </p>
               </div>
             ))}
           </div>
 
-          {((data.hintsUsed > 0) || (data.undosUsed > 0)) && (
+          {((data.hintsUsed > 0) || (data.undosUsed > 0) || (data.clearsUsed > 0)) && (
             <div className="mt-3 space-y-1 text-xs text-amber-200">
               {data.hintsUsed > 0 && (
                 <p>−{data.hintsUsed * (data.hintCost || 20)} from {data.hintsUsed} hint(s)</p>
               )}
               {data.undosUsed > 0 && (
                 <p>−{data.undosUsed * (data.undoCost || data.hintCost || 20)} from {data.undosUsed} undo(s)</p>
+              )}
+              {data.clearsUsed > 0 && (
+                <p>−{data.clearsUsed * (data.clearCost || 10)} from {data.clearsUsed} clear(s)</p>
               )}
             </div>
           )}
@@ -439,7 +464,9 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
             maxScore={data?.maxScore || 140}
             hintsUsed={data?.hintsUsed || 0}
             undosUsed={data?.undosUsed || 0}
+            clearsUsed={data?.clearsUsed || 0}
             hintCost={data?.hintCost || data?.undoCost || 20}
+            clearCost={data?.clearCost || 10}
             currentLevel={data?.currentLevel || 1}
             totalLevels={data?.totalLevels || 4}
           />
@@ -470,7 +497,7 @@ export default function CrwdCtrlGridGame({ sessionToken, initialData, onComplete
           disabled={busy || path.length === 0 || timeLeft === 0}
           className="rounded-xl border border-rose-400/25 py-3 text-xs font-bold uppercase tracking-wide text-rose-100/80 disabled:opacity-40"
         >
-          Clear −20×
+          Clear −{data?.clearCost || 10}
         </button>
         <button
           type="button"

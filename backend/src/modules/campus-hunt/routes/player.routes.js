@@ -3,6 +3,7 @@ const { authenticateToken, optionalAuthenticateToken } = require('../../../middl
 const { requireTeamMember, requireTeamLeader } = require('../middleware/playerAuthz');
 const {
   campusHuntLoginLimiter,
+  campusHuntOfflineSyncLimiter,
   campusHuntAnswerLimiter,
   campusHuntHintLimiter,
   campusHuntVerifyLimiter,
@@ -42,9 +43,9 @@ const router = express.Router();
 
 router.get('/offline-install/:token', campusHuntLoginLimiter, getOfflineInstallPack);
 router.post('/offline-install/:token/ack', campusHuntLoginLimiter, ackOfflineInstall);
-router.post('/events/:eventId/offline-progress', campusHuntLoginLimiter, postOfflineProgress);
-router.post('/events/:eventId/offline-pull', campusHuntLoginLimiter, postOfflinePull);
-router.post('/events/:eventId/offline-grid-ensure', campusHuntLoginLimiter, postOfflineGridEnsure);
+router.post('/events/:eventId/offline-progress', campusHuntOfflineSyncLimiter, postOfflineProgress);
+router.post('/events/:eventId/offline-pull', campusHuntOfflineSyncLimiter, postOfflinePull);
+router.post('/events/:eventId/offline-grid-ensure', campusHuntOfflineSyncLimiter, postOfflineGridEnsure);
 router.get('/colleges', listColleges);
 router.get('/profile-entries', optionalAuthenticateToken, listProfileEntries);
 router.get('/events/:eventId/leaderboard/public', getPublicLeaderboard);

@@ -125,6 +125,30 @@ const campusHuntLoginLimiter = rateLimit({
   message: { success: false, message: 'Too many login attempts for this team. Please wait.' },
 });
 
+/**
+ * Offline board sync (progress / pull / grid key). Must NOT share the login
+ * limiter — that keyed only by IP and capped at 20/15m, so one campus Wi‑Fi
+ * blocked every team's live ranking after a few pushes.
+ */
+const campusHuntOfflineSyncLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 5000 : Number(process.env.CAMPUS_HUNT_OFFLINE_SYNC_RATE_LIMIT_MAX) || 600,
+  keyGenerator: (req) => {
+    const team = String(req.body?.team || req.body?.teamCode || '')
+      .trim()
+      .toUpperCase();
+    const eventId = String(req.params?.eventId || req.body?.event || '').trim();
+    return [
+      eventId.slice(0, 32),
+      team || 'noteam',
+      ipKeyGenerator(req.ip),
+    ].join(':');
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many board sync requests. Keep playing — sync will retry.' },
+});
+
 function huntIdentityKey(req) {
   const userId = req.user?.userId;
   return userId
@@ -268,6 +292,7 @@ module.exports = {
   apiLimiter,
   authLimiter,
   campusHuntLoginLimiter,
+  campusHuntOfflineSyncLimiter,
   adminAuthLimiter,
   paymentLimiter,
   competitionRegisterLimiter,

@@ -6,6 +6,7 @@ const {
   TOTAL_LEVELS,
   LEVEL_TEMPLATES,
   GRID_HINT_COST,
+  GRID_CLEAR_COST,
   MAX_GRID_POINTS,
 } = require('../../grid/levelTemplates');
 
@@ -55,26 +56,35 @@ function levelWasPlayed(lp) {
 
 /**
  * Pack creation used to start the round-1 clock immediately, so opening Zip
- * later looked "timed out" and skipped ahead. If nobody has played, go back
- * to round 1 and start the clock now.
+ * later looked "timed out" and skipped ahead. If nobody has played and the
+ * board is corrupt (off round 1 with zero outcomes), go back to round 1.
+ * Real timeouts (0 pts, timedOut/failed) must not be rewound — they unlock
+ * the next round or finish the game.
  */
 function healUntouchedRound1Zip(session) {
   if (!session || session.missionRunId || session.entryId) return false;
   if (session.status === 'completed') return false;
   const progress = session.levelProgress || [];
   if (progress.some((lp) => levelWasPlayed(lp))) return false;
+  // A real timeout / fail / clear already counts — leave it for the next round.
+  if (progress.some((lp) => lp?.timedOut || lp?.failed || lp?.completed)) return false;
 
   const index = Number(session.currentLevelIndex) || 0;
   const puzzle = session.puzzles?.[0];
   const first = progress[0];
-  const falseFail = progress.some((lp) => (lp?.timedOut || lp?.failed) && !levelWasPlayed(lp));
-  const clockDead = Boolean(
+  const limit = Number(puzzle?.timeSeconds) || 300;
+  const elapsedSec = first?.startedAt
+    ? (Date.now() - new Date(first.startedAt).getTime()) / 1000
+    : 0;
+  // Only rewind a dead clock if it looks abandoned (well past the round limit),
+  // not when the live timer just hit 0.
+  const clockDeadStale = Boolean(
     first?.startedAt
     && puzzle
-    && levelTimeRemainingSeconds(session, puzzle, 0) <= 0,
+    && elapsedSec > limit + 90,
   );
   const offRoundOne = index !== 0;
-  if (!falseFail && !clockDead && !offRoundOne && session.status === 'active') return false;
+  if (!clockDeadStale && !offRoundOne && session.status === 'active') return false;
 
   const now = new Date();
   const count = Math.max(session.puzzles?.length || 0, TOTAL_LEVELS);
@@ -83,6 +93,7 @@ function healUntouchedRound1Zip(session) {
   session.scoreEarned = 0;
   session.hintsUsed = 0;
   session.undosUsed = 0;
+  session.clearsUsed = 0;
   session.score = 0;
   session.set('levelProgress', Array.from({ length: count }, (_, i) => ({
     levelIndex: i,
@@ -102,7 +113,9 @@ function zipMatchesCurrentDifficulty(session) {
   if (!hasFullZipPack(session)) return false;
   return LEVEL_TEMPLATES.every((template, i) => {
     const puzzle = session.puzzles[i];
-    return Number(puzzle?.rows) === template.rows && Number(puzzle?.cols) === template.cols;
+    return Number(puzzle?.rows) === template.rows
+      && Number(puzzle?.cols) === template.cols
+      && Number(puzzle?.timeSeconds) >= Math.floor(Number(template.timeSeconds) * 0.8);
   });
 }
 
@@ -140,6 +153,7 @@ function applyFreshZipPuzzles(session, now = new Date()) {
   session.scoreEarned = 0;
   session.hintsUsed = 0;
   session.undosUsed = 0;
+  session.clearsUsed = 0;
   session.score = 0;
   session.sessionToken = crypto.randomBytes(16).toString('hex');
   session.status = 'active';
@@ -224,7 +238,11 @@ function recomputeScore(session) {
   const earned = Number(session.scoreEarned) || 0;
   const hints = Number(session.hintsUsed) || 0;
   const undos = Number(session.undosUsed) || 0;
-  session.score = Math.max(0, earned - (hints + undos) * GRID_HINT_COST);
+  const clears = Number(session.clearsUsed) || 0;
+  session.score = Math.max(
+    0,
+    earned - (hints + undos) * GRID_HINT_COST - clears * GRID_CLEAR_COST,
+  );
   return session.score;
 }
 
@@ -460,8 +478,10 @@ function sessionPublicView(session) {
     scoreEarned: session.scoreEarned || 0,
     hintsUsed: session.hintsUsed || 0,
     undosUsed: session.undosUsed || 0,
+    clearsUsed: session.clearsUsed || 0,
     hintCost: GRID_HINT_COST,
     undoCost: GRID_HINT_COST,
+    clearCost: GRID_CLEAR_COST,
     maxScore: MAX_GRID_POINTS,
     status: session.status,
     completed: active.completed,
@@ -489,13 +509,21 @@ async function loadActiveSession(sessionToken) {
     session = await reviveRound1GridSession(session, { forceReset: true });
   }
   if (session.status === 'active' || session.status === 'expired') {
+    // Timeout first so a live clock hitting 0 unlocks the next round (or
+    // finishes on the last round). Heal only repairs corrupt untouched packs.
+    ensureLevelStarted(session, session.currentLevelIndex);
+    const advanced = applyTimeoutIfNeeded(session);
+    if (session.status === 'completed') {
+      await session.save();
+      return session;
+    }
     const healed = healUntouchedRound1Zip(session);
-    if (session.status === 'active' || healed) {
-      session.status = healed ? 'active' : session.status;
+    if (healed) {
+      session.status = 'active';
       ensureLevelStarted(session, session.currentLevelIndex);
-      if (applyTimeoutIfNeeded(session) || healed) {
-        await session.save();
-      }
+    }
+    if (advanced || healed) {
+      await session.save();
     }
   }
   return session;
@@ -533,9 +561,19 @@ async function joinByAccessCode(accessCode) {
 
   assertSessionActive(session);
   if (session.status === 'active') {
-    const healed = healUntouchedRound1Zip(session);
+    // Same order as loadActiveSession: timeout unlock first, then heal.
     ensureLevelStarted(session, session.currentLevelIndex);
-    if (applyTimeoutIfNeeded(session) || healed) {
+    const advanced = applyTimeoutIfNeeded(session);
+    if (session.status === 'completed') {
+      await session.save();
+      return sessionPublicView(session);
+    }
+    const healed = healUntouchedRound1Zip(session);
+    if (healed) {
+      session.status = 'active';
+      ensureLevelStarted(session, session.currentLevelIndex);
+    }
+    if (advanced || healed) {
       await session.save();
     } else {
       if (isRound1GridSession(session)) {
@@ -646,26 +684,49 @@ async function submitLevelPath(sessionToken, path) {
 async function failTimedOutLevel(sessionToken) {
   const session = await loadActiveSession(sessionToken);
   if (session.status === 'completed') {
+    recomputeScore(session);
     return {
       ok: true,
       allLevelsComplete: true,
+      timedOut: true,
+      advanced: true,
       completionCode: session.completionCode,
       score: session.score,
+      levelBreakdown: levelBreakdown(session),
+      message: 'Time up — Zip finished. Give the GRID code to your leader.',
       view: sessionPublicView(session),
     };
   }
 
+  const fromIndex = session.currentLevelIndex;
   const advanced = applyTimeoutIfNeeded(session);
   await session.save();
+
+  if (session.status === 'completed') {
+    return {
+      ok: true,
+      allLevelsComplete: true,
+      timedOut: true,
+      advanced: true,
+      completionCode: session.completionCode,
+      score: session.score,
+      levelBreakdown: levelBreakdown(session),
+      message: 'Time up on the last round — Zip finished. Give the GRID code to your leader.',
+      view: sessionPublicView(session),
+    };
+  }
+
+  const moved = advanced || session.currentLevelIndex !== fromIndex;
   return {
     ok: true,
-    advanced,
-    timedOut: advanced,
-    allLevelsComplete: session.status === 'completed',
-    completionCode: session.completionCode,
+    advanced: moved,
+    timedOut: moved,
+    allLevelsComplete: false,
+    completionCode: null,
     score: session.score,
-    message: advanced
-      ? 'Time expired — 0 points for this level.'
+    levelBreakdown: levelBreakdown(session),
+    message: moved
+      ? `Time up — Round ${session.currentLevelIndex + 1} unlocked.`
       : 'Timer still running.',
     view: sessionPublicView(session),
   };
@@ -720,10 +781,10 @@ async function useHint(sessionToken, path = []) {
 }
 
 /**
- * Undo: each removed step costs GRID_HINT_COST, same as a hint.
- * Client sends how many path cells it is about to drop.
+ * Undo: each removed step costs GRID_HINT_COST.
+ * Clear: wipe the path for a flat GRID_CLEAR_COST (body.clear = true).
  */
-async function useUndo(sessionToken, steps = 1) {
+async function useUndo(sessionToken, steps = 1, { clear = false } = {}) {
   const session = await loadActiveSession(sessionToken);
   if (session.status === 'completed') {
     throw gridError('Session already complete', 'ALREADY_COMPLETE');
@@ -737,6 +798,22 @@ async function useUndo(sessionToken, steps = 1) {
     throw gridError('Time expired for this level', 'LEVEL_TIMEOUT', 400);
   }
 
+  if (clear) {
+    session.clearsUsed = (Number(session.clearsUsed) || 0) + 1;
+    recomputeScore(session);
+    await session.save();
+    return {
+      ok: true,
+      clear: true,
+      clearCost: GRID_CLEAR_COST,
+      clearsUsed: session.clearsUsed,
+      undosUsed: session.undosUsed || 0,
+      score: session.score,
+      message: `Clear (−${GRID_CLEAR_COST} pts).`,
+      view: sessionPublicView(session),
+    };
+  }
+
   const count = Math.max(1, Math.min(40, Number(steps) || 1));
   session.undosUsed = (Number(session.undosUsed) || 0) + count;
   recomputeScore(session);
@@ -747,10 +824,11 @@ async function useUndo(sessionToken, steps = 1) {
     undoCost: GRID_HINT_COST,
     steps: count,
     undosUsed: session.undosUsed,
+    clearsUsed: session.clearsUsed || 0,
     score: session.score,
     message: count === 1
       ? `Undo (−${GRID_HINT_COST} pts).`
-      : `Cleared ${count} steps (−${count * GRID_HINT_COST} pts).`,
+      : `Undid ${count} steps (−${count * GRID_HINT_COST} pts).`,
     view: sessionPublicView(session),
   };
 }
@@ -945,6 +1023,7 @@ module.exports = {
   isLevelTimedOut,
   applyTimeoutIfNeeded,
   GRID_HINT_COST,
+  GRID_CLEAR_COST,
   MAX_GRID_POINTS,
   cellKey,
 };

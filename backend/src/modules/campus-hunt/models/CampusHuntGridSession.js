@@ -49,6 +49,7 @@ const campusHuntGridSessionSchema = new mongoose.Schema(
     scoreEarned: { type: Number, default: 0 },
     hintsUsed: { type: Number, default: 0 },
     undosUsed: { type: Number, default: 0 },
+    clearsUsed: { type: Number, default: 0 },
     score: { type: Number, default: 0 },
     status: {
       type: String,

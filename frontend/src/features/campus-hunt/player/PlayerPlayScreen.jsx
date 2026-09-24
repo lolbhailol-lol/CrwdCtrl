@@ -169,12 +169,21 @@ export default function PlayerPlayScreen({
       }
     };
     pull();
-    const tick = window.setInterval(pull, 20000);
+    const onSynced = (event) => {
+      const detail = event?.detail || {};
+      if (detail.rank != null) setLiveRank(Number(detail.rank) || null);
+      if (detail.fieldSize != null) setLiveFieldSize(Number(detail.fieldSize) || null);
+      // Pull fresh top table a moment after a successful board push.
+      void pull();
+    };
+    const tick = window.setInterval(pull, 12000);
     window.addEventListener('online', pull);
+    window.addEventListener('ch-offline-board-synced', onSynced);
     return () => {
       cancelled = true;
       window.clearInterval(tick);
       window.removeEventListener('online', pull);
+      window.removeEventListener('ch-offline-board-synced', onSynced);
     };
   }, [offlineMode, eventId, offlineBundle, team?.teamCode, team?.id, team?.currentStage, team?.currentScore]);
 

@@ -8,7 +8,7 @@ import { signPayload } from './offlineQr';
 const QUEUE_KEY = 'progress_queue';
 const DEVICE_KEY = 'device_id';
 const SYNC_PAUSE_KEY = 'ch_offline_board_sync_paused';
-const NETWORK_TIMEOUT_MS = 6000;
+const NETWORK_TIMEOUT_MS = 12000;
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
@@ -217,6 +217,8 @@ export async function flushOfflineProgressQueue(bundle) {
   let lastFinishAward = null;
   let lastFinishPlace = null;
   let lastScore = null;
+  let lastRank = null;
+  let lastFieldSize = null;
 
   for (const item of queue) {
     let ok = false;
@@ -230,6 +232,12 @@ export async function flushOfflineProgressQueue(bundle) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(item),
         });
+        if (res.status === 429) {
+          // Rate limited — keep queued; do not burn other bases.
+          ok = false;
+          lastIgnoreReason = 'RATE_LIMITED';
+          break;
+        }
         if (res.status === 409) {
           const data = await res.json().catch(() => null);
           if (data?.code === 'DEVICE_BOUND') {
@@ -256,6 +264,8 @@ export async function flushOfflineProgressQueue(bundle) {
           if (body?.finishAward != null) lastFinishAward = Number(body.finishAward);
           if (body?.finishPlace != null) lastFinishPlace = Number(body.finishPlace);
           if (body?.score != null) lastScore = Number(body.score);
+          if (body?.rank != null) lastRank = Number(body.rank);
+          if (body?.fieldSize != null) lastFieldSize = Number(body.fieldSize);
           break;
         }
       } catch {
@@ -276,7 +286,7 @@ export async function flushOfflineProgressQueue(bundle) {
     if (!ok) kept.push(item);
   }
   saveQueue(kept);
-  return {
+  const result = {
     pending: kept.length,
     synced,
     syncedOk: synced > 0,
@@ -287,7 +297,22 @@ export async function flushOfflineProgressQueue(bundle) {
     finishAward: lastFinishAward,
     finishPlace: lastFinishPlace,
     score: lastScore,
+    rank: lastRank,
+    fieldSize: lastFieldSize,
   };
+  if (result.syncedOk && typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('ch-offline-board-synced', {
+        detail: {
+          rank: lastRank,
+          fieldSize: lastFieldSize,
+          score: lastScore,
+          finishPlace: lastFinishPlace,
+        },
+      }));
+    } catch { /* ignore */ }
+  }
+  return result;
 }
 
 export function offlineBoardPendingCount() {

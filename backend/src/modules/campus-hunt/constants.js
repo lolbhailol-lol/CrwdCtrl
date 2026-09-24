@@ -351,7 +351,7 @@ const CLUE_HOW_TO = {
     steps: [
       'Borrow a laptop with internet.',
       'Open Zip Grid · type the device key from this phone.',
-      'Clear 4 rounds · type GRID-XXXX here · scan purple once.',
+      'Clear 4 rounds · Undo −20 · Clear −10 · type GRID-XXXX here · scan purple once.',
       'Worth your Zip score.',
     ],
   },

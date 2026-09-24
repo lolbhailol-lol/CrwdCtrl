@@ -36,7 +36,7 @@ export const OFFLINE_CLUE_HOW_TO = {
     steps: [
       'Borrow a laptop with internet.',
       'Open Zip Grid · type the device key from this phone.',
-      'Clear 4 harder rounds. Each undo −20. Type GRID-XXXX here · scan purple once.',
+      'Clear 4 harder rounds. Undo −20 · Clear −10. Type GRID-XXXX here · scan purple once.',
       'Worth your Zip score.',
     ],
   },
@@ -73,4 +73,4 @@ export const OFFLINE_CLUE_PROMPTS = {
 };
 
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 21;
+export const OFFLINE_PLAYER_COPY_REVISION = 22;

@@ -174,7 +174,7 @@ export function buildPlayerNowGuide({
       tone: 'clue',
       eyebrow: 'Clue 4 · Field Terminal',
       title: 'Borrow a laptop · play Zip Grid',
-      body: 'Device key on this phone → laptop. Four harder Zip rounds. Each undo −20. Type GRID-XXXX here. Worth your Zip score.',
+      body: 'Device key on this phone → laptop. Four harder Zip rounds. Undo −20 · Clear −10. Type GRID-XXXX here. Worth your Zip score.',
       steps: [],
     };
   }

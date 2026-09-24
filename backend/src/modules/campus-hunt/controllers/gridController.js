@@ -86,8 +86,9 @@ async function hint(req, res, next) {
 async function undo(req, res, next) {
   try {
     assertLaptopClient(req);
+    const clear = Boolean(req.body?.clear);
     const steps = Number(req.body?.steps) || 1;
-    const result = await useUndo(req.params.sessionToken, steps);
+    const result = await useUndo(req.params.sessionToken, steps, { clear });
     return res.json({ success: true, data: result });
   } catch (err) {
     if (err.status) {
