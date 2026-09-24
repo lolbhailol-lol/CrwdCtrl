@@ -203,7 +203,11 @@ test('Cashfree order creation retries one 400 with a compact customer payload', 
     });
     assert.equal(order.payment_session_id, 'session-ok');
     assert.equal(calls.length, 2);
-    assert.equal(calls[1].customer_details.customer_name, 'Test User');
+    assert.deepEqual(calls[1].customer_details, {
+      customer_id: 'user-1',
+      customer_phone: '9876543210',
+    });
+    assert.equal(calls[1].order_meta, undefined);
     assert.equal(calls[1].order_note, undefined);
     assert.equal(calls[1].order_tags, undefined);
   } finally {

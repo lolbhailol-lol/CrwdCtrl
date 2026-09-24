@@ -213,8 +213,13 @@ async function createCashfreeOrder({
         order_id: retryOrderId,
         order_amount: payload.order_amount,
         order_currency: payload.order_currency,
-        customer_details: compactCashfreeCustomer(payload.customer_details),
-        order_meta: { return_url: payload.order_meta.return_url },
+        customer_details: (() => {
+          const compact = compactCashfreeCustomer(payload.customer_details);
+          return {
+            customer_id: compact.customer_id,
+            customer_phone: compact.customer_phone,
+          };
+        })(),
       };
       try {
         const response = await axios.post(url, retryPayload, { headers });
