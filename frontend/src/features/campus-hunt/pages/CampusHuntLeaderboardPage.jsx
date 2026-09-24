@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
 import {
@@ -28,6 +28,7 @@ export default function CampusHuntLeaderboardPage() {
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState('');
   const [liveOn, setLiveOn] = useState(false);
+  const boardRequestRef = useRef(null);
 
   const selectedCollege = useMemo(
     () => colleges.find((c) => c.college === college) || null,
@@ -72,21 +73,49 @@ export default function CampusHuntLeaderboardPage() {
       setBoard(null);
       return;
     }
-    try {
-      const res = await fetchPublicLeaderboard(eventId);
-      setBoard(res.data);
-      setUpdatedAt(new Date().toLocaleTimeString());
-      setError('');
-    } catch (err) {
-      setError(err.message || 'Failed to load leaderboard');
+    if (boardRequestRef.current?.eventId === eventId) {
+      return boardRequestRef.current.request;
     }
+    let request;
+    request = (async () => {
+      try {
+        const res = await fetchPublicLeaderboard(eventId);
+        if (boardRequestRef.current?.request !== request) return;
+        setBoard(res.data);
+        setUpdatedAt(new Date().toLocaleTimeString());
+        setError('');
+      } catch (err) {
+        if (boardRequestRef.current?.request !== request) return;
+        setError(err.message || 'Failed to load leaderboard');
+      } finally {
+        if (boardRequestRef.current?.request === request) boardRequestRef.current = null;
+      }
+    })();
+    boardRequestRef.current = { eventId, request };
+    return request;
   }, [eventId]);
 
   useEffect(() => {
-    loadBoard();
+    void loadBoard();
     if (!eventId) return undefined;
-    const id = setInterval(loadBoard, 12000);
-    return () => clearInterval(id);
+    let stopped = false;
+    let timer;
+    const schedule = () => {
+      timer = window.setTimeout(async () => {
+        if (!document.hidden) await loadBoard();
+        if (!stopped) schedule();
+      }, 12000 + Math.floor(Math.random() * 3000));
+    };
+    const onVisible = () => {
+      if (!document.hidden) void loadBoard();
+    };
+    schedule();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [eventId, loadBoard]);
 
   useEffect(() => {

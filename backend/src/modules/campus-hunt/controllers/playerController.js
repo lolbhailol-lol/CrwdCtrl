@@ -10,6 +10,7 @@ const {
   revealTimedChallengeAfterExpiry,
 } = require('../services/challengeService');
 const { buildLeaderboard } = require('../services/leaderboardService');
+const { getPublicLeaderboardSnapshot } = require('../services/publicLeaderboardCache');
 const {
   validateAnswerBody,
   validateHintBody,
@@ -167,22 +168,21 @@ async function listProfileEntries(req, res, next) {
  */
 async function getPublicLeaderboard(req, res, next) {
   try {
-    const event = await CampusHuntEvent.findById(req.params.eventId)
-      .select('name college slug status publicLeaderboardLive');
-    const finalizedRound = event
-      ? await CampusHuntRound.exists({ eventId: event._id, status: 'finalized' })
-      : null;
-    if (
-      !event
-      || event.status === 'draft'
-      || (!event.publicLeaderboardLive && !finalizedRound)
-    ) {
-      return res.status(404).json({ success: false, message: 'Leaderboard not live' });
-    }
-    const rows = await buildLeaderboard(event._id, { includeUnfinished: true });
-    return res.json({
-      success: true,
-      data: {
+    const snapshot = await getPublicLeaderboardSnapshot(req.params.eventId, async () => {
+      const event = await CampusHuntEvent.findById(req.params.eventId)
+        .select('name college slug status publicLeaderboardLive');
+      const finalizedRound = event
+        ? await CampusHuntRound.exists({ eventId: event._id, status: 'finalized' })
+        : null;
+      if (
+        !event
+        || event.status === 'draft'
+        || (!event.publicLeaderboardLive && !finalizedRound)
+      ) {
+        return null;
+      }
+      const rows = await buildLeaderboard(event._id, { includeUnfinished: true });
+      return {
         event: {
           id: String(event._id),
           name: event.name,
@@ -192,7 +192,16 @@ async function getPublicLeaderboard(req, res, next) {
         },
         leaderboard: rows,
         serverTime: new Date().toISOString(),
-      },
+      };
+    });
+
+    if (!snapshot) {
+      return res.status(404).json({ success: false, message: 'Leaderboard not live' });
+    }
+    res.set('Cache-Control', 'public, max-age=2, s-maxage=3, stale-while-revalidate=9');
+    return res.json({
+      success: true,
+      data: snapshot,
     });
   } catch (err) {
     return next(err);
