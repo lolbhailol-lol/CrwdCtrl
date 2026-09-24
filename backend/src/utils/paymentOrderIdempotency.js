@@ -7,6 +7,10 @@ function shouldReuseMappedStatus(mapped) {
   return mapped === 'pending' || mapped === 'paid';
 }
 
+function shouldInvalidateCashfreeLookupError(error) {
+  return Number(error?.response?.status) === 404;
+}
+
 async function expireCancelledPaymentOrder(orderId) {
   if (!orderId) return;
   const order = await PaymentOrder.findOneAndUpdate(
@@ -177,7 +181,19 @@ async function findReusablePendingOrder({
       }
       return null;
     }
-  } catch {
+  } catch (error) {
+    // A missing gateway order can never recover; never hand its dead session back
+    // to the browser on every retry. Network/5xx failures remain reusable to avoid
+    // creating duplicate charges while Cashfree is temporarily unreachable.
+    if (shouldInvalidateCashfreeLookupError(error)) {
+      existing.status = 'EXPIRED';
+      await existing.save().catch(() => {});
+      if (existing.orderTags?.slotReservationToken) {
+        const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+        await releaseCompetitionSlot(existing.orderTags.slotReservationToken).catch(() => {});
+      }
+      return null;
+    }
     // Cashfree unreachable: keep the pending session so a double-tap cannot open two charges.
   }
 
@@ -209,5 +225,6 @@ module.exports = {
   findReusablePendingOrder,
   buildOrderResponse,
   shouldReuseMappedStatus,
+  shouldInvalidateCashfreeLookupError,
   expireCancelledPaymentOrder,
 };

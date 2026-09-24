@@ -46,7 +46,7 @@ function removeBoth(key) {
 
 export function resolvePaymentEntityType(returnPath, entityType) {
   const known = String(entityType || '').toLowerCase();
-  if (['trek', 'fest', 'event', 'sports', 'competition', 'event_show'].includes(known)) {
+  if (['trek', 'fest', 'event', 'sports', 'competition', 'competition_bundle', 'event_show'].includes(known)) {
     return known === 'event_show' ? 'event' : known;
   }
   const path = returnPath || (typeof window !== 'undefined' ? window.location.pathname : '');

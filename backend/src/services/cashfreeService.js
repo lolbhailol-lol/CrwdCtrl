@@ -1,5 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const { getCanonicalSiteUrl } = require('../utils/siteUrl');
 
 const API_VERSION = '2025-01-01';
 
@@ -70,11 +71,22 @@ function assertCredentials(merchant = 'platform') {
   }
 }
 
-const getFrontendBaseUrl = () =>
-  (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+const getFrontendBaseUrl = () => getCanonicalSiteUrl();
 
 const buildReturnUrl = (orderId) =>
   `${getFrontendBaseUrl()}/payment/return?order_id={order_id}`;
+
+function normalizeCashfreeReturnUrl(rawUrl) {
+  const fallback = buildReturnUrl();
+  try {
+    const url = new URL(String(rawUrl || fallback));
+    if (url.hostname === 'crwdctrl.in') url.hostname = 'www.crwdctrl.in';
+    if (url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') url.protocol = 'https:';
+    return url.toString();
+  } catch {
+    return fallback;
+  }
+}
 
 const generateOrderId = () => `order_${crypto.randomBytes(12).toString('hex')}`;
 
@@ -137,10 +149,13 @@ async function createCashfreeOrder({
       customer_email: customerDetails.customerEmail || customerDetails.email || 'customer@crwdctrl.com',
       customer_phone: normalizePhone(customerDetails.customerPhone || customerDetails.phone),
     },
-    order_meta: {
+    order_meta: (() => {
+      const meta = {
       return_url: buildReturnUrl(orderId),
       ...orderMeta,
-    },
+      };
+      return { ...meta, return_url: normalizeCashfreeReturnUrl(meta.return_url) };
+    })(),
     order_note: orderNote,
     order_tags: sanitizeCashfreeOrderTags(orderTags),
   };
@@ -458,4 +473,6 @@ module.exports = {
   normalizeMerchant,
   getMerchantCredentials,
   mapOrderStatus,
+  buildReturnUrl,
+  normalizeCashfreeReturnUrl,
 };

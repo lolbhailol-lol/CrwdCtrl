@@ -5,8 +5,16 @@ const {
   sanitizeFestCompetitionDraft,
   draftToResponses,
 } = require('../src/utils/festCompetitionDraft');
-const { shouldReuseMappedStatus } = require('../src/utils/paymentOrderIdempotency');
-const { mapOrderStatus, firstValidCustomerPhone, normalizePhone } = require('../src/services/cashfreeService');
+const {
+  shouldReuseMappedStatus,
+  shouldInvalidateCashfreeLookupError,
+} = require('../src/utils/paymentOrderIdempotency');
+const {
+  mapOrderStatus,
+  firstValidCustomerPhone,
+  normalizePhone,
+  normalizeCashfreeReturnUrl,
+} = require('../src/services/cashfreeService');
 const { buildPaymentOrderNote } = require('../src/utils/paymentOrderNote');
 
 test('mapOrderStatus treats user-dropped checkout as cancelled', () => {
@@ -23,6 +31,23 @@ test('cancelled Cashfree sessions are not reused for a new Pay tap', () => {
   assert.equal(shouldReuseMappedStatus('failed'), false);
   assert.equal(shouldReuseMappedStatus('pending'), true);
   assert.equal(shouldReuseMappedStatus('paid'), true);
+});
+
+test('missing Cashfree orders are invalidated but temporary gateway errors are reusable', () => {
+  assert.equal(shouldInvalidateCashfreeLookupError({ response: { status: 404 } }), true);
+  assert.equal(shouldInvalidateCashfreeLookupError({ response: { status: 503 } }), false);
+  assert.equal(shouldInvalidateCashfreeLookupError(new Error('network')), false);
+});
+
+test('Cashfree returns directly to canonical www without an apex redirect', () => {
+  assert.equal(
+    normalizeCashfreeReturnUrl('https://crwdctrl.in/payment/return?order_id={order_id}'),
+    'https://www.crwdctrl.in/payment/return?order_id={order_id}',
+  );
+  assert.equal(
+    normalizeCashfreeReturnUrl('https://crwdctrl.in/mindspark/bundle-pay/abc?returned=1'),
+    'https://www.crwdctrl.in/mindspark/bundle-pay/abc?returned=1',
+  );
 });
 
 test('sanitizeFestCompetitionDraft keeps MindSpark roster objects', () => {

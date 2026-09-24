@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { load } from '@cashfreepayments/cashfree-js';
 import { CheckCircle2, Loader } from 'lucide-react';
 import { fetchMindSparkBundlePayment, reissueMindSparkBundlePayment, verifyMindSparkBundlePayment } from '../../services/api/mindsparkBundle.api';
+import { openCashfreeCheckout } from '../../utils/useCashfree';
+import { clearPendingPayment } from '../../utils/deepLinks';
 
 export default function MindSparkBundlePaymentPage() {
   const { token } = useParams(); const [params] = useSearchParams();
   const [data, setData] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(true);
-  const refresh = useCallback(async () => { const next = params.get('returned') === '1' ? await verifyMindSparkBundlePayment(token) : await fetchMindSparkBundlePayment(token); setData(next); return next; }, [params, token]);
+  const refresh = useCallback(async () => { const returned = params.get('returned') === '1'; const next = returned ? await verifyMindSparkBundlePayment(token) : await fetchMindSparkBundlePayment(token); if (returned) clearPendingPayment(); setData(next); return next; }, [params, token]);
   useEffect(() => { refresh().catch(e => setError(e.message)).finally(() => setBusy(false)); }, [refresh]);
   useEffect(() => { if (!data || ['paid','failed','expired','paid_review'].includes(data.status)) return; const timer = setInterval(() => verifyMindSparkBundlePayment(token).then(setData).catch(() => {}), 5000); return () => clearInterval(timer); }, [data, token]);
-  const openCheckout = async payment => { const cashfree = await load({ mode: payment.cashfreeMode || 'production' }); const result = await cashfree.checkout({ paymentSessionId: payment.paymentSessionId, redirectTarget: '_self' }); if (result?.error) throw new Error(result.error.message); };
-  const pay = async () => { setBusy(true); try { await openCheckout(data); } catch (e) { setError(e.message); } finally { setBusy(false); } };
-  const retry = async () => { setBusy(true); try { const next = await reissueMindSparkBundlePayment(token); setData(next); if (next.paymentSessionId) await openCheckout(next); } catch(e) { setError(e.message); } finally { setBusy(false); } };
+  const openCheckout = async payment => openCashfreeCheckout({ paymentSessionId: payment.paymentSessionId, orderId: payment.orderId, returnPath: `${window.location.pathname}?returned=1`, entityType: 'competition_bundle', cashfreeMode: payment.cashfreeMode || 'production' });
+  const pay = async () => { setBusy(true); try { const result = await openCheckout(data); if (!result?.redirectDeferred) await refresh(); } catch (e) { setError(e.message); } finally { setBusy(false); } };
+  const retry = async () => { setBusy(true); try { const next = await reissueMindSparkBundlePayment(token); setData(next); if (next.paymentSessionId) { const result = await openCheckout(next); if (!result?.redirectDeferred) await refresh(); } } catch(e) { setError(e.message); } finally { setBusy(false); } };
   const discountPercent = Number(data?.discountPercent) || 65;
   return (
     <main className="min-h-dvh bg-[#090b0d] text-white grid place-items-center p-4">

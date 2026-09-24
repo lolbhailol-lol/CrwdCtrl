@@ -12,6 +12,7 @@ import {
   isTrekPaymentPending,
 } from './deepLinks';
 import { classifyVerifyResponse, clearCashfreeReturnAndPending } from './paymentNavigation';
+import { buildCashfreeCheckoutBridgeUrl } from './cashfreeCheckoutBridge';
 
 let cashfreeInstance = null;
 let cashfreeMode = null;
@@ -164,11 +165,6 @@ export async function openCashfreeCheckout({
       ? window.location.pathname + window.location.search
       : '/');
 
-  const cashfree = await getCashfree(resolvedMode);
-  if (!cashfree) {
-    throw new Error('Cashfree SDK not loaded. Please refresh the page and try again.');
-  }
-
   if (useRedirect && orderId) {
     storePendingPayment({
       orderId,
@@ -179,26 +175,22 @@ export async function openCashfreeCheckout({
     });
     // Must run before checkout — on redirect the page unloads and this line never runs after await
     markPaymentReturnExpected();
-
-    const result = await cashfree.checkout({
-      paymentSessionId,
-      redirectTarget: '_self',
-    });
-
-    if (result?.error) {
+    try {
+      window.location.assign(buildCashfreeCheckoutBridgeUrl({
+        paymentSessionId,
+        orderId,
+        cashfreeMode: resolvedMode,
+      }));
+    } catch (error) {
       clearPendingPayment();
-      const domainHint =
-        mode === 'sandbox' ? ' Whitelist your domain in Cashfree sandbox dashboard.' : '';
-      throw formatCashfreeCheckoutError(result.error.message, mode, domainHint);
+      throw error;
     }
-
-    if (result?.paymentDetails) {
-      clearPendingPayment();
-      return result;
-    }
-
-    // Redirect checkout: page navigates away; booking pages resume after return
     return { redirectDeferred: true };
+  }
+
+  const cashfree = await getCashfree(resolvedMode);
+  if (!cashfree) {
+    throw new Error('Cashfree SDK not loaded. Please refresh the page and try again.');
   }
 
   const result = await cashfree.checkout({
