@@ -364,7 +364,7 @@ const CLUE_HOW_TO = {
     steps: [
       'Go to Mindspark Lobby together.',
       'Ask organizer for the finish code.',
-      'Type it to lock your score.',
+      'Type it. First team in gets 200, then −10 each, down to 10.',
     ],
   },
 };

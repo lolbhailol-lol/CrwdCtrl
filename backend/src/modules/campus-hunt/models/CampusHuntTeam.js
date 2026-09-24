@@ -163,6 +163,9 @@ const campusHuntTeamSchema = new mongoose.Schema(
     offlineResetAt: { type: Date },
     offlineDeviceId: { type: String, default: '', trim: true },
     finishedAt: { type: Date },
+    /** 1 = first finish code in. Points = max(10, 200 − (place − 1) × 10). */
+    finishPlace: { type: Number, default: 0 },
+    finishAwardPoints: { type: Number, default: 0 },
     stats: {
       hintsUsed: { type: Number, default: 0 },
       failedAttempts: { type: Number, default: 0 },

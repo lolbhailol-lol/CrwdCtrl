@@ -151,6 +151,9 @@ export async function enqueueOfflineProgress(bundle, state, { startOver = false 
     clue4Points: state.clueProgress?.[4]?.state === 'COMPLETED'
       ? Number(state.clueProgress[4].awardedPoints)
       : undefined,
+    clue6Points: state.currentStage === 'SCORE_LOCKED'
+      ? Number(state.clueProgress?.[6]?.awardedPoints) || 0
+      : undefined,
     deviceId: getOfflineDeviceId(),
     takeover: takeover || undefined,
     startOver: startOver || undefined,
@@ -211,6 +214,9 @@ export async function flushOfflineProgressQueue(bundle) {
   let lastStartOver = false;
   let lastResetAt = null;
   let lastIgnoreReason = null;
+  let lastFinishAward = null;
+  let lastFinishPlace = null;
+  let lastScore = null;
 
   for (const item of queue) {
     let ok = false;
@@ -247,6 +253,9 @@ export async function flushOfflineProgressQueue(bundle) {
           if (body?.seq != null) lastSeq = Number(body.seq);
           if (body?.startOver) lastStartOver = true;
           if (body?.offlineResetAt) lastResetAt = body.offlineResetAt;
+          if (body?.finishAward != null) lastFinishAward = Number(body.finishAward);
+          if (body?.finishPlace != null) lastFinishPlace = Number(body.finishPlace);
+          if (body?.score != null) lastScore = Number(body.score);
           break;
         }
       } catch {
@@ -275,6 +284,9 @@ export async function flushOfflineProgressQueue(bundle) {
     startOver: lastStartOver || undefined,
     offlineResetAt: lastResetAt || undefined,
     ignoredReason: lastIgnoreReason || undefined,
+    finishAward: lastFinishAward,
+    finishPlace: lastFinishPlace,
+    score: lastScore,
   };
 }
 

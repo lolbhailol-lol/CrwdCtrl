@@ -447,7 +447,10 @@ async function submitAnswer({
         finishCode: answer,
         now,
       });
-      const finishAward = !finish.alreadyProcessed && team.currentStage === 'CLUE_6_ACTIVE' ? 50 : 0;
+      const finishAward = !finish.alreadyProcessed && team.currentStage === 'CLUE_6_ACTIVE'
+        ? (Number(finish.awardedPoints) || 0)
+        : 0;
+      const place = Number(finish.finishPlace) || 0;
       return {
         correct: true,
         state: 'COMPLETED',
@@ -460,7 +463,7 @@ async function submitAnswer({
         finalScore: finish.finalScore ?? finish.team?.finalScore,
         scoreLocked: true,
         message: finishAward
-          ? 'Finish code accepted — +50 points. Score locked.'
+          ? `Finish code accepted — +${finishAward} points (${place === 1 ? '1st in' : `place ${place}`}). Score locked.`
           : (finish.message || 'Score locked.'),
       };
     }

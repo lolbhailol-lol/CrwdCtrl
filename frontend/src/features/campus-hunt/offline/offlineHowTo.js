@@ -49,7 +49,7 @@ export const OFFLINE_CLUE_HOW_TO = {
     steps: [
       'Go to Mindspark Lobby together.',
       'Ask the organizer for the finish code.',
-      'Correct code adds 50 points and locks the score.',
+      'Correct code: first team in gets 200, then −10 each, down to 10.',
     ],
   },
 };
@@ -68,4 +68,4 @@ export const OFFLINE_CLUE_PROMPTS = {
 };
 
 /** Bump when HOW_TO / player UI copy changes — soft-rewrites already-downloaded packs. */
-export const OFFLINE_PLAYER_COPY_REVISION = 18;
+export const OFFLINE_PLAYER_COPY_REVISION = 19;

@@ -17,6 +17,77 @@ const { resolveOrganizerFinishCode } = require('./stationCatalogService');
 const { applyAward } = require('./scoringService');
 
 const FINISH_READY_STAGES = new Set(['CLUE_6_COMPLETED', 'CLUE_6_FAILED']);
+
+/** First finish code in gets 200, then 190, 180… down to 10 for 20th and later. */
+const FINISH_FIRST_POINTS = 200;
+const FINISH_STEP = 10;
+const FINISH_FLOOR = 10;
+
+function pointsForFinishPlace(place) {
+  const n = Math.max(1, Number(place) || 1);
+  return Math.max(FINISH_FLOOR, FINISH_FIRST_POINTS - (n - 1) * FINISH_STEP);
+}
+
+/**
+ * Atomic place for this team. Parallel submits for the same team share one place.
+ * A lost race gives its number back only when it is still the latest claim.
+ */
+async function claimFinishPlace(team) {
+  const existingPlace = Number(team?.finishPlace) || 0;
+  if (existingPlace > 0) {
+    return {
+      place: existingPlace,
+      points: Number(team.finishAwardPoints) || pointsForFinishPlace(existingPlace),
+      already: true,
+    };
+  }
+
+  const event = await CampusHuntEvent.findOneAndUpdate(
+    { _id: team.eventId },
+    { $inc: { finishClaimCount: 1 } },
+    { new: true },
+  );
+  const place = Math.max(1, Number(event?.finishClaimCount) || 1);
+  const points = pointsForFinishPlace(place);
+  const claimed = await CampusHuntTeam.findOneAndUpdate(
+    {
+      _id: team._id,
+      $or: [
+        { finishPlace: { $exists: false } },
+        { finishPlace: null },
+        { finishPlace: 0 },
+      ],
+    },
+    { $set: { finishPlace: place, finishAwardPoints: points } },
+    { new: true },
+  );
+
+  if (!claimed) {
+    await CampusHuntEvent.updateOne(
+      { _id: team.eventId, finishClaimCount: place },
+      { $inc: { finishClaimCount: -1 } },
+    );
+    const fresh = await CampusHuntTeam.findById(team._id).select('finishPlace finishAwardPoints');
+    const kept = Number(fresh?.finishPlace) || 1;
+    return {
+      place: kept,
+      points: Number(fresh?.finishAwardPoints) || pointsForFinishPlace(kept),
+      already: true,
+    };
+  }
+
+  return { place, points, already: false };
+}
+
+/** Free this team's slot so a Start over can hand 200 to the next real finish. */
+async function releaseFinishPlace(team) {
+  const place = Number(team?.finishPlace) || 0;
+  if (!place || !team?.eventId) return;
+  await CampusHuntEvent.updateOne(
+    { _id: team.eventId, finishClaimCount: { $gt: 0 } },
+    { $inc: { finishClaimCount: -1 } },
+  );
+}
 const FINISH_ENTRY_STAGES = new Set([
   'CLUE_6_ACTIVE',
   'CLUE_6_COMPLETED',
@@ -160,7 +231,8 @@ async function completeClue6ForFinish(team, { userId, now = new Date() } = {}) {
     });
   }
 
-  const basePts = 50;
+  const claim = await claimFinishPlace(team);
+  const basePts = claim.points;
 
   if (challenge) {
     await CampusHuntTeamProgress.findOneAndUpdate(
@@ -186,7 +258,7 @@ async function completeClue6ForFinish(team, { userId, now = new Date() } = {}) {
     );
   }
 
-  const newScore = applyAward(team.currentScore, basePts);
+  const newScore = applyAward(team.currentScore, claim.already ? 0 : basePts);
   let updated = await CampusHuntTeam.findOneAndUpdate(
     { _id: team._id, currentStage: 'CLUE_6_ACTIVE' },
     {
@@ -220,7 +292,10 @@ async function completeClue6ForFinish(team, { userId, now = new Date() } = {}) {
     });
   }
 
-  return updated || team;
+  const done = updated || team;
+  done.finishAwardPoints = basePts;
+  done.finishPlace = claim.place;
+  return done;
 }
 
 /**
@@ -296,6 +371,8 @@ async function submitOrganizerFinishCode({
     correct: true,
     scoreLocked: true,
     finalScore: result.team?.finalScore ?? result.team?.currentScore,
+    awardedPoints: Number(working.finishAwardPoints) || 0,
+    finishPlace: Number(working.finishPlace) || 0,
     message: result.message
       || 'Finish code accepted — score locked at Mindspark Lobby',
   };
@@ -306,6 +383,9 @@ module.exports = {
   submitOrganizerFinishCode,
   acceptedFinishCodes,
   completeClue6ForFinish,
+  claimFinishPlace,
+  releaseFinishPlace,
+  pointsForFinishPlace,
   FINISH_READY_STAGES,
   FINISH_ENTRY_STAGES,
 };

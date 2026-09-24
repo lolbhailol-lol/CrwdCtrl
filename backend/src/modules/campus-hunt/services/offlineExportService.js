@@ -771,6 +771,13 @@ async function resetTeamHuntProgress(team, {
     CampusHuntCheckpointVerification.deleteMany({ teamId: team._id }),
   ]);
 
+  if (Number(team.finishPlace) > 0) {
+    try {
+      const { releaseFinishPlace } = require('./finishService');
+      await releaseFinishPlace(team);
+    } catch (_) { /* slot returns on the next full reset */ }
+  }
+
   const $set = {
     currentScore: nextScore,
     startingScore: startScore,
@@ -797,6 +804,8 @@ async function resetTeamHuntProgress(team, {
         finalScore: 1,
         scoreLockedAt: 1,
         finishedAt: 1,
+        finishPlace: 1,
+        finishAwardPoints: 1,
         suddenDeathRank: 1,
         lastCheckpointNumber: 1,
         actualStartAt: 1,
@@ -926,6 +935,12 @@ async function ingestOfflineProgress(eventId, payload) {
 
   // Phone re-started after a locked finish — unlock live board and accept score.
   if (team.currentStage === 'SCORE_LOCKED' && playingAgain) {
+    if (Number(team.finishPlace) > 0) {
+      try {
+        const { releaseFinishPlace } = require('./finishService');
+        await releaseFinishPlace(team);
+      } catch (_) { /* keep going */ }
+    }
     const unlockScore = Math.min(Math.max(0, Number(body.score) || startScore), maxPlausible);
     await CampusHuntTeam.updateOne(
       { _id: team._id },
@@ -941,6 +956,8 @@ async function ingestOfflineProgress(eventId, payload) {
           finalScore: 1,
           scoreLockedAt: 1,
           finishedAt: 1,
+          finishPlace: 1,
+          finishAwardPoints: 1,
         },
       },
     );
@@ -999,6 +1016,7 @@ async function ingestOfflineProgress(eventId, payload) {
   let nextScore = Math.min(score, maxPlausible);
   const nextStage = body.stage ? String(body.stage) : team.currentStage;
   const nextSeq = Math.max(storedSeq, incomingSeq);
+  let finishMeta = null;
 
   // Phone awards flat Clue 4 points. Live rank uses the laptop Zip session score.
   const flatClue4 = Number(body.clue4Points);
@@ -1015,6 +1033,18 @@ async function ingestOfflineProgress(eventId, payload) {
           nextScore - flatClue4 + Number(grid.score),
         ));
       }
+    } catch (_) { /* keep phone score */ }
+  }
+
+  // Finish code: first team in gets 200, then −10 each, floor 10.
+  // Phone score does not include that ladder (clue6Points is the flat amount already inside it).
+  if (nextStage === 'SCORE_LOCKED' && team.currentStage !== 'SCORE_LOCKED') {
+    try {
+      const { claimFinishPlace } = require('./finishService');
+      const claim = await claimFinishPlace(team);
+      const included = Number.isFinite(Number(body.clue6Points)) ? Number(body.clue6Points) : 50;
+      nextScore = Math.max(0, Math.min(maxPlausible, nextScore - included + claim.points));
+      finishMeta = claim;
     } catch (_) { /* keep phone score */ }
   }
 
@@ -1071,6 +1101,8 @@ async function ingestOfflineProgress(eventId, payload) {
     accepted: true,
     rank: standing?.rank || null,
     fieldSize: standing?.size || null,
+    finishAward: finishMeta?.points ?? null,
+    finishPlace: finishMeta?.place ?? null,
   };
 }
 
@@ -1099,7 +1131,7 @@ async function pullOfflineBoardState(eventId, payload) {
     eventId,
     teamCode: String(body.team || '').toUpperCase(),
   }).select(
-    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt',
+    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt finishPlace finishAwardPoints',
   );
   if (!team) {
     const err = new Error(`Team ${body.team} not found`);
@@ -1141,6 +1173,8 @@ async function pullOfflineBoardState(eventId, payload) {
     top10,
     organizerStartCode: String(codeEvent?.organizerStartCode || 'GO').trim().toUpperCase(),
     organizerFinishCode: String(codeEvent?.organizerFinishCode || 'MSFINISH').trim().toUpperCase(),
+    finishPlace: Number(team.finishPlace) || 0,
+    finishAward: Number(team.finishAwardPoints) || 0,
   };
 }
 

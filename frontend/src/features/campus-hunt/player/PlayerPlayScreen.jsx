@@ -923,7 +923,7 @@ export default function PlayerPlayScreen({
                 )}
                 </div>
               </section>
-              <HuntColorFlowGuide title="Six clues" />
+              <HuntColorFlowGuide title="Before you start" />
               <PoweredByCrwdCtrl />
             </div>
           )}
@@ -1266,7 +1266,7 @@ export default function PlayerPlayScreen({
               </p>
               <p className="font-mono text-4xl font-semibold tracking-wide">{team.teamCode || '—'}</p>
               <p className="text-sm text-white/60">
-                Ask the organizer for the finish code.
+                Ask the organizer for the finish code. First team in gets 200, then −10 each, down to 10.
               </p>
               {isLeader ? (
                 <form

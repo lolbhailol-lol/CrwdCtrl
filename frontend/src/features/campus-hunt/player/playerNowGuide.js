@@ -46,7 +46,7 @@ export function buildPlayerNowGuide({
       tone: 'final',
       eyebrow: 'Mindspark Lobby',
       title: 'Enter the finish code',
-      body: 'Organizer finish code. Correct code adds 50 points and locks the score.',
+      body: 'Organizer finish code. First team in gets 200, then −10 each, down to 10.',
       steps: [],
     };
   }
@@ -203,7 +203,7 @@ export function buildPlayerNowGuide({
       tone: 'final',
       eyebrow: 'Mindspark Lobby',
       title: 'Type the finish code',
-      body: 'Organizer finish code. Correct code adds 50 points and locks the score.',
+      body: 'Organizer finish code. First team in gets 200, then −10 each, down to 10.',
       steps: [],
     };
   }

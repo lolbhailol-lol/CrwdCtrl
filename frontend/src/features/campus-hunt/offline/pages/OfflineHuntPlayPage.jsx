@@ -86,6 +86,33 @@ export default function OfflineHuntPlayPage() {
       if (!pack) return;
       const data = await pullOfflineBoardState(pack);
       if (cancelled || !data) return;
+      const local = stateRef.current;
+      if (
+        data.scoreLocked
+        && local?.currentStage === 'SCORE_LOCKED'
+        && Number(data.finishAward) > 0
+        && Number(local.clueProgress?.[6]?.awardedPoints) !== Number(data.finishAward)
+      ) {
+        const patched = {
+          ...local,
+          score: Number(data.score) || local.score,
+          clueProgress: {
+            ...(local.clueProgress || {}),
+            6: {
+              ...(local.clueProgress?.[6] || {}),
+              state: 'COMPLETED',
+              awardedPoints: Number(data.finishAward),
+            },
+          },
+        };
+        stateRef.current = patched;
+        setState(patched);
+        const sess = sessionRef.current;
+        if (sess?.teamCode) {
+          saveOfflineTeamState(sess.teamCode, patched).catch(() => {});
+          setPlayData(buildPlayData(pack, sess, patched));
+        }
+      }
       const start = String(data.organizerStartCode || '').trim().toUpperCase();
       const finish = String(data.organizerFinishCode || '').trim().toUpperCase();
       if (!start && !finish) return;
@@ -142,9 +169,29 @@ export default function OfflineHuntPlayPage() {
       void enqueueOfflineProgress(pack, nextState).then(async (r) => {
         setBoardPending(offlineBoardPendingCount());
         if (r?.deviceBound) setDeviceBound(true);
-        else if (r?.syncedOk) {
+        else         if (r?.syncedOk) {
           setDeviceBound(false);
           setBoardPending(offlineBoardPendingCount());
+          if (r?.finishAward != null && stateRef.current?.currentStage === 'SCORE_LOCKED') {
+            const awarded = Number(r.finishAward) || 0;
+            const patched = {
+              ...stateRef.current,
+              score: Number.isFinite(Number(r.score)) ? Number(r.score) : stateRef.current.score,
+              clueProgress: {
+                ...(stateRef.current.clueProgress || {}),
+                6: {
+                  ...(stateRef.current.clueProgress?.[6] || {}),
+                  state: 'COMPLETED',
+                  awardedPoints: awarded,
+                },
+              },
+            };
+            stateRef.current = patched;
+            setState(patched);
+            await saveOfflineTeamState(nextSession.teamCode, patched);
+            const packNow = bundleRef.current;
+            if (packNow) setPlayData(buildPlayData(packNow, nextSession, patched));
+          }
           // Keep local seq aligned after STALE recovery so future pushes stay ahead.
           if (r?.seqRecovered && stateRef.current) {
             const aligned = { ...stateRef.current, seq: Number(r.seqRecovered) };

@@ -130,6 +130,8 @@ const campusHuntEventSchema = new mongoose.Schema(
      * Offline Start needs wave time + this code. Empty = time-only gate.
      */
     organizerStartCode: { type: String, default: 'GO', trim: true, uppercase: true },
+    /** How many teams have claimed a finish-code place (1 = 200 pts, then −10, floor 10). */
+    finishClaimCount: { type: Number, default: 0 },
     /** Custom names for hunt scan places (codes S01–S20). */
     campusStations: {
       type: [{

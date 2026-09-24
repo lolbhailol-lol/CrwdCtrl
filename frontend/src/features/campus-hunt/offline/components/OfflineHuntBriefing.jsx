@@ -161,7 +161,7 @@ export default function OfflineHuntBriefing({
           </p>
         )}
 
-        <HuntColorFlowGuide title="Six clues" />
+        <HuntColorFlowGuide title="Before you start" />
 
         <PoweredByCrwdCtrl />
       </div>
