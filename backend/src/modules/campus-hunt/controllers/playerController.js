@@ -198,7 +198,7 @@ async function getPublicLeaderboard(req, res, next) {
     if (!snapshot) {
       return res.status(404).json({ success: false, message: 'Leaderboard not live' });
     }
-    res.set('Cache-Control', 'public, max-age=2, s-maxage=3, stale-while-revalidate=9');
+    res.set('Cache-Control', 'public, max-age=2, s-maxage=3, must-revalidate');
     return res.json({
       success: true,
       data: snapshot,
