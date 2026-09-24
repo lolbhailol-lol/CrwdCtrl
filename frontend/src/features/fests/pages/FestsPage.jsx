@@ -176,7 +176,7 @@ export default function FestsPage() {
     const { unreadCount } = useNotifications();
     const publicConfig = usePublicConfig();
 
-    const cached = readFestsCache();
+    const [cached] = useState(() => readFestsCache());
     const [fests, setFests] = useState(cached || []);
     const [loading, setLoading] = useState(!cached?.length);
     const [loadError, setLoadError] = useState(null);

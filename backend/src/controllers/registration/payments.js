@@ -38,7 +38,11 @@ const payAndRegisterFest = async (req, res) => {
     }
 
     const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
-    const paymentCheck = await verifyPaymentForRegistration(req.body);
+    const paymentCheck = await verifyPaymentForRegistration(req.body, {
+      entityId: festObjectId,
+      entityType: 'fest',
+      userId,
+    });
     if (!paymentCheck.ok) {
       return res.status(400).json({ error: paymentCheck.error || 'Payment verification failed' });
     }
@@ -214,7 +218,11 @@ const payAndRegister = async (req, res) => {
     }
 
     const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
-    const paymentCheck = await verifyPaymentForRegistration(req.body);
+    const paymentCheck = await verifyPaymentForRegistration(req.body, {
+      entityId: competition._id,
+      entityType: 'competition',
+      userId,
+    });
     if (!paymentCheck.ok) {
       return res.status(400).json({ error: paymentCheck.error || 'Payment verification failed' });
     }

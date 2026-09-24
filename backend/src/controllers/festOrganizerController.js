@@ -26,62 +26,9 @@ const getCompetitionBaseFee = (registrationFee, feeAmount) => {
     return numericFeeAmount || parseTicketPrice(registrationFee);
 };
 
-// In-memory cache is kept only for non-sensitive public list payloads.
-// Do not cache fest detail objects in-process because multi-instance
-// deployments can serve stale data inconsistently across instances.
-const cache = {
-    fests: {
-        data: new Map(), // Use Map for better performance
-        timestamp: 0,
-        duration: 45 * 1000 // 45 seconds — absorb registration-day homepage thrash
-    },
-    competitions: {
-        data: new Map(),
-        timestamp: 0,
-        duration: 60 * 1000 // 1 minute cache for competitions
-    }
-};
-
-// Helper function to check if cache is valid
-const isCacheValid = (cacheType) => {
-    const cacheObj = cache[cacheType];
-    return cacheObj && (Date.now() - cacheObj.timestamp) < cacheObj.duration;
-};
-
-// Helper function to get from cache
-const getFromCache = (cacheType, key) => {
-    if (isCacheValid(cacheType)) {
-        return cache[cacheType].data.get(key);
-    }
-    return null;
-};
-
-// Helper function to set cache
-const setCache = (cacheType, key, data) => {
-    cache[cacheType].data.set(key, data);
-    cache[cacheType].timestamp = Date.now();
-    console.log(`💾 Cached ${cacheType} data: ${key}`);
-};
-
-// Helper function to clear specific cache
-const clearCache = (cacheType, key = null) => {
-    if (key) {
-        cache[cacheType].data.delete(key);
-        console.log(`🗑️ Cleared ${cacheType} cache: ${key}`);
-    } else {
-        cache[cacheType].data.clear();
-        cache[cacheType].timestamp = 0;
-        console.log(`🗑️ Cleared all ${cacheType} cache`);
-    }
-};
-
-// Helper function to clear all caches (call when data is modified)
-const clearAllCaches = () => {
-    Object.keys(cache).forEach(cacheType => {
-        clearCache(cacheType);
-    });
-    console.log('🗑️ All caches cleared');
-};
+const { createPublicListCache } = require('../utils/publicListCache');
+const publicFestListCache = createPublicListCache();
+const clearAllCaches = () => publicFestListCache.clear();
 
 // ✅ Create a new fest
 exports.createFest = async (req, res) => {
@@ -406,96 +353,84 @@ exports.deleteFest = async (req, res) => {
 // ✅ Get all fests (public) - for discovery page with enhanced caching and priority sorting
 exports.getAllFests = async (req, res) => {
     try {
-        const { page = 1, limit = 200, festType, college, search, sortBy = 'priority' } = req.query;
+        const { festType, college, search, sortBy = 'priority' } = req.query;
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 200));
 
         // Create cache key based on query parameters
         const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy, v: 'comps-covers-1' });
         
-        // Check cache first
-        const cachedData = getFromCache('fests', cacheKey);
-        if (cachedData) {
-            console.log('⚡ Returning cached fests data');
-            // Add cache headers for client-side caching
-            res.set({
-                'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
-                'X-Cache': 'HIT'
-            });
-            return res.status(200).json(cachedData);
-        }
+        const responseData = await publicFestListCache.getOrLoad(cacheKey, async () => {
+            // Build filter object
+            const filter = {};
+            if (festType) filter.festType = festType;
+            if (college) filter.collegeName = { $regex: college, $options: 'i' };
+            if (search) {
+                filter.$or = [
+                    { festName: { $regex: search, $options: 'i' } },
+                    { description: { $regex: search, $options: 'i' } },
+                    { collegeName: { $regex: search, $options: 'i' } }
+                ];
+            }
 
-        console.log('🔄 Fetching fresh fests data from database');
+            // Only show approved fests for public view
+            filter.isApproved = true;
 
-        // Build filter object
-        const filter = {};
-        if (festType) filter.festType = festType;
-        if (college) filter.collegeName = { $regex: college, $options: 'i' };
-        if (search) {
-            filter.$or = [
-                { festName: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } },
-                { collegeName: { $regex: search, $options: 'i' } }
-            ];
-        }
+            const skip = (parseInt(page) - 1) * parseInt(limit);
 
-        // Only show approved fests for public view
-        filter.isApproved = true;
+            // Optimized query with priority sorting
+            let sortOptions = {};
+            if (sortBy === 'priority') {
+                // Sort by priority first (1 = highest), then by creation date
+                sortOptions = { priority: 1, createdAt: -1 };
+            } else {
+                sortOptions = { [sortBy]: -1 };
+            }
 
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-
-        // Optimized query with priority sorting
-        let sortOptions = {};
-        if (sortBy === 'priority') {
-            // Sort by priority first (1 = highest), then by creation date
-            sortOptions = { priority: 1, createdAt: -1 };
-        } else {
-            sortOptions = { [sortBy]: -1 };
-        }
-
-        const fests = await FestOrganizer.find(filter)
-            .select('festName collegeName festType festDate venue coverImage coverImages galleryImages images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority homeSection homePriority showOnHomeSlide')
-            .lean()
-            .sort(sortOptions)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        const festIds = fests.map((f) => f._id).filter(Boolean);
-        const comps = festIds.length
-            ? await Competition.find({ fest: { $in: festIds } })
-                .select('name coverImage competitionType registrationFee feeAmount prizePool fest')
+            const fests = await FestOrganizer.find(filter)
+                .select('festName collegeName festType festDate venue coverImage coverImages galleryImages images festImages description status ticketPrice highlights startDate endDate duration estimatedParticipants registration.mode priority homeSection homePriority showOnHomeSlide')
                 .lean()
-            : [];
-        const competitionsByFest = new Map();
-        for (const comp of comps) {
-            const key = String(comp.fest);
-            if (!competitionsByFest.has(key)) competitionsByFest.set(key, []);
-            competitionsByFest.get(key).push(comp);
-        }
-        const festsWithCompetitions = fests.map((fest) => ({
-            ...fest,
-            competitions: competitionsByFest.get(String(fest._id)) || [],
-        }));
+                .sort(sortOptions)
+                .skip(skip)
+                .limit(parseInt(limit));
 
-        const total = await FestOrganizer.countDocuments(filter);
+            const festIds = fests.map((f) => f._id).filter(Boolean);
+            const comps = festIds.length
+                ? await Competition.find({ fest: { $in: festIds } })
+                    .select('name coverImage competitionType registrationFee feeAmount prizePool fest')
+                    .lean()
+                : [];
+            const competitionsByFest = new Map();
+            for (const comp of comps) {
+                const key = String(comp.fest);
+                if (!competitionsByFest.has(key)) competitionsByFest.set(key, []);
+                competitionsByFest.get(key).push(comp);
+            }
+            const festsWithCompetitions = fests.map((fest) => ({
+                ...fest,
+                competitions: competitionsByFest.get(String(fest._id)) || [],
+            }));
 
-        const responseData = {
-            fests: festsWithCompetitions,
-            pagination: {
-                currentPage: parseInt(page),
-                totalPages: Math.ceil(total / parseInt(limit)),
-                totalFests: total,
-                limit: parseInt(limit)
-            },
-            cached: false,
-            timestamp: new Date().toISOString()
-        };
+            const total = await FestOrganizer.countDocuments(filter);
 
-        // Cache the response
-        setCache('fests', cacheKey, responseData);
+            const responseData = {
+                fests: festsWithCompetitions,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(total / parseInt(limit)),
+                    totalFests: total,
+                    limit: parseInt(limit)
+                },
+                cached: false,
+                timestamp: new Date().toISOString()
+            };
+
+            return responseData;
+        });
 
         // Add cache headers
         res.set({
-            'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
-            'X-Cache': 'MISS'
+            'Cache-Control': 'public, max-age=60, stale-while-revalidate=300'
         });
 
         res.status(200).json(responseData);

@@ -203,7 +203,11 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     if (competitionRequiresPayment(competition)) {
       const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
-      const paymentCheck = await verifyPaymentForRegistration(req.body);
+      const paymentCheck = await verifyPaymentForRegistration(req.body, {
+        entityId: competition._id,
+        entityType: 'competition',
+        userId,
+      });
       if (!paymentCheck.ok) {
         return res.status(400).json({ error: paymentCheck.error || 'Payment is required for this competition.' });
       }
@@ -725,7 +729,11 @@ const submitCompetitionRegistration = async (req, res) => {
 
     if (paymentVerified) {
       const { verifyPaymentForRegistration } = require('../../utils/paymentVerification');
-      const paymentCheck = await verifyPaymentForRegistration(req.body);
+      const paymentCheck = await verifyPaymentForRegistration(req.body, {
+        entityId: competition._id,
+        entityType: 'competition',
+        userId,
+      });
       if (!paymentCheck.ok) {
         return res.status(400).json({ error: paymentCheck.error || 'Payment is required for this competition.' });
       }

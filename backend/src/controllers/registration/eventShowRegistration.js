@@ -231,6 +231,8 @@ const submitEventShowRegistration = async (req, res) => {
         const paymentCheck = await verifyPaymentForRegistration(req.body, {
           expectedTotalAmount: baseTotalAmount,
           entityId: eventShow._id,
+          entityType: 'event_show',
+          userId,
         });
         if (!paymentCheck.ok) {
           return res.status(400).json({ error: paymentCheck.error || 'Payment is required for this event.' });
@@ -495,6 +497,8 @@ const payAndRegisterEventShow = async (req, res) => {
 
     const paymentCheck = await verifyPaymentForRegistration(req.body, {
       entityId: eventShowId,
+      entityType: 'event_show',
+      userId,
     });
     if (!paymentCheck.ok) {
       return res.status(400).json({ error: paymentCheck.error || 'Payment verification failed' });

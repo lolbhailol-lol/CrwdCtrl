@@ -271,10 +271,12 @@ const submitRegistration = async (req, res) => {
     await registration.save();
     logger.debug('✅ Registration saved:', registration._id);
 
-    const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
-
-    // Get user details for Google Sheets
-    const user = await User.findById(userId).select('name email phoneNumber');
+    // Independent post-save reads run together so the user is not held on the
+    // submission overlay for two sequential database round trips.
+    const [stallCoupon, user] = await Promise.all([
+      assignStallCouponIfEligible({ fest, userId }),
+      User.findById(userId).select('name email phoneNumber'),
+    ]);
 
     const registrationLink = `/registration-details/${registration._id}`;
 

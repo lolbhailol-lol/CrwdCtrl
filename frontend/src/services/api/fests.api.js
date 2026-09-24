@@ -2,6 +2,7 @@
  * Public fest listing — raw API shapes for fest pages and detail views.
  */
 import { publicFetchJSONRetry } from './client.js';
+import { fetchCatalogJSON } from './catalogCache.js';
 import { transformFestPublicData } from '../../utils/festPublicTransform';
 import { saveFestDetailCache } from '../../utils/detailPageCache';
 
@@ -19,7 +20,7 @@ export function prefetchFestDetail(fest) {
   if (!id) return;
   const key = String(id);
   if (festDetailPrefetch.has(key)) return festDetailPrefetch.get(key);
-  const pending = publicFetchJSONRetry(`/fests/${id}/public`, { retries: 1 })
+  const pending = publicFetchJSONRetry(`/fests/${id}/public`, { retries: 1, cacheBust: false })
     .then((res) => {
       const raw = res?.data || res;
       const eventData = transformFestPublicData(raw);
@@ -36,18 +37,16 @@ export function prefetchFestDetail(fest) {
 
 export async function fetchRawPublicFests(options = {}) {
   const params = new URLSearchParams();
-  if (options.cacheBust !== false) params.set('_cb', String(Date.now()));
   if (options.festType) params.set('festType', options.festType);
-  if (options.forceRefresh) params.set('force_refresh', '1');
   // Public discovery needs the full approved list — backend default is too low (20).
   params.set('limit', String(options.limit || 200));
   if (options.page) params.set('page', String(options.page));
 
   const qs = params.toString();
   const path = qs ? `/fests/all?${qs}` : '/fests/all';
-  const response = await publicFetchJSONRetry(path, {
+  const response = await fetchCatalogJSON(path, {
     retries: options.retries ?? 3,
-    cacheBust: false,
+    force: Boolean(options.forceRefresh || options.cacheBust),
   });
   return parseFestsPayload(response?.data ?? response);
 }

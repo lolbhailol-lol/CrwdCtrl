@@ -123,7 +123,7 @@ export default function FestTypePage({
         navigate(festPath(fest), { state: eventData ? { eventData } : undefined });
     };
 
-    const cached = readFestsCacheByType(festType);
+    const [cached] = useState(() => readFestsCacheByType(festType));
     const [fests, setFests] = useState(cached || []);
     const [loading, setLoading] = useState(!cached?.length);
     const [featuredPg, setFeaturedPg] = useState(0);

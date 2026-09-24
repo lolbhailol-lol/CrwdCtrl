@@ -20,7 +20,37 @@ function extractPaymentFields(body = {}) {
   };
 }
 
-async function verifyPaymentForRegistration(body, { expectedTotalAmount = null, entityId = null } = {}) {
+function validateStoredPaymentOrder(paymentOrder, {
+  expectedTotalAmount = null,
+  entityId = null,
+  entityType = null,
+  userId = null,
+} = {}) {
+  if (!paymentOrder) return { ok: false, error: 'Payment order was not found.' };
+  if (userId && String(paymentOrder.userId || '') !== String(userId)) {
+    return { ok: false, error: 'Payment order does not belong to this user.' };
+  }
+  if (entityType && String(paymentOrder.entityType || '') !== String(entityType)) {
+    return { ok: false, error: 'Payment order does not match this registration.' };
+  }
+  if (entityId && String(paymentOrder.entityId || '') !== String(entityId)) {
+    return { ok: false, error: 'Payment order does not match this registration.' };
+  }
+  if (expectedTotalAmount != null && Number(expectedTotalAmount) > 0) {
+    const storedAmount = Number(paymentOrder.totalAmount);
+    if (!Number.isFinite(storedAmount) || storedAmount !== Number(expectedTotalAmount)) {
+      return { ok: false, error: 'Payment amount does not match expected total.' };
+    }
+  }
+  return { ok: true };
+}
+
+async function verifyPaymentForRegistration(body, {
+  expectedTotalAmount = null,
+  entityId = null,
+  entityType = null,
+  userId = null,
+} = {}) {
   const { orderId, paymentId } = extractPaymentFields(body);
 
   if (!orderId) {
@@ -30,8 +60,28 @@ async function verifyPaymentForRegistration(body, { expectedTotalAmount = null, 
   try {
     const PaymentOrder = require('../model/payment_order_model');
     const paymentOrder = await PaymentOrder.findOne({ orderId: String(orderId) })
-      .select('cashfreeMerchant')
+      .select('cashfreeMerchant status paymentId totalAmount entityType entityId userId')
       .lean();
+    const binding = validateStoredPaymentOrder(paymentOrder, {
+      expectedTotalAmount,
+      entityId,
+      entityType,
+      userId,
+    });
+    if (!binding.ok) return binding;
+
+    // The authenticated /payment/verify route or signed webhook has already
+    // verified this order with Cashfree. Reuse that authoritative result so a
+    // registration rush does not make a second gateway request per attendee.
+    if (String(paymentOrder.status || '').toUpperCase() === 'PAID') {
+      return {
+        ok: true,
+        orderId: String(orderId),
+        paymentId: paymentOrder.paymentId || paymentId || null,
+        amountPaid: Number(paymentOrder.totalAmount) || null,
+        locallyVerified: true,
+      };
+    }
     const merchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
 
     const result = await verifyCashfreePayment({ orderId, paymentId, merchant });
@@ -67,10 +117,21 @@ async function verifyPaymentForRegistration(body, { expectedTotalAmount = null, 
       }
     }
 
+    await PaymentOrder.updateOne(
+      { _id: paymentOrder._id },
+      {
+        $set: {
+          status: 'PAID',
+          ...(result.paymentId ? { paymentId: String(result.paymentId) } : {}),
+        },
+      },
+    );
+
     return {
       ok: true,
       orderId: result.orderId,
       paymentId: result.paymentId,
+      amountPaid: Number(paymentOrder.totalAmount) || null,
     };
   } catch (err) {
     console.error('Cashfree verification error:', err.response?.data || err.message);
@@ -78,4 +139,8 @@ async function verifyPaymentForRegistration(body, { expectedTotalAmount = null, 
   }
 }
 
-module.exports = { extractPaymentFields, verifyPaymentForRegistration };
+module.exports = {
+  extractPaymentFields,
+  validateStoredPaymentOrder,
+  verifyPaymentForRegistration,
+};
