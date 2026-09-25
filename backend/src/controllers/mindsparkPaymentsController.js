@@ -70,9 +70,14 @@ function scopeSummaryToMindspark(summary) {
 async function getRazorpayMindSparkActivity() {
     const [competitions, bundles] = await Promise.all([
         Competition.find({ fest: MINDSPARK_FEST_ID }).select('_id name').lean(),
-        MindSparkBundle.find({ fest: MINDSPARK_FEST_ID }).select('_id').lean(),
+        MindSparkBundle.find({ fest: MINDSPARK_FEST_ID }).select('_id activeOrderId').lean(),
     ]);
     const competitionNameById = new Map(competitions.map((row) => [String(row._id), row.name]));
+    const activeBundleOrderId = new Map(
+        bundles
+            .filter((row) => row.activeOrderId)
+            .map((row) => [String(row._id), String(row.activeOrderId)]),
+    );
     const orders = await PaymentOrder.find({
         gateway: 'razorpay',
         status: 'PAID',
@@ -83,28 +88,60 @@ async function getRazorpayMindSparkActivity() {
         ],
     })
         .sort({ updatedAt: -1 })
-        .limit(200)
         .select('orderId paymentId entityType entityId totalAmount customerEmail orderTags createdAt updatedAt')
         .lean();
 
-    const rows = orders.map((order) => ({
-        orderId: order.orderId,
-        paymentId: order.paymentId || '',
-        gateway: 'razorpay',
-        status: 'paid',
-        eventName: order.entityType === 'competition_bundle'
-            ? 'MindSpark Bundle'
-            : competitionNameById.get(String(order.entityId))
-                || order.orderTags?.competitionName
-                || order.orderTags?.festName
-                || 'MindSpark',
-        amount: Number(order.totalAmount) || 0,
-        customerEmail: order.customerEmail || '',
-        paidAt: order.updatedAt || order.createdAt,
-    }));
+    // One merchant capture once: skip retired/reissued bundle orders and duplicate paymentIds.
+    const seenPaymentIds = new Set();
+    const seenOrderIds = new Set();
+    const rows = [];
+    let skippedExtra = 0;
+    for (const order of orders) {
+        const orderId = String(order.orderId || '');
+        const paymentId = String(order.paymentId || '').trim();
+        const retired = Boolean(order.orderTags?.retired);
+        if (retired) {
+            skippedExtra += 1;
+            continue;
+        }
+        if (order.entityType === 'competition_bundle') {
+            const activeId = activeBundleOrderId.get(String(order.entityId));
+            // Prefer the bundle's active order only — older PAID QRs after reissue are extras.
+            if (activeId && orderId !== activeId) {
+                skippedExtra += 1;
+                continue;
+            }
+        }
+        if (orderId && seenOrderIds.has(orderId)) {
+            skippedExtra += 1;
+            continue;
+        }
+        if (paymentId && seenPaymentIds.has(paymentId)) {
+            skippedExtra += 1;
+            continue;
+        }
+        if (orderId) seenOrderIds.add(orderId);
+        if (paymentId) seenPaymentIds.add(paymentId);
+        rows.push({
+            orderId,
+            paymentId,
+            gateway: 'razorpay',
+            status: 'paid',
+            eventName: order.entityType === 'competition_bundle'
+                ? 'MindSpark Bundle'
+                : competitionNameById.get(String(order.entityId))
+                    || order.orderTags?.competitionName
+                    || order.orderTags?.festName
+                    || 'MindSpark',
+            amount: Number(order.totalAmount) || 0,
+            customerEmail: order.customerEmail || '',
+            paidAt: order.updatedAt || order.createdAt,
+        });
+    }
     return {
         count: rows.length,
         totalCollected: rows.reduce((sum, row) => sum + row.amount, 0),
+        skippedExtra,
         rows,
     };
 }

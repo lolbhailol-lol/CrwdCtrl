@@ -155,6 +155,7 @@ test('duplicate registrations for the same order id are flagged', () => {
 
 test('razorpay gateway is excluded from Cashfree dashboard', () => {
   assert.equal(isCashfreeGateway('razorpay'), false);
+  assert.equal(isCashfreeGateway('razorpay_bundle'), false);
   assert.equal(isCashfreeGateway('organizer_qr'), false);
   assert.equal(isCashfreeGateway('cashfree'), true);
   assert.equal(isCashfreeGateway('cashfree_bundle'), true);

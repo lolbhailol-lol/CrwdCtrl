@@ -63,9 +63,14 @@ exports.handleRazorpayWebhook = async (req, res) => {
         { upsert: false, new: true },
       );
       if (updated) {
-        fulfillPaidOrder(updated).catch((err) => {
-          console.error('[razorpayWebhook] fulfillment failed:', err?.message || err);
-        });
+        // Retired/reissued QRs can still capture on Razorpay — do not fulfill or treat as the live order.
+        if (updated.orderTags?.retired) {
+          console.warn('[razorpayWebhook] paid retired order ignored for fulfillment', orderId);
+        } else {
+          fulfillPaidOrder(updated).catch((err) => {
+            console.error('[razorpayWebhook] fulfillment failed:', err?.message || err);
+          });
+        }
       }
     } else if (event === 'payment.failed') {
       await PaymentOrder.findOneAndUpdate(

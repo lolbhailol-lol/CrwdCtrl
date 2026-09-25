@@ -58,7 +58,10 @@ function isDashboardBucket(bucket) {
 
 function isCashfreeGateway(gateway) {
   const g = String(gateway || 'cashfree').trim().toLowerCase();
-  if (g === 'razorpay' || g === 'organizer_qr' || g === 'manual_organizer') return false;
+  // razorpay / razorpay_bundle and other non-Cashfree rails stay out of Cashfree totals.
+  if (g === 'razorpay' || g.startsWith('razorpay') || g === 'organizer_qr' || g === 'manual_organizer') {
+    return false;
+  }
   // Bundle regs are fulfilled from a single Cashfree order (payment_gateway: cashfree_bundle).
   return g === 'cashfree' || g === 'cashfree_bundle' || g === '';
 }

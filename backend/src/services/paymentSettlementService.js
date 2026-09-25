@@ -450,8 +450,11 @@ function enrichLinkedRow({ order, registration, unmatched, duplicate, orphanRegi
   const paymentId = String(order?.paymentId || registration?.payment_id || settlement?.cfPaymentId || '');
   const grossFromReg = Number(registration?.amountPaid) || 0;
   const grossFromOrder = Number(order?.totalAmount) || 0;
-  // Prefer Cashfree order amount; keep reg amount only when order is missing.
-  const gross = grossFromOrder > 0 ? grossFromOrder : grossFromReg;
+  // Bundle (and other multi-reg) orders: keep per-reg slice on the row; money totals
+  // still use orderAmount once via summarizeRows countedOrderIds.
+  const gross = (duplicate && grossFromReg > 0)
+    ? grossFromReg
+    : (grossFromOrder > 0 ? grossFromOrder : grossFromReg);
   const refunded = refundTotalFor(refundsByOrder.get(orderId) || []);
   const money = computeFinancials(gross, refunded);
   const override = payoutOverrides.get(payoutOverrideKey(ctx));
