@@ -890,25 +890,41 @@ export default function RunEventBookingPage() {
                 const v = verifyResult.data;
                 const verified = buildVerifiedPaymentFields(v, pending.orderId);
                 setPaymentId(verified.payment_id);
-                setPayDone(true);
                 setPaymentResumeError('');
-                await submitRunRegistration({
-                    paymentOrderId: verified.payment_order_id || pending.orderId,
-                    paymentId: verified.payment_id,
-                    amountPaid: v.totalAmount ?? total,
-                    formData: draft.extraFields || extraFields,
-                    booking: {
-                        date: draft.selDate || selDate,
-                        time: draft.selTime || selTime,
-                        people: draft.people || people,
-                        tierId: draft.tierId || selectedTierId,
-                        addOnSelected: typeof draft.addOnSelected === 'boolean' ? draft.addOnSelected : addOnSelected,
-                    },
-                });
-                setStep(3);
-            } catch (e) {
+                const existingRegId = v?.registrationId || v?.registration_id || v?.registration?._id || v?.registration?.id || '';
+                try {
+                    if (existingRegId) {
+                        setBookingId(String(existingRegId));
+                    } else {
+                        await submitRunRegistration({
+                            paymentOrderId: verified.payment_order_id || pending.orderId,
+                            paymentId: verified.payment_id,
+                            amountPaid: v.totalAmount ?? total,
+                            formData: draft.extraFields || extraFields,
+                            booking: {
+                                date: draft.selDate || selDate,
+                                time: draft.selTime || selTime,
+                                people: draft.people || people,
+                                tierId: draft.tierId || selectedTierId,
+                                addOnSelected: typeof draft.addOnSelected === 'boolean' ? draft.addOnSelected : addOnSelected,
+                            },
+                        });
+                    }
+                    setPayDone(true);
+                    setStep(3);
+                } catch (regErr) {
+                    const msg = String(regErr?.message || '');
+                    if (/already registered|already completed|already paid/i.test(msg)) {
+                        setPayDone(true);
+                        setStep(3);
+                    } else {
+                        setPayDone(false);
+                        setPaymentResumeError(msg || 'Could not complete booking after payment. Try again.');
+                    }
+                }
+            } catch (err) {
                 setPayDone(false);
-                setPaymentResumeError(e.message || 'Could not complete booking after payment. Try again.');
+                setPaymentResumeError(err?.message || 'Could not confirm payment. Try again or check My Bookings.');
             } finally {
                 setPaying(false);
             }
@@ -1229,18 +1245,34 @@ export default function RunEventBookingPage() {
                 if (checkoutFlow.status === 'verified') {
                     const { verified } = checkoutFlow;
                     setPaymentId(verified.payment_id);
+                    const existingRegId = checkoutFlow.registrationId
+                        || checkoutFlow.verified?.registrationId
+                        || '';
                     try {
-                        await submitRunRegistration({
-                            paymentOrderId: verified.payment_order_id || order.orderId,
-                            paymentId: verified.payment_id,
-                            amountPaid: order.totalAmount ?? total,
-                        });
-                        setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                        if (existingRegId) {
+                            setBookingId(String(existingRegId));
+                            sessionStorage.removeItem(runDraftKey(event._id || event.id || id));
+                            setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                        } else {
+                            await submitRunRegistration({
+                                paymentOrderId: verified.payment_order_id || order.orderId,
+                                paymentId: verified.payment_id,
+                                amountPaid: order.totalAmount ?? total,
+                                formData: mergedFields,
+                            });
+                            setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                        }
                     } catch (regErr) {
-                        setPaying(false);
-                        setPaymentResumeError(
-                            regErr.message || 'Payment received, but registration failed. Retry or check My Bookings.',
-                        );
+                        const msg = String(regErr?.message || '');
+                        // Payment already succeeded / fulfill may have created the booking.
+                        if (/already registered|already completed|already paid/i.test(msg)) {
+                            setPaymentFlowToSuccess({ setPayDone, setPaying, setError });
+                        } else {
+                            setPaying(false);
+                            setPaymentResumeError(
+                                msg || 'Payment received, but registration failed. Retry or check My Bookings.',
+                            );
+                        }
                     }
                 } else {
                     setPaying(false);

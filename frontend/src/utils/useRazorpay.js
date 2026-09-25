@@ -259,6 +259,13 @@ export async function runRazorpayCheckoutAndVerify({
           payment_id: verifiedPayload.payment_id || checkout.razorpay_payment_id,
           razorpay_signature: checkout.razorpay_signature,
         },
+        registrationId:
+          verifiedPayload.registrationId
+          || verifiedPayload.registration_id
+          || verifiedPayload.registration?._id
+          || verifiedPayload.registration?.id
+          || null,
+        fulfillmentError: verifiedPayload.fulfillmentError || null,
         checkoutPaymentId: checkout.razorpay_payment_id,
         signature: checkout.razorpay_signature,
       };

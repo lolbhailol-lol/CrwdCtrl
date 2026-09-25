@@ -156,6 +156,11 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
 
   const userId = overrides.userId || paymentOrder.userId || null;
   let responses = mergeSportsFormResponses(formData, {});
+  const taggedGender = String(paymentOrder.orderTags?.gender || '').trim();
+  if (taggedGender && !String(responses.gender || responses.sex || '').trim()) {
+    responses.gender = taggedGender;
+    responses.sex = taggedGender;
+  }
 
   const phone = firstValidCustomerPhone([
     paymentOrder.customerPhone,
