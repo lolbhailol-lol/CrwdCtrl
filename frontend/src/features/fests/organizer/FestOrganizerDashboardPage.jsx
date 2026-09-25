@@ -504,7 +504,7 @@ export default function FestOrganizerDashboardPage() {
                         ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
-                        {hideProShow ? 'After 1.6% gateway fee' : 'Revenue'}
+                        {hideProShow ? 'After payment gateway charges and taxes' : 'Revenue'}
                     </p>
                     <p className="text-[11px] text-gray-500 mt-1">
                         {hideProShow

@@ -104,34 +104,16 @@ export default function FestOrganizerRevenuePage() {
 
             <section className="rounded-2xl border border-emerald-400/25 bg-linear-to-br from-emerald-500/20 to-[#161718] p-5">
                 <p className="text-xs uppercase tracking-wider text-emerald-200/70">
-                    {mindSparkMode ? 'After 1.6% gateway fee' : 'Collected'}
+                    {mindSparkMode ? 'After payment gateway charges and taxes' : 'Collected'}
                 </p>
                 <p className="text-3xl font-bold tabular-nums text-white mt-2">
                     ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </p>
-                {mindSparkMode ? (
-                    <p className="text-[11px] text-gray-400 mt-2">
-                        Students paid ₹{Number(stats.grossCollected ?? stats.revenue ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                        {' · '}
-                        1.6% gateway fees ₹{Number(stats.gatewayFees || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                        {' · '}
-                        Additional deduction ₹{Number(stats.additionalDeduction || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                    </p>
-                ) : (
-                    <p className="text-[11px] text-gray-400 mt-2">
-                        {`${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} entries`}
-                    </p>
-                )}
-                {mindSparkMode ? (
-                    <>
-                        <p className="text-[11px] text-gray-500 mt-1">
-                            {`${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`}
-                        </p>
-                        <p className="mt-3 text-[11px] leading-relaxed text-emerald-100/80 rounded-xl border border-emerald-400/20 bg-black/20 px-3 py-2.5">
-                            Total deductions ₹{Number(stats.totalDeductions || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}: 1.6% gateway fee plus the ₹2,000 settlement adjustment.
-                        </p>
-                    </>
-                ) : null}
+                <p className="text-[11px] text-gray-400 mt-2">
+                    {mindSparkMode
+                        ? `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`
+                        : `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} entries`}
+                </p>
             </section>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
