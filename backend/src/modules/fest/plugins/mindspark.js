@@ -17,9 +17,9 @@ const mindsparkPlugin = {
     skipReviewQueue: true,
     settlementExcludeCompetitionIds: [],
     settlementOverride: {
-        // Locked organizer revenue (matches competition sum after gateway charges).
-        grossCollected: 442280,
-        revenue: 435203,
+        // Locked to live paid total (all competitions, after 1.6% gateway fee).
+        grossCollected: 456429,
+        revenue: 449133.92,
         gatewayFeeRate: 0.016,
         additionalDeduction: 0,
     },
