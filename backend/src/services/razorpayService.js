@@ -11,6 +11,10 @@ function getRazorpayKeySecret() {
   return String(process.env.RAZORPAY_KEY_SECRET || '').trim();
 }
 
+function getRazorpayWebhookSecret() {
+  return String(process.env.RAZORPAY_WEBHOOK_SECRET || '').trim();
+}
+
 function assertCredentials() {
   if (!getRazorpayKeyId() || !getRazorpayKeySecret()) {
     const err = new Error('Razorpay credentials not configured');
@@ -87,6 +91,25 @@ function verifyRazorpaySignature({ orderId, paymentId, signature }) {
     .createHmac('sha256', getRazorpayKeySecret())
     .update(`${orderId}|${paymentId}`)
     .digest('hex');
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(expected, 'utf8'),
+      Buffer.from(String(signature), 'utf8'),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function verifyRazorpayWebhookSignature({ rawBody, signature }) {
+  const secret = getRazorpayWebhookSecret();
+  if (!secret) {
+    const err = new Error('Razorpay webhook secret not configured');
+    err.code = 'RAZORPAY_WEBHOOK_SECRET_MISSING';
+    throw err;
+  }
+  if (!rawBody || !signature) return false;
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
   try {
     return crypto.timingSafeEqual(
       Buffer.from(expected, 'utf8'),
@@ -276,6 +299,7 @@ module.exports = {
   createRazorpayOrder,
   verifyRazorpayPayment,
   verifyRazorpaySignature,
+  verifyRazorpayWebhookSignature,
   fetchRazorpayOrder,
   fetchRazorpayPayment,
   toPaise,

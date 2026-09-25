@@ -4,6 +4,7 @@ const crypto = require('crypto');
 
 const {
   verifyRazorpaySignature,
+  verifyRazorpayWebhookSignature,
   verifyRazorpayPayment,
   toPaise,
 } = require('../src/services/razorpayService');
@@ -16,6 +17,26 @@ test('gateway switches accept only known providers', () => {
   assert.equal(normalizePaymentGateway('razorpay'), 'razorpay');
   assert.equal(normalizePaymentGateway('CASHFREE'), 'cashfree');
   assert.equal(normalizePaymentGateway('unknown'), 'cashfree');
+});
+
+test('Razorpay webhook signature verifies the exact raw request body', () => {
+  const previous = process.env.RAZORPAY_WEBHOOK_SECRET;
+  process.env.RAZORPAY_WEBHOOK_SECRET = 'webhook_unit_secret';
+  try {
+    const rawBody = Buffer.from('{"event":"payment.captured"}');
+    const signature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
+      .update(rawBody)
+      .digest('hex');
+    assert.equal(verifyRazorpayWebhookSignature({ rawBody, signature }), true);
+    assert.equal(
+      verifyRazorpayWebhookSignature({ rawBody: Buffer.from('{}'), signature }),
+      false,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.RAZORPAY_WEBHOOK_SECRET;
+    else process.env.RAZORPAY_WEBHOOK_SECRET = previous;
+  }
 });
 
 test('fest and Delulu gateway switches are independent', () => {

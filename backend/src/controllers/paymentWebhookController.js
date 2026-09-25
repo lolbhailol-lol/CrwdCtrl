@@ -5,6 +5,86 @@ const {
   inspectWebhookSignature,
 } = require('../services/cashfreeService');
 const { captureFlowEvent } = require('../config/sentry');
+const { verifyRazorpayWebhookSignature } = require('../services/razorpayService');
+
+function fulfillPaidOrder(order) {
+  if (order?.entityType === 'event_show' && order?.orderTags?.registrationDraft) {
+    const { fulfillEventShowFromPaidOrder } = require('../services/eventShowPaymentFulfillment');
+    return fulfillEventShowFromPaidOrder(order);
+  }
+  if (['fest', 'competition'].includes(order?.entityType) && order?.orderTags?.registrationDraft) {
+    const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
+    return fulfillFestCompetitionFromPaidOrder(order);
+  }
+  if (order?.entityType === 'competition_bundle') {
+    const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
+    return fulfillMindSparkBundle(order);
+  }
+  if (order?.entityType === 'sports' && order?.orderTags?.formData) {
+    const { fulfillSportsFromPaidOrder } = require('../services/sportsPaymentFulfillment');
+    return fulfillSportsFromPaidOrder(order);
+  }
+  if (order?.entityType === 'trek' && order?.orderTags?.formData) {
+    const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
+    return fulfillTrekFromPaidOrder(order);
+  }
+  return Promise.resolve();
+}
+
+/** POST /api/payment/razorpay/webhook */
+exports.handleRazorpayWebhook = async (req, res) => {
+  const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+  const signature = req.headers['x-razorpay-signature'];
+
+  try {
+    if (!verifyRazorpayWebhookSignature({ rawBody, signature })) {
+      return res.status(400).json({ success: false, message: 'Invalid webhook signature' });
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      return res.status(400).json({ success: false, message: 'Invalid JSON payload' });
+    }
+
+    const event = String(payload.event || '').toLowerCase();
+    const payment = payload.payload?.payment?.entity || {};
+    const order = payload.payload?.order?.entity || {};
+    const orderId = payment.order_id || order.id;
+    const paymentId = payment.id || null;
+
+    if (!orderId) return res.status(200).json({ success: true, ignored: true });
+
+    if (['payment.captured', 'order.paid'].includes(event)) {
+      const updated = await PaymentOrder.findOneAndUpdate(
+        { orderId, gateway: 'razorpay' },
+        { status: 'PAID', ...(paymentId ? { paymentId: String(paymentId) } : {}) },
+        { upsert: false, new: true },
+      );
+      if (updated) {
+        fulfillPaidOrder(updated).catch((err) => {
+          console.error('[razorpayWebhook] fulfillment failed:', err?.message || err);
+        });
+      }
+    } else if (event === 'payment.failed') {
+      await PaymentOrder.findOneAndUpdate(
+        { orderId, gateway: 'razorpay', status: 'PENDING' },
+        { status: 'FAILED', ...(paymentId ? { paymentId: String(paymentId) } : {}) },
+        { upsert: false },
+      );
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    if (err.code === 'RAZORPAY_WEBHOOK_SECRET_MISSING') {
+      console.error('[razorpayWebhook]', err.message);
+      return res.status(503).json({ success: false, message: 'Webhook not configured' });
+    }
+    console.error('[razorpayWebhook] error:', err?.message || err);
+    return res.status(500).json({ success: false, message: 'Webhook processing failed' });
+  }
+};
 
 /**
  * POST /api/payment/webhook

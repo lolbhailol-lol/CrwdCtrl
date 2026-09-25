@@ -12,7 +12,10 @@ const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { isDbReady } = require('./config/db');
 const { getFirebaseAdminStatus } = require('./config/firebaseAdmin');
 const apiRoutes = require('./routes');
-const { handleCashfreeWebhook } = require('./controllers/paymentWebhookController');
+const {
+  handleCashfreeWebhook,
+  handleRazorpayWebhook,
+} = require('./controllers/paymentWebhookController');
 const { handleResendWebhook } = require('./controllers/resendWebhookController');
 const whatsappWebhookRoutes = require('./routers/whatsappWebhookRoute');
 
@@ -38,6 +41,13 @@ app.post(
   '/api/payment/webhook',
   express.raw({ type: 'application/json' }),
   handleCashfreeWebhook
+);
+
+// Security: Razorpay signs the exact raw request body with the webhook secret.
+app.post(
+  '/api/payment/razorpay/webhook',
+  express.raw({ type: 'application/json' }),
+  handleRazorpayWebhook,
 );
 
 // Security: Resend webhook must receive raw body for Svix signature verification
