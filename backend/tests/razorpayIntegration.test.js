@@ -21,18 +21,22 @@ test('gateway switches accept only known providers', () => {
 test('fest and Delulu gateway switches are independent', () => {
   const previousFest = process.env.FEST_PAYMENT_GATEWAY;
   const previousDelulu = process.env.DELULU_PAYMENT_GATEWAY;
+  const previousRuns = process.env.RUNS_PAYMENT_GATEWAY;
   process.env.FEST_PAYMENT_GATEWAY = 'razorpay';
   process.env.DELULU_PAYMENT_GATEWAY = 'cashfree';
+  process.env.RUNS_PAYMENT_GATEWAY = 'razorpay';
   try {
     assert.equal(resolveCheckoutGateway({ entityType: 'competition' }), 'razorpay');
     assert.equal(resolveCheckoutGateway({ entityType: 'event_show' }), 'cashfree');
     assert.equal(resolveCheckoutGateway({ entityType: 'sports', listingHub: 'events' }), 'cashfree');
-    assert.equal(resolveCheckoutGateway({ entityType: 'sports', listingHub: 'sports' }), 'cashfree');
+    assert.equal(resolveCheckoutGateway({ entityType: 'sports', listingHub: 'sports' }), 'razorpay');
   } finally {
     if (previousFest === undefined) delete process.env.FEST_PAYMENT_GATEWAY;
     else process.env.FEST_PAYMENT_GATEWAY = previousFest;
     if (previousDelulu === undefined) delete process.env.DELULU_PAYMENT_GATEWAY;
     else process.env.DELULU_PAYMENT_GATEWAY = previousDelulu;
+    if (previousRuns === undefined) delete process.env.RUNS_PAYMENT_GATEWAY;
+    else process.env.RUNS_PAYMENT_GATEWAY = previousRuns;
   }
 });
 
