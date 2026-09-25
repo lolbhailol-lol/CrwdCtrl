@@ -32,6 +32,7 @@ const {
 const {
   createRazorpayOrder,
   verifyRazorpayPayment,
+  buildRazorpayReceipt,
   getRazorpayKeyId,
 } = require('../services/razorpayService');
 const TrekCommunity = require('../model/trek_community_model');
@@ -640,7 +641,7 @@ exports.createOrder = async (req, res) => {
       }
       const festIdForOpen = competition?.fest || festCompDraft?.festId || pricing.notes?.festId;
       if (isMindSparkFestId(festIdForOpen) && userId) {
-        const { findOpenMindSparkCheckout } = require('../utils/openMindSparkCheckout');
+        const { findOpenMindSparkCheckout, retireOpenRazorpayCheckout } = require('../utils/openMindSparkCheckout');
         const openCheckout = await findOpenMindSparkCheckout({
           festId: festIdForOpen,
           userId,
@@ -650,6 +651,10 @@ exports.createOrder = async (req, res) => {
           const sameComp = openCheckout.kind === 'website'
             && String(openCheckout.competitionId) === String(entityId);
           if (!sameComp) {
+            const switched = await retireOpenRazorpayCheckout(openCheckout);
+            if (switched.retired) {
+              // The unpaid Razorpay attempt was safely closed; continue with the new competition.
+            } else {
             return res.status(409).json({
               openPayment: true,
               kind: openCheckout.kind,
@@ -657,6 +662,7 @@ exports.createOrder = async (req, res) => {
               orderId: openCheckout.orderId,
               message: `You already have an open payment for ${openCheckout.competitionName}. Complete or cancel that payment before starting another.`,
             });
+            }
           }
         }
       }
@@ -693,7 +699,13 @@ exports.createOrder = async (req, res) => {
       ? await createRazorpayOrder({
           orderAmount: pricing.totalAmount,
           currency,
-          receipt: `${pricing.entityType}_${Date.now()}`,
+          receipt: buildRazorpayReceipt(
+            pricing.notes?.competitionName
+              || pricing.notes?.eventShowName
+              || pricing.notes?.festName
+              || pricing.entityType,
+            pricing.entityType,
+          ),
           notes: orderTags,
         })
       : await createCashfreeOrder({
@@ -1207,7 +1219,7 @@ exports.createTrekOrder = async (req, res) => {
       const order = await createRazorpayOrder({
         orderAmount: totalAmount,
         currency,
-        receipt: `trek_${canonicalTrekId}`.slice(0, 40),
+        receipt: buildRazorpayReceipt(resolvedTrekName, 'trek'),
         notes: {
           entityType: 'trek',
           trekId: canonicalTrekId,
@@ -1598,7 +1610,7 @@ exports.createSportsOrder = async (req, res) => {
       ? await createRazorpayOrder({
           orderAmount: totalAmount,
           currency,
-          receipt: `event_${Date.now()}`,
+          receipt: buildRazorpayReceipt(resolvedName, 'event'),
           notes: cashfreeOrderTags,
         })
       : await createCashfreeOrder({

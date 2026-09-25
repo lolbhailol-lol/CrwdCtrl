@@ -16,6 +16,7 @@ const {
 const {
   createRazorpayOrder,
   verifyRazorpayPayment,
+  buildRazorpayReceipt,
   getRazorpayKeyId,
 } = require('../services/razorpayService');
 const { extractPaymentFields } = require('../utils/paymentVerification');
@@ -388,7 +389,7 @@ async function createOrderForBundle(bundle, user) {
     const gatewayOrder = gateway === 'razorpay'
       ? await createRazorpayOrder({
           orderAmount: bundle.totalAmount,
-          receipt: `bundle_${Date.now()}`,
+          receipt: buildRazorpayReceipt('MindSpark Bundle', 'bundle'),
           notes: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
         })
       : await createCashfreeOrder({
@@ -459,13 +460,19 @@ exports.create = source => async (req, res) => {
       return res.json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${existing.paymentToken}`, ...await serializeWithTickets(existing, order) });
     }
     const valid = await validateItems(req.body.items);
-    const { findOpenMindSparkCheckout } = require('../utils/openMindSparkCheckout');
+    const { findOpenMindSparkCheckout, retireOpenRazorpayCheckout } = require('../utils/openMindSparkCheckout');
     const openCheckout = await findOpenMindSparkCheckout({
       festId: FEST_ID,
       userId: user._id,
       phone: user.phoneNumber,
     });
     if (openCheckout) {
+      const switched = openCheckout.kind === 'bundle'
+        ? { retired: false }
+        : await retireOpenRazorpayCheckout(openCheckout);
+      if (switched.retired) {
+        // Continue creating the requested bundle after closing the unpaid Razorpay attempt.
+      } else {
       await Promise.all(reservations.filter(Boolean).map((r) => releaseCompetitionSlot(r.token).catch(() => {})));
       if (openCheckout.kind === 'bundle' && openCheckout.paymentToken) {
         const existingBundle = await Bundle.findById(openCheckout.bundleId).select('+paymentToken');
@@ -490,6 +497,7 @@ exports.create = source => async (req, res) => {
         paymentUrl,
         message: `This person already has an open payment for ${openCheckout.competitionName}. Finish that payment before starting a bundle.`,
       });
+      }
     }
     for (const item of valid) reservations.push(await acquireCompetitionSlot({ competition: item.competition, userId: user._id }));
     const subtotal = valid.reduce((s, x) => s + x.originalAmount, 0);
@@ -610,7 +618,7 @@ exports.reissue = async (req, res) => {
     const gatewayOrder = configuredGateway === 'razorpay'
       ? await createRazorpayOrder({
           orderAmount: bundle.totalAmount,
-          receipt: `bundle_${Date.now()}`,
+          receipt: buildRazorpayReceipt('MindSpark Bundle', 'bundle'),
           notes: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
         })
       : await createCashfreeOrder({

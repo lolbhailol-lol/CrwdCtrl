@@ -556,7 +556,7 @@ export default function FestOrganizerFestDayDeskPage() {
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [activity, bundleActivity]);
 
   const refreshOrder = async (orderId) => {
-    if (!online) return toast("Internet is required to verify a Cashfree payment");
+    if (!online) return toast("Internet is required to verify a payment");
     setBusyOrder(orderId);
     try {
       const result = await refreshFestDayDeskOrder(festId, orderId);
@@ -790,6 +790,9 @@ export default function FestOrganizerFestDayDeskPage() {
                       {row.source ? (
                         <span className="uppercase tracking-wide">{row.source}</span>
                       ) : null}
+                      {row.gateway ? (
+                        <span className="uppercase tracking-wide text-[#0ECCEE]">{row.gateway}</span>
+                      ) : null}
                       <span>{formatWhen(row.createdAt)}</span>
                       {row.status !== "form_started" ? (
                         <span className="font-mono">{row.orderId}</span>
@@ -874,7 +877,7 @@ export default function FestOrganizerFestDayDeskPage() {
                           <ExternalLink size={14} /> Open entry
                         </Link>
                       ) : null}
-                      {canRefund && row.status === "paid" && !row.refundStatus ? (
+                      {canRefund && row.status === "paid" && !row.refundStatus && row.gateway !== "razorpay" ? (
                         <button
                           type="button"
                           onClick={() => refundOrder(row)}
@@ -890,7 +893,7 @@ export default function FestOrganizerFestDayDeskPage() {
               })
             ) : (
               <div className="py-14 text-center text-sm text-gray-500">
-                No matching Cashfree attempts yet.
+                No matching payment attempts yet.
               </div>
             )}
           </div>

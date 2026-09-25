@@ -7,6 +7,7 @@ const {
   verifyRazorpayWebhookSignature,
   verifyRazorpayPayment,
   toPaise,
+  buildRazorpayReceipt,
 } = require('../src/services/razorpayService');
 const {
   normalizePaymentGateway,
@@ -17,6 +18,16 @@ test('gateway switches accept only known providers', () => {
   assert.equal(normalizePaymentGateway('razorpay'), 'razorpay');
   assert.equal(normalizePaymentGateway('CASHFREE'), 'cashfree');
   assert.equal(normalizePaymentGateway('unknown'), 'cashfree');
+});
+
+test('Razorpay receipt includes a readable competition name and stays within 40 chars', () => {
+  const receipt = buildRazorpayReceipt('Game of Innovation – Software Edition', 'competition');
+  assert.match(receipt, /^Game_of_Innovation_Software/);
+  assert.ok(receipt.length <= 40);
+  assert.notEqual(
+    buildRazorpayReceipt('Game of Innovation', 'competition'),
+    buildRazorpayReceipt('Game of Innovation', 'competition'),
+  );
 });
 
 test('Razorpay webhook signature verifies the exact raw request body', () => {

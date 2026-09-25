@@ -7,6 +7,9 @@ const { normalizeUsername, organizerCanAccessFest, getOrganizerFests } = require
 const { MINDSPARK_FEST_ID } = require('../modules/fest/plugins/mindspark');
 const { syncSettlements, autoSyncDashboardSettlements } = require('../services/cashfreeSettlementSync');
 const { getPaymentSummary, getPaymentHistory, exportPaymentCsv } = require('../services/paymentSettlementService');
+const PaymentOrder = require('../model/payment_order_model');
+const MindSparkBundle = require('../model/mindspark_bundle_model');
+const Competition = require('../model/competition_model');
 
 const TOKEN_TTL = '7d';
 const BUCKET = 'mindspark';
@@ -46,6 +49,48 @@ function scopeSummaryToMindspark(summary) {
             touchGrass: undefined,
         },
         payouts: (summary.payouts || []).filter((p) => p.bucket === BUCKET),
+    };
+}
+
+async function getRazorpayMindSparkActivity() {
+    const [competitions, bundles] = await Promise.all([
+        Competition.find({ fest: MINDSPARK_FEST_ID }).select('_id name').lean(),
+        MindSparkBundle.find({ fest: MINDSPARK_FEST_ID }).select('_id').lean(),
+    ]);
+    const competitionNameById = new Map(competitions.map((row) => [String(row._id), row.name]));
+    const orders = await PaymentOrder.find({
+        gateway: 'razorpay',
+        status: 'PAID',
+        $or: [
+            { entityType: 'competition', entityId: { $in: competitions.map((row) => row._id) } },
+            { entityType: 'competition_bundle', entityId: { $in: bundles.map((row) => row._id) } },
+            { entityType: 'fest', entityId: MINDSPARK_FEST_ID },
+        ],
+    })
+        .sort({ updatedAt: -1 })
+        .limit(200)
+        .select('orderId paymentId entityType entityId totalAmount customerEmail orderTags createdAt updatedAt')
+        .lean();
+
+    const rows = orders.map((order) => ({
+        orderId: order.orderId,
+        paymentId: order.paymentId || '',
+        gateway: 'razorpay',
+        status: 'paid',
+        eventName: order.entityType === 'competition_bundle'
+            ? 'MindSpark Bundle'
+            : competitionNameById.get(String(order.entityId))
+                || order.orderTags?.competitionName
+                || order.orderTags?.festName
+                || 'MindSpark',
+        amount: Number(order.totalAmount) || 0,
+        customerEmail: order.customerEmail || '',
+        paidAt: order.updatedAt || order.createdAt,
+    }));
+    return {
+        count: rows.length,
+        totalCollected: rows.reduce((sum, row) => sum + row.amount, 0),
+        rows,
     };
 }
 
@@ -143,8 +188,11 @@ exports.getMe = async (req, res) => {
 
 exports.getSummary = async (req, res) => {
     try {
-        const summary = await getPaymentSummary();
-        res.json({ success: true, ...scopeSummaryToMindspark(summary) });
+        const [summary, razorpay] = await Promise.all([
+            getPaymentSummary(),
+            getRazorpayMindSparkActivity(),
+        ]);
+        res.json({ success: true, ...scopeSummaryToMindspark(summary), razorpay });
     } catch (err) {
         console.error('[mindsparkPayments] summary', err);
         res.status(500).json({ success: false, message: 'Failed to load payment summary' });

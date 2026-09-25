@@ -38,6 +38,16 @@ function toPaise(amountRupees) {
   return Math.round(Number(amountRupees) * 100);
 }
 
+function buildRazorpayReceipt(name, prefix = 'payment') {
+  const suffix = `${Date.now().toString(36)}${crypto.randomBytes(2).toString('hex')}`;
+  const safeName = String(name || prefix)
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || prefix;
+  const available = Math.max(1, 40 - suffix.length - 1);
+  return `${safeName.slice(0, available)}_${suffix}`.slice(0, 40);
+}
+
 /**
  * Create a Razorpay order for trek checkout (organizer merchant account).
  * @returns {{ order_id: string, amount: number, currency: string, amount_rupees: number }}
@@ -303,4 +313,5 @@ module.exports = {
   fetchRazorpayOrder,
   fetchRazorpayPayment,
   toPaise,
+  buildRazorpayReceipt,
 };

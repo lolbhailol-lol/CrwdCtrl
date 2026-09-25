@@ -2915,7 +2915,7 @@ exports.createManualParticipant = async (req, res) => {
     }
 };
 
-/** MindSpark day-of desk: competition catalogue plus recent Cashfree attempts. */
+/** MindSpark day-of desk: competition catalogue plus recent payment attempts. */
 exports.getFestDayDesk = async (req, res) => {
     try {
         if (!requireMindSparkDesk(req, res)) return;
@@ -3064,6 +3064,7 @@ exports.getFestDayDesk = async (req, res) => {
                 status,
                 source,
                 amount: Number(order.totalAmount) || 0,
+                gateway: order.gateway === 'razorpay' ? 'razorpay' : 'cashfree',
                 competitionId,
                 competitionName: competition?.name || order.orderTags?.competitionName || 'Competition',
                 participantName: user?.name || draftIdentity.name || 'Participant',
@@ -3183,11 +3184,16 @@ exports.refreshFestDayDeskOrder = async (req, res) => {
             if (!competition) return res.status(403).json({ success: false, message: 'Order does not belong to this fest' });
         }
 
-        const result = await verifyCashfreePayment({
-            orderId,
-            paymentId: order.paymentId || undefined,
-            merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
-        });
+        const result = order.gateway === 'razorpay'
+            ? await require('../services/razorpayService').verifyRazorpayPayment({
+                orderId,
+                paymentId: order.paymentId || undefined,
+            })
+            : await verifyCashfreePayment({
+                orderId,
+                paymentId: order.paymentId || undefined,
+                merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
+            });
         let fulfillment = null;
         if (result.verified) {
             order.status = 'PAID';
@@ -3249,6 +3255,12 @@ exports.refundFestDayDeskOrder = async (req, res) => {
         const orderId = String(req.params.orderId || '').trim();
         const order = await PaymentOrder.findOne({ orderId, entityType: { $in: ['competition', 'competition_bundle'] }, status: 'PAID' });
         if (!order) return res.status(404).json({ success: false, message: 'Paid order not found' });
+        if (order.gateway === 'razorpay') {
+            return res.status(400).json({
+                success: false,
+                message: 'Razorpay refunds must be started from the Razorpay dashboard.',
+            });
+        }
         if (order.entityType === 'competition_bundle') {
             const MindSparkBundle = require('../model/mindspark_bundle_model');
             const bundle = await MindSparkBundle.findOne({ _id: order.entityId, fest: req.festId }).select('_id').lean();

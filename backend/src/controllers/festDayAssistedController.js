@@ -282,6 +282,11 @@ exports.createAssistedRegistration = async (req, res) => {
           });
         }
       }
+      const { retireOpenRazorpayCheckout } = require('../utils/openMindSparkCheckout');
+      const switched = await retireOpenRazorpayCheckout(openCheckout);
+      if (switched.retired) {
+        // Continue with the requested competition after closing the unpaid Razorpay attempt.
+      } else {
       const paymentUrl = openCheckout.kind === 'bundle' && openCheckout.paymentToken
         ? `${FRONTEND()}/mindspark/bundle-pay/${openCheckout.paymentToken}`
         : openCheckout.kind === 'desk' && openCheckout.paymentToken
@@ -299,6 +304,7 @@ exports.createAssistedRegistration = async (req, res) => {
         amount: openCheckout.amount,
         message: `This person already has an open ${openCheckout.kind === 'bundle' ? 'bundle' : ''} payment QR for ${openCheckout.competitionName}. Finish that payment (or wait for it to expire) before starting another.`,
       });
+      }
     }
 
     const rosterMembers = [

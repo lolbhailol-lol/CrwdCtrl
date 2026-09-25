@@ -33,6 +33,61 @@ async function retireLegacyMindSparkOrder(order) {
   }
 }
 
+async function retireOpenRazorpayCheckout(openCheckout) {
+  if (!openCheckout?.orderId) return { retired: false };
+  const order = await PaymentOrder.findOne({ orderId: openCheckout.orderId });
+  if (!order || order.gateway !== 'razorpay' || order.status !== 'PENDING') {
+    return { retired: false };
+  }
+
+  const { verifyRazorpayPayment } = require('../services/razorpayService');
+  const verified = await verifyRazorpayPayment({ orderId: order.orderId });
+  if (verified.verified) {
+    order.status = 'PAID';
+    order.paymentId = verified.paymentId || order.paymentId;
+    await order.save();
+    if (order.entityType === 'competition_bundle') {
+      const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
+      await fulfillMindSparkBundle(order);
+    } else if (order.entityType === 'competition') {
+      const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
+      await fulfillFestCompetitionFromPaidOrder(order);
+    }
+    return { retired: false, paid: true };
+  }
+  if (verified.retryable === false && verified.status === 'failed') {
+    order.status = 'FAILED';
+  } else if (verified.code === 'NETWORK_ERROR') {
+    return { retired: false, retryable: true };
+  } else {
+    order.status = 'EXPIRED';
+  }
+  order.orderTags = { ...(order.orderTags || {}), retired: true };
+  await order.save();
+
+  const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+  if (order.entityType === 'competition_bundle') {
+    const Bundle = require('../model/mindspark_bundle_model');
+    const bundle = await Bundle.findById(order.entityId);
+    if (bundle) {
+      await Promise.all((bundle.items || [])
+        .map((item) => item.reservationToken)
+        .filter(Boolean)
+        .map((token) => releaseCompetitionSlot(token).catch(() => {})));
+      bundle.status = 'expired';
+      await bundle.save().catch(() => {});
+    }
+  } else if (order.orderTags?.slotReservationToken) {
+    await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});
+  }
+  const DeskEntry = require('../model/fest_day_assisted_registration_model');
+  await DeskEntry.updateMany(
+    { paymentOrderId: order.orderId, status: 'pending' },
+    { $set: { status: 'expired' } },
+  ).catch(() => {});
+  return { retired: true };
+}
+
 /**
  * One active Cashfree checkout per person on MindSpark.
  * Returns the open desk/bundle/website payment if any.
@@ -180,4 +235,5 @@ module.exports = {
   isFreshPending,
   isLegacyMindSparkMerchant,
   findOpenMindSparkCheckout,
+  retireOpenRazorpayCheckout,
 };

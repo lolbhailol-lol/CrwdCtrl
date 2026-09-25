@@ -465,7 +465,7 @@ export default function MindSparkPaymentsPage() {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
           <div className="bg-[#111213] border border-gray-800 rounded-xl p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wider">1. Payment</div>
-            <p className="text-white font-medium mt-1">Cashfree success</p>
+            <p className="text-white font-medium mt-1">Cashfree or Razorpay success</p>
           </div>
           <div className="bg-[#111213] border border-gray-800 rounded-xl p-4">
             <div className="text-xs text-gray-500 uppercase tracking-wider">2. Expected in bank</div>
@@ -545,6 +545,31 @@ export default function MindSparkPaymentsPage() {
             hint={`${viewTotals.alreadyPaidCount || 0} payment${Number(viewTotals.alreadyPaidCount) === 1 ? '' : 's'}`}
           />
         </div>
+
+        <section className="space-y-3 min-w-0">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold">Razorpay live payments</h2>
+              <p className="text-xs text-gray-500">Verified MindSpark payments, including bundles</p>
+            </div>
+            <div className="text-right">
+              <div className="text-xl font-bold text-white">{formatINR(summary?.razorpay?.totalCollected)}</div>
+              <div className="text-xs text-gray-500">{summary?.razorpay?.count || 0} successful payments</div>
+            </div>
+          </div>
+          <SimpleTable
+            empty="No Razorpay MindSpark payments yet"
+            columns={[
+              { key: 'paidAt', label: 'Paid at', render: (row) => formatDate(row.paidAt) },
+              { key: 'eventName', label: 'Competition / bundle' },
+              { key: 'orderId', label: 'Order', render: (row) => <MonoId value={row.orderId} /> },
+              { key: 'paymentId', label: 'Payment', render: (row) => <MonoId value={row.paymentId} /> },
+              { key: 'amount', label: 'Amount', render: (row) => formatINR(row.amount) },
+              { key: 'status', label: 'Status', render: () => <StatusPill value="paid" label="Paid" /> },
+            ]}
+            rows={summary?.razorpay?.rows || []}
+          />
+        </section>
 
         <section ref={txSectionRef} className="space-y-3 min-w-0 scroll-mt-4">
           <div className="flex flex-col gap-3">
