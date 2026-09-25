@@ -53,7 +53,7 @@ export default function PaymentErrorModal({
 
                 <h3 className="text-lg font-semibold text-center">Payment unsuccessful</h3>
                 <p className={`text-sm text-center mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    {message || 'Your payment didn’t go through. Please try again.'}
+                    {message || 'Your payment didn’t go through. Please try again — do not start a second payment.'}
                 </p>
 
                 <div className="flex flex-col gap-3 mt-5">
@@ -74,7 +74,7 @@ export default function PaymentErrorModal({
                         }`}
                     >
                         <LifeBuoy className="w-4 h-4" />
-                        Contact support
+                        Email if still stuck
                     </a>
                 </div>
             </div>

@@ -1087,6 +1087,31 @@ export default function CompetitionRegistration() {
 
                 if (!orderRes.ok) {
                     const orderErr = await orderRes.json().catch(() => ({}));
+                    if (orderRes.status === 409 && orderErr.alreadyRegistered && orderErr.registrationId) {
+                        setCompletingPayment(false);
+                        setSubmitting(false);
+                        setSubmissionProgress('');
+                        setNotice('You are already registered. Opening your ticket…');
+                        navigate(`/qr-ticket/${orderErr.registrationId}`, { replace: true });
+                        return;
+                    }
+                    if (orderRes.status === 409 && orderErr.openPayment) {
+                        setCompletingPayment(false);
+                        setSubmitting(false);
+                        setSubmissionProgress('');
+                        if (orderErr.paymentUrl) {
+                            window.location.assign(orderErr.paymentUrl);
+                            return;
+                        }
+                        retryCheckoutRef.current = () => handleSubmit();
+                        setPaymentModal({
+                            open: true,
+                            message: orderErr.message
+                                || 'You already have an open payment. Tap Retry payment to continue it — do not pay twice.',
+                            orderId: orderErr.orderId || '',
+                        });
+                        return;
+                    }
                     throw new Error(orderErr.message || 'Failed to create payment order. Please try again.');
                 }
 

@@ -1,6 +1,6 @@
 const PaymentOrder = require('../model/payment_order_model');
 
-const PENDING_ORDER_WINDOW_MS = 10 * 60 * 1000;
+const PENDING_ORDER_WINDOW_MS = 30 * 60 * 1000;
 
 /** Mapped Cashfree statuses that can still complete on the same session. */
 function shouldReuseMappedStatus(mapped) {

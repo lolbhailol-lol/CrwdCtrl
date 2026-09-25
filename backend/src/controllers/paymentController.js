@@ -650,19 +650,70 @@ exports.createOrder = async (req, res) => {
         if (openCheckout) {
           const sameComp = openCheckout.kind === 'website'
             && String(openCheckout.competitionId) === String(entityId);
-          if (!sameComp) {
-            const switched = await retireOpenRazorpayCheckout(openCheckout);
-            if (switched.retired) {
-              // The unpaid Razorpay attempt was safely closed; continue with the new competition.
-            } else {
+
+          // Same competition: always reuse the open order — never open a second charge.
+          if (sameComp && openCheckout.orderId) {
+            const openOrder = await PaymentOrder.findOne({ orderId: openCheckout.orderId });
+            if (openOrder && String(openOrder.status || '').toUpperCase() === 'PENDING') {
+              if (registrationDraft) {
+                const nextTags = {
+                  ...(openOrder.orderTags || {}),
+                  registrationDraft: {
+                    ...festCompDraft,
+                    festId: String(festIdForOpen || festCompDraft?.festId || ''),
+                    competitionId: String(entityId || festCompDraft?.competitionId || ''),
+                  },
+                };
+                await PaymentOrder.updateOne(
+                  { _id: openOrder._id },
+                  { $set: { orderTags: nextTags } },
+                ).catch(() => {});
+                openOrder.orderTags = nextTags;
+              }
+              return res.json({
+                ...buildOrderResponse(openOrder),
+                ...(checkoutGateway === 'razorpay'
+                  ? { keyId: getRazorpayKeyId() }
+                  : {
+                      cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
+                      cashfreeMerchant,
+                    }),
+              });
+            }
+          }
+
+          const switched = await retireOpenRazorpayCheckout(openCheckout);
+          if (switched.paid) {
+            const paidOrder = await PaymentOrder.findOne({ orderId: openCheckout.orderId });
+            if (paidOrder) {
+              return res.json({
+                ...buildOrderResponse(paidOrder),
+                alreadyPaidAtGateway: true,
+                ...(checkoutGateway === 'razorpay'
+                  ? { keyId: getRazorpayKeyId() }
+                  : {
+                      cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
+                      cashfreeMerchant,
+                    }),
+              });
+            }
+          }
+          if (!switched.retired) {
+            const paymentUrl = openCheckout.kind === 'desk' && openCheckout.paymentToken
+              ? `${String(process.env.PRODUCTION_FRONTEND_URL || process.env.PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '')}/desk-payment/${openCheckout.paymentToken}`
+              : openCheckout.kind === 'bundle' && openCheckout.paymentToken
+                ? `${String(process.env.PRODUCTION_FRONTEND_URL || process.env.PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '')}/mindspark/bundle-pay/${openCheckout.paymentToken}`
+                : null;
             return res.status(409).json({
               openPayment: true,
               kind: openCheckout.kind,
               competitionName: openCheckout.competitionName,
               orderId: openCheckout.orderId,
-              message: `You already have an open payment for ${openCheckout.competitionName}. Complete or cancel that payment before starting another.`,
+              paymentUrl,
+              message: paymentUrl
+                ? `You already have an open payment for ${openCheckout.competitionName}. Open that payment to finish — do not start a new one.`
+                : `You already have an open payment for ${openCheckout.competitionName}. Tap Retry to continue that payment — do not pay twice.`,
             });
-            }
           }
         }
       }
@@ -716,6 +767,27 @@ exports.createOrder = async (req, res) => {
           orderTags,
           merchant: cashfreeMerchant,
         });
+
+    // Amount/coupon changed: retire older pending QRs for this person+competition so they can't pay twice.
+    if (pricing.entityType === 'competition' && userId && entityId) {
+      const stale = await PaymentOrder.find({
+        entityType: 'competition',
+        entityId,
+        userId,
+        status: 'PENDING',
+        orderId: { $ne: order.order_id },
+      }).select('orderId orderTags').lean();
+      for (const row of stale) {
+        await PaymentOrder.updateOne(
+          { orderId: row.orderId, status: 'PENDING' },
+          { $set: { status: 'EXPIRED', 'orderTags.retired': true } },
+        ).catch(() => {});
+        if (row.orderTags?.slotReservationToken) {
+          const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+          await releaseCompetitionSlot(row.orderTags.slotReservationToken).catch(() => {});
+        }
+      }
+    }
 
     if (entityId) {
       const mongoOrderTags = {

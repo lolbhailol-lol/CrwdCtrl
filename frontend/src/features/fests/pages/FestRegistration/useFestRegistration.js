@@ -1623,6 +1623,23 @@ export default function useFestRegistration() {
         }
         if (!orderRes.ok) {
           const orderErr = await orderRes.json().catch(() => ({}));
+          if (orderRes.status === 409 && orderErr.alreadyRegistered && orderErr.registrationId) {
+            navigate(`/qr-ticket/${orderErr.registrationId}`, { replace: true });
+            return;
+          }
+          if (orderRes.status === 409 && orderErr.openPayment) {
+            if (orderErr.paymentUrl) {
+              window.location.assign(orderErr.paymentUrl);
+              return;
+            }
+            setPaymentModal({
+              open: true,
+              message: orderErr.message
+                || 'You already have an open payment. Tap Retry payment to continue it — do not pay twice.',
+              orderId: orderErr.orderId || '',
+            });
+            return;
+          }
           throw new Error(orderErr.message || 'Could not create payment order. Please try again.');
         }
         const orderRaw = await orderRes.text();
@@ -2071,6 +2088,23 @@ export default function useFestRegistration() {
       }
       if (!orderRes.ok) {
         const orderErr = await orderRes.json().catch(() => ({}));
+        if (orderRes.status === 409 && orderErr.alreadyRegistered && orderErr.registrationId) {
+          navigate(`/qr-ticket/${orderErr.registrationId}`, { replace: true });
+          return;
+        }
+        if (orderRes.status === 409 && orderErr.openPayment) {
+          if (orderErr.paymentUrl) {
+            window.location.assign(orderErr.paymentUrl);
+            return;
+          }
+          setPaymentModal({
+            open: true,
+            message: orderErr.message
+              || 'You already have an open payment. Tap Retry payment to continue it — do not pay twice.',
+            orderId: orderErr.orderId || '',
+          });
+          return;
+        }
         throw new Error(orderErr.message || 'Could not create payment order. Please try again.');
       }
       const orderRaw = await orderRes.text();

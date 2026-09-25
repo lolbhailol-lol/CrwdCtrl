@@ -9,7 +9,6 @@ function isFreshPending(order) {
   if (!order) return false;
   if (String(order.status || '').toUpperCase() !== 'PENDING') return false;
   if (order.orderTags?.retired) return false;
-  if (order.gateway !== 'razorpay' && (order.cashfreeMerchant || 'platform') !== 'events') return false;
   const age = Date.now() - new Date(order.createdAt || 0).getTime();
   return age < OPEN_TTL_MS;
 }

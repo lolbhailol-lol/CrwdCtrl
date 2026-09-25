@@ -198,7 +198,8 @@ export async function runCashfreeCheckoutAndVerify({
 
     return {
         status: 'verify_failed',
-        message: verifiedPayload?.message || 'Payment verification failed. Contact support.',
+        message: verifiedPayload?.message
+            || 'Payment is still confirming. Wait a moment and check My Bookings — do not pay again.',
     };
 }
 

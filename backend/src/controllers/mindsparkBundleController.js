@@ -470,6 +470,34 @@ exports.create = source => async (req, res) => {
       const switched = openCheckout.kind === 'bundle'
         ? { retired: false }
         : await retireOpenRazorpayCheckout(openCheckout);
+      if (switched.paid) {
+        await Promise.all(reservations.filter(Boolean).map((r) => releaseCompetitionSlot(r.token).catch(() => {})));
+        if (openCheckout.kind === 'bundle' && openCheckout.paymentToken) {
+          const existingBundle = await Bundle.findById(openCheckout.bundleId).select('+paymentToken');
+          const order = await PaymentOrder.findOne({ orderId: openCheckout.orderId });
+          return res.json({
+            success: true,
+            reused: true,
+            alreadyPaidAtGateway: true,
+            message: 'Previous payment already went through — opening your tickets.',
+            paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${openCheckout.paymentToken}`,
+            ...await serializeWithTickets(existingBundle, order),
+          });
+        }
+        const paymentUrl = openCheckout.kind === 'desk' && openCheckout.paymentToken
+          ? `${FRONTEND()}/desk-payment/${openCheckout.paymentToken}`
+          : null;
+        return res.status(409).json({
+          success: false,
+          openPayment: true,
+          alreadyPaidAtGateway: true,
+          kind: openCheckout.kind,
+          competitionName: openCheckout.competitionName,
+          orderId: openCheckout.orderId,
+          paymentUrl,
+          message: `Payment for ${openCheckout.competitionName} already went through. Open that ticket — do not pay again.`,
+        });
+      }
       if (switched.retired) {
         // Continue creating the requested bundle after closing the unpaid Razorpay attempt.
       } else {
@@ -495,7 +523,9 @@ exports.create = source => async (req, res) => {
         competitionName: openCheckout.competitionName,
         orderId: openCheckout.orderId,
         paymentUrl,
-        message: `This person already has an open payment for ${openCheckout.competitionName}. Finish that payment before starting a bundle.`,
+        message: paymentUrl
+          ? `This person already has an open payment for ${openCheckout.competitionName}. Open that payment QR — do not start another.`
+          : `This person already has an open payment for ${openCheckout.competitionName}. Finish that payment before starting a bundle.`,
       });
       }
     }

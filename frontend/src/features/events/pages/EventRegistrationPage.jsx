@@ -1401,7 +1401,7 @@ export default function EventRegistrationPage() {
                 setDone(true);
                 setPaying(false);
             } else {
-                setError(v.message || 'Payment verification failed. Contact support.');
+                setError(v.message || 'Payment is still confirming. Check My Bookings — do not pay again.');
                 setPaying(false);
             }
         } catch (e) {
