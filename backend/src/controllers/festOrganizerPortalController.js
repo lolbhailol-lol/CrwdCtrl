@@ -1042,7 +1042,9 @@ exports.getDashboard = async (req, res) => {
                 grossCollected = Number(override.grossCollected) || 0;
                 gatewayFees = Math.round(grossCollected * Number(override.gatewayFeeRate || 0) * 100) / 100;
                 additionalDeduction = Number(override.additionalDeduction) || 0;
-                revenue = Math.round((grossCollected - gatewayFees - additionalDeduction) * 100) / 100;
+                revenue = override.revenue != null
+                    ? Number(override.revenue) || 0
+                    : Math.round((grossCollected - gatewayFees - additionalDeduction) * 100) / 100;
             }
         }
 

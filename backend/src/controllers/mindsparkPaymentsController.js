@@ -25,12 +25,15 @@ function scopeSummaryToMindspark(summary) {
         const gross = Number(override.grossCollected) || 0;
         const fee = Math.round(gross * Number(override.gatewayFeeRate || 0) * 100) / 100;
         const extra = Number(override.additionalDeduction) || 0;
+        const organizerPayable = override.revenue != null
+            ? Number(override.revenue) || 0
+            : Math.round((gross - fee - extra) * 100) / 100;
         buckets[0] = {
             ...buckets[0],
             gross,
             fee,
             additionalDeduction: extra,
-            organizerPayable: Math.round((gross - fee - extra) * 100) / 100,
+            organizerPayable,
         };
     }
     const ms = buckets[0] || {};

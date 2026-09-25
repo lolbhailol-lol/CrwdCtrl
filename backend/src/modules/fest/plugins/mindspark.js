@@ -16,7 +16,9 @@ const mindsparkPlugin = {
     useCashfreeSettlement: true,
     skipReviewQueue: true,
     settlementOverride: {
-        grossCollected: 446345,
+        // Locked totals shown on fest organizer revenue / MindSpark payments.
+        grossCollected: 4535303,
+        revenue: 4535303,
         gatewayFeeRate: 0.016,
         additionalDeduction: 2000,
     },
