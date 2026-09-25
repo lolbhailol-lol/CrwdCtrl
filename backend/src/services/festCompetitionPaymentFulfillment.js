@@ -304,6 +304,7 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
             registrationId: persistedRegistration._id,
           },
           whatsapp: {
+            trackingRegistrationId: persistedRegistration._id,
             name: user?.name,
             user,
             responses: persistedRegistration.responses,

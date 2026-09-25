@@ -8,6 +8,7 @@ const FestOrganizer = require('../model/fest_organizer_model');
 const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
 const { acquireCompetitionSlot, releaseCompetitionSlot } = require('./competitionSlotReservationService');
 const { cashfreeSettlementFields } = require('../utils/cashfreeGatewayFee');
+const { sendBookingConfirmedWhatsApp } = require('../utils/bookingWhatsApp');
 
 const LOCK_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -32,7 +33,7 @@ async function markReview(bundleId, message) {
   return { ok: false, error: message, paidReview: true };
 }
 
-async function buildMindSparkBundleEmailItems(bundle) {
+async function buildMindSparkBundleConfirmationItems(bundle) {
   const competitionIds = bundle.items.map((item) => item.competitionId).filter(Boolean);
   const [fest, competitions] = await Promise.all([
     FestOrganizer.findById(bundle.fest).select('registration.whatsappCommunityLink').lean(),
@@ -72,12 +73,43 @@ async function deliverMindSparkBundleConfirmationEmail(bundle, user, { resend = 
     name: user?.name,
     bundleId: String(bundle._id),
     paymentToken: bundle.paymentToken,
-    items: await buildMindSparkBundleEmailItems(bundle),
+    items: await buildMindSparkBundleConfirmationItems(bundle),
     resend,
     userId: user?._id || user?.id,
     fest,
   });
   return { sent: true, email };
+}
+
+async function sendBundleWhatsAppOnce(bundleId) {
+  const claimed = await Bundle.findOneAndUpdate(
+    { _id: bundleId, status: 'paid', confirmationWhatsAppSentAt: null },
+    { $set: { confirmationWhatsAppSentAt: new Date() } },
+    { new: true },
+  ).populate('user', 'name phoneNumber phone');
+  if (!claimed) return { sent: false, reason: 'already_sent_or_not_paid' };
+
+  const firstTicket = claimed.items?.find((item) => item.registrationId);
+  if (!firstTicket) {
+    await Bundle.updateOne({ _id: bundleId }, { $set: { confirmationWhatsAppSentAt: null } }).catch(() => {});
+    return { sent: false, reason: 'incomplete_registrations' };
+  }
+
+  const fest = await FestOrganizer.findById(claimed.fest).select('festName festDate startDate').lean();
+  const result = await sendBookingConfirmedWhatsApp({
+    user: claimed.user,
+    responses: firstTicket.roster,
+    name: claimed.user?.name || firstTicket.roster?.full_name,
+    eventName: `${fest?.festName || 'MindSpark'} bundle`,
+    bookingId: firstTicket.registrationId,
+    date: fest?.festDate || fest?.startDate || '',
+    amount: claimed.totalAmount,
+  });
+  if (!result?.success) {
+    await Bundle.updateOne({ _id: bundleId }, { $set: { confirmationWhatsAppSentAt: null } }).catch(() => {});
+    return { sent: false, reason: result?.error || 'send_failed' };
+  }
+  return { sent: true };
 }
 
 async function sendBundleEmailOnce(bundleId) {
@@ -119,6 +151,7 @@ async function fulfillMindSparkBundle(paymentOrder) {
   }
   if (current.status === 'paid' && current.items.every((item) => item.registrationId)) {
     sendBundleEmailOnce(current._id).catch(() => {});
+    sendBundleWhatsAppOnce(current._id).catch(() => {});
     return { ok: true, issued: true, registrationIds: current.items.map((item) => item.registrationId) };
   }
 
@@ -231,11 +264,14 @@ async function fulfillMindSparkBundle(paymentOrder) {
 
   await Promise.all(claimed.items.map((item) => item.reservationToken).filter(Boolean).map((token) => releaseCompetitionSlot(token).catch(() => {})));
   sendBundleEmailOnce(claimed._id).catch(() => {});
+  sendBundleWhatsAppOnce(claimed._id).catch(() => {});
   return { ok: true, issued: true, registrationIds: registrations.map((registration) => registration._id) };
 }
 
 module.exports = {
   allocate,
   fulfillMindSparkBundle,
+  buildMindSparkBundleConfirmationItems,
   resendMindSparkBundleConfirmationEmail,
+  sendBundleWhatsAppOnce,
 };

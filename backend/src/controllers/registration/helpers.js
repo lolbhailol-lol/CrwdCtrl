@@ -84,9 +84,17 @@ function scheduleRegistrationNotification(userId, payload) {
   });
 
   if (payload?.whatsapp) {
+    const { trackingRegistrationId, ...whatsappPayload } = payload.whatsapp;
     scheduleBookingConfirmedWhatsApp({
       userId,
-      ...payload.whatsapp,
+      ...whatsappPayload,
+    }).then((result) => {
+      if (!trackingRegistrationId || !result?.success) return;
+      const Registration = require('../../model/registration_model');
+      Registration.updateOne(
+        { _id: trackingRegistrationId },
+        { $set: { confirmationWhatsAppSentAt: new Date() } },
+      ).catch((error) => logger.error('❌ WhatsApp confirmation tracking error:', error.message));
     });
   }
 }

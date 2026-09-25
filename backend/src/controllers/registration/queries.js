@@ -301,6 +301,27 @@ const getRegistrationDetails = async (req, res) => {
       );
     }
 
+    const festWhatsApp = String(payload.fest?.registration?.whatsappCommunityLink || '').trim();
+    payload.whatsappGroupLink = String(
+      payload.competitionId?.registration?.whatsappGroupLink || festWhatsApp,
+    ).trim();
+    const bundleId = String(payload.responses?.mindspark_bundle_id || '').trim();
+    payload.bundleGroups = [];
+    if (bundleId) {
+      const Bundle = require('../../model/mindspark_bundle_model');
+      const { buildMindSparkBundleConfirmationItems } = require('../../services/mindsparkBundleService');
+      const bundle = await Bundle.findOne({ _id: bundleId, user: userId, status: 'paid' }).lean();
+      if (bundle) {
+        payload.bundleGroups = (await buildMindSparkBundleConfirmationItems(bundle))
+          .filter((item) => item.whatsappGroupLink)
+          .map((item) => ({
+            competitionName: item.competitionName,
+            registrationId: item.registrationId,
+            whatsappGroupLink: item.whatsappGroupLink,
+          }));
+      }
+    }
+
     res.json(payload);
 
   } catch (error) {

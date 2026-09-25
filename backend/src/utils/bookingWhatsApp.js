@@ -171,12 +171,17 @@ async function sendBookingConfirmedWhatsAppForUserId(userId, payload = {}) {
 }
 
 function scheduleBookingConfirmedWhatsApp(payload = {}) {
-  setImmediate(() => {
-    const run = payload.userId && !payload.phone && !payload.user?.phoneNumber
-      ? sendBookingConfirmedWhatsAppForUserId(payload.userId, payload)
-      : sendBookingConfirmedWhatsApp(payload);
-    Promise.resolve(run).catch((err) => {
-      console.error('[whatsapp] booking schedule error:', err.message);
+  return new Promise((resolve) => {
+    setImmediate(async () => {
+      try {
+        const result = payload.userId && !payload.phone && !payload.user?.phoneNumber
+          ? await sendBookingConfirmedWhatsAppForUserId(payload.userId, payload)
+          : await sendBookingConfirmedWhatsApp(payload);
+        resolve(result);
+      } catch (err) {
+        console.error('[whatsapp] booking schedule error:', err.message);
+        resolve({ success: false, error: err.message });
+      }
     });
   });
 }

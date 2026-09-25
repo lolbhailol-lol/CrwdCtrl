@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin, Users, CalendarPlus } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Ticket, CalendarDays, MapPin, Users, CalendarPlus, MessageCircle } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import LocalQRCode from '../../components/LocalQRCode';
 import StallCouponCard from '../../components/StallCouponCard';
@@ -16,6 +16,7 @@ import { signalDetailPageReady } from '../../utils/bootSplash';
 import AuditoriumTicketPass, {
   ensureAuditoriumFonts,
 } from '../../features/fests/mindspark/AuditoriumTicketPass';
+import JoinCommunityButton from '../../components/JoinCommunityButton';
 
 const ticketCacheKey = (type, id) => `crwdctrl_ticket_${type || 'fest'}_${id}`;
 
@@ -300,6 +301,14 @@ export default function QRTicketPage() {
           ? 'Event Ticket'
           : 'Event Ticket';
   const formattedDate = formatTicketDate(ticket.festDate);
+  const whatsappGroups = Array.isArray(ticket.bundleGroups) && ticket.bundleGroups.length
+    ? ticket.bundleGroups
+    : ticket.whatsappGroupLink
+      ? [{
+          competitionName: ticket.competitionName || eventTitle,
+          whatsappGroupLink: ticket.whatsappGroupLink,
+        }]
+      : [];
 
   const calendarUrl = ticket.festDate
     ? buildGoogleCalendarUrl({
@@ -490,6 +499,27 @@ export default function QRTicketPage() {
             </p>
           </div>
         </div>
+
+        {whatsappGroups.length ? (
+          <div className={`mt-4 rounded-2xl border p-4 ${isDark ? 'border-emerald-400/20 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50'}`}>
+            <div className="mb-3 flex items-center gap-2">
+              <MessageCircle size={18} className="text-[#25D366]" />
+              <h2 className={`font-semibold ${titleClass}`}>
+                {whatsappGroups.length > 1 ? 'Join your competition groups' : 'Join the competition group'}
+              </h2>
+            </div>
+            <div className="space-y-2">
+              {whatsappGroups.map((group) => (
+                <JoinCommunityButton
+                  key={`${group.competitionName}-${group.whatsappGroupLink}`}
+                  groupLink={group.whatsappGroupLink}
+                  label={whatsappGroups.length > 1 ? `Join ${group.competitionName}` : 'Join WhatsApp group'}
+                  className="w-full bg-[#25D366] text-black hover:opacity-90"
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {/* Competition tickets only — stall offer sits outside the ticket card */}
         {!isTrekTicket && !isSportsTicket && !isEventTicket && !isAuditoriumTicket

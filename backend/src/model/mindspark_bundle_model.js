@@ -23,6 +23,7 @@ const schema = new mongoose.Schema({
   fulfillmentState: { type: String, enum: ['idle', 'processing', 'complete', 'review'], default: 'idle', index: true },
   fulfillmentStartedAt: { type: Date, default: null },
   confirmationEmailSentAt: { type: Date, default: null },
+  confirmationWhatsAppSentAt: { type: Date, default: null },
   items: { type: [itemSchema], validate: v => Array.isArray(v) && v.length === 3 },
   subtotal: { type: Number, required: true },
   discountPercent: { type: Number, default: 65 },

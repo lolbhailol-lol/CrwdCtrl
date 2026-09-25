@@ -74,6 +74,10 @@ const registrationSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  confirmationWhatsAppSentAt: {
+    type: Date,
+    default: null,
+  },
 
   /** Face photo URL for auditorium / photo-ticket events (Cloudinary) */
   ticketPhotoUrl: {

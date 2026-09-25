@@ -534,6 +534,16 @@ export default function RegistrationDetails() {
   const sportsClubName = registration.clubName || '';
   const sportsWaIsPhone = /^https?:\/\/wa\.me\//i.test(sportsGroupLink);
   const sportsWaLabel = sportsWaIsPhone ? 'Message club on WhatsApp' : 'Join WhatsApp group';
+  const competitionWhatsAppGroups = isCompetitionRegistration
+    ? (Array.isArray(registration.bundleGroups) && registration.bundleGroups.length
+        ? registration.bundleGroups
+        : registration.whatsappGroupLink
+          ? [{
+              competitionName: registration.competitionId?.name || eventName,
+              whatsappGroupLink: registration.whatsappGroupLink,
+            }]
+          : [])
+    : [];
 
   return (
     <div className="crwdctrl-page crwdctrl-page--content min-h-screen pt-[calc(var(--safe-top)+1rem)] pb-4 sm:pt-[calc(var(--safe-top)+2rem)] sm:pb-8">
@@ -748,6 +758,27 @@ export default function RegistrationDetails() {
               label={sportsWaLabel}
               className="bg-[#25D366] text-white hover:opacity-90"
             />
+          </div>
+        )}
+
+        {competitionWhatsAppGroups.length > 0 && (
+          <div className={`${isDark ? 'bg-[#0d2818] border border-green-900/50' : 'bg-green-50 border border-green-100'} rounded-lg sm:rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 shadow-sm`}>
+            <h2 className={`text-lg sm:text-xl font-semibold mb-2 ${isDark ? 'text-green-300' : 'text-green-800'}`}>
+              {competitionWhatsAppGroups.length > 1 ? 'Join your competition WhatsApp groups' : 'Join the competition WhatsApp group'}
+            </h2>
+            <p className={`text-sm mb-4 ${isDark ? 'text-green-400/80' : 'text-green-700'}`}>
+              Get schedules, reporting details, and event updates from the organizers.
+            </p>
+            <div className="space-y-2">
+              {competitionWhatsAppGroups.map((group) => (
+                <JoinCommunityButton
+                  key={`${group.competitionName}-${group.whatsappGroupLink}`}
+                  groupLink={group.whatsappGroupLink}
+                  label={competitionWhatsAppGroups.length > 1 ? `Join ${group.competitionName}` : 'Join WhatsApp group'}
+                  className="w-full sm:w-auto bg-[#25D366] text-white hover:opacity-90"
+                />
+              ))}
+            </div>
           </div>
         )}
 

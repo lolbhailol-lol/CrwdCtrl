@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Loader, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Loader, MessageCircle, RefreshCw } from 'lucide-react';
 import { fetchMindSparkBundlePayment, reissueMindSparkBundlePayment, verifyMindSparkBundlePayment } from '../../services/api/mindsparkBundle.api';
 import { openCashfreeCheckout } from '../../utils/useCashfree';
 import { clearPendingPayment } from '../../utils/deepLinks';
@@ -33,9 +33,21 @@ export default function MindSparkBundlePaymentPage() {
                 <CheckCircle2 size={48} className="text-emerald-400 mx-auto" />
                 <p className="font-semibold">Payment confirmed · 3 tickets issued</p>
                 {data.tickets.map(t => (
-                  <a className="block rounded-xl border border-white/10 p-3" key={t.registrationId} href={t.ticketUrl}>
-                    {t.competitionName} · Open ticket
-                  </a>
+                  <div className="rounded-xl border border-white/10 p-3 space-y-2" key={t.registrationId}>
+                    <a className="block font-semibold text-[#0ECCEE]" href={t.ticketUrl}>
+                      {t.competitionName} · Open ticket
+                    </a>
+                    {t.whatsappGroupLink ? (
+                      <a
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3 py-2 text-sm font-bold text-black"
+                        href={t.whatsappGroupLink}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <MessageCircle size={16} /> Join WhatsApp group
+                      </a>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             ) : data.status === 'paid_review' ? (

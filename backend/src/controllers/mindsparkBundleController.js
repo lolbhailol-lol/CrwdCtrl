@@ -13,7 +13,11 @@ const {
   getCashfreeClientMode,
   firstValidCustomerPhone,
 } = require('../services/cashfreeService');
-const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
+const {
+  fulfillMindSparkBundle,
+  buildMindSparkBundleConfirmationItems,
+  sendBundleWhatsAppOnce,
+} = require('../services/mindsparkBundleService');
 
 const TTL = 30 * 60 * 1000;
 const CASHFREE_MERCHANT = 'events';
@@ -75,19 +79,21 @@ function serialize(bundle, order) {
 async function serializeWithTickets(bundle, order) {
   const base = serialize(bundle, order);
   if (bundle.status !== 'paid') return base;
+  const confirmationItems = await buildMindSparkBundleConfirmationItems(bundle);
   const ids = (bundle.items || []).map((i) => i.registrationId).filter(Boolean);
   const Registration = require('../model/registration_model');
   const regs = ids.length
     ? await Registration.find({ _id: { $in: ids } }).select('_id qrCodeData').lean()
     : [];
   const byId = new Map(regs.map((r) => [String(r._id), r]));
-  base.tickets = (bundle.items || []).map((i) => {
+  base.tickets = (bundle.items || []).map((i, index) => {
     const reg = byId.get(String(i.registrationId || ''));
     return {
       competitionName: i.competitionName,
       registrationId: i.registrationId,
       ticketUrl: i.registrationId ? `${FRONTEND()}/qr-ticket/${i.registrationId}` : null,
       ticketQr: reg?.qrCodeData || null,
+      whatsappGroupLink: confirmationItems[index]?.whatsappGroupLink || '',
     };
   });
   return base;
@@ -498,7 +504,12 @@ exports.create = source => async (req, res) => {
 };
 
 async function load(token) { const bundle = await Bundle.findOne({ paymentToken: clean(token, 100) }).select('+paymentToken'); const order = bundle?.activeOrderId ? await PaymentOrder.findOne({ orderId: bundle.activeOrderId }) : null; return { bundle, order }; }
-exports.payment = async (req, res) => { const { bundle, order } = await load(req.params.token); if (!bundle) return res.status(404).json({ success: false, message: 'Bundle not found.' }); res.json({ success: true, ...await serializeWithTickets(bundle, order) }); };
+exports.payment = async (req, res) => {
+  const { bundle, order } = await load(req.params.token);
+  if (!bundle) return res.status(404).json({ success: false, message: 'Bundle not found.' });
+  if (bundle.status === 'paid') sendBundleWhatsAppOnce(bundle._id).catch(() => {});
+  res.json({ success: true, ...await serializeWithTickets(bundle, order) });
+};
 exports.verify = async (req, res) => {
   try {
     const { bundle, order } = await load(req.params.token);

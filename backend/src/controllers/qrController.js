@@ -6,6 +6,7 @@ const SportsEvent = require('../model/sports_model');
 const { performCheckinFromRaw } = require('../services/checkinService');
 const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 const { captureFlowEvent } = require('../config/sentry');
+const MindSparkBundle = require('../model/mindspark_bundle_model');
 
 // ===== GET: Generate QR code for a registration =====
 const generateQR = async (req, res) => {
@@ -16,8 +17,8 @@ const generateQR = async (req, res) => {
     const registration = await Registration.findOne({
       _id: registrationId,
       user: userId,
-    }).populate('fest', 'festName festDate venue stallBrand stallDiscountPercent')
-      .populate('competitionId', 'name')
+    }).populate('fest', 'festName festDate venue stallBrand stallDiscountPercent registration.whatsappCommunityLink')
+      .populate('competitionId', 'name registration.whatsappGroupLink')
       .populate('user', 'name');
 
     if (!registration) {
@@ -42,6 +43,26 @@ const generateQR = async (req, res) => {
       responses.auditorium_category_label || '',
     ).trim();
     const stallBrand = String(registration.fest?.stallBrand || '').trim();
+    const festWhatsApp = String(registration.fest?.registration?.whatsappCommunityLink || '').trim();
+    const whatsappGroupLink = String(
+      registration.competitionId?.registration?.whatsappGroupLink || festWhatsApp,
+    ).trim();
+    const bundleId = String(responses.mindspark_bundle_id || '').trim();
+    let bundleGroups = [];
+    if (bundleId) {
+      const bundle = await MindSparkBundle.findOne({
+        _id: bundleId,
+        user: userId,
+        status: 'paid',
+      }).populate('items.competitionId', 'name registration.whatsappGroupLink').lean();
+      bundleGroups = (bundle?.items || []).map((item) => ({
+        competitionName: item.competitionId?.name || item.competitionName,
+        registrationId: item.registrationId || null,
+        whatsappGroupLink: String(
+          item.competitionId?.registration?.whatsappGroupLink || festWhatsApp,
+        ).trim(),
+      })).filter((item) => item.whatsappGroupLink);
+    }
 
     res.json({
       success: true,
@@ -54,6 +75,8 @@ const generateQR = async (req, res) => {
         festDate: registration.fest?.festDate || null,
         venue: registration.fest?.venue || null,
         competitionName: registration.competitionId?.name || null,
+        whatsappGroupLink: whatsappGroupLink || null,
+        bundleGroups,
         checkedIn: registration.checkedIn || false,
         checkedInAt: registration.checkedInAt || null,
         ticketPhotoUrl: ticketPhotoUrl || null,
