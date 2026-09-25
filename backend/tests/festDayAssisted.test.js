@@ -13,10 +13,18 @@ test('assisted registration fields stay isolated from the normal registration sc
 
 test('public payment state never exposes a ticket before verified paid status', () => {
   const pending = { _id: 'desk1', status: 'pending', paymentToken: 'token', responses: new Map([['full_name', 'Captain']]) };
-  const result = _test.publicState(pending, { orderId: 'order1', status: 'PENDING', totalAmount: 103, paymentSessionId: 'session', createdAt: new Date() });
+  const result = _test.publicState(pending, { orderId: 'order1', status: 'PENDING', gateway: 'cashfree', cashfreeMerchant: 'events', totalAmount: 103, paymentSessionId: 'session', createdAt: new Date() });
   assert.equal(result.status, 'pending');
   assert.equal(result.ticketQr, null);
   assert.equal(result.paymentSessionId, 'session');
+});
+
+test('pending desk payments from the capped platform merchant require a fresh attempt', () => {
+  const pending = { _id: 'desk1', status: 'pending', paymentToken: 'token', responses: new Map() };
+  const result = _test.publicState(pending, { orderId: 'order-old', status: 'PENDING', gateway: 'cashfree', cashfreeMerchant: 'platform', totalAmount: 103, paymentSessionId: 'old-session', createdAt: new Date() });
+  assert.equal(result.status, 'expired');
+  assert.equal(result.paymentSessionId, null);
+  assert.equal(result.cashfreeMerchant, 'events');
 });
 
 test('assisted order becomes expired after the fixed thirty-minute window', () => {

@@ -21,6 +21,7 @@ const axios = require('axios');
 const { buildPaymentOrderNote } = require('../src/utils/paymentOrderNote');
 const { resolveFestCashfreeMerchant } = require('../src/utils/festCashfreeMerchant');
 const { _test: mindSparkBundleTest } = require('../src/controllers/mindsparkBundleController');
+const { isFreshPending, isLegacyMindSparkMerchant } = require('../src/utils/openMindSparkCheckout');
 
 test('MindSpark checkout uses the Delulu/events Cashfree merchant', () => {
   assert.equal(resolveFestCashfreeMerchant({
@@ -59,6 +60,21 @@ test('MindSpark bundle replaces a pending session from the capped platform merch
   );
   assert.equal(payload.cashfreeMerchant, 'events');
   assert.equal(payload.paymentSessionId, null);
+});
+
+test('old platform sessions cannot block a new MindSpark checkout', () => {
+  const oldPlatform = {
+    status: 'PENDING',
+    gateway: 'cashfree',
+    cashfreeMerchant: 'platform',
+    createdAt: new Date(),
+    orderTags: {},
+  };
+  const events = { ...oldPlatform, cashfreeMerchant: 'events' };
+  assert.equal(isLegacyMindSparkMerchant(oldPlatform), true);
+  assert.equal(isFreshPending(oldPlatform), false);
+  assert.equal(isLegacyMindSparkMerchant(events), false);
+  assert.equal(isFreshPending(events), true);
 });
 
 test('mapOrderStatus treats user-dropped checkout as cancelled', () => {

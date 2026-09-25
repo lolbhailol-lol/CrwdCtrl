@@ -22,6 +22,7 @@ const FRONTEND = () => String(
   || 'https://www.crwdctrl.in',
 ).replace(/\/$/, '');
 const ORDER_TTL_MS = 30 * 60 * 1000;
+const CASHFREE_MERCHANT = 'events';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const clean = (value, max = 160) => String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
 const phoneDigits = (value) => String(value || '').replace(/\D/g, '').slice(-10);
@@ -31,6 +32,9 @@ function publicState(entry, order, issuedRegistration = null, competitionName = 
   const raw = String(order?.status || '').toUpperCase();
   const completed = entry.status === 'paid' && Boolean(issuedRegistration);
   const timedOut = raw === 'PENDING' && Date.now() - new Date(order?.createdAt || 0).getTime() >= ORDER_TTL_MS;
+  const merchantMismatch = raw === 'PENDING'
+    && order?.gateway !== 'razorpay'
+    && (order?.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT;
   return {
     registrationId: issuedRegistration?._id ? String(issuedRegistration._id) : null,
     orderId: order?.orderId || null,
@@ -40,14 +44,15 @@ function publicState(entry, order, issuedRegistration = null, competitionName = 
         ? 'paid_review'
         : raw === 'FAILED'
           ? 'failed'
-          : (raw === 'EXPIRED' || timedOut)
+          : (raw === 'EXPIRED' || timedOut || merchantMismatch)
             ? 'expired'
             : raw === 'PAID'
               ? 'confirming'
               : 'pending',
     amount: Number(order?.totalAmount) || 0,
-    paymentSessionId: raw === 'PENDING' && !timedOut ? order?.paymentSessionId || null : null,
-    cashfreeMode: getCashfreeClientMode(),
+    paymentSessionId: raw === 'PENDING' && !timedOut && !merchantMismatch ? order?.paymentSessionId || null : null,
+    cashfreeMode: getCashfreeClientMode(CASHFREE_MERCHANT),
+    cashfreeMerchant: CASHFREE_MERCHANT,
     paymentUrl: `${FRONTEND()}/desk-payment/${entry.paymentToken}`,
     ticketUrl: completed ? `${FRONTEND()}/desk-payment/${entry.paymentToken}` : null,
     ticketQr: completed ? issuedRegistration.qrCodeData || null : null,
@@ -106,13 +111,15 @@ async function createOrderForEntry({ entry, competition, user }) {
       orderMeta: { return_url: `${FRONTEND()}/desk-payment/${entry.paymentToken}?returned=1` },
       orderNote: `MindSpark - ${competition.name}`,
       orderTags: { entityType: 'competition', competitionName: competition.name, assistedDesk: 'yes' },
+      merchant: CASHFREE_MERCHANT,
     });
     const order = await PaymentOrder.create({
       orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id,
       entityType: 'competition', entityId: competition._id, userId: user._id,
       ticketPrice: totals.ticketPrice, platformFee: totals.platformFee,
       amountBeforeDiscount: totals.totalAmount, amountAfterDiscount: totals.totalAmount,
-      totalAmount: totals.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber,
+      totalAmount: totals.totalAmount, status: 'PENDING', gateway: 'cashfree',
+      cashfreeMerchant: CASHFREE_MERCHANT, customerEmail: user.email, customerPhone: user.phoneNumber,
       orderTags: {
         competitionName: competition.name, festId: String(competition.fest._id),
         deskEntryId: String(entry._id), slotReservationToken: reservation?.token || '',
@@ -332,7 +339,11 @@ exports.verifyAssistedPayment = async (req, res) => {
     const { entry, order, competition } = await loadPublic(req.params.token);
     if (!entry) return res.status(404).json({ success: false, message: 'Payment link not found' });
     if (order && entry.status !== 'paid') {
-      const result = await verifyCashfreePayment({ orderId: order.orderId, paymentId: order.paymentId || undefined });
+      const result = await verifyCashfreePayment({
+        orderId: order.orderId,
+        paymentId: order.paymentId || undefined,
+        merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
+      });
       if (result.verified) {
         order.status = 'PAID'; if (result.paymentId) order.paymentId = String(result.paymentId); await order.save();
         const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
@@ -356,11 +367,13 @@ exports.reissueAssistedPayment = async (req, res) => {
     const { entry, order } = await loadPublic(req.params.token);
     if (!entry) return res.status(404).json({ success: false, message: 'Payment link not found' });
     const timedOut = order?.status === 'PENDING' && Date.now() - new Date(order.createdAt).getTime() >= ORDER_TTL_MS;
-    if (entry.status === 'paid' || !order || (order.status === 'PENDING' && !timedOut)) {
+    const merchantMismatch = order?.gateway !== 'razorpay'
+      && (order?.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT;
+    if (entry.status === 'paid' || !order || (order.status === 'PENDING' && !timedOut && !merchantMismatch)) {
       const competition = await Competition.findById(entry.competitionId).select('name').lean();
       return res.json({ success: true, ...(await responseFor(entry, order, competition?.name || '')) });
     }
-    if (timedOut) {
+    if (timedOut || merchantMismatch) {
       order.status = 'EXPIRED';
       await order.save();
       if (order.orderTags?.slotReservationToken) await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});

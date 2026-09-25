@@ -9,8 +9,28 @@ function isFreshPending(order) {
   if (!order) return false;
   if (String(order.status || '').toUpperCase() !== 'PENDING') return false;
   if (order.orderTags?.retired) return false;
+  if (order.gateway !== 'razorpay' && (order.cashfreeMerchant || 'platform') !== 'events') return false;
   const age = Date.now() - new Date(order.createdAt || 0).getTime();
   return age < OPEN_TTL_MS;
+}
+
+function isLegacyMindSparkMerchant(order) {
+  return Boolean(order)
+    && String(order.status || '').toUpperCase() === 'PENDING'
+    && order.gateway !== 'razorpay'
+    && (order.cashfreeMerchant || 'platform') !== 'events';
+}
+
+async function retireLegacyMindSparkOrder(order) {
+  if (!isLegacyMindSparkMerchant(order)) return;
+  await PaymentOrder.updateOne(
+    { _id: order._id, status: 'PENDING' },
+    { $set: { status: 'EXPIRED', 'orderTags.retired': true } },
+  ).catch(() => {});
+  if (order.orderTags?.slotReservationToken) {
+    const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+    await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});
+  }
 }
 
 /**
@@ -37,6 +57,10 @@ async function findOpenMindSparkCheckout({
   for (const entry of pendingEntries) {
     if (!entry.paymentOrderId) continue;
     const order = await PaymentOrder.findOne({ orderId: entry.paymentOrderId }).lean();
+    if (isLegacyMindSparkMerchant(order)) {
+      await retireLegacyMindSparkOrder(order);
+      continue;
+    }
     if (!isFreshPending(order)) continue;
     if (excludeOrderId && String(order.orderId) === String(excludeOrderId)) continue;
     const competition = await Competition.findById(entry.competitionId).select('name').lean();
@@ -66,6 +90,10 @@ async function findOpenMindSparkCheckout({
     for (const entry of byPhone) {
       if (!entry.paymentOrderId) continue;
       const order = await PaymentOrder.findOne({ orderId: entry.paymentOrderId }).lean();
+      if (isLegacyMindSparkMerchant(order)) {
+        await retireLegacyMindSparkOrder(order);
+        continue;
+      }
       if (!isFreshPending(order)) continue;
       if (excludeOrderId && String(order.orderId) === String(excludeOrderId)) continue;
       const competition = await Competition.findById(entry.competitionId).select('name').lean();
@@ -92,7 +120,16 @@ async function findOpenMindSparkCheckout({
     .sort({ createdAt: -1 });
   if (pendingBundle?.activeOrderId) {
     const order = await PaymentOrder.findOne({ orderId: pendingBundle.activeOrderId }).lean();
-    if (isFreshPending(order) && !(excludeOrderId && String(order.orderId) === String(excludeOrderId))) {
+    if (isLegacyMindSparkMerchant(order)) {
+      await retireLegacyMindSparkOrder(order);
+      const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+      await Promise.all((pendingBundle.items || [])
+        .map((item) => item.reservationToken)
+        .filter(Boolean)
+        .map((token) => releaseCompetitionSlot(token).catch(() => {})));
+      pendingBundle.status = 'expired';
+      await pendingBundle.save().catch(() => {});
+    } else if (isFreshPending(order) && !(excludeOrderId && String(order.orderId) === String(excludeOrderId))) {
       return {
         kind: 'bundle',
         competitionId: '',
@@ -118,6 +155,10 @@ async function findOpenMindSparkCheckout({
       'orderTags.retired': { $ne: true },
       createdAt: { $gt: new Date(Date.now() - OPEN_TTL_MS) },
     }).sort({ createdAt: -1 }).lean();
+    if (isLegacyMindSparkMerchant(websiteOrder)) {
+      await retireLegacyMindSparkOrder(websiteOrder);
+      return null;
+    }
     if (websiteOrder && !(excludeOrderId && String(websiteOrder.orderId) === String(excludeOrderId))) {
       return {
         kind: 'website',
@@ -137,5 +178,6 @@ async function findOpenMindSparkCheckout({
 module.exports = {
   OPEN_TTL_MS,
   isFreshPending,
+  isLegacyMindSparkMerchant,
   findOpenMindSparkCheckout,
 };
