@@ -15,6 +15,7 @@ const {
   firstValidCustomerPhone,
   normalizePhone,
   normalizeCashfreeReturnUrl,
+  resetCashfreeAccountCircuitBreaker,
 } = require('../src/services/cashfreeService');
 const axios = require('axios');
 const { buildPaymentOrderNote } = require('../src/utils/paymentOrderNote');
@@ -190,6 +191,7 @@ test('Cashfree order creation retries one 400 with a compact customer payload', 
     return { data: { order_id: payload.order_id, payment_session_id: 'session-ok' } };
   };
   try {
+    resetCashfreeAccountCircuitBreaker();
     const order = await createCashfreeOrder({
       orderAmount: 174,
       customerDetails: {
@@ -211,6 +213,54 @@ test('Cashfree order creation retries one 400 with a compact customer payload', 
     assert.equal(calls[1].order_note, undefined);
     assert.equal(calls[1].order_tags, undefined);
   } finally {
+    resetCashfreeAccountCircuitBreaker();
+    axios.post = originalPost;
+    if (originalId === undefined) delete process.env.CASHFREE_CLIENT_ID;
+    else process.env.CASHFREE_CLIENT_ID = originalId;
+    if (originalSecret === undefined) delete process.env.CASHFREE_CLIENT_SECRET;
+    else process.env.CASHFREE_CLIENT_SECRET = originalSecret;
+  }
+});
+
+test('Cashfree account-disabled response skips payload retry and opens a short circuit', async () => {
+  const originalPost = axios.post;
+  const originalId = process.env.CASHFREE_CLIENT_ID;
+  const originalSecret = process.env.CASHFREE_CLIENT_SECRET;
+  let calls = 0;
+  process.env.CASHFREE_CLIENT_ID = 'test-client';
+  process.env.CASHFREE_CLIENT_SECRET = 'test-secret';
+  resetCashfreeAccountCircuitBreaker();
+  axios.post = async () => {
+    calls += 1;
+    const error = new Error('disabled');
+    error.response = {
+      status: 400,
+      data: { code: 'request_failed', message: 'transactions are not enabled for your payment gateway account' },
+    };
+    throw error;
+  };
+  try {
+    await assert.rejects(
+      createCashfreeOrder({
+        orderAmount: 100,
+        customerDetails: { customerId: 'user-1', customerPhone: '9876543210' },
+      }),
+      (error) => error.code === 'CASHFREE_ACCOUNT_DISABLED'
+        && error.status === 503
+        && /No money was charged/i.test(error.message),
+    );
+    assert.equal(calls, 1);
+
+    await assert.rejects(
+      createCashfreeOrder({
+        orderAmount: 100,
+        customerDetails: { customerId: 'user-2', customerPhone: '9876543210' },
+      }),
+      (error) => error.code === 'CASHFREE_ACCOUNT_DISABLED',
+    );
+    assert.equal(calls, 1);
+  } finally {
+    resetCashfreeAccountCircuitBreaker();
     axios.post = originalPost;
     if (originalId === undefined) delete process.env.CASHFREE_CLIENT_ID;
     else process.env.CASHFREE_CLIENT_ID = originalId;

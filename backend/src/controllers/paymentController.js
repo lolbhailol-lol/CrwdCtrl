@@ -125,10 +125,14 @@ const respondCashfreeError = (res, err, fallbackMessage) => {
   if (err.code === 'CASHFREE_CREDENTIALS_MISSING' || cfError?.type === 'authentication_error') {
     return res.status(503).json({ message: CASHFREE_CONFIG_MSG });
   }
+  const safeServiceMessage = ['CASHFREE_ACCOUNT_DISABLED', 'CASHFREE_ORDER_UNAVAILABLE'].includes(err.code)
+    ? err.message
+    : '';
   const cfMessage =
     cfError?.message
     || cfError?.error
     || (Array.isArray(cfError?.message) ? cfError.message.join(', ') : null)
+    || safeServiceMessage
     || fallbackMessage;
   const status = Number(err.response?.status);
   // Surface gateway validation errors as 400 with Cashfree's message

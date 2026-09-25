@@ -3,6 +3,8 @@ const crypto = require('crypto');
 const { getCanonicalSiteUrl } = require('../utils/siteUrl');
 
 const API_VERSION = '2025-01-01';
+const ACCOUNT_DISABLED_COOLDOWN_MS = 30 * 1000;
+const accountDisabledUntil = new Map();
 
 /** @typedef {'platform' | 'events'} CashfreeMerchant */
 
@@ -159,11 +161,43 @@ function cashfreeCreateError(error, orderId) {
     upstreamCode: body?.code || body?.type || null,
     upstreamMessage: upstreamMessage || null,
   });
-  const wrapped = new Error('Payment service could not start the checkout. Please tap Pay again.');
+  const accountDisabled = /transactions are not enabled/i.test(upstreamMessage);
+  const wrapped = new Error(accountDisabled
+    ? 'Payments are temporarily unavailable because the payment provider has paused transactions. No money was charged. Please try again shortly.'
+    : 'Payment service could not start the checkout. Please tap Pay again.');
   wrapped.status = 503;
-  wrapped.code = 'CASHFREE_ORDER_UNAVAILABLE';
+  wrapped.code = accountDisabled ? 'CASHFREE_ACCOUNT_DISABLED' : 'CASHFREE_ORDER_UNAVAILABLE';
   wrapped.upstreamStatus = upstreamStatus;
   return wrapped;
+}
+
+function isCashfreeAccountDisabled(error) {
+  const body = error?.response?.data;
+  const message = typeof body === 'string'
+    ? body
+    : String(body?.message || body?.error || body?.code || '');
+  return Number(error?.response?.status) === 400
+    && /transactions are not enabled/i.test(message);
+}
+
+function assertCashfreeAccountEnabled(merchant) {
+  const until = Number(accountDisabledUntil.get(merchant)) || 0;
+  if (until <= Date.now()) {
+    accountDisabledUntil.delete(merchant);
+    return;
+  }
+  const error = new Error('Payments are temporarily unavailable because the payment provider has paused transactions. No money was charged. Please try again shortly.');
+  error.status = 503;
+  error.code = 'CASHFREE_ACCOUNT_DISABLED';
+  throw error;
+}
+
+function markCashfreeAccountDisabled(merchant) {
+  accountDisabledUntil.set(merchant, Date.now() + ACCOUNT_DISABLED_COOLDOWN_MS);
+}
+
+function resetCashfreeAccountCircuitBreaker() {
+  accountDisabledUntil.clear();
 }
 
 async function createCashfreeOrder({
@@ -177,6 +211,7 @@ async function createCashfreeOrder({
 }) {
   const m = normalizeMerchant(merchant);
   assertCredentials(m);
+  assertCashfreeAccountEnabled(m);
   const orderId = generateOrderId();
   const payload = {
     order_id: orderId,
@@ -205,6 +240,10 @@ async function createCashfreeOrder({
     const response = await axios.post(url, payload, { headers });
     return { ...response.data, cashfreeMerchant: m };
   } catch (error) {
+    if (isCashfreeAccountDisabled(error)) {
+      markCashfreeAccountDisabled(m);
+      throw cashfreeCreateError(error, orderId);
+    }
     // Cashfree can reject optional metadata or unclean Google-profile names with
     // HTTP 400. Retry once with the same business data and a minimal payload.
     if (Number(error?.response?.status) === 400) {
@@ -229,6 +268,7 @@ async function createCashfreeOrder({
         });
         return { ...response.data, cashfreeMerchant: m };
       } catch (retryError) {
+        if (isCashfreeAccountDisabled(retryError)) markCashfreeAccountDisabled(m);
         throw cashfreeCreateError(retryError, retryOrderId);
       }
     }
@@ -547,4 +587,6 @@ module.exports = {
   mapOrderStatus,
   buildReturnUrl,
   normalizeCashfreeReturnUrl,
+  isCashfreeAccountDisabled,
+  resetCashfreeAccountCircuitBreaker,
 };
