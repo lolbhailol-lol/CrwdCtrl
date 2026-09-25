@@ -1022,13 +1022,25 @@ exports.getDashboard = async (req, res) => {
         }
 
         if (getFestPlugin(festId).useCashfreeSettlement) {
-            const overall = summarizeCashfreeSettlement(paidRegs);
+            const plugin = getFestPlugin(festId);
+            const excludeIds = new Set(
+                (plugin.settlementExcludeCompetitionIds || []).map((id) => String(id)),
+            );
+            const settlementRegs = excludeIds.size
+                ? paidRegs.filter((r) => !excludeIds.has(String(r.competitionId || '')))
+                : paidRegs;
+            const overall = summarizeCashfreeSettlement(settlementRegs);
             grossCollected = overall.grossCollected;
             gatewayFees = overall.gatewayFees;
             revenue = overall.revenue;
             const knownCompetitionIds = new Set(competitions.map((c) => String(c._id)));
             for (const c of competitionStats) {
-                const matching = paidRegs.filter((r) => {
+                if (excludeIds.has(String(c.id || ''))) {
+                    c.grossCollected = 0;
+                    c.revenue = 0;
+                    continue;
+                }
+                const matching = settlementRegs.filter((r) => {
                     const cid = r.competitionId ? String(r.competitionId) : '';
                     if (c.id) return cid === String(c.id);
                     return !cid || !knownCompetitionIds.has(cid);
@@ -1037,7 +1049,7 @@ exports.getDashboard = async (req, res) => {
                 c.grossCollected = sum.grossCollected;
                 c.revenue = sum.revenue;
             }
-            const override = getFestPlugin(festId).settlementOverride;
+            const override = plugin.settlementOverride;
             if (override) {
                 grossCollected = Number(override.grossCollected) || 0;
                 gatewayFees = Math.round(grossCollected * Number(override.gatewayFeeRate || 0) * 100) / 100;
