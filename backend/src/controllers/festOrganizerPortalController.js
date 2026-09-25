@@ -10,6 +10,8 @@ const FestDayFormSession = require('../model/fest_day_form_session_model');
 const FestDayAssistedRegistration = require('../model/fest_day_assisted_registration_model');
 const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
 const MindSparkBundle = require('../model/mindspark_bundle_model');
+const MindSparkAuditoriumTicketClaim = require('../model/mindspark_auditorium_ticket_claim_model');
+const { syncCategoryCounter } = require('../utils/auditoriumQuota');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
 const { notifyFestParticipants, notifyFestParticipant, parseNotifyChannels } = require('../utils/festParticipantOutreach');
@@ -1500,6 +1502,15 @@ exports.deleteParticipant = async (req, res) => {
         }
         const deleted = await Registration.findOneAndDelete({ _id: registrationId, fest: req.festId });
         if (!deleted) return res.status(404).json({ success: false, message: 'Participant not found' });
+        const auditoriumCategoryId = String(
+            deleted.responses?.get?.('auditorium_category_id')
+            || deleted.responses?.auditorium_category_id
+            || '',
+        ).trim();
+        if (auditoriumCategoryId && deleted.competitionId) {
+            await MindSparkAuditoriumTicketClaim.deleteMany({ registrationId: deleted._id });
+            await syncCategoryCounter(deleted.competitionId, auditoriumCategoryId);
+        }
         res.json({ success: true, message: 'Entry deleted' });
     } catch (error) {
         console.error('[festOrganizerPortal.deleteParticipant]', error);
