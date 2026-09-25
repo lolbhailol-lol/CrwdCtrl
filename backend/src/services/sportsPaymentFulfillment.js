@@ -125,6 +125,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
 
   const payment_order_id = paymentOrder.orderId;
   const payment_id = paymentOrder.paymentId || overrides.paymentId || null;
+  const paymentGateway = paymentOrder.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
 
   const existingByOrder = await CategoryRegistration.findOne({ payment_order_id });
   if (existingByOrder) {
@@ -296,7 +297,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
     couponConsumedAt: paymentOrder.couponCode ? new Date() : null,
     payment_order_id,
     payment_id,
-    payment_gateway: 'cashfree',
+    payment_gateway: paymentGateway,
     paymentScreenshotUrl: '',
     transactionId: '',
     bookingDate: String(responses.date || '').trim(),
@@ -378,7 +379,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
           eventTitle,
           runClubId,
           paymentStatus: 'paid',
-          paymentGateway: 'cashfree',
+          paymentGateway,
           stage: 'confirmed',
         }))
         .catch((err) => logger.error('[sportsFulfill.notify.upgrade]', err.message));
@@ -432,7 +433,7 @@ async function fulfillSportsFromPaidOrder(paymentOrderInput, overrides = {}) {
         eventTitle,
         runClubId,
         paymentStatus: 'paid',
-        paymentGateway: 'cashfree',
+        paymentGateway,
         stage: 'confirmed',
       }))
       .catch((err) => logger.error('[sportsFulfill.notify]', err.message));

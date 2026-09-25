@@ -1307,7 +1307,7 @@ export default function EventCommunityBookingPage() {
                     setPaying(false);
                     return;
                 }
-                if (!order.paymentSessionId) {
+                if (!order.orderId || (order.gateway !== 'razorpay' && !order.paymentSessionId)) {
                     setError('Payment session missing from server. Restart backend and try again.');
                     setPaying(false);
                     return;
@@ -1329,9 +1329,14 @@ export default function EventCommunityBookingPage() {
                     entityType: 'sports',
                     cashfreeMode: order.cashfreeMode,
                     customerEmail,
-                    verifyOrder: ({ orderId, paymentId }) => verifyPaymentWithRetry(API, orderId, {
+                    customerPhone,
+                    customerName: mergedFields.full_name || mergedFields.name || user?.name || '',
+                    displayName: event?.title || event?.name || 'Event booking',
+                    merchantName: 'CrwdCtrl Events',
+                    verifyOrder: ({ orderId, paymentId, signature }) => verifyPaymentWithRetry(API, orderId, {
                         kind: 'sports',
                         paymentId,
+                        signature,
                         token: resolveAuthToken(authToken),
                         customerEmail,
                     }),

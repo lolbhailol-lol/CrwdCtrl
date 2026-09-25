@@ -1,4 +1,5 @@
 const { verifyCashfreePayment } = require('../services/cashfreeService');
+const { verifyRazorpayPayment } = require('../services/razorpayService');
 
 function extractPaymentFields(body = {}) {
   return {
@@ -51,7 +52,7 @@ async function verifyPaymentForRegistration(body, {
   entityType = null,
   userId = null,
 } = {}) {
-  const { orderId, paymentId } = extractPaymentFields(body);
+  const { orderId, paymentId, signature } = extractPaymentFields(body);
 
   if (!orderId) {
     return { ok: false, error: 'Payment is required. Missing order ID.', code: 'MISSING_ORDER_ID' };
@@ -60,7 +61,7 @@ async function verifyPaymentForRegistration(body, {
   try {
     const PaymentOrder = require('../model/payment_order_model');
     const paymentOrder = await PaymentOrder.findOne({ orderId: String(orderId) })
-      .select('cashfreeMerchant status paymentId totalAmount entityType entityId userId')
+      .select('gateway cashfreeMerchant status paymentId totalAmount entityType entityId userId')
       .lean();
     const binding = validateStoredPaymentOrder(paymentOrder, {
       expectedTotalAmount,
@@ -84,7 +85,9 @@ async function verifyPaymentForRegistration(body, {
     }
     const merchant = paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform';
 
-    const result = await verifyCashfreePayment({ orderId, paymentId, merchant });
+    const result = paymentOrder.gateway === 'razorpay'
+      ? await verifyRazorpayPayment({ orderId, paymentId, signature })
+      : await verifyCashfreePayment({ orderId, paymentId, merchant });
     if (!result.verified) {
       return {
         ok: false,
@@ -95,7 +98,11 @@ async function verifyPaymentForRegistration(body, {
       };
     }
 
-    if (expectedTotalAmount != null && Number(expectedTotalAmount) > 0) {
+    if (
+      paymentOrder.gateway !== 'razorpay'
+      && expectedTotalAmount != null
+      && Number(expectedTotalAmount) > 0
+    ) {
       const { fetchOrder } = require('../services/cashfreeService');
       try {
         const cashfreeOrder = await fetchOrder(orderId, { merchant });

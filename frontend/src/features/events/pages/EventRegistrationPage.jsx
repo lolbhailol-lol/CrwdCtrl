@@ -6,7 +6,8 @@ import { useAuth } from '../../../context/AuthContext';
 import { useNotifications } from '../../../context/NotificationsContext';
 import CrwdCtrlLogin from '../../../pages/auth/login';
 import CrwdCtrlRegister from '../../../pages/auth/register';
-import { openCashfreeCheckout, classifyCheckoutError } from '../../../utils/useCashfree';
+import { classifyCheckoutError } from '../../../utils/useCashfree';
+import { openPaymentCheckout } from '../../../utils/usePaymentCheckout';
 import PaymentErrorModal from '../../../components/PaymentErrorModal';
 import DetailPageLoader from '../../../components/DetailPageLoader';
 import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
@@ -1314,7 +1315,7 @@ export default function EventRegistrationPage() {
                 return;
             }
 
-            if (!orderRes.ok || !order.paymentSessionId) {
+            if (!orderRes.ok || !order.orderId || (order.gateway !== 'razorpay' && !order.paymentSessionId)) {
                 const msg = order.message || order.error || `Payment failed (${orderRes.status})`;
                 if (/select a registration tier|invalid registration tier|package/i.test(msg)) {
                     const pkgIdx = allSteps.findIndex((s) => s.packageSelect);
@@ -1339,12 +1340,19 @@ export default function EventRegistrationPage() {
 
             let checkout;
             try {
-                checkout = await openCashfreeCheckout({
+                checkout = await openPaymentCheckout({
+                    gateway: order.gateway,
+                    keyId: order.keyId,
                     paymentSessionId: order.paymentSessionId,
                     orderId: order.orderId,
                     returnPath: `/events/${eventId}/register`,
                     entityType: 'event',
                     cashfreeMode: order.cashfreeMode,
+                    customerName: customer.name || user?.name || '',
+                    customerEmail: customer.email || user?.email || '',
+                    customerPhone: customer.phone || user?.phone || user?.phoneNumber || '',
+                    displayName: event?.title || event?.name || 'Event registration',
+                    alreadyPaidAtGateway: order.alreadyPaidAtGateway,
                 });
             } catch (checkoutErr) {
                 const { kind, message } = classifyCheckoutError(checkoutErr);
@@ -1369,7 +1377,17 @@ export default function EventRegistrationPage() {
             const vRes = await fetch(`${API}/payment/verify`, {
                 method: 'POST',
                 headers: getBearerAuthHeaders(token),
-                body: JSON.stringify({ payment_order_id: order.orderId, payment_id: checkoutPaymentId }),
+                body: JSON.stringify({
+                    payment_order_id: order.orderId,
+                    payment_id: checkoutPaymentId,
+                    ...(checkout?.paymentDetails?.signature
+                        ? {
+                            razorpay_order_id: order.orderId,
+                            razorpay_payment_id: checkoutPaymentId,
+                            razorpay_signature: checkout.paymentDetails.signature,
+                        }
+                        : {}),
+                }),
             });
             const v = await vRes.json();
             if (v.verified) {

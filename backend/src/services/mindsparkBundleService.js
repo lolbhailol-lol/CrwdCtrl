@@ -144,6 +144,7 @@ async function resendMindSparkBundleConfirmationEmail(bundleId) {
 }
 
 async function fulfillMindSparkBundle(paymentOrder) {
+  const paymentGateway = paymentOrder.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
   const current = await Bundle.findById(paymentOrder.entityId).lean();
   if (!current) return { ok: false, error: 'Bundle not found' };
   if (current.activeOrderId && current.activeOrderId !== paymentOrder.orderId) {
@@ -227,17 +228,20 @@ async function fulfillMindSparkBundle(paymentOrder) {
                 mindspark_bundle_id: String(lockedBundle._id),
                 mindspark_bundle_source: lockedBundle.source || 'public',
                 bundle_cashfree_order_id: paymentOrder.orderId,
+                bundle_payment_order_id: paymentOrder.orderId,
                 bundle_original_amount: item.originalAmount,
                 bundle_discount_percent: Number(lockedBundle.discountPercent) || 65,
               },
               status: 'approved',
               payment_order_id: derivedOrderId,
               payment_id: paymentOrder.paymentId,
-              payment_gateway: 'cashfree_bundle',
+              payment_gateway: `${paymentGateway}_bundle`,
               paymentStatus: 'paid',
               amountPaid: allocations[i],
               qrCodeData: crypto.randomBytes(16).toString('hex'),
-              ...cashfreeSettlementFields({ amountPaid: allocations[i], payment_gateway: 'cashfree', payment_order_id: derivedOrderId }),
+              ...(paymentGateway === 'cashfree'
+                ? cashfreeSettlementFields({ amountPaid: allocations[i], payment_gateway: paymentGateway, payment_order_id: derivedOrderId })
+                : {}),
             },
           },
           { upsert: true, new: true, setDefaultsOnInsert: true, session },

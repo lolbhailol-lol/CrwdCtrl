@@ -4,6 +4,7 @@ import {
     buildVerifiedPaymentFields,
     classifyCheckoutError,
 } from './useCashfree';
+import { runRazorpayCheckoutAndVerify } from './useRazorpay';
 import { prepareLogin, currentAppPath } from './loginFlow';
 
 function readSessionDraft(draftKey) {
@@ -107,7 +108,7 @@ export function createAuthModalHandlers({ setShowLogin, setShowRegister }) {
 }
 
 /**
- * Shared Cashfree checkout + verification pipeline for booking pages.
+ * Shared checkout + verification pipeline for booking pages.
  */
 export async function runCashfreeCheckoutAndVerify({
     order,
@@ -116,7 +117,41 @@ export async function runCashfreeCheckoutAndVerify({
     cashfreeMode,
     verifyOrder,
     customerEmail = '',
+    customerPhone = '',
+    customerName = '',
+    displayName = 'Event booking',
+    merchantName = 'CrwdCtrl',
 }) {
+    if (order?.alreadyPaidAtGateway) {
+        const verification = await verifyOrder({ orderId: order.orderId });
+        const verifiedPayload = verification?.data || verification;
+        if (verification?.ok && verifiedPayload?.verified) {
+            return {
+                status: 'verified',
+                verified: buildVerifiedPaymentFields(verifiedPayload, order.orderId),
+                registrationId: registrationIdFromVerifyPayload(verifiedPayload),
+            };
+        }
+        return {
+            status: 'verify_failed',
+            message: verifiedPayload?.message || 'Could not recover the completed payment. Check My Bookings before paying again.',
+        };
+    }
+
+    if (order?.gateway === 'razorpay') {
+        return runRazorpayCheckoutAndVerify({
+            order,
+            verifyOrder,
+            prefill: {
+                name: customerName,
+                email: customerEmail,
+                contact: customerPhone,
+            },
+            displayName,
+            merchantName,
+        });
+    }
+
     let checkoutResult;
     try {
         checkoutResult = await openCashfreeCheckout({

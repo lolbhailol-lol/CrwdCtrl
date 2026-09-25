@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
-import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../../../utils/useCashfree';
+import { buildVerifiedPaymentFields, classifyCheckoutError } from '../../../../utils/useCashfree';
+import { openPaymentCheckout } from '../../../../utils/usePaymentCheckout';
 import PaymentErrorModal from '../../../../components/PaymentErrorModal';
 import { InlinePageLoader } from '../../../../components/DetailPageLoader';
 import { useDetailLoaderFailsafe } from '../../../../hooks/useDetailLoaderFailsafe';
@@ -1099,11 +1100,19 @@ export default function CompetitionRegistration() {
 
                 let checkoutResult;
                 try {
-                    checkoutResult = await openCashfreeCheckout({
+                    const checkoutForm = getAllFormData();
+                    checkoutResult = await openPaymentCheckout({
+                        gateway: orderData.gateway,
+                        keyId: orderData.keyId,
                         paymentSessionId: orderData.paymentSessionId,
                         orderId: orderData.orderId,
                         returnPath: window.location.pathname + window.location.search,
                         cashfreeMode: orderData.cashfreeMode,
+                        customerName: checkoutForm.full_name || checkoutForm.fullName || checkoutForm.name || firebaseUser?.displayName || '',
+                        customerEmail: checkoutForm.email || firebaseUser?.email || '',
+                        customerPhone: checkoutForm.contact_no || checkoutForm.phone || firebaseUser?.phoneNumber || '',
+                        displayName: competition?.name || 'Competition registration',
+                        alreadyPaidAtGateway: orderData.alreadyPaidAtGateway,
                     });
                 } catch (checkoutErr) {
                     const { kind, message } = classifyCheckoutError(checkoutErr);
@@ -1136,7 +1145,12 @@ export default function CompetitionRegistration() {
                 const verifyResult = await verifyPaymentWithRetry(
                     API_BASE_URL,
                     orderData.orderId,
-                    { token: submitToken, search: location.search },
+                    {
+                        token: submitToken,
+                        search: location.search,
+                        paymentId: checkoutResult?.paymentDetails?.paymentId,
+                        signature: checkoutResult?.paymentDetails?.signature,
+                    },
                 );
                 if (verifyResult.status === 'cancelled') {
                     restoreRegistrationDraft();

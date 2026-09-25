@@ -145,6 +145,18 @@ async function verifyRazorpayPayment({ orderId, paymentId, signature }) {
     };
   }
 
+  if ((paymentId && !signature) || (!paymentId && signature)) {
+    return {
+      verified: false,
+      status: 'failed',
+      code: 'MISSING_PAYMENT_FIELDS',
+      message: 'Payment ID and signature are both required.',
+      retryable: false,
+      orderId,
+      paymentId: paymentId || null,
+    };
+  }
+
   if (signature && paymentId) {
     const ok = verifyRazorpaySignature({ orderId, paymentId, signature });
     if (!ok) {

@@ -1144,7 +1144,7 @@ export default function RunEventBookingPage() {
                     setPaying(false);
                     return;
                 }
-                if (!order.paymentSessionId) {
+                if (!order.orderId || (order.gateway !== 'razorpay' && !order.paymentSessionId)) {
                     setError('Payment session missing from server. Restart backend and try again.');
                     setPaying(false);
                     return;
@@ -1157,9 +1157,14 @@ export default function RunEventBookingPage() {
                     returnPath: `/sports/run/${id || event?._id || event?.id}/book`,
                     entityType: 'sports',
                     cashfreeMode: order.cashfreeMode,
-                    verifyOrder: ({ orderId, paymentId }) => verifyPaymentWithRetry(API, orderId, {
+                    customerEmail,
+                    customerPhone,
+                    customerName: mergedFields.full_name || mergedFields.name || user?.name || '',
+                    displayName: event?.title || event?.name || 'Run booking',
+                    verifyOrder: ({ orderId, paymentId, signature }) => verifyPaymentWithRetry(API, orderId, {
                         kind: 'sports',
                         paymentId,
+                        signature,
                         token: resolveAuthToken(authToken),
                         customerEmail,
                     }),

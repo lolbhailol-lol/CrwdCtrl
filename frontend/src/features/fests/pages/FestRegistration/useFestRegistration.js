@@ -3,7 +3,8 @@ import { useParams, useNavigate, useSearchParams, useLocation } from 'react-rout
 import { useAuth } from '../../../../context/AuthContext';
 import { useDarkMode } from '../../../../context/DarkModeContext';
 import { useNotifications } from '../../../../context/NotificationsContext';
-import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../../../utils/useCashfree';
+import { buildVerifiedPaymentFields, classifyCheckoutError } from '../../../../utils/useCashfree';
+import { openPaymentCheckout } from '../../../../utils/usePaymentCheckout';
 import {
   getPendingPayment,
   clearPendingPayment,
@@ -1634,11 +1635,18 @@ export default function useFestRegistration() {
 
         let checkoutResult;
         try {
-          checkoutResult = await openCashfreeCheckout({
+          checkoutResult = await openPaymentCheckout({
+            gateway: orderData.gateway,
+            keyId: orderData.keyId,
             paymentSessionId: orderData.paymentSessionId,
             orderId: orderData.orderId,
             returnPath: window.location.pathname + window.location.search,
             cashfreeMode: orderData.cashfreeMode,
+            customerName: user?.name || '',
+            customerEmail: user?.email || '',
+            customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user),
+            displayName: competition?.name || fest?.name || 'Fest registration',
+            alreadyPaidAtGateway: orderData.alreadyPaidAtGateway,
           });
         } catch (checkoutErr) {
           const { kind, message } = classifyCheckoutError(checkoutErr);
@@ -1681,7 +1689,12 @@ export default function useFestRegistration() {
         const verifyResult = await verifyPaymentWithRetry(
           API_BASE_URL,
           orderData.orderId,
-          { token, search: location.search },
+          {
+            token,
+            search: location.search,
+            paymentId: checkoutResult?.paymentDetails?.paymentId,
+            signature: checkoutResult?.paymentDetails?.signature,
+          },
         );
         if (verifyResult.status === 'cancelled') {
           handleVerifyCancelled();
@@ -2070,11 +2083,18 @@ export default function useFestRegistration() {
 
       let checkoutResult;
       try {
-        checkoutResult = await openCashfreeCheckout({
+        checkoutResult = await openPaymentCheckout({
+          gateway: orderData.gateway,
+          keyId: orderData.keyId,
           paymentSessionId: orderData.paymentSessionId,
           orderId: orderData.orderId,
           returnPath: window.location.pathname + window.location.search,
           cashfreeMode: orderData.cashfreeMode,
+          customerName: user?.name || '',
+          customerEmail: user?.email || '',
+          customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user),
+          displayName: fest?.name || 'Fest registration',
+          alreadyPaidAtGateway: orderData.alreadyPaidAtGateway,
         });
       } catch (checkoutErr) {
         const { kind, message } = classifyCheckoutError(checkoutErr);
@@ -2118,7 +2138,12 @@ export default function useFestRegistration() {
       const verifyResult = await verifyPaymentWithRetry(
         API_BASE_URL,
         orderData.orderId,
-        { token, search: location.search },
+        {
+          token,
+          search: location.search,
+          paymentId: checkoutResult?.paymentDetails?.paymentId,
+          signature: checkoutResult?.paymentDetails?.signature,
+        },
       );
       if (verifyResult.status === 'cancelled') {
         handleVerifyCancelled();

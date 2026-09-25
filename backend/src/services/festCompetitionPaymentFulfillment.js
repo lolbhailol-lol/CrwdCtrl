@@ -117,6 +117,7 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
 
   const payment_order_id = paymentOrder.orderId;
   const payment_id = paymentOrder.paymentId || overrides.paymentId || null;
+  const paymentGateway = paymentOrder.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
 
   if (paymentOrder.entityType === 'competition') {
     const competitionId = paymentOrder.entityId || draft.competitionId;
@@ -245,14 +246,16 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       status: 'approved',
       payment_order_id,
       payment_id,
-      payment_gateway: 'cashfree',
+      payment_gateway: paymentGateway,
       paymentStatus: 'paid',
       amountPaid: competitionTotalAmount,
-      ...cashfreeSettlementFields({
-        amountPaid: competitionTotalAmount,
-        payment_gateway: 'cashfree',
-        payment_order_id,
-      }),
+      ...(paymentGateway === 'cashfree'
+        ? cashfreeSettlementFields({
+            amountPaid: competitionTotalAmount,
+            payment_gateway: paymentGateway,
+            payment_order_id,
+          })
+        : {}),
       submittedAt: new Date(),
     });
 
@@ -387,14 +390,16 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     status: 'approved',
     payment_order_id,
     payment_id,
-    payment_gateway: 'cashfree',
+    payment_gateway: paymentGateway,
     paymentStatus: 'paid',
     amountPaid: festTotalAmount,
-    ...cashfreeSettlementFields({
-      amountPaid: festTotalAmount,
-      payment_gateway: 'cashfree',
-      payment_order_id,
-    }),
+    ...(paymentGateway === 'cashfree'
+      ? cashfreeSettlementFields({
+          amountPaid: festTotalAmount,
+          payment_gateway: paymentGateway,
+          payment_order_id,
+        })
+      : {}),
     submittedAt: new Date(),
   });
 

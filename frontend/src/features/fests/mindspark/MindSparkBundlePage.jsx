@@ -6,7 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import CrwdCtrlLogin from '../../../pages/auth/login';
 import { createMindSparkBundle, fetchMindSparkBundleOffer, quoteMindSparkBundle, reissueMindSparkBundlePayment, verifyMindSparkBundlePayment } from '../../../services/api/mindsparkBundle.api';
-import { openCashfreeCheckout } from '../../../utils/useCashfree';
+import { openPaymentCheckout } from '../../../utils/usePaymentCheckout';
 import { buildBrandedCompetitionQrDataUrl } from '../../../utils/competitionPublicQr';
 import { PUBLIC_WEB_ORIGIN } from '../../../utils/publicWebOrigin';
 import LocalQRCode from '../../../components/LocalQRCode';
@@ -262,20 +262,35 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
         window.location.assign(result.paymentUrl);
         return;
       }
-      if (!result.paymentSessionId) {
+      if (!result.orderId || (result.gateway !== 'razorpay' && !result.paymentSessionId)) {
         const paymentToken = new URL(result.paymentUrl, window.location.origin).pathname.split('/').filter(Boolean).pop();
         result = { ...result, ...await reissueMindSparkBundlePayment(paymentToken) };
       }
-      if (!result.paymentSessionId) throw new Error('Cashfree could not be opened. Please try Pay securely again.');
-      const checkout = await openCashfreeCheckout({
+      if (!result.orderId || (result.gateway !== 'razorpay' && !result.paymentSessionId)) throw new Error('Payment checkout could not be opened. Please try Pay securely again.');
+      const checkout = await openPaymentCheckout({
+        gateway: result.gateway,
+        keyId: result.keyId,
         paymentSessionId: result.paymentSessionId,
         orderId: result.orderId,
         returnPath: `${new URL(result.paymentUrl, window.location.origin).pathname}?returned=1`,
         entityType: 'competition_bundle',
         cashfreeMode: result.cashfreeMode,
         customerEmail: customer.email,
+        customerPhone: customer.phone,
+        customerName: customer.name,
+        displayName: 'MindSpark competition bundle',
       });
       if (!checkout?.redirectDeferred) {
+        if (result.gateway === 'razorpay') {
+          await verifyMindSparkBundlePayment(
+            new URL(result.paymentUrl, window.location.origin).pathname.split('/').filter(Boolean).pop(),
+            {
+              razorpay_order_id: result.orderId,
+              razorpay_payment_id: checkout?.paymentDetails?.paymentId,
+              razorpay_signature: checkout?.paymentDetails?.signature,
+            },
+          );
+        }
         const separator = result.paymentUrl.includes('?') ? '&' : '?';
         window.location.assign(`${result.paymentUrl}${separator}returned=1`);
       }

@@ -9,6 +9,9 @@ const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers'
 const { buildPriceBreakdown } = require('../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { createCashfreeOrder, verifyCashfreePayment, getCashfreeClientMode } = require('../services/cashfreeService');
+const { createRazorpayOrder, verifyRazorpayPayment, getRazorpayKeyId } = require('../services/razorpayService');
+const { extractPaymentFields } = require('../utils/paymentVerification');
+const { resolveFestPaymentGateway } = require('../utils/paymentGatewayConfig');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
 const {
   findApprovedCompetitionDuplicate,
@@ -29,12 +32,14 @@ const phoneDigits = (value) => String(value || '').replace(/\D/g, '').slice(-10)
 const validEmail = (value) => EMAIL_RE.test(clean(value).toLowerCase());
 
 function publicState(entry, order, issuedRegistration = null, competitionName = '') {
+  const gateway = resolveFestPaymentGateway();
   const raw = String(order?.status || '').toUpperCase();
   const completed = entry.status === 'paid' && Boolean(issuedRegistration);
   const timedOut = raw === 'PENDING' && Date.now() - new Date(order?.createdAt || 0).getTime() >= ORDER_TTL_MS;
-  const merchantMismatch = raw === 'PENDING'
-    && order?.gateway !== 'razorpay'
-    && (order?.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT;
+  const merchantMismatch = raw === 'PENDING' && (
+    (order?.gateway || 'cashfree') !== gateway
+    || (gateway === 'cashfree' && (order?.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT)
+  );
   return {
     registrationId: issuedRegistration?._id ? String(issuedRegistration._id) : null,
     orderId: order?.orderId || null,
@@ -50,7 +55,9 @@ function publicState(entry, order, issuedRegistration = null, competitionName = 
               ? 'confirming'
               : 'pending',
     amount: Number(order?.totalAmount) || 0,
-    paymentSessionId: raw === 'PENDING' && !timedOut && !merchantMismatch ? order?.paymentSessionId || null : null,
+    gateway,
+    keyId: gateway === 'razorpay' ? getRazorpayKeyId() : undefined,
+    paymentSessionId: gateway === 'cashfree' && raw === 'PENDING' && !timedOut && !merchantMismatch ? order?.paymentSessionId || null : null,
     cashfreeMode: getCashfreeClientMode(CASHFREE_MERCHANT),
     cashfreeMerchant: CASHFREE_MERCHANT,
     paymentUrl: `${FRONTEND()}/desk-payment/${entry.paymentToken}`,
@@ -59,6 +66,8 @@ function publicState(entry, order, issuedRegistration = null, competitionName = 
     competitionName: competitionName || '',
     participantName: clean(entry.responses?.get?.('full_name') || entry.responses?.full_name),
     teamName: clean(entry.responses?.get?.('team_name') || entry.responses?.team_name),
+    customerEmail: order?.customerEmail || '',
+    customerPhone: order?.customerPhone || '',
   };
 }
 
@@ -105,20 +114,27 @@ async function createOrderForEntry({ entry, competition, user }) {
     }
   }
   try {
-    const cashfree = await createCashfreeOrder({
-      orderAmount: totals.totalAmount,
-      customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber },
-      orderMeta: { return_url: `${FRONTEND()}/desk-payment/${entry.paymentToken}?returned=1` },
-      orderNote: `MindSpark - ${competition.name}`,
-      orderTags: { entityType: 'competition', competitionName: competition.name, assistedDesk: 'yes' },
-      merchant: CASHFREE_MERCHANT,
-    });
+    const gateway = resolveFestPaymentGateway();
+    const gatewayOrder = gateway === 'razorpay'
+      ? await createRazorpayOrder({
+          orderAmount: totals.totalAmount,
+          receipt: `desk_${Date.now()}`,
+          notes: { entityType: 'competition', competitionName: competition.name, assistedDesk: 'yes' },
+        })
+      : await createCashfreeOrder({
+          orderAmount: totals.totalAmount,
+          customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber },
+          orderMeta: { return_url: `${FRONTEND()}/desk-payment/${entry.paymentToken}?returned=1` },
+          orderNote: `MindSpark - ${competition.name}`,
+          orderTags: { entityType: 'competition', competitionName: competition.name, assistedDesk: 'yes' },
+          merchant: CASHFREE_MERCHANT,
+        });
     const order = await PaymentOrder.create({
-      orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id,
+      orderId: gatewayOrder.order_id, paymentSessionId: gateway === 'cashfree' ? gatewayOrder.payment_session_id : null,
       entityType: 'competition', entityId: competition._id, userId: user._id,
       ticketPrice: totals.ticketPrice, platformFee: totals.platformFee,
       amountBeforeDiscount: totals.totalAmount, amountAfterDiscount: totals.totalAmount,
-      totalAmount: totals.totalAmount, status: 'PENDING', gateway: 'cashfree',
+      totalAmount: totals.totalAmount, status: 'PENDING', gateway,
       cashfreeMerchant: CASHFREE_MERCHANT, customerEmail: user.email, customerPhone: user.phoneNumber,
       orderTags: {
         competitionName: competition.name, festId: String(competition.fest._id),
@@ -304,7 +320,7 @@ exports.createAssistedRegistration = async (req, res) => {
         team_members: rosterMembers,
         team_size: rosterMembers.length,
         feeTierId: clean(req.body.feeTierId, 80),
-        manual_entry: 'assisted_cashfree',
+        manual_entry: `assisted_${resolveFestPaymentGateway()}`,
       },
     });
     const created = await createOrderForEntry({ entry, competition, user });
@@ -339,11 +355,21 @@ exports.verifyAssistedPayment = async (req, res) => {
     const { entry, order, competition } = await loadPublic(req.params.token);
     if (!entry) return res.status(404).json({ success: false, message: 'Payment link not found' });
     if (order && entry.status !== 'paid') {
-      const result = await verifyCashfreePayment({
-        orderId: order.orderId,
-        paymentId: order.paymentId || undefined,
-        merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
-      });
+      const fields = extractPaymentFields(req.body);
+      const result = order.gateway === 'razorpay'
+        ? await verifyRazorpayPayment({
+            orderId: order.orderId,
+            paymentId: fields.paymentId || order.paymentId || undefined,
+            signature: fields.signature,
+          })
+        : await verifyCashfreePayment({
+            orderId: order.orderId,
+            paymentId: fields.paymentId || order.paymentId || undefined,
+            merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
+          });
+      if (['INVALID_SIGNATURE', 'MISSING_PAYMENT_FIELDS'].includes(result.code)) {
+        return res.status(400).json({ success: false, message: result.message, code: result.code });
+      }
       if (result.verified) {
         order.status = 'PAID'; if (result.paymentId) order.paymentId = String(result.paymentId); await order.save();
         const { fulfillFestCompetitionFromPaidOrder } = require('../services/festCompetitionPaymentFulfillment');
@@ -367,8 +393,9 @@ exports.reissueAssistedPayment = async (req, res) => {
     const { entry, order } = await loadPublic(req.params.token);
     if (!entry) return res.status(404).json({ success: false, message: 'Payment link not found' });
     const timedOut = order?.status === 'PENDING' && Date.now() - new Date(order.createdAt).getTime() >= ORDER_TTL_MS;
-    const merchantMismatch = order?.gateway !== 'razorpay'
-      && (order?.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT;
+    const configuredGateway = resolveFestPaymentGateway();
+    const merchantMismatch = (order?.gateway || 'cashfree') !== configuredGateway
+      || (configuredGateway === 'cashfree' && (order?.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT);
     if (entry.status === 'paid' || !order || (order.status === 'PENDING' && !timedOut && !merchantMismatch)) {
       const competition = await Competition.findById(entry.competitionId).select('name').lean();
       return res.json({ success: true, ...(await responseFor(entry, order, competition?.name || '')) });

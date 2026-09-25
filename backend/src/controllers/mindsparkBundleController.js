@@ -14,6 +14,13 @@ const {
   firstValidCustomerPhone,
 } = require('../services/cashfreeService');
 const {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+  getRazorpayKeyId,
+} = require('../services/razorpayService');
+const { extractPaymentFields } = require('../utils/paymentVerification');
+const { resolveFestPaymentGateway } = require('../utils/paymentGatewayConfig');
+const {
   fulfillMindSparkBundle,
   buildMindSparkBundleConfirmationItems,
   sendBundleWhatsAppOnce,
@@ -57,21 +64,27 @@ function resolveBundlePhone(bundle, user, extraPhone = '') {
 }
 
 function serialize(bundle, order) {
+  const gateway = resolveFestPaymentGateway();
   const orderMerchant = order?.cashfreeMerchant === 'events' ? 'events' : 'platform';
-  const needsMerchantReplacement = Boolean(order)
-    && order?.gateway !== 'razorpay'
-    && orderMerchant !== CASHFREE_MERCHANT;
+  const needsMerchantReplacement = Boolean(order) && (
+    (order.gateway || 'cashfree') !== gateway
+    || (gateway === 'cashfree' && orderMerchant !== CASHFREE_MERCHANT)
+  );
   const cashfreeMerchant = !order || needsMerchantReplacement ? CASHFREE_MERCHANT : orderMerchant;
   return {
     bundleId: String(bundle._id), status: bundle.status, subtotal: bundle.subtotal,
     discountPercent: bundle.discountPercent, discountAmount: bundle.discountAmount,
     amount: bundle.totalAmount, orderId: order?.orderId || bundle.activeOrderId,
-    paymentSessionId: order?.status === 'PENDING'
+    gateway,
+    keyId: gateway === 'razorpay' ? getRazorpayKeyId() : undefined,
+    paymentSessionId: gateway === 'cashfree' && order?.status === 'PENDING'
       && bundle.expiresAt > new Date()
       && !needsMerchantReplacement
       ? order.paymentSessionId
       : null,
     cashfreeMode: getCashfreeClientMode(cashfreeMerchant), cashfreeMerchant, expiresAt: bundle.expiresAt,
+    customerEmail: order?.customerEmail || '',
+    customerPhone: order?.customerPhone || '',
     tickets: [],
   };
 }
@@ -371,22 +384,29 @@ async function createOrderForBundle(bundle, user) {
       orderTags: { bundleId: String(bundle._id), festId: FEST_ID, zeroFee: true },
     });
   } else {
-    const cashfree = await createCashfreeOrder({
-      orderAmount: bundle.totalAmount,
-      customerDetails: {
-        customerId: String(user._id),
-        customerName: user.name,
-        customerEmail: user.email,
-        customerPhone,
-      },
-      orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` },
-      orderNote: ORDER_NOTE,
-      orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
-      merchant: CASHFREE_MERCHANT,
-    });
+    const gateway = resolveFestPaymentGateway();
+    const gatewayOrder = gateway === 'razorpay'
+      ? await createRazorpayOrder({
+          orderAmount: bundle.totalAmount,
+          receipt: `bundle_${Date.now()}`,
+          notes: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+        })
+      : await createCashfreeOrder({
+          orderAmount: bundle.totalAmount,
+          customerDetails: {
+            customerId: String(user._id),
+            customerName: user.name,
+            customerEmail: user.email,
+            customerPhone,
+          },
+          orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` },
+          orderNote: ORDER_NOTE,
+          orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+          merchant: CASHFREE_MERCHANT,
+        });
     order = await PaymentOrder.create({
-      orderId: cashfree.order_id,
-      paymentSessionId: cashfree.payment_session_id,
+      orderId: gatewayOrder.order_id,
+      paymentSessionId: gateway === 'cashfree' ? gatewayOrder.payment_session_id : null,
       entityType: 'competition_bundle',
       entityId: bundle._id,
       userId: user._id,
@@ -396,7 +416,7 @@ async function createOrderForBundle(bundle, user) {
       amountAfterDiscount: bundle.totalAmount,
       totalAmount: bundle.totalAmount,
       status: 'PENDING',
-      gateway: 'cashfree',
+      gateway,
       cashfreeMerchant: CASHFREE_MERCHANT,
       customerEmail: user.email,
       customerPhone,
@@ -521,11 +541,21 @@ exports.verify = async (req, res) => {
     if (order.status === 'PAID') {
       fulfillment = await fulfillMindSparkBundle(order);
     } else if (bundle.status !== 'paid') {
-      const verified = await verifyCashfreePayment({
-        orderId: order.orderId,
-        paymentId: order.paymentId || undefined,
-        merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
-      });
+      const fields = extractPaymentFields(req.body);
+      const verified = order.gateway === 'razorpay'
+        ? await verifyRazorpayPayment({
+            orderId: order.orderId,
+            paymentId: fields.paymentId || order.paymentId || undefined,
+            signature: fields.signature,
+          })
+        : await verifyCashfreePayment({
+            orderId: order.orderId,
+            paymentId: fields.paymentId || order.paymentId || undefined,
+            merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
+          });
+      if (['INVALID_SIGNATURE', 'MISSING_PAYMENT_FIELDS'].includes(verified.code)) {
+        return res.status(400).json({ success: false, message: verified.message, code: verified.code });
+      }
       if (verified.verified) {
         order.status = 'PAID';
         order.paymentId = verified.paymentId || order.paymentId;
@@ -555,8 +585,12 @@ exports.reissue = async (req, res) => {
     const { bundle, order } = await load(req.params.token);
     if (!bundle || !order) return res.status(404).json({ success: false, message: 'Bundle not found.' });
     const timedOut = order.status === 'PENDING' && bundle.expiresAt <= new Date();
-    const merchantMismatch = order.gateway !== 'razorpay'
-      && (order.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT;
+    const configuredGateway = resolveFestPaymentGateway();
+    const merchantMismatch = (order.gateway || 'cashfree') !== configuredGateway
+      || (
+        configuredGateway === 'cashfree'
+        && (order.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT
+      );
     if (bundle.status === 'paid' || (order.status === 'PENDING' && !timedOut && !merchantMismatch)) return res.json({ success: true, ...await serializeWithTickets(bundle, order) });
     if (!['FAILED','EXPIRED'].includes(order.status) && !timedOut && !merchantMismatch) return res.status(409).json({ success: false, message: 'The existing payment is still being confirmed.' });
     order.status = timedOut ? 'EXPIRED' : order.status; order.orderTags = { ...(order.orderTags || {}), retired: true }; await order.save();
@@ -573,22 +607,28 @@ exports.reissue = async (req, res) => {
     if (!customerPhone) {
       return res.status(400).json({ success: false, message: 'A valid 10-digit WhatsApp number is required for Cashfree payment.' });
     }
-    const cashfree = await createCashfreeOrder({
-      orderAmount: bundle.totalAmount,
-      customerDetails: {
-        customerId: String(user._id),
-        customerName: user.name,
-        customerEmail: user.email,
-        customerPhone,
-      },
-      orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` },
-      orderNote: ORDER_NOTE,
-      orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
-      merchant: CASHFREE_MERCHANT,
-    });
+    const gatewayOrder = configuredGateway === 'razorpay'
+      ? await createRazorpayOrder({
+          orderAmount: bundle.totalAmount,
+          receipt: `bundle_${Date.now()}`,
+          notes: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+        })
+      : await createCashfreeOrder({
+          orderAmount: bundle.totalAmount,
+          customerDetails: {
+            customerId: String(user._id),
+            customerName: user.name,
+            customerEmail: user.email,
+            customerPhone,
+          },
+          orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` },
+          orderNote: ORDER_NOTE,
+          orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+          merchant: CASHFREE_MERCHANT,
+        });
     const replacement = await PaymentOrder.create({
-      orderId: cashfree.order_id,
-      paymentSessionId: cashfree.payment_session_id,
+      orderId: gatewayOrder.order_id,
+      paymentSessionId: configuredGateway === 'cashfree' ? gatewayOrder.payment_session_id : null,
       entityType: 'competition_bundle',
       entityId: bundle._id,
       userId: bundle.user,
@@ -598,7 +638,7 @@ exports.reissue = async (req, res) => {
       amountAfterDiscount: bundle.totalAmount,
       totalAmount: bundle.totalAmount,
       status: 'PENDING',
-      gateway: 'cashfree',
+      gateway: configuredGateway,
       cashfreeMerchant: CASHFREE_MERCHANT,
       customerEmail: user.email,
       customerPhone,

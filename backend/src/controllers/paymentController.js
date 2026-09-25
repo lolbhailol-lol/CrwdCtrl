@@ -64,6 +64,7 @@ const {
 const { captureFlowEvent } = require('../config/sentry');
 const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 const { resolveFestCashfreeMerchant } = require('../utils/festCashfreeMerchant');
+const { resolveCheckoutGateway } = require('../utils/paymentGatewayConfig');
 
 const CASHFREE_CONFIG_MSG =
   'Payment gateway credentials are invalid or missing. Set CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET in backend/.env';
@@ -102,7 +103,7 @@ const respondRazorpayError = (res, err, fallbackMessage) => {
   }
   const status = Number(err.response?.status);
   if (status === 401 || status === 403) {
-    return res.status(503).json({ message: RAZORPAY_CONFIG_MSG });
+    return res.status(401).json({ message: RAZORPAY_CONFIG_MSG });
   }
   const rzMessage =
     rzError?.error?.description
@@ -531,6 +532,7 @@ exports.validateCoupon = async (req, res) => {
 // POST /api/payment/order
 exports.createOrder = async (req, res) => {
   let slotReservation = null;
+  let checkoutGateway = 'cashfree';
   try {
     const { currency = 'INR', notes = {} } = req.body;
     const pricing = await getPricingForRequest(req);
@@ -557,6 +559,7 @@ exports.createOrder = async (req, res) => {
     // MindSpark uses the separate Delulu/events Cashfree merchant. The platform
     // merchant can hit its monthly transaction cap independently.
     const cashfreeMerchant = resolveFestCashfreeMerchant(pricing);
+    checkoutGateway = resolveCheckoutGateway({ entityType: pricing.entityType });
 
     const { sanitizeRegistrationDraft } = require('../services/eventShowPaymentFulfillment');
     const { sanitizeFestCompetitionDraft } = require('../utils/festCompetitionDraft');
@@ -571,9 +574,13 @@ exports.createOrder = async (req, res) => {
       entityId,
       totalAmount: pricing.totalAmount,
       couponCode: pricing.couponCode,
+      gateway: checkoutGateway,
     });
-    if (existingPending?.paymentSessionId) {
-      if ((existingPending.cashfreeMerchant || 'platform') !== cashfreeMerchant) {
+    if (existingPending?.orderId) {
+      if (
+        checkoutGateway === 'cashfree'
+        && (existingPending.cashfreeMerchant || 'platform') !== cashfreeMerchant
+      ) {
         // Never return a checkout session from the capped platform merchant after
         // MindSpark has moved to the events merchant.
         await expireCancelledPaymentOrder(existingPending.orderId);
@@ -600,8 +607,12 @@ exports.createOrder = async (req, res) => {
       }
       return res.json({
         ...buildOrderResponse(existingPending),
-        cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
-        cashfreeMerchant,
+        ...(checkoutGateway === 'razorpay'
+          ? { keyId: getRazorpayKeyId() }
+          : {
+              cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
+              cashfreeMerchant,
+            }),
       });
       }
     }
@@ -678,14 +689,21 @@ exports.createOrder = async (req, res) => {
     allowTag('totalAmount', pricing.totalAmount);
     if (pricing.couponCode) allowTag('couponCode', pricing.couponCode);
 
-    const order = await createCashfreeOrder({
-      orderAmount: pricing.totalAmount,
-      currency,
-      customerDetails,
-      orderNote: buildPaymentOrderNote(pricing),
-      orderTags,
-      merchant: cashfreeMerchant,
-    });
+    const order = checkoutGateway === 'razorpay'
+      ? await createRazorpayOrder({
+          orderAmount: pricing.totalAmount,
+          currency,
+          receipt: `${pricing.entityType}_${Date.now()}`,
+          notes: orderTags,
+        })
+      : await createCashfreeOrder({
+          orderAmount: pricing.totalAmount,
+          currency,
+          customerDetails,
+          orderNote: buildPaymentOrderNote(pricing),
+          orderTags,
+          merchant: cashfreeMerchant,
+        });
 
     if (entityId) {
       const mongoOrderTags = {
@@ -706,7 +724,7 @@ exports.createOrder = async (req, res) => {
       }
       await PaymentOrder.create({
         orderId: order.order_id,
-        paymentSessionId: order.payment_session_id,
+        paymentSessionId: checkoutGateway === 'cashfree' ? order.payment_session_id : null,
         entityType: pricing.entityType,
         entityId,
         userId,
@@ -720,7 +738,7 @@ exports.createOrder = async (req, res) => {
         people: 1,
         currency,
         status: 'PENDING',
-        gateway: 'cashfree',
+        gateway: checkoutGateway,
         cashfreeMerchant,
         orderTags: mongoOrderTags,
         customerEmail: customerDetails.customerEmail || null,
@@ -733,12 +751,17 @@ exports.createOrder = async (req, res) => {
     }
 
     res.json({
+      gateway: checkoutGateway,
       orderId: order.order_id,
-      paymentSessionId: order.payment_session_id,
-      cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
-      cashfreeMerchant,
-      amount: order.order_amount,
-      currency: order.order_currency,
+      paymentSessionId: checkoutGateway === 'cashfree' ? order.payment_session_id : null,
+      ...(checkoutGateway === 'razorpay'
+        ? { keyId: getRazorpayKeyId() }
+        : {
+            cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
+            cashfreeMerchant,
+          }),
+      amount: checkoutGateway === 'razorpay' ? order.amount : order.order_amount,
+      currency: checkoutGateway === 'razorpay' ? order.currency : order.order_currency,
       ticketPrice: pricing.ticketPrice,
       platformFee: pricing.platformFee,
       couponCode: pricing.couponCode || '',
@@ -760,6 +783,9 @@ exports.createOrder = async (req, res) => {
       eventShowId: req.body?.eventShowId,
       tierId: req.body?.tierId,
     });
+    if (checkoutGateway === 'razorpay') {
+      return respondRazorpayError(res, err, 'Failed to create payment order');
+    }
     // Axios / Cashfree errors have response — never treat as our custom err.status
     if (err.response || err.code === 'CASHFREE_CREDENTIALS_MISSING') {
       return respondCashfreeError(res, err, 'Failed to create payment order');
@@ -806,7 +832,7 @@ async function markOrderPaidAndFulfill(result) {
 
 exports.verifyPayment = async (req, res) => {
   try {
-    const { orderId, paymentId } = extractPaymentFields(req.body);
+    const { orderId, paymentId, signature } = extractPaymentFields(req.body);
 
     if (!orderId) {
       return res.status(400).json({
@@ -819,13 +845,15 @@ exports.verifyPayment = async (req, res) => {
     }
 
     const paymentOrderForMerchant = await PaymentOrder.findOne({ orderId: String(orderId) })
-      .select('cashfreeMerchant')
+      .select('gateway cashfreeMerchant')
       .lean();
-    const result = await verifyCashfreePayment({
-      orderId,
-      paymentId,
-      merchant: paymentOrderForMerchant?.cashfreeMerchant === 'events' ? 'events' : 'platform',
-    });
+    const result = paymentOrderForMerchant?.gateway === 'razorpay'
+      ? await verifyRazorpayPayment({ orderId, paymentId, signature })
+      : await verifyCashfreePayment({
+          orderId,
+          paymentId,
+          merchant: paymentOrderForMerchant?.cashfreeMerchant === 'events' ? 'events' : 'platform',
+        });
     if (result.status === 'cancelled' || result.status === 'failed') {
       expireCancelledPaymentOrder(orderId).catch(() => {});
     }
@@ -890,6 +918,15 @@ exports.verifyPayment = async (req, res) => {
       captureFlowEvent('payment_verify', result.status || 'not_verified', {
         entityType: paymentOrder?.entityType || 'fest',
         code: result.code,
+      });
+    }
+    if (['INVALID_SIGNATURE', 'MISSING_PAYMENT_FIELDS'].includes(result.code)) {
+      return res.status(400).json({
+        verified: false,
+        status: 'failed',
+        code: result.code,
+        message: result.message,
+        retryable: false,
       });
     }
     return sendVerifyResponse(res, result, extras);
@@ -1301,6 +1338,7 @@ exports.createTrekOrder = async (req, res) => {
 
 // POST /api/payment/sports-order — guest-friendly; price computed server-side only
 exports.createSportsOrder = async (req, res) => {
+  let checkoutGateway = 'cashfree';
   try {
     // Prefer logged-in user for coupon per-user limits when Authorization is present
     if (!req.user?.userId && req.headers.authorization?.startsWith('Bearer ')) {
@@ -1494,6 +1532,7 @@ exports.createSportsOrder = async (req, res) => {
 
     const cashfreeMerchant = listingHub === 'events' ? 'events' : 'platform';
     const cashfreeMode = getCashfreeClientMode(cashfreeMerchant);
+    checkoutGateway = resolveCheckoutGateway({ entityType: 'sports', listingHub });
 
     const existingPending = await findReusablePendingOrder({
       userId: req.user?.userId || null,
@@ -1503,10 +1542,14 @@ exports.createSportsOrder = async (req, res) => {
       totalAmount,
       people: peopleCount,
       couponCode: coupon.couponCode,
+      gateway: checkoutGateway,
     });
-    if (existingPending?.paymentSessionId) {
+    if (existingPending?.orderId) {
       // Do not reuse a session from the other Cashfree merchant
-      if ((existingPending.cashfreeMerchant || 'platform') !== cashfreeMerchant) {
+      if (
+        checkoutGateway === 'cashfree'
+        && (existingPending.cashfreeMerchant || 'platform') !== cashfreeMerchant
+      ) {
         existingPending.status = 'EXPIRED';
         await existingPending.save().catch(() => {});
       } else {
@@ -1522,8 +1565,9 @@ exports.createSportsOrder = async (req, res) => {
         return res.json({
           success: true,
           ...buildOrderResponse(existingPending),
-          cashfreeMode,
-          cashfreeMerchant,
+          ...(checkoutGateway === 'razorpay'
+            ? { keyId: getRazorpayKeyId() }
+            : { cashfreeMode, cashfreeMerchant }),
         });
       }
     }
@@ -1550,23 +1594,30 @@ exports.createSportsOrder = async (req, res) => {
       cashfreeOrderTags.addOnFee = String(ticket.addOnFeePerPerson || 0);
     }
 
-    const order = await createCashfreeOrder({
-      orderAmount: totalAmount,
-      currency,
-      customerDetails: {
-        customerId: `sports_guest_${resolvedEventId}`,
-        customerName: customerName || 'Run Guest',
-        customerEmail: email,
-        customerPhone: resolvedPhone,
-      },
-      orderNote: resolvedName,
-      orderTags: cashfreeOrderTags,
-      merchant: cashfreeMerchant,
-    });
+    const order = checkoutGateway === 'razorpay'
+      ? await createRazorpayOrder({
+          orderAmount: totalAmount,
+          currency,
+          receipt: `event_${Date.now()}`,
+          notes: cashfreeOrderTags,
+        })
+      : await createCashfreeOrder({
+          orderAmount: totalAmount,
+          currency,
+          customerDetails: {
+            customerId: `sports_guest_${resolvedEventId}`,
+            customerName: customerName || 'Run Guest',
+            customerEmail: email,
+            customerPhone: resolvedPhone,
+          },
+          orderNote: resolvedName,
+          orderTags: cashfreeOrderTags,
+          merchant: cashfreeMerchant,
+        });
 
     await PaymentOrder.create({
       orderId: order.order_id,
-      paymentSessionId: order.payment_session_id,
+      paymentSessionId: checkoutGateway === 'cashfree' ? order.payment_session_id : null,
       entityType: 'sports',
       entityId: event._id,
       userId: req.user?.userId || null,
@@ -1580,7 +1631,7 @@ exports.createSportsOrder = async (req, res) => {
       people: peopleCount,
       currency,
       status: 'PENDING',
-      gateway: 'cashfree',
+      gateway: checkoutGateway,
       cashfreeMerchant,
       orderTags: {
         eventId: resolvedEventId,
@@ -1601,12 +1652,14 @@ exports.createSportsOrder = async (req, res) => {
     });
 
     res.json({
+      gateway: checkoutGateway,
       orderId: order.order_id,
-      paymentSessionId: order.payment_session_id,
-      cashfreeMode,
-      cashfreeMerchant,
-      amount: order.order_amount,
-      currency: order.order_currency,
+      paymentSessionId: checkoutGateway === 'cashfree' ? order.payment_session_id : null,
+      ...(checkoutGateway === 'razorpay'
+        ? { keyId: getRazorpayKeyId() }
+        : { cashfreeMode, cashfreeMerchant }),
+      amount: checkoutGateway === 'razorpay' ? order.amount : order.order_amount,
+      currency: checkoutGateway === 'razorpay' ? order.currency : order.order_currency,
       ticketPrice: ticketPricePerPerson,
       platformFee,
       couponCode: coupon.couponCode || '',
@@ -1618,6 +1671,9 @@ exports.createSportsOrder = async (req, res) => {
       tierName: resolvedTier?.name || '',
     });
   } catch (err) {
+    if (checkoutGateway === 'razorpay') {
+      return respondRazorpayError(res, err, 'Failed to create event payment order');
+    }
     respondCashfreeError(res, err, 'Failed to create run payment order');
   }
 };
@@ -1655,7 +1711,7 @@ async function fulfillSportsOrderAndGetRegistration(orderId, overrides = {}) {
 // POST /api/payment/sports-verify
 exports.verifySportsPayment = async (req, res) => {
   try {
-    const { orderId, paymentId } = extractPaymentFields(req.body);
+    const { orderId, paymentId, signature } = extractPaymentFields(req.body);
     if (!orderId) {
       return res.status(400).json({
         verified: false,
@@ -1712,11 +1768,13 @@ exports.verifySportsPayment = async (req, res) => {
       );
     }
 
-    const result = await verifyCashfreePayment({
-      orderId,
-      paymentId,
-      merchant: paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform',
-    });
+    const result = paymentOrder?.gateway === 'razorpay'
+      ? await verifyRazorpayPayment({ orderId, paymentId, signature })
+      : await verifyCashfreePayment({
+          orderId,
+          paymentId,
+          merchant: paymentOrder?.cashfreeMerchant === 'events' ? 'events' : 'platform',
+        });
     let paymentProof = null;
 
     if (result.verified) {
@@ -1756,6 +1814,15 @@ exports.verifySportsPayment = async (req, res) => {
       }
     }
 
+    if (['INVALID_SIGNATURE', 'MISSING_PAYMENT_FIELDS'].includes(result.code)) {
+      return res.status(400).json({
+        verified: false,
+        status: 'failed',
+        code: result.code,
+        message: result.message,
+        retryable: false,
+      });
+    }
     return sendVerifyResponse(res, result, {
       totalAmount: paymentOrder?.totalAmount,
       paymentProof,

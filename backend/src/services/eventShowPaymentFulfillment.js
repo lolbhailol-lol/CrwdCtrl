@@ -96,6 +96,7 @@ async function fulfillEventShowFromPaidOrder(paymentOrderInput, overrides = {}) 
 
   const payment_order_id = paymentOrder.orderId;
   const payment_id = paymentOrder.paymentId || overrides.paymentId || null;
+  const paymentGateway = paymentOrder.gateway === 'razorpay' ? 'razorpay' : 'cashfree';
 
   const alreadyPaid = await EventShowRegistration.findOne({
     eventShow: eventShow._id,
@@ -200,7 +201,7 @@ async function fulfillEventShowFromPaidOrder(paymentOrderInput, overrides = {}) 
       selectedAddOns: addOns.selected,
       amountPaid: entryAmount,
       paymentStatus: 'paid',
-      payment_gateway: 'cashfree',
+      payment_gateway: paymentGateway,
       paymentScreenshotUrl: '',
       transactionId: '',
       payment_order_id,
@@ -223,7 +224,7 @@ async function fulfillEventShowFromPaidOrder(paymentOrderInput, overrides = {}) 
       status: 'approved',
       payment_order_id,
       payment_id,
-      payment_gateway: 'cashfree',
+      payment_gateway: paymentGateway,
       paymentStatus: 'paid',
       paymentScreenshotUrl: '',
       transactionId: '',

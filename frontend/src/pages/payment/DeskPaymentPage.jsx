@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Loader, RefreshCw } from 'lucide-react';
-import { load } from '@cashfreepayments/cashfree-js';
+import { openPaymentCheckout } from '../../utils/usePaymentCheckout';
 import LocalQRCode from '../../components/LocalQRCode';
 import { fetchDeskPayment, reissueDeskPayment, verifyDeskPayment } from '../../services/api/deskPayment.api';
 
@@ -42,13 +42,15 @@ export default function DeskPaymentPage() {
   }, [data?.status, token]);
 
   const pay = async () => {
-    if (!data?.paymentSessionId) return;
+    if (!data?.orderId || (data.gateway !== 'razorpay' && !data.paymentSessionId)) return;
     setBusy(true); setError('');
     try {
-      const cashfree = await load({ mode: data.cashfreeMode || 'production' });
-      const result = await cashfree.checkout({ paymentSessionId: data.paymentSessionId, redirectTarget: '_self' });
-      if (result?.error) setError(result.error.message || 'Payment was cancelled');
-    } catch (e) { setError(e.message || 'Could not open Cashfree'); }
+      const result = await openPaymentCheckout({ gateway: data.gateway, keyId: data.keyId, paymentSessionId: data.paymentSessionId, orderId: data.orderId, returnPath: `${window.location.pathname}?returned=1`, entityType: 'competition', cashfreeMode: data.cashfreeMode || 'production', customerEmail: data.customerEmail, customerPhone: data.customerPhone, customerName: data.participantName, displayName: data.competitionName || 'Competition registration' });
+      if (!result?.redirectDeferred) {
+        const payment = data.gateway === 'razorpay' ? { razorpay_order_id: data.orderId, razorpay_payment_id: result?.paymentDetails?.paymentId, razorpay_signature: result?.paymentDetails?.signature } : null;
+        setData(await verifyDeskPayment(token, payment));
+      }
+    } catch (e) { setError(e.message || 'Could not open payment checkout'); }
     finally { setBusy(false); }
   };
 
@@ -91,10 +93,10 @@ export default function DeskPaymentPage() {
           <button
             type="button"
             onClick={pay}
-            disabled={busy || !data.paymentSessionId}
+            disabled={busy || !data.orderId || (data.gateway !== 'razorpay' && !data.paymentSessionId)}
             className="w-full rounded-xl bg-[#0ECCEE] text-black py-3 font-semibold disabled:opacity-50"
           >
-            {busy ? 'Opening…' : 'Pay securely with Cashfree'}
+            {busy ? 'Opening…' : `Pay securely with ${data.gateway === 'razorpay' ? 'Razorpay' : 'Cashfree'}`}
           </button>
         ) : null}
         {data && data.status === 'confirming' ? (

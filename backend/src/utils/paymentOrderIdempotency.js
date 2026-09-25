@@ -215,6 +215,7 @@ function buildOrderResponse(existing, extras = {}) {
     amountAfterDiscount: existing.amountAfterDiscount ?? existing.totalAmount,
     totalAmount: existing.totalAmount,
     reusedPendingOrder: true,
+    alreadyPaidAtGateway: Boolean(existing._alreadyPaidAtGateway || existing.status === 'PAID'),
     ...extras,
   };
 }
