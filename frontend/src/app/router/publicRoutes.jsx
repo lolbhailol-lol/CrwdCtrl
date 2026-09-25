@@ -61,6 +61,7 @@ import {
   dashboardRedirect,
   theatreRedirect,
   registeredFestRedirect,
+  mindsparkRedirects,
 } from './redirects';
 
 export const publicRoutes = (
@@ -69,6 +70,7 @@ export const publicRoutes = (
       <Route path="/s/:festSlugOrId" element={<FestStallInterestPage />} />
       <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
       <Route path="/desk-payment/:token" element={<DeskPaymentPage />} />
+      {mindsparkRedirects}
       <Route path="/mindspark/bundle" element={<MindSparkBundlePage />} />
       <Route path="/mindspark/bundle-pay/:token" element={<MindSparkBundlePaymentPage />} />
       <Route path="/mindspark/auditorium" element={<MindSparkAuditoriumPage />} />
