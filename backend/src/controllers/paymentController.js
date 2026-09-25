@@ -62,6 +62,8 @@ const {
   expireCancelledPaymentOrder,
 } = require('../utils/paymentOrderIdempotency');
 const { captureFlowEvent } = require('../config/sentry');
+const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
+const { resolveFestCashfreeMerchant } = require('../utils/festCashfreeMerchant');
 
 const CASHFREE_CONFIG_MSG =
   'Payment gateway credentials are invalid or missing. Set CASHFREE_CLIENT_ID and CASHFREE_CLIENT_SECRET in backend/.env';
@@ -552,6 +554,9 @@ exports.createOrder = async (req, res) => {
     const entityId = extractEntityId(pricing.notes);
     const customerDetails = await getCustomerDetails(req);
     const userId = req.user?.userId || null;
+    // MindSpark uses the separate Delulu/events Cashfree merchant. The platform
+    // merchant can hit its monthly transaction cap independently.
+    const cashfreeMerchant = resolveFestCashfreeMerchant(pricing);
 
     const { sanitizeRegistrationDraft } = require('../services/eventShowPaymentFulfillment');
     const { sanitizeFestCompetitionDraft } = require('../utils/festCompetitionDraft');
@@ -568,6 +573,11 @@ exports.createOrder = async (req, res) => {
       couponCode: pricing.couponCode,
     });
     if (existingPending?.paymentSessionId) {
+      if ((existingPending.cashfreeMerchant || 'platform') !== cashfreeMerchant) {
+        // Never return a checkout session from the capped platform merchant after
+        // MindSpark has moved to the events merchant.
+        await expireCancelledPaymentOrder(existingPending.orderId);
+      } else {
       if (registrationDraft && ['event_show', 'fest', 'competition'].includes(pricing.entityType)) {
         const nextTags = {
           ...(existingPending.orderTags || {}),
@@ -590,8 +600,10 @@ exports.createOrder = async (req, res) => {
       }
       return res.json({
         ...buildOrderResponse(existingPending),
-        cashfreeMode: getCashfreeClientMode(),
+        cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
+        cashfreeMerchant,
       });
+      }
     }
 
     if (pricing.entityType === 'competition') {
@@ -615,7 +627,6 @@ exports.createOrder = async (req, res) => {
           registrationId: String(duplicate._id),
         });
       }
-      const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
       const festIdForOpen = competition?.fest || festCompDraft?.festId || pricing.notes?.festId;
       if (isMindSparkFestId(festIdForOpen) && userId) {
         const { findOpenMindSparkCheckout } = require('../utils/openMindSparkCheckout');
@@ -673,6 +684,7 @@ exports.createOrder = async (req, res) => {
       customerDetails,
       orderNote: buildPaymentOrderNote(pricing),
       orderTags,
+      merchant: cashfreeMerchant,
     });
 
     if (entityId) {
@@ -708,6 +720,8 @@ exports.createOrder = async (req, res) => {
         people: 1,
         currency,
         status: 'PENDING',
+        gateway: 'cashfree',
+        cashfreeMerchant,
         orderTags: mongoOrderTags,
         customerEmail: customerDetails.customerEmail || null,
         customerPhone: customerDetails.customerPhone || '',
@@ -721,7 +735,8 @@ exports.createOrder = async (req, res) => {
     res.json({
       orderId: order.order_id,
       paymentSessionId: order.payment_session_id,
-      cashfreeMode: getCashfreeClientMode(),
+      cashfreeMode: getCashfreeClientMode(cashfreeMerchant),
+      cashfreeMerchant,
       amount: order.order_amount,
       currency: order.order_currency,
       ticketPrice: pricing.ticketPrice,

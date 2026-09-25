@@ -16,6 +16,7 @@ const {
 const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
 
 const TTL = 30 * 60 * 1000;
+const CASHFREE_MERCHANT = 'events';
 const FRONTEND = () => String(
   process.env.PRODUCTION_FRONTEND_URL
   || process.env.PUBLIC_FRONTEND_URL
@@ -52,12 +53,21 @@ function resolveBundlePhone(bundle, user, extraPhone = '') {
 }
 
 function serialize(bundle, order) {
+  const orderMerchant = order?.cashfreeMerchant === 'events' ? 'events' : 'platform';
+  const needsMerchantReplacement = Boolean(order)
+    && order?.gateway !== 'razorpay'
+    && orderMerchant !== CASHFREE_MERCHANT;
+  const cashfreeMerchant = !order || needsMerchantReplacement ? CASHFREE_MERCHANT : orderMerchant;
   return {
     bundleId: String(bundle._id), status: bundle.status, subtotal: bundle.subtotal,
     discountPercent: bundle.discountPercent, discountAmount: bundle.discountAmount,
     amount: bundle.totalAmount, orderId: order?.orderId || bundle.activeOrderId,
-    paymentSessionId: order?.status === 'PENDING' && bundle.expiresAt > new Date() ? order.paymentSessionId : null,
-    cashfreeMode: getCashfreeClientMode(), expiresAt: bundle.expiresAt,
+    paymentSessionId: order?.status === 'PENDING'
+      && bundle.expiresAt > new Date()
+      && !needsMerchantReplacement
+      ? order.paymentSessionId
+      : null,
+    cashfreeMode: getCashfreeClientMode(cashfreeMerchant), cashfreeMerchant, expiresAt: bundle.expiresAt,
     tickets: [],
   };
 }
@@ -351,6 +361,7 @@ async function createOrderForBundle(bundle, user) {
       entityType: 'competition_bundle', entityId: bundle._id, userId: user._id,
       ticketPrice: 0, amountBeforeDiscount: 0, amountAfterDiscount: 0, totalAmount: 0,
       status: 'PAID', gateway: 'cashfree', customerEmail: user.email, customerPhone,
+      cashfreeMerchant: CASHFREE_MERCHANT,
       orderTags: { bundleId: String(bundle._id), festId: FEST_ID, zeroFee: true },
     });
   } else {
@@ -365,6 +376,7 @@ async function createOrderForBundle(bundle, user) {
       orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` },
       orderNote: ORDER_NOTE,
       orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+      merchant: CASHFREE_MERCHANT,
     });
     order = await PaymentOrder.create({
       orderId: cashfree.order_id,
@@ -378,6 +390,8 @@ async function createOrderForBundle(bundle, user) {
       amountAfterDiscount: bundle.totalAmount,
       totalAmount: bundle.totalAmount,
       status: 'PENDING',
+      gateway: 'cashfree',
+      cashfreeMerchant: CASHFREE_MERCHANT,
       customerEmail: user.email,
       customerPhone,
       orderTags: { bundleId: String(bundle._id), festId: FEST_ID },
@@ -496,7 +510,11 @@ exports.verify = async (req, res) => {
     if (order.status === 'PAID') {
       fulfillment = await fulfillMindSparkBundle(order);
     } else if (bundle.status !== 'paid') {
-      const verified = await verifyCashfreePayment({ orderId: order.orderId, paymentId: order.paymentId || undefined });
+      const verified = await verifyCashfreePayment({
+        orderId: order.orderId,
+        paymentId: order.paymentId || undefined,
+        merchant: order.cashfreeMerchant === 'events' ? 'events' : 'platform',
+      });
       if (verified.verified) {
         order.status = 'PAID';
         order.paymentId = verified.paymentId || order.paymentId;
@@ -526,9 +544,16 @@ exports.reissue = async (req, res) => {
     const { bundle, order } = await load(req.params.token);
     if (!bundle || !order) return res.status(404).json({ success: false, message: 'Bundle not found.' });
     const timedOut = order.status === 'PENDING' && bundle.expiresAt <= new Date();
-    if (bundle.status === 'paid' || (order.status === 'PENDING' && !timedOut)) return res.json({ success: true, ...await serializeWithTickets(bundle, order) });
-    if (!['FAILED','EXPIRED'].includes(order.status) && !timedOut) return res.status(409).json({ success: false, message: 'The existing payment is still being confirmed.' });
+    const merchantMismatch = order.gateway !== 'razorpay'
+      && (order.cashfreeMerchant || 'platform') !== CASHFREE_MERCHANT;
+    if (bundle.status === 'paid' || (order.status === 'PENDING' && !timedOut && !merchantMismatch)) return res.json({ success: true, ...await serializeWithTickets(bundle, order) });
+    if (!['FAILED','EXPIRED'].includes(order.status) && !timedOut && !merchantMismatch) return res.status(409).json({ success: false, message: 'The existing payment is still being confirmed.' });
     order.status = timedOut ? 'EXPIRED' : order.status; order.orderTags = { ...(order.orderTags || {}), retired: true }; await order.save();
+    if (merchantMismatch) {
+      order.status = 'EXPIRED';
+      await order.save();
+      await Promise.all(bundle.items.map((item) => releaseCompetitionSlot(item.reservationToken).catch(() => {})));
+    }
     const docs = await Competition.find({ _id: { $in: bundle.items.map(i => i.competitionId) }, fest: FEST_ID }).populate('fest');
     const byId = new Map(docs.map(c => [String(c._id), c]));
     for (const item of bundle.items) reservations.push(await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user }));
@@ -548,6 +573,7 @@ exports.reissue = async (req, res) => {
       orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` },
       orderNote: ORDER_NOTE,
       orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+      merchant: CASHFREE_MERCHANT,
     });
     const replacement = await PaymentOrder.create({
       orderId: cashfree.order_id,
@@ -561,6 +587,8 @@ exports.reissue = async (req, res) => {
       amountAfterDiscount: bundle.totalAmount,
       totalAmount: bundle.totalAmount,
       status: 'PENDING',
+      gateway: 'cashfree',
+      cashfreeMerchant: CASHFREE_MERCHANT,
       customerEmail: user.email,
       customerPhone,
       orderTags: { bundleId: String(bundle._id), festId: FEST_ID },

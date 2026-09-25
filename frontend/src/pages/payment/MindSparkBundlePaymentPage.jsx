@@ -40,7 +40,7 @@ export default function MindSparkBundlePaymentPage() {
               </div>
             ) : data.status === 'confirming' ? (
               <p className="rounded-xl bg-amber-500/10 p-3 text-amber-200">Payment confirming—do not pay again.</p>
-            ) : ['failed', 'expired'].includes(data.status) ? (
+            ) : ['failed', 'expired'].includes(data.status) || !data.paymentSessionId ? (
               <button onClick={retry} disabled={busy} className="w-full rounded-xl border border-white/15 py-3 font-bold">Create replacement payment</button>
             ) : (
               <button disabled={!data.paymentSessionId || busy} onClick={pay} className="w-full rounded-xl bg-[#0ECCEE] py-3 font-bold text-black disabled:opacity-50">Pay securely with Cashfree</button>

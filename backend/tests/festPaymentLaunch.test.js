@@ -19,6 +19,47 @@ const {
 } = require('../src/services/cashfreeService');
 const axios = require('axios');
 const { buildPaymentOrderNote } = require('../src/utils/paymentOrderNote');
+const { resolveFestCashfreeMerchant } = require('../src/utils/festCashfreeMerchant');
+const { _test: mindSparkBundleTest } = require('../src/controllers/mindsparkBundleController');
+
+test('MindSpark checkout uses the Delulu/events Cashfree merchant', () => {
+  assert.equal(resolveFestCashfreeMerchant({
+    entityType: 'competition',
+    notes: { festId: '6a7f1010ed26d983b34e55c2' },
+  }), 'events');
+  assert.equal(resolveFestCashfreeMerchant({
+    entityType: 'fest',
+    notes: { festId: '6a7f1010ed26d983b34e55c2' },
+  }), 'events');
+  assert.equal(resolveFestCashfreeMerchant({
+    entityType: 'competition',
+    notes: { festId: '6a7f1010ed26d983b34e55c3' },
+  }), 'platform');
+});
+
+test('MindSpark bundle replaces a pending session from the capped platform merchant', () => {
+  const payload = mindSparkBundleTest.serialize(
+    {
+      _id: 'bundle-1',
+      status: 'pending',
+      subtotal: 300,
+      discountPercent: 65,
+      discountAmount: 195,
+      totalAmount: 105,
+      activeOrderId: 'order-old',
+      expiresAt: new Date(Date.now() + 60_000),
+    },
+    {
+      orderId: 'order-old',
+      status: 'PENDING',
+      gateway: 'cashfree',
+      cashfreeMerchant: 'platform',
+      paymentSessionId: 'old-platform-session',
+    },
+  );
+  assert.equal(payload.cashfreeMerchant, 'events');
+  assert.equal(payload.paymentSessionId, null);
+});
 
 test('mapOrderStatus treats user-dropped checkout as cancelled', () => {
   assert.equal(mapOrderStatus('USER_DROPPED'), 'cancelled');
