@@ -1,12 +1,20 @@
 /**
- * Reconcile PaymentOrders stuck PENDING while Cashfree already reports PAID.
+ * Reconcile PaymentOrders stuck PENDING while the configured gateway reports PAID.
  * Covers webhook miss + client never returning from PG (Instagram / slow network).
  */
 const PaymentOrder = require('../model/payment_order_model');
 const { verifyCashfreePayment } = require('./cashfreeService');
+const { verifyRazorpayPayment } = require('./razorpayService');
 const { logger } = require('../utils/logger');
 
-const RECONCILE_ENTITY_TYPES = ['sports', 'fest', 'competition', 'event_show', 'trek'];
+const RECONCILE_ENTITY_TYPES = [
+  'sports',
+  'fest',
+  'competition',
+  'competition_bundle',
+  'event_show',
+  'trek',
+];
 
 function envMs(name, fallback) {
   const n = Number(process.env[name]);
@@ -28,6 +36,12 @@ async function fulfillPaidOrder(updated) {
     return { fulfilled: true, entityType: updated.entityType };
   }
 
+  if (updated.entityType === 'competition_bundle') {
+    const { fulfillMindSparkBundle } = require('./mindsparkBundleService');
+    await fulfillMindSparkBundle(updated);
+    return { fulfilled: true, entityType: 'competition_bundle' };
+  }
+
   if (updated.entityType === 'sports' && updated.orderTags?.formData) {
     const { fulfillSportsFromPaidOrder } = require('./sportsPaymentFulfillment');
     await fulfillSportsFromPaidOrder(updated);
@@ -44,13 +58,13 @@ async function fulfillPaidOrder(updated) {
 }
 
 /**
- * Scan recent PENDING Cashfree orders and fulfill any that Cashfree marks PAID.
+ * Scan recent PENDING orders and fulfill any that their gateway marks PAID.
  * @returns {{ checked: number, paid: number, fulfilled: number, errors: number }}
  */
-async function reconcilePendingCashfreeOrders({
+async function reconcilePendingPaymentOrders({
   limit = Number(process.env.PENDING_PAYMENT_RECONCILE_LIMIT) || 25,
   minAgeMs = envMs('PENDING_PAYMENT_RECONCILE_MIN_AGE_MS', 2 * 60 * 1000),
-  maxAgeMs = envMs('PENDING_PAYMENT_RECONCILE_MAX_AGE_MS', 45 * 60 * 1000),
+  maxAgeMs = envMs('PENDING_PAYMENT_RECONCILE_MAX_AGE_MS', 24 * 60 * 60 * 1000),
 } = {}) {
   const now = Date.now();
   const newerThan = new Date(now - maxAgeMs);
@@ -60,11 +74,10 @@ async function reconcilePendingCashfreeOrders({
     status: 'PENDING',
     entityType: { $in: RECONCILE_ENTITY_TYPES },
     createdAt: { $gte: newerThan, $lte: olderThan },
-    $or: [{ gateway: 'cashfree' }, { gateway: { $exists: false } }, { gateway: null }],
   })
     .sort({ createdAt: 1 })
     .limit(Math.max(1, Math.min(limit, 50)))
-    .select('orderId entityType cashfreeMerchant status orderTags paymentId')
+    .select('orderId entityType gateway cashfreeMerchant status orderTags paymentId')
     .lean();
 
   const summary = { checked: pending.length, paid: 0, fulfilled: 0, errors: 0 };
@@ -73,8 +86,12 @@ async function reconcilePendingCashfreeOrders({
     const orderId = row.orderId;
     if (!orderId) continue;
     try {
-      const merchant = row.cashfreeMerchant === 'events' ? 'events' : 'platform';
-      const result = await verifyCashfreePayment({ orderId, merchant });
+      const result = row.gateway === 'razorpay'
+        ? await verifyRazorpayPayment({ orderId })
+        : await verifyCashfreePayment({
+            orderId,
+            merchant: row.cashfreeMerchant === 'events' ? 'events' : 'platform',
+          });
       if (!result.verified || result.status !== 'paid') continue;
 
       summary.paid += 1;
@@ -132,7 +149,7 @@ function initPendingPaymentReconcileCron() {
   logger.info('Pending payment reconcile cron started', { intervalMs });
 
   const tick = () => {
-    reconcilePendingCashfreeOrders().catch((err) => {
+    reconcilePendingPaymentOrders().catch((err) => {
       logger.warn('[pendingReconcile] tick failed', { error: err.message });
     });
   };
@@ -143,7 +160,9 @@ function initPendingPaymentReconcileCron() {
 
 module.exports = {
   RECONCILE_ENTITY_TYPES,
-  reconcilePendingCashfreeOrders,
+  reconcilePendingPaymentOrders,
+  // Backward-compatible export for existing callers/tests.
+  reconcilePendingCashfreeOrders: reconcilePendingPaymentOrders,
   fulfillPaidOrder,
   initPendingPaymentReconcileCron,
 };

@@ -8,8 +8,10 @@ const Module = require('module');
 const stubs = {
   pending: [],
   verifyResult: null,
+  razorpayVerifyResult: null,
   updated: null,
   sportsFulfillCalls: 0,
+  bundleFulfillCalls: 0,
 };
 
 const originalLoad = Module._load;
@@ -39,6 +41,11 @@ Module._load = function patchedLoad(request, parent, isMain) {
       verifyCashfreePayment: async () => stubs.verifyResult,
     };
   }
+  if (request.endsWith('services/razorpayService') || request === './razorpayService') {
+    return {
+      verifyRazorpayPayment: async () => stubs.razorpayVerifyResult,
+    };
+  }
   if (
     request.endsWith('services/sportsPaymentFulfillment') ||
     request === './sportsPaymentFulfillment'
@@ -46,6 +53,17 @@ Module._load = function patchedLoad(request, parent, isMain) {
     return {
       fulfillSportsFromPaidOrder: async () => {
         stubs.sportsFulfillCalls += 1;
+        return { ok: true };
+      },
+    };
+  }
+  if (
+    request.endsWith('services/mindsparkBundleService') ||
+    request === './mindsparkBundleService'
+  ) {
+    return {
+      fulfillMindSparkBundle: async () => {
+        stubs.bundleFulfillCalls += 1;
         return { ok: true };
       },
     };
@@ -121,4 +139,36 @@ test('reconcile skips orders that are not PAID at Cashfree', async () => {
   assert.equal(summary.paid, 0);
   assert.equal(summary.fulfilled, 0);
   assert.equal(stubs.sportsFulfillCalls, 0);
+});
+
+test('reconcile recovers a paid Razorpay MindSpark bundle', async () => {
+  stubs.bundleFulfillCalls = 0;
+  stubs.pending = [{
+    orderId: 'order_bundle_razorpay',
+    entityType: 'competition_bundle',
+    gateway: 'razorpay',
+    status: 'PENDING',
+    orderTags: { bundleId: 'bundle_1' },
+  }];
+  stubs.razorpayVerifyResult = {
+    verified: true,
+    status: 'paid',
+    orderId: 'order_bundle_razorpay',
+    paymentId: 'pay_bundle_1',
+  };
+  stubs.updated = {
+    ...stubs.pending[0],
+    status: 'PAID',
+    paymentId: 'pay_bundle_1',
+  };
+
+  const summary = await reconcilePendingCashfreeOrders({
+    minAgeMs: 0,
+    maxAgeMs: 24 * 60 * 60 * 1000,
+  });
+
+  assert.equal(summary.paid, 1);
+  assert.equal(summary.fulfilled, 1);
+  assert.equal(summary.errors, 0);
+  assert.equal(stubs.bundleFulfillCalls, 1);
 });

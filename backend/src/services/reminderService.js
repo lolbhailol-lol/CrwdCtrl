@@ -13,7 +13,7 @@ const initReminderCron = () => {
  * Auto-expiry of organizer-QR pending payments is permanently disabled.
  * Organizers approve anytime; optional manual expire remains on the dashboard.
  *
- * This hook now starts Cashfree PENDING→PAID reconcile (not expiry), so
+ * This hook starts gateway PENDING→PAID reconcile (not expiry), so
  * webhook/return misses still create registrations.
  */
 const initPendingPaymentExpiryCron = () => {
