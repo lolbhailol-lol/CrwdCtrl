@@ -15,6 +15,11 @@ const mindsparkPlugin = {
     forcePersonFields: true,
     useCashfreeSettlement: true,
     skipReviewQueue: true,
+    settlementOverride: {
+        grossCollected: 446345,
+        gatewayFeeRate: 0.016,
+        additionalDeduction: 2000,
+    },
 };
 
 module.exports = {

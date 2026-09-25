@@ -114,6 +114,8 @@ export default function FestOrganizerRevenuePage() {
                         Students paid ₹{Number(stats.grossCollected ?? stats.revenue ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                         {' · '}
                         1.6% gateway fees ₹{Number(stats.gatewayFees || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        {' · '}
+                        Additional deduction ₹{Number(stats.additionalDeduction || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </p>
                 ) : (
                     <p className="text-[11px] text-gray-400 mt-2">
@@ -126,7 +128,7 @@ export default function FestOrganizerRevenuePage() {
                             {`${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`}
                         </p>
                         <p className="mt-3 text-[11px] leading-relaxed text-emerald-100/80 rounded-xl border border-emerald-400/20 bg-black/20 px-3 py-2.5">
-                            1.6% payment gateway fee is deducted from Cashfree and Razorpay entries. This is not a CrwdCtrl commission.
+                            Total deductions ₹{Number(stats.totalDeductions || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}: 1.6% gateway fee plus the ₹2,000 settlement adjustment.
                         </p>
                     </>
                 ) : null}

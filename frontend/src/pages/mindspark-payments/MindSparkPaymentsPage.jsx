@@ -337,6 +337,7 @@ export default function MindSparkPaymentsPage() {
   const viewTotals = activeBucket ? {
     totalCollected: activeBucket.gross,
     crwdctrlFee: activeBucket.fee,
+    additionalDeduction: activeBucket.additionalDeduction || 0,
     organizerPayable: activeBucket.organizerPayable,
     settlementSuccess: activeBucket.settlementSuccess || 0,
     successfulPayments: activeBucket.registrations || 0,
@@ -527,7 +528,11 @@ export default function MindSparkPaymentsPage() {
 
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
           <StatCard label="MindSpark collected" value={formatINR(viewTotals.totalCollected)} />
-          <StatCard label="Fee 1.6%" value={formatINR(viewTotals.crwdctrlFee)} />
+          <StatCard
+            label="Total deductions"
+            value={formatINR((viewTotals.crwdctrlFee || 0) + (viewTotals.additionalDeduction || 0))}
+            hint="1.6% gateway fee + ₹2,000 adjustment"
+          />
           <StatCard label="Organizer payable" value={formatINR(viewTotals.organizerPayable)} />
           <StatCard
             label="MindSpark payments"

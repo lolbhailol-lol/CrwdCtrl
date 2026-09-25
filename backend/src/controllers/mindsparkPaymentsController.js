@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const FestOrganizerAccount = require('../model/fest_organizer_account_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { normalizeUsername, organizerCanAccessFest, getOrganizerFests } = require('../utils/festOrganizerAccess');
-const { MINDSPARK_FEST_ID } = require('../modules/fest/plugins/mindspark');
+const { MINDSPARK_FEST_ID, mindsparkPlugin } = require('../modules/fest/plugins/mindspark');
 const { syncSettlements, autoSyncDashboardSettlements } = require('../services/cashfreeSettlementSync');
 const { getPaymentSummary, getPaymentHistory, exportPaymentCsv } = require('../services/paymentSettlementService');
 const PaymentOrder = require('../model/payment_order_model');
@@ -20,6 +20,19 @@ function actorLabel(req) {
 
 function scopeSummaryToMindspark(summary) {
     const buckets = (summary.buckets || []).filter((b) => b.id === BUCKET);
+    const override = mindsparkPlugin.settlementOverride;
+    if (buckets[0] && override) {
+        const gross = Number(override.grossCollected) || 0;
+        const fee = Math.round(gross * Number(override.gatewayFeeRate || 0) * 100) / 100;
+        const extra = Number(override.additionalDeduction) || 0;
+        buckets[0] = {
+            ...buckets[0],
+            gross,
+            fee,
+            additionalDeduction: extra,
+            organizerPayable: Math.round((gross - fee - extra) * 100) / 100,
+        };
+    }
     const ms = buckets[0] || {};
     const schedule = summary.schedule || {};
     const events = (schedule.events || []).filter((e) => e.id === BUCKET);
@@ -41,6 +54,8 @@ function scopeSummaryToMindspark(summary) {
             alreadyPaid: ms.alreadyPaid || 0,
             alreadyPaidCount: ms.alreadyPaidCount || 0,
             refunds: ms.refunded || 0,
+            additionalDeduction: ms.additionalDeduction || 0,
+            totalDeductions: (ms.fee || 0) + (ms.additionalDeduction || 0),
         },
         schedule: {
             ...schedule,

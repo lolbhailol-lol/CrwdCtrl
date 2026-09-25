@@ -926,6 +926,7 @@ exports.getDashboard = async (req, res) => {
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
         let gatewayFees = 0;
+        let additionalDeduction = 0;
         const statsById = new Map(
             byCompetition.map((row) => [row._id ? String(row._id) : 'none', row]),
         );
@@ -1036,6 +1037,13 @@ exports.getDashboard = async (req, res) => {
                 c.grossCollected = sum.grossCollected;
                 c.revenue = sum.revenue;
             }
+            const override = getFestPlugin(festId).settlementOverride;
+            if (override) {
+                grossCollected = Number(override.grossCollected) || 0;
+                gatewayFees = Math.round(grossCollected * Number(override.gatewayFeeRate || 0) * 100) / 100;
+                additionalDeduction = Number(override.additionalDeduction) || 0;
+                revenue = Math.round((grossCollected - gatewayFees - additionalDeduction) * 100) / 100;
+            }
         }
 
         competitionStats.sort((a, b) => (b.total - a.total) || a.name.localeCompare(b.name));
@@ -1106,6 +1114,8 @@ exports.getDashboard = async (req, res) => {
                 revenue,
                 grossCollected,
                 gatewayFees,
+                additionalDeduction,
+                totalDeductions: Math.round((gatewayFees + additionalDeduction) * 100) / 100,
                 todayRegistrations,
                 competitionCount: competitions.length,
                 payments,
