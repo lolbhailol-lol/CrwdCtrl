@@ -36,8 +36,21 @@ test('detects Cashfree from gateway string or payment_order_id', () => {
   assert.equal(isCashfreePayment({ payment_gateway: 'cashfree' }), true);
   assert.equal(isCashfreePayment({ payment_order_id: 'order_abc' }), true);
   assert.equal(isCashfreePayment({ payment_gateway: 'manual_organizer' }), false);
+  assert.equal(isCashfreePayment({ payment_gateway: 'razorpay', payment_order_id: 'order_rzp' }), false);
+  assert.equal(isCashfreePayment({ payment_gateway: 'razorpay_bundle', payment_order_id: 'order_rzp:1' }), false);
+  assert.equal(isCashfreePayment({ payment_gateway: 'cashfree_bundle' }), true);
   assert.equal(isCashfreePayment({ payment_order_id: '' }), false);
   assert.equal(isCashfreePayment({}), false);
+});
+
+test('Cashfree and Razorpay revenue both apply the configured 1.6% gateway rate', () => {
+  const summary = summarizeCashfreeSettlement([
+    { amountPaid: 100, payment_gateway: 'cashfree', payment_order_id: 'order_cf' },
+    { amountPaid: 200, payment_gateway: 'razorpay', payment_order_id: 'order_rzp' },
+  ]);
+  assert.equal(summary.grossCollected, 300);
+  assert.equal(summary.gatewayFees, 4.8);
+  assert.equal(summary.revenue, 295.2);
 });
 
 test('manual / walk-in paid rows keep the full amountPaid', () => {
