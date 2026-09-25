@@ -27,10 +27,17 @@ const {
     resolveCompetitionTicketPrice,
 } = require('../utils/competitionFeeTiers');
 const { parseTicketPrice } = require('../utils/platformFee');
-const { cashfreeSettlementFields, summarizeCashfreeSettlement } = require('../utils/cashfreeGatewayFee');
+const {
+    cashfreeSettlementFields,
+    summarizeCashfreeSettlement,
+    cashfreeBaseOrderId,
+    filterCashfreeConfirmedRegs,
+    scaleCompetitionSettlementToTotals,
+} = require('../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../modules/fest/plugins');
 const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 const { verifyCashfreePayment } = require('../services/cashfreeService');
+const CashfreeSettlement = require('../model/cashfree_settlement_model');
 
 const TOKEN_TTL = '7d';
 const FRONTEND_BASE = () => String(
@@ -1026,9 +1033,19 @@ exports.getDashboard = async (req, res) => {
             const excludeIds = new Set(
                 (plugin.settlementExcludeCompetitionIds || []).map((id) => String(id)),
             );
-            const settlementRegs = excludeIds.size
+            let settlementRegs = excludeIds.size
                 ? paidRegs.filter((r) => !excludeIds.has(String(r.competitionId || '')))
                 : paidRegs;
+            // Exclude Cashfree ORDER_MISSING / no-snapshot ghosts (~₹1.3L inflated the old gross).
+            const orderIds = [...new Set(
+                settlementRegs.map((r) => cashfreeBaseOrderId(r.payment_order_id)).filter(Boolean),
+            )];
+            if (orderIds.length) {
+                const settlements = await CashfreeSettlement.find({ orderId: { $in: orderIds } })
+                    .select('orderId status')
+                    .lean();
+                settlementRegs = filterCashfreeConfirmedRegs(settlementRegs, settlements);
+            }
             const overall = summarizeCashfreeSettlement(settlementRegs);
             grossCollected = overall.grossCollected;
             gatewayFees = overall.gatewayFees;
@@ -1051,12 +1068,53 @@ exports.getDashboard = async (req, res) => {
             }
             const override = plugin.settlementOverride;
             if (override) {
-                grossCollected = Number(override.grossCollected) || 0;
-                gatewayFees = Math.round(grossCollected * Number(override.gatewayFeeRate || 0) * 100) / 100;
-                additionalDeduction = Number(override.additionalDeduction) || 0;
-                revenue = override.revenue != null
+                const floorGross = Number(override.grossCollected) || 0;
+                const floorFeeRate = Number(override.gatewayFeeRate || 0);
+                const floorExtra = Number(override.additionalDeduction) || 0;
+                const floorRevenue = override.revenue != null
                     ? Number(override.revenue) || 0
-                    : Math.round((grossCollected - gatewayFees - additionalDeduction) * 100) / 100;
+                    : Math.round((floorGross - Math.round(floorGross * floorFeeRate * 100) / 100 - floorExtra) * 100) / 100;
+                const mode = String(override.mode || 'lock').toLowerCase();
+                const liveGross = Number(grossCollected) || 0;
+                const liveRevenue = Number(revenue) || 0;
+
+                if (mode === 'floor_plus_live') {
+                    const baseLiveGross = Number(override.liveBaselineGross) || 0;
+                    const baseLiveRevenue = Number(override.liveBaselineRevenue) || 0;
+                    const growthGross = Math.max(0, liveGross - baseLiveGross);
+                    const growthRevenue = Math.max(0, liveRevenue - baseLiveRevenue);
+                    grossCollected = Math.round((floorGross + growthGross) * 100) / 100;
+                    revenue = Math.round((floorRevenue + growthRevenue) * 100) / 100;
+                    gatewayFees = Math.round(grossCollected * floorFeeRate * 100) / 100;
+                    additionalDeduction = floorExtra;
+                    scaleCompetitionSettlementToTotals(competitionStats, {
+                        grossCollected,
+                        revenue,
+                    });
+                } else if (mode === 'floor') {
+                    const useFloor = liveGross < floorGross || liveRevenue < floorRevenue;
+                    if (useFloor) {
+                        grossCollected = floorGross;
+                        gatewayFees = Math.round(grossCollected * floorFeeRate * 100) / 100;
+                        additionalDeduction = floorExtra;
+                        revenue = floorRevenue;
+                        scaleCompetitionSettlementToTotals(competitionStats, {
+                            grossCollected,
+                            revenue,
+                        });
+                    } else {
+                        additionalDeduction = floorExtra;
+                    }
+                } else {
+                    grossCollected = floorGross;
+                    gatewayFees = Math.round(grossCollected * floorFeeRate * 100) / 100;
+                    additionalDeduction = floorExtra;
+                    revenue = floorRevenue;
+                    scaleCompetitionSettlementToTotals(competitionStats, {
+                        grossCollected,
+                        revenue,
+                    });
+                }
             }
         }
 
@@ -1951,7 +2009,14 @@ exports.getCompetitionOps = async (req, res) => {
         let grossCollected = revenue;
         let gatewayFees = 0;
         if (getFestPlugin(festId).useCashfreeSettlement) {
-            const sum = summarizeCashfreeSettlement(paidApproved);
+            const orderIds = [...new Set(
+                paidApproved.map((r) => cashfreeBaseOrderId(r.payment_order_id)).filter(Boolean),
+            )];
+            const settlements = orderIds.length
+                ? await CashfreeSettlement.find({ orderId: { $in: orderIds } }).select('orderId status').lean()
+                : [];
+            const confirmed = filterCashfreeConfirmedRegs(paidApproved, settlements);
+            const sum = summarizeCashfreeSettlement(confirmed);
             revenue = sum.revenue;
             grossCollected = sum.grossCollected;
             gatewayFees = sum.gatewayFees;

@@ -22,12 +22,30 @@ function scopeSummaryToMindspark(summary) {
     const buckets = (summary.buckets || []).filter((b) => b.id === BUCKET);
     const override = mindsparkPlugin.settlementOverride;
     if (buckets[0] && override) {
-        const gross = Number(override.grossCollected) || 0;
-        const fee = Math.round(gross * Number(override.gatewayFeeRate || 0) * 100) / 100;
+        const liveGross = Number(buckets[0].gross) || 0;
+        const livePayable = Number(buckets[0].organizerPayable) || 0;
+        const floorGross = Number(override.grossCollected) || 0;
+        const feeRate = Number(override.gatewayFeeRate || 0);
         const extra = Number(override.additionalDeduction) || 0;
-        const organizerPayable = override.revenue != null
+        const floorPayable = override.revenue != null
             ? Number(override.revenue) || 0
-            : Math.round((gross - fee - extra) * 100) / 100;
+            : Math.round((floorGross - Math.round(floorGross * feeRate * 100) / 100 - extra) * 100) / 100;
+        const mode = String(override.mode || 'lock').toLowerCase();
+
+        let gross = floorGross;
+        let organizerPayable = floorPayable;
+        if (mode === 'floor_plus_live') {
+            const baseLiveGross = Number(override.liveBaselineGross) || 0;
+            const baseLiveRevenue = Number(override.liveBaselineRevenue) || 0;
+            gross = Math.round((floorGross + Math.max(0, liveGross - baseLiveGross)) * 100) / 100;
+            organizerPayable = Math.round((floorPayable + Math.max(0, livePayable - baseLiveRevenue)) * 100) / 100;
+        } else if (mode === 'floor') {
+            if (liveGross >= floorGross && livePayable >= floorPayable) {
+                gross = liveGross;
+                organizerPayable = livePayable;
+            }
+        }
+        const fee = Math.round(gross * feeRate * 100) / 100;
         buckets[0] = {
             ...buckets[0],
             gross,

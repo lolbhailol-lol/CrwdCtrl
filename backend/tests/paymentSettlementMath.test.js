@@ -162,6 +162,33 @@ test('razorpay gateway is excluded from Cashfree dashboard', () => {
   assert.equal(isCashfreeGateway(null), true);
 });
 
+test('razorpay live PAID orders count toward collected', () => {
+  const { isCollectedGateway } = require('../src/services/paymentSettlementMath');
+  assert.equal(isCollectedGateway('razorpay'), true);
+  assert.equal(isCollectedGateway('razorpay_bundle'), true);
+  const money = computeFinancials(199, 0);
+  const summary = summarizeRows([
+    {
+      bucket: BUCKET_MINDSPARK,
+      orderId: 'order_rzp_live',
+      gateway: 'razorpay',
+      orderAmount: 199,
+      hasSettlementRecord: false,
+      eventId: 'fest1',
+      eventName: 'Mindspark',
+      organizerType: 'fest',
+      organizerId: 'fest1',
+      organizerName: 'Mindspark',
+      unmatched: false,
+      ...money,
+      settlementStatus: 'pending',
+      payoutStatus: 'pending',
+    },
+  ]);
+  assert.equal(summary.totals.totalCollected, 199);
+  assert.equal(summary.totals.successfulPayments, 1);
+});
+
 test('bundle derived payment_order_id maps to Cashfree order id', () => {
   const { cashfreeOrderIdOf } = require('../src/services/paymentSettlementMath');
   assert.equal(

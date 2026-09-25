@@ -17,9 +17,13 @@ const mindsparkPlugin = {
     skipReviewQueue: true,
     settlementExcludeCompetitionIds: [],
     settlementOverride: {
-        // Locked to live paid total (all competitions, after 1.6% gateway fee).
-        grossCollected: 456429,
-        revenue: 449133.92,
+        // Cashfree baseline (gross / organiser clear). New Cashfree + Razorpay live
+        // confirmed payments above `liveBaseline*` add on top from now on.
+        mode: 'floor_plus_live',
+        grossCollected: 442381,
+        revenue: 435303,
+        liveBaselineGross: 325827,
+        liveBaselineRevenue: 320614,
         gatewayFeeRate: 0.016,
         additionalDeduction: 0,
     },

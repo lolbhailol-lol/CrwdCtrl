@@ -26,6 +26,7 @@ const {
   getEventPolicy,
   usesMondayClear,
   isCashfreeGateway,
+  isCollectedGateway,
   cashfreeOrderIdOf,
   classifyBucket,
   computeFinancials,
@@ -79,7 +80,7 @@ function flattenEventShowRegs(docs = []) {
   const out = [];
   for (const doc of docs) {
     const eventShowId = idStr(doc.eventShow);
-    if (isCashfreeGateway(doc.payment_gateway) && (doc.paymentStatus === 'paid' || Number(doc.amountPaid) > 0)) {
+    if (isCollectedGateway(doc.payment_gateway) && (doc.paymentStatus === 'paid' || Number(doc.amountPaid) > 0)) {
       out.push({
         id: String(doc._id),
         kind: 'event_show',
@@ -94,7 +95,7 @@ function flattenEventShowRegs(docs = []) {
       });
     }
     for (const entry of doc.additionalEntries || []) {
-      if (!isCashfreeGateway(entry.payment_gateway || doc.payment_gateway)) continue;
+      if (!isCollectedGateway(entry.payment_gateway || doc.payment_gateway)) continue;
       if (entry.paymentStatus !== 'paid' && !(Number(entry.amountPaid) > 0)) continue;
       out.push({
         id: `${doc._id}:${entry._id || entry.payment_order_id}`,
@@ -119,6 +120,8 @@ async function loadNormalizedRegistrations() {
       $or: [
         { paymentStatus: 'paid', payment_gateway: 'cashfree' },
         { paymentStatus: 'paid', payment_gateway: 'cashfree_bundle' },
+        { paymentStatus: 'paid', payment_gateway: 'razorpay' },
+        { paymentStatus: 'paid', payment_gateway: 'razorpay_bundle' },
         { payment_order_id: { $type: 'string', $gt: '' } },
       ],
     })
@@ -127,6 +130,7 @@ async function loadNormalizedRegistrations() {
     CategoryRegistration.find({
       $or: [
         { paymentStatus: 'paid', payment_gateway: 'cashfree' },
+        { paymentStatus: 'paid', payment_gateway: 'razorpay' },
         { payment_order_id: { $type: 'string', $gt: '' } },
       ],
     })
@@ -135,6 +139,7 @@ async function loadNormalizedRegistrations() {
     EventShowRegistration.find({
       $or: [
         { payment_gateway: 'cashfree' },
+        { payment_gateway: 'razorpay' },
         { payment_order_id: { $type: 'string', $gt: '' } },
         { 'additionalEntries.payment_order_id': { $type: 'string', $gt: '' } },
       ],
@@ -144,6 +149,7 @@ async function loadNormalizedRegistrations() {
     TrekBooking.find({
       $or: [
         { paymentStatus: 'paid', payment_gateway: 'cashfree' },
+        { paymentStatus: 'paid', payment_gateway: 'razorpay' },
         { payment_order_id: { $type: 'string', $gt: '' } },
       ],
     })
@@ -154,7 +160,7 @@ async function loadNormalizedRegistrations() {
   const normalized = [];
 
   for (const reg of festRegs) {
-    if (!isCashfreeGateway(reg.payment_gateway)) continue;
+    if (!isCollectedGateway(reg.payment_gateway)) continue;
     const festId = idStr(reg.fest);
     const responses = reg.responses && typeof reg.responses === 'object'
       ? (reg.responses instanceof Map ? Object.fromEntries(reg.responses) : reg.responses)
@@ -179,7 +185,7 @@ async function loadNormalizedRegistrations() {
   }
 
   for (const reg of categoryRegs) {
-    if (!isCashfreeGateway(reg.payment_gateway)) continue;
+    if (!isCollectedGateway(reg.payment_gateway)) continue;
     const entityType = reg.category === 'trek' ? 'trek' : 'sports';
     normalized.push({
       id: String(reg._id),
@@ -202,7 +208,7 @@ async function loadNormalizedRegistrations() {
   normalized.push(...flattenEventShowRegs(eventShowDocs));
 
   for (const booking of trekBookings) {
-    if (!isCashfreeGateway(booking.payment_gateway)) continue;
+    if (!isCollectedGateway(booking.payment_gateway)) continue;
     normalized.push({
       id: String(booking._id),
       kind: 'trek',
@@ -446,7 +452,9 @@ function enrichLinkedRow({ order, registration, unmatched, duplicate, orphanRegi
     registration?.bundleCashfreeOrderId,
     registration?.payment_order_id,
   ) || String(order?.orderId || registration?.payment_order_id || '');
-  const settlement = settlementsByOrder.get(orderId) || null;
+  const gateway = String(order?.gateway || registration?.payment_gateway || 'cashfree').trim().toLowerCase();
+  const isRazorpay = gateway === 'razorpay' || gateway.startsWith('razorpay');
+  const settlement = isRazorpay ? null : (settlementsByOrder.get(orderId) || null);
   const paymentId = String(order?.paymentId || registration?.payment_id || settlement?.cfPaymentId || '');
   const grossFromReg = Number(registration?.amountPaid) || 0;
   const grossFromOrder = Number(order?.totalAmount) || 0;
@@ -458,10 +466,12 @@ function enrichLinkedRow({ order, registration, unmatched, duplicate, orphanRegi
   const refunded = refundTotalFor(refundsByOrder.get(orderId) || []);
   const money = computeFinancials(gross, refunded);
   const override = payoutOverrides.get(payoutOverrideKey(ctx));
+  // Razorpay live has no Cashfree settlement — treat PAID as confirmed for schedule/collected.
+  const settlementStatus = isRazorpay ? 'success' : settlementStatusOf(settlement);
   let schedule = scheduleForPayment({
     createdAt: order?.createdAt || registration?.createdAt || null,
     bucket: ctx.bucket || BUCKET_OTHER,
-    settlementStatus: settlementStatusOf(settlement),
+    settlementStatus,
   });
 
   const batchPaid = findBatchPaidPayout(
@@ -474,13 +484,14 @@ function enrichLinkedRow({ order, registration, unmatched, duplicate, orphanRegi
   }
 
   const payoutStatus = derivePayoutStatus({
-    settlement,
+    settlement: isRazorpay ? { status: 'SUCCESS' } : settlement,
     payoutOverride: batchPaid?.status === 'paid' ? { status: 'paid' } : override,
   });
 
   return {
     orderId,
     paymentId,
+    gateway,
     entityType: order?.entityType || registration?.entityType || '',
     entityId: idStr(order?.entityId) || registration?.eventId || '',
     registrationId: registration?.id || null,
@@ -504,9 +515,9 @@ function enrichLinkedRow({ order, registration, unmatched, duplicate, orphanRegi
     manual: Boolean(registration?.manual),
     amountPaid: gross,
     orderAmount: grossFromOrder > 0 ? grossFromOrder : null,
-    hasSettlementRecord: Boolean(settlement),
+    hasSettlementRecord: isRazorpay ? true : Boolean(settlement),
     ...money,
-    settlementStatus: settlementStatusOf(settlement),
+    settlementStatus,
     settlementDate: settlementDateOf(settlement),
     settlementUtr: settlement?.transferUtr || null,
     settlementAmount: settlement?.settlementAmount ?? null,
@@ -524,7 +535,12 @@ async function buildLinkedPaymentRows() {
   const [orders, registrations, settlements, refunds, payouts] = await Promise.all([
     PaymentOrder.find({
       status: 'PAID',
-      $or: [{ gateway: 'cashfree' }, { gateway: { $exists: false } }, { gateway: null }],
+      $or: [
+        { gateway: 'cashfree' },
+        { gateway: 'razorpay' },
+        { gateway: { $exists: false } },
+        { gateway: null },
+      ],
     })
       .select('orderId paymentId entityType entityId totalAmount status gateway orderTags customerEmail createdAt')
       .lean(),
@@ -534,8 +550,8 @@ async function buildLinkedPaymentRows() {
     OrganizerPayout.find({}).lean(),
   ]);
 
-  const cashfreeOrders = orders.filter((order) => isCashfreeGateway(order.gateway));
-  const entities = await loadEntityContext(cashfreeOrders, registrations);
+  const collectedOrders = orders.filter((order) => isCollectedGateway(order.gateway));
+  const entities = await loadEntityContext(collectedOrders, registrations);
   const settlementsByOrder = new Map(settlements.map((row) => [String(row.orderId), row]));
   const refundsByOrder = new Map();
   for (const refund of refunds) {
@@ -549,7 +565,7 @@ async function buildLinkedPaymentRows() {
   const batchPaidLedger = buildBatchPaidLedger(payouts);
   const extras = { entities, settlementsByOrder, refundsByOrder, payoutOverrides, batchPaidLedger };
 
-  const { rows: linked, duplicateOrderIds } = linkOrdersToRegistrations(cashfreeOrders, registrations);
+  const { rows: linked, duplicateOrderIds } = linkOrdersToRegistrations(collectedOrders, registrations);
   const rows = linked
     .map((item) => enrichLinkedRow(item, extras))
     .filter(isDashboardRow);

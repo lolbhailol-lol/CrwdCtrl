@@ -179,3 +179,43 @@ export function customerPhoneFromRegistration(formData = {}, user = null) {
     first.mobile,
   );
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+/** Normalize emails for payment gateways (strip ZWSP / accents / casing). */
+export function sanitizeCustomerEmail(raw) {
+  const cleaned = String(raw || '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toLowerCase();
+  if (!cleaned || !EMAIL_RE.test(cleaned)) return '';
+  // Reject Firebase/placeholder locals that Razorpay rejects as invalid.
+  if (/@(crwdctrl\.local|example\.com|test\.com)$/i.test(cleaned)) return '';
+  if (cleaned.endsWith('@crwdctrl.com') && cleaned.startsWith('customer')) return '';
+  return cleaned.slice(0, 100);
+}
+
+export function firstValidCustomerEmail(...values) {
+  for (const value of values) {
+    const email = sanitizeCustomerEmail(value);
+    if (email) return email;
+  }
+  return '';
+}
+
+/** Prefer roster / form Gmail over account email so live Razorpay prefill is correct. */
+export function customerEmailFromRegistration(formData = {}, user = null) {
+  const members = Array.isArray(formData.team_members) ? formData.team_members : [];
+  const first = members.find((member) => member && typeof member === 'object') || {};
+  return firstValidCustomerEmail(
+    formData.email,
+    formData.email_id,
+    formData.e_mail,
+    formData.user_email,
+    first.email,
+    first.email_id,
+    user?.email,
+  );
+}

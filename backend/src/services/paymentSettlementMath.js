@@ -66,6 +66,13 @@ function isCashfreeGateway(gateway) {
   return g === 'cashfree' || g === 'cashfree_bundle' || g === '';
 }
 
+/** Gateways that count toward MindSpark / organiser collected (Cashfree + Razorpay live). */
+function isCollectedGateway(gateway) {
+  const g = String(gateway || 'cashfree').trim().toLowerCase();
+  if (g === 'razorpay' || g.startsWith('razorpay')) return true;
+  return isCashfreeGateway(gateway);
+}
+
 /**
  * Merchant order id Cashfree knows about.
  * MindSpark bundle regs store `${orderId}:${itemId}` locally — strip the suffix.
@@ -791,11 +798,16 @@ function summarizeRows(rows = [], { paidPayoutAmount = 0, buckets: bucketIds = D
 
     const orderId = String(row.orderId || '').trim();
     const settlementKey = String(row.settlementStatus || '').trim().toLowerCase();
+    const gateway = String(row.gateway || '').trim().toLowerCase();
+    const isRazorpay = gateway === 'razorpay' || gateway.startsWith('razorpay');
     // Align MindSpark collected with Cashfree merchant totals:
     // count SUCCESS + PENDING settlement records only (skip ghosts / not_found / no snapshot).
-    const skipCollected = settlementKey === 'order_missing'
+    // Razorpay live has no Cashfree settlement snapshot — always count PAID Razorpay orders.
+    const skipCollected = !isRazorpay && (
+      settlementKey === 'order_missing'
       || settlementKey === 'not_found'
-      || (settlementKey === 'pending' && row.hasSettlementRecord === false);
+      || (settlementKey === 'pending' && row.hasSettlementRecord === false)
+    );
     const countMoney = !skipCollected && (!orderId || !countedOrderIds.has(orderId));
     if (orderId) countedOrderIds.add(orderId);
 
@@ -949,6 +961,7 @@ module.exports = {
   TOUCH_GRASS_RE,
   TEST_PAYMENT_AMOUNT_MAX,
   isCashfreeGateway,
+  isCollectedGateway,
   cashfreeOrderIdOf,
   isTouchGrassText,
   isInScopeBucket,

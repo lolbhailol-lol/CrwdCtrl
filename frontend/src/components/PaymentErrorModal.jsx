@@ -18,6 +18,7 @@ export default function PaymentErrorModal({
     const { isDark } = useDarkMode();
     if (!open) return null;
 
+    const emailIssue = /email|gmail/i.test(String(message || ''));
     const supportHref = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
         'CrwdCtrl payment issue',
     )}&body=${encodeURIComponent(
@@ -51,9 +52,14 @@ export default function PaymentErrorModal({
                     </div>
                 </div>
 
-                <h3 className="text-lg font-semibold text-center">Payment unsuccessful</h3>
+                <h3 className="text-lg font-semibold text-center">
+                    {emailIssue ? 'Check your email' : 'Payment unsuccessful'}
+                </h3>
                 <p className={`text-sm text-center mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    {message || 'Your payment didn’t go through. Please try again — do not start a second payment.'}
+                    {message
+                        || (emailIssue
+                            ? 'Enter a valid email like name@gmail.com on the form, then retry. Do not start a second payment.'
+                            : 'Your payment didn’t go through. Please try again — do not start a second payment.')}
                 </p>
 
                 <div className="flex flex-col gap-3 mt-5">
@@ -65,17 +71,19 @@ export default function PaymentErrorModal({
                         <RefreshCw className="w-4 h-4" />
                         Retry payment
                     </button>
-                    <a
-                        href={supportHref}
-                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition-colors ${
-                            isDark
-                                ? 'bg-[#111213] border border-gray-800 hover:bg-gray-800 text-white'
-                                : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-900'
-                        }`}
-                    >
-                        <LifeBuoy className="w-4 h-4" />
-                        Email if still stuck
-                    </a>
+                    {!emailIssue ? (
+                        <a
+                            href={supportHref}
+                            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium transition-colors ${
+                                isDark
+                                    ? 'bg-[#111213] border border-gray-800 hover:bg-gray-800 text-white'
+                                    : 'bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-900'
+                            }`}
+                        >
+                            <LifeBuoy className="w-4 h-4" />
+                            Email if still stuck
+                        </a>
+                    ) : null}
                 </div>
             </div>
         </div>

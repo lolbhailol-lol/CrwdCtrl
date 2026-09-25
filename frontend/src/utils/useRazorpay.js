@@ -60,10 +60,26 @@ export function sanitizeRazorpayContact(raw) {
   return '';
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+/** Clean email for Razorpay prefill (ZWSP / spaces / casing break checkout). */
+export function sanitizeRazorpayEmail(raw) {
+  const cleaned = String(raw || '')
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toLowerCase();
+  if (!cleaned || !EMAIL_RE.test(cleaned)) return '';
+  if (/@(crwdctrl\.local|example\.com|test\.com)$/i.test(cleaned)) return '';
+  return cleaned.slice(0, 100);
+}
+
 /**
  * Open Razorpay checkout for a server-created order.
  * When `order_id` is set, amount/currency come from the Razorpay order (avoids mismatch errors).
- * Prefill + hidden contact/email so Checkout skips the "Contact details" screen.
+ * Prefill + hide contact/email when valid so Checkout skips the contact screen.
+ * If email is missing/invalid, leave email editable so the user can fix a good Gmail.
  * @returns {Promise<{ razorpay_order_id: string, razorpay_payment_id: string, razorpay_signature: string }>}
  */
 export async function openRazorpayCheckout({
@@ -85,14 +101,11 @@ export async function openRazorpayCheckout({
   // Razorpay REQUIRES a valid contact to skip the contact-details step.
   // Without it, Checkout always shows "Enter mobile number to continue".
   const contact = sanitizeRazorpayContact(prefill.contact);
-  const email = String(prefill.email || '').trim().slice(0, 120);
+  const email = sanitizeRazorpayEmail(prefill.email);
   const customerName = String(prefill.name || '').trim().slice(0, 120);
 
   if (!contact) {
     throw new Error('Enter a valid 10-digit mobile number on the booking form, then try payment again.');
-  }
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error('Enter a valid email on the booking form, then try payment again.');
   }
 
   return new Promise((resolve, reject) => {
@@ -111,20 +124,21 @@ export async function openRazorpayCheckout({
       name,
       description: String(description || 'Trek booking').slice(0, 255),
       order_id: orderId,
-      // Always prefill — required for Razorpay to skip contact screen
+      // Always prefill — required for Razorpay to skip contact screen when values are valid
       prefill: {
         name: customerName || 'Guest',
-        email,
+        ...(email ? { email } : {}),
         contact,
       },
-      // Hide contact/email UI; values come from prefill above
+      // Only hide fields we already trust — never hide a bad/missing email
+      // (that caused "email is invalid" + contact-support with no way to fix).
       hidden: {
         contact: true,
-        email: true,
+        ...(email ? { email: true } : {}),
       },
       readonly: {
         contact: true,
-        email: true,
+        ...(email ? { email: true } : {}),
         name: true,
       },
       theme: { color: themeColor },

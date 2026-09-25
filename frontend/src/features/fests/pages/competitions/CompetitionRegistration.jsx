@@ -30,6 +30,10 @@ import {
     saveRegistrationDraft,
     scrollFieldIntoView,
 } from '../../../../utils/registrationDraft';
+import {
+    customerEmailFromRegistration,
+    customerPhoneFromRegistration,
+} from '../FestRegistration/helpers';
 import { parseTicketPrice } from '../../../../utils/platformFee';
 import {
     hasUsableAuthToken,
@@ -1134,8 +1138,8 @@ export default function CompetitionRegistration() {
                         returnPath: window.location.pathname + window.location.search,
                         cashfreeMode: orderData.cashfreeMode,
                         customerName: checkoutForm.full_name || checkoutForm.fullName || checkoutForm.name || firebaseUser?.displayName || '',
-                        customerEmail: checkoutForm.email || firebaseUser?.email || '',
-                        customerPhone: checkoutForm.contact_no || checkoutForm.phone || firebaseUser?.phoneNumber || '',
+                        customerEmail: customerEmailFromRegistration(checkoutForm, firebaseUser),
+                        customerPhone: customerPhoneFromRegistration(checkoutForm, firebaseUser),
                         displayName: competition?.name || 'Competition registration',
                         alreadyPaidAtGateway: orderData.alreadyPaidAtGateway,
                     });

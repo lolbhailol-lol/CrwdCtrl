@@ -55,7 +55,7 @@ import { useInAppBack } from '../../../../hooks/useInAppBack';
 import { API_BASE_URL } from '../../../../services/api/client';
 import { festRegisterPath, festPath, isObjectId } from '../../../../utils/slugRoutes';
 import { loadRegistrationPrefetch, saveRegistrationPrefetch } from '../../../../utils/festPublicTransform';
-import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData, mergeFormDataWithSchema, customerPhoneFromRegistration } from './helpers';
+import { getInitialFestRegistrationUi, generateFieldId, compressImage, buildInitialFormData, mergeFormDataWithSchema, customerPhoneFromRegistration, customerEmailFromRegistration } from './helpers';
 
 export default function useFestRegistration() {
   const { festId, competitionSlug } = useParams();
@@ -1613,7 +1613,7 @@ export default function useFestRegistration() {
             couponCode: appliedCouponCode || undefined,
             customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user) || undefined,
             customerName: user?.name || undefined,
-            customerEmail: user?.email || undefined,
+            customerEmail: customerEmailFromRegistration({ ...getAllFormData(), ...formData }, user) || undefined,
           }),
         });
         if (orderRes.status === 401) {
@@ -1660,7 +1660,7 @@ export default function useFestRegistration() {
             returnPath: window.location.pathname + window.location.search,
             cashfreeMode: orderData.cashfreeMode,
             customerName: user?.name || '',
-            customerEmail: user?.email || '',
+            customerEmail: customerEmailFromRegistration({ ...getAllFormData(), ...formData }, user),
             customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user),
             displayName: competition?.name || fest?.name || 'Fest registration',
             alreadyPaidAtGateway: orderData.alreadyPaidAtGateway,
@@ -2078,7 +2078,7 @@ export default function useFestRegistration() {
           registrationDraft: buildOrderRegistrationDraft(),
           customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user) || undefined,
           customerName: user?.name || undefined,
-          customerEmail: user?.email || undefined,
+          customerEmail: customerEmailFromRegistration({ ...getAllFormData(), ...formData }, user) || undefined,
         }),
       });
       if (orderRes.status === 401) {
@@ -2125,7 +2125,7 @@ export default function useFestRegistration() {
           returnPath: window.location.pathname + window.location.search,
           cashfreeMode: orderData.cashfreeMode,
           customerName: user?.name || '',
-          customerEmail: user?.email || '',
+          customerEmail: customerEmailFromRegistration({ ...getAllFormData(), ...formData }, user),
           customerPhone: customerPhoneFromRegistration({ ...getAllFormData(), ...formData }, user),
           displayName: fest?.name || 'Fest registration',
           alreadyPaidAtGateway: orderData.alreadyPaidAtGateway,

@@ -88,3 +88,49 @@ test('dashboard summary mixes Cashfree and manual entries', () => {
   assert.equal(summary.gatewayFees, 5.58);
   assert.equal(summary.revenue, 643.42);
 });
+
+test('filterCashfreeConfirmedRegs drops ORDER_MISSING and no-snapshot ghosts', () => {
+  const {
+    cashfreeBaseOrderId,
+    filterCashfreeConfirmedRegs,
+  } = require('../src/utils/cashfreeGatewayFee');
+
+  assert.equal(
+    cashfreeBaseOrderId('order_bundleabc:aaaaaaaaaaaaaaaaaaaaaaaa'),
+    'order_bundleabc',
+  );
+
+  const regs = [
+    { amountPaid: 100, payment_gateway: 'cashfree', payment_order_id: 'ok1' },
+    { amountPaid: 50, payment_gateway: 'cashfree', payment_order_id: 'ghost1' },
+    { amountPaid: 75, payment_gateway: 'cashfree', payment_order_id: 'nosnap' },
+    { amountPaid: 30, payment_gateway: 'razorpay', payment_order_id: 'rzp1' },
+    { amountPaid: 40, payment_gateway: 'cashfree_bundle', payment_order_id: 'ok2:bbbbbbbbbbbbbbbbbbbbbbbb' },
+  ];
+  const settlements = [
+    { orderId: 'ok1', status: 'SUCCESS' },
+    { orderId: 'ghost1', status: 'ORDER_MISSING' },
+    { orderId: 'ok2', status: 'PENDING' },
+  ];
+  const kept = filterCashfreeConfirmedRegs(regs, settlements);
+  assert.deepEqual(
+    kept.map((r) => r.payment_order_id),
+    ['ok1', 'rzp1', 'ok2:bbbbbbbbbbbbbbbbbbbbbbbb'],
+  );
+  assert.equal(summarizeCashfreeSettlement(kept).grossCollected, 170);
+});
+
+test('scaleCompetitionSettlementToTotals matches locked gross and revenue', () => {
+  const { scaleCompetitionSettlementToTotals } = require('../src/utils/cashfreeGatewayFee');
+  const comps = [
+    { id: 'a', name: 'A', grossCollected: 200, revenue: 196.8 },
+    { id: 'b', name: 'B', grossCollected: 100, revenue: 98.4 },
+    { id: 'c', name: 'C', grossCollected: 0, revenue: 0 },
+  ];
+  scaleCompetitionSettlementToTotals(comps, { grossCollected: 442381, revenue: 435303 });
+  const sumG = comps.reduce((s, c) => s + (Number(c.grossCollected) || 0), 0);
+  const sumR = comps.reduce((s, c) => s + (Number(c.revenue) || 0), 0);
+  assert.equal(Math.round(sumG * 100) / 100, 442381);
+  assert.equal(Math.round(sumR * 100) / 100, 435303);
+  assert.equal(comps[2].grossCollected, 0);
+});

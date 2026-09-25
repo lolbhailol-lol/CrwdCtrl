@@ -114,6 +114,14 @@ export function classifyCheckoutError(error) {
     };
   }
 
+  if (/email.*(invalid|required)|invalid email|valid email|gmail/i.test(msg)) {
+    return {
+      kind: 'failed',
+      message:
+        'Please enter a valid email (for example name@gmail.com) on the form, then tap Retry payment.',
+    };
+  }
+
   if (/incomplete|confirmation details|check my bookings/i.test(msg)) {
     return {
       kind: 'failed',
