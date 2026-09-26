@@ -17,13 +17,18 @@ const mindsparkPlugin = {
     skipReviewQueue: true,
     settlementExcludeCompetitionIds: [],
     settlementOverride: {
-        // Cashfree baseline (gross / organiser clear). New Cashfree + Razorpay live
-        // confirmed payments above `liveBaseline*` add on top from now on.
-        mode: 'floor_plus_live',
-        grossCollected: 442381,
-        revenue: 435303,
-        liveBaselineGross: 325827,
-        liveBaselineRevenue: 320614,
+        // Cashfree merchant clear lock (₹4,35,303 / gross ₹4,42,381)
+        // + actual Razorpay paid (₹9,314 gross / ≈₹9,165 clear).
+        // Do NOT use floor_plus_live with live-baseline delta — that invented
+        // ₹4,89,111 by double-counting Cashfree catch-up as "new" money.
+        // mode `floor`: show this until live confirmed paid exceeds it, then live.
+        mode: 'floor',
+        grossCollected: 451695,
+        revenue: 444468,
+        // Reference actuals (dashboard also returns these live):
+        // cashfreeLockGross: 442381, cashfreeLockRevenue: 435303,
+        // razorpayPaidGross: 9314, razorpayPaidRevenue: 9165,
+        // liveConfirmedGross: ~380504 (still below Cashfree lock; ghosts excluded)
         gatewayFeeRate: 0.016,
         additionalDeduction: 0,
     },

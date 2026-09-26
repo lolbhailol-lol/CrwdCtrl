@@ -21,9 +21,11 @@ function actorLabel(req) {
 function scopeSummaryToMindspark(summary) {
     const buckets = (summary.buckets || []).filter((b) => b.id === BUCKET);
     const override = mindsparkPlugin.settlementOverride;
+    let liveGross = 0;
+    let livePayable = 0;
     if (buckets[0] && override) {
-        const liveGross = Number(buckets[0].gross) || 0;
-        const livePayable = Number(buckets[0].organizerPayable) || 0;
+        liveGross = Number(buckets[0].gross) || 0;
+        livePayable = Number(buckets[0].organizerPayable) || 0;
         const floorGross = Number(override.grossCollected) || 0;
         const feeRate = Number(override.gatewayFeeRate || 0);
         const extra = Number(override.additionalDeduction) || 0;
@@ -52,6 +54,8 @@ function scopeSummaryToMindspark(summary) {
             fee,
             additionalDeduction: extra,
             organizerPayable,
+            liveGross,
+            liveOrganizerPayable: livePayable,
         };
     }
     const ms = buckets[0] || {};
@@ -77,6 +81,13 @@ function scopeSummaryToMindspark(summary) {
             refunds: ms.refunded || 0,
             additionalDeduction: ms.additionalDeduction || 0,
             totalDeductions: (ms.fee || 0) + (ms.additionalDeduction || 0),
+            // Actual live confirmed paid (Cashfree SUCCESS/PENDING/SETTLED + Razorpay)
+            actualPaidGross: liveGross || ms.liveGross || 0,
+            actualPaidRevenue: livePayable || ms.liveOrganizerPayable || 0,
+            cashfreeLockGross: 442381,
+            cashfreeLockRevenue: 435303,
+            razorpayPaidGross: 9314,
+            razorpayPaidRevenue: 9165,
         },
         schedule: {
             ...schedule,
