@@ -121,6 +121,41 @@ function assertPeopleAllowed(coupon, people) {
   return peopleCount;
 }
 
+/**
+ * Coupons wired to select options (e.g. Gender → Female → TG07F) may only be
+ * used when formData matches one of those options. Unbound promos are unchanged.
+ */
+function optionCouponBindings(formSchema) {
+  const bindings = [];
+  for (const field of Array.isArray(formSchema) ? formSchema : []) {
+    const fieldName = String(field?.fieldName || '').trim();
+    if (!fieldName) continue;
+    const raw = field?.optionCoupons;
+    const map = raw instanceof Map
+      ? Object.fromEntries(raw)
+      : (raw && typeof raw === 'object' ? raw : {});
+    for (const [label, code] of Object.entries(map)) {
+      const optionLabel = String(label || '').trim();
+      const normalized = normalizeCouponCode(code);
+      if (!optionLabel || !normalized) continue;
+      bindings.push({ fieldName, optionLabel, code: normalized });
+    }
+  }
+  return bindings;
+}
+
+function assertFormOptionCouponAllowed({ formSchema, formData = {}, couponCode } = {}) {
+  const code = normalizeCouponCode(couponCode);
+  if (!code) return;
+  const matches = optionCouponBindings(formSchema).filter((b) => b.code === code);
+  if (!matches.length) return;
+  const data = formData && typeof formData === 'object' ? formData : {};
+  const ok = matches.some((b) => String(data[b.fieldName] || '').trim() === b.optionLabel);
+  if (!ok) {
+    throw couponValidationError('This coupon is not available for your selected options.');
+  }
+}
+
 async function validateAndPriceCoupon({
   couponCode,
   entityType,
@@ -130,6 +165,8 @@ async function validateAndPriceCoupon({
   failOnMissingCode = false,
   festId = '',
   competitionId = '',
+  formSchema = null,
+  formData = null,
 }) {
   const normalizedCode = normalizeCouponCode(couponCode);
   const baseAmount = Math.max(0, Number(amountBeforeDiscount) || 0);
@@ -151,6 +188,14 @@ async function validateAndPriceCoupon({
 
   if (baseAmount <= 0) {
     throw couponValidationError('Coupons are only valid on paid registrations.');
+  }
+
+  if (formSchema) {
+    assertFormOptionCouponAllowed({
+      formSchema,
+      formData: formData || {},
+      couponCode: normalizedCode,
+    });
   }
 
   const coupon = await Coupon.findOne({ code: normalizedCode }).lean();
@@ -340,6 +385,8 @@ module.exports = {
   couponValidationError,
   normalizeCouponCode,
   computeCouponDiscount,
+  optionCouponBindings,
+  assertFormOptionCouponAllowed,
   validateAndPriceCoupon,
   reserveCouponUsage,
   consumeCouponUsageForOrder,

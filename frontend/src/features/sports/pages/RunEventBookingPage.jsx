@@ -765,6 +765,8 @@ export default function RunEventBookingPage() {
                     tierId: effectiveTierId || undefined,
                     addOnSelected: Boolean(addOnSelected && optionalAddOn),
                     expectedTicketTotal: ticketTotal,
+                    formData: extraFields,
+                    gender: extraFields?.gender || extraFields?.sex || '',
                 },
                 retries: silent ? 1 : 3,
                 timeout: silent ? 12000 : 20000,
@@ -795,7 +797,7 @@ export default function RunEventBookingPage() {
         } finally {
             if (reqId === couponReqIdRef.current) setCouponLoading(false);
         }
-    }, [event, id, selectedTierId, location.state?.tierId, addOnSelected, optionalAddOn, people, fee]);
+    }, [event, id, selectedTierId, location.state?.tierId, addOnSelected, optionalAddOn, people, fee, extraFields]);
 
     applyCouponRef.current = applyCoupon;
 
@@ -808,7 +810,11 @@ export default function RunEventBookingPage() {
             : (autoCouponCode || suggestedCoupon)
         ).trim();
         if (!code) {
-            if (couponSourceRef.current === 'form') {
+            // Invalidate in-flight auto-applies (e.g. Female→Male) so a late TG07F
+            // response cannot stick while Male is selected.
+            couponReqIdRef.current += 1;
+            setCouponLoading(false);
+            if (couponSourceRef.current === 'form' || couponSourceRef.current === 'suggested') {
                 setCouponInfo(null);
                 setCouponCode('');
                 setCouponError('');

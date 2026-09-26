@@ -57,10 +57,7 @@ async function main() {
   );
   if (genderIdx < 0) throw new Error('Gender field missing on Touch Grass 07');
 
-  schema[genderIdx].optionCoupons = {
-    ...(schema[genderIdx].optionCoupons || {}),
-    Female: CODE,
-  };
+  schema[genderIdx].optionCoupons = { Female: CODE };
   if (!schema[genderIdx].bookingStep) schema[genderIdx].bookingStep = 1;
 
   event.registration.formSchema = schema;

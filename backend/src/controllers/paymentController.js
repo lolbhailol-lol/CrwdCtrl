@@ -497,6 +497,10 @@ exports.validateCoupon = async (req, res) => {
       }
       const baseTicketTotal = ticket.baseTicketTotal;
       const amountBeforeDiscount = baseTicketTotal;
+      const formData = (req.body.formData && typeof req.body.formData === 'object')
+        ? req.body.formData
+        : {};
+      if (req.body.gender && !formData.gender) formData.gender = req.body.gender;
       const coupon = await validateAndPriceCoupon({
         couponCode,
         entityType: 'sports',
@@ -504,6 +508,8 @@ exports.validateCoupon = async (req, res) => {
         amountBeforeDiscount,
         people: Math.max(1, Number(people) || 1),
         failOnMissingCode: true,
+        formSchema: event.registration?.formSchema || [],
+        formData,
       });
       return res.json(coupon);
     }
@@ -1562,29 +1568,6 @@ exports.createSportsOrder = async (req, res) => {
     const ticketPricePerPerson = ticket.ticketPricePerPerson + ticket.addOnFeePerPerson;
     const platformFee = 0;
     const grossTotalAmount = baseTicketTotal;
-    const coupon = await validateAndPriceCoupon({
-      couponCode,
-      entityType: 'sports',
-      userId: req.user?.userId || null,
-      amountBeforeDiscount: grossTotalAmount,
-      people: peopleCount,
-    });
-    const totalAmount = coupon.amountAfterDiscount;
-
-    if (totalAmount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No payment required for this booking — confirm without online checkout.',
-        skipPayment: true,
-        couponCode: coupon.couponCode || '',
-        couponDiscount: coupon.discountAmount || 0,
-        amountBeforeDiscount: coupon.amountBeforeDiscount,
-        amountAfterDiscount: 0,
-        totalAmount: 0,
-      });
-    }
-    const resolvedName = event.title || eventName || (noun === 'event' ? 'Event booking' : 'Run Booking');
-
     let profilePhone = '';
     if (req.user?.userId) {
       const profile = await User.findById(req.user.userId).select('phoneNumber phone').lean();
@@ -1613,6 +1596,31 @@ exports.createSportsOrder = async (req, res) => {
         customerPhone: resolvedPhone,
       },
     );
+
+    const coupon = await validateAndPriceCoupon({
+      couponCode,
+      entityType: 'sports',
+      userId: req.user?.userId || null,
+      amountBeforeDiscount: grossTotalAmount,
+      people: peopleCount,
+      formSchema: event.registration?.formSchema || [],
+      formData: formDraft,
+    });
+    const totalAmount = coupon.amountAfterDiscount;
+
+    if (totalAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No payment required for this booking — confirm without online checkout.',
+        skipPayment: true,
+        couponCode: coupon.couponCode || '',
+        couponDiscount: coupon.discountAmount || 0,
+        amountBeforeDiscount: coupon.amountBeforeDiscount,
+        amountAfterDiscount: 0,
+        totalAmount: 0,
+      });
+    }
+    const resolvedName = event.title || eventName || (noun === 'event' ? 'Event booking' : 'Run Booking');
 
     const cashfreeMerchant = listingHub === 'events' ? 'events' : 'platform';
     const cashfreeMode = getCashfreeClientMode(cashfreeMerchant);

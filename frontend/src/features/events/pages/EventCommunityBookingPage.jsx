@@ -863,6 +863,8 @@ export default function EventCommunityBookingPage() {
                     tierId: effectiveTierId || undefined,
                     addOnSelected: Boolean(addOnSelected && optionalAddOn),
                     expectedTicketTotal: ticketTotal,
+                    formData: extraFields,
+                    gender: extraFields?.gender || extraFields?.sex || '',
                 },
                 retries: silent ? 1 : 3,
                 timeout: silent ? 12000 : 20000,
@@ -893,7 +895,7 @@ export default function EventCommunityBookingPage() {
         } finally {
             if (reqId === couponReqIdRef.current) setCouponLoading(false);
         }
-    }, [event, id, selectedTierId, location.state?.tierId, addOnSelected, optionalAddOn, people, fee]);
+    }, [event, id, selectedTierId, location.state?.tierId, addOnSelected, optionalAddOn, people, fee, extraFields]);
 
     applyCouponRef.current = applyCoupon;
 
@@ -903,6 +905,8 @@ export default function EventCommunityBookingPage() {
         const manual = couponSourceRef.current === 'manual';
         const code = (manual ? couponCodeRef.current : autoCouponCode).trim();
         if (!code) {
+            couponReqIdRef.current += 1;
+            setCouponLoading(false);
             if (couponSourceRef.current === 'form') {
                 setCouponInfo(null);
                 setCouponCode('');
