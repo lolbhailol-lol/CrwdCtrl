@@ -241,11 +241,15 @@ function formatParticipantRow(reg, event = null) {
             pickFormField(form, ['contact_no', 'phone', 'mobile', 'contact']) ||
             booking.userId?.phoneNumber ||
             '—',
-        participantGender:
-            reg.participantGender
-            || pickFormField(form, ['gender', 'sex', 'Gender'])
-            || booking.userId?.gender
-            || '—',
+        participantGender: (() => {
+            const raw = reg.participantGender
+                || pickFormField(form, ['gender', 'sex', 'Gender'])
+                || booking.userId?.gender
+                || '';
+            if (!raw) return '—';
+            if (String(raw).toLowerCase() === 'others') return 'Open';
+            return raw;
+        })(),
         emergencyContact:
             pickFormField(form, ['emergency_contact', 'emergency', 'emergency_phone', 'guardian_contact']) ||
             '—',

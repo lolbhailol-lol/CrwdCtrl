@@ -138,7 +138,9 @@ export default function RunClubOrganizerParticipantsPage() {
             : '',
     );
     const [genderFilter, setGenderFilter] = useState(
-        ['female', 'male'].includes(initialGender) ? initialGender : '',
+        ['female', 'male', 'open', 'others'].includes(initialGender)
+            ? (initialGender === 'others' ? 'open' : initialGender)
+            : '',
     );
     const [groupBy, setGroupBy] = useState(''); // '' | 'drink' | 'skill'
     const [page, setPage] = useState(1);
@@ -201,6 +203,9 @@ export default function RunClubOrganizerParticipantsPage() {
                         || 0,
                     maleCount: Number(dashData.stats.maleCount)
                         || Number(quotas?.male?.filled)
+                        || 0,
+                    othersCount: Number(dashData.stats.othersCount)
+                        || Number(quotas?.others?.filled)
                         || 0,
                 });
             }
@@ -597,7 +602,7 @@ export default function RunClubOrganizerParticipantsPage() {
             ) : null}
 
             {stats && isEventHub ? (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                     <button
                         type="button"
                         onClick={() => {
@@ -650,6 +655,33 @@ export default function RunClubOrganizerParticipantsPage() {
                             {stats.maleCount ?? 0}
                         </p>
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const next = genderFilter === 'open' ? '' : 'open';
+                            setGenderFilter(next);
+                            setPage(1);
+                            const params = new URLSearchParams(searchParams);
+                            if (next) params.set('gender', next);
+                            else params.delete('gender');
+                            params.delete('paymentStatus');
+                            params.delete('checkInStatus');
+                            setPaymentFilter('');
+                            setCheckInFilter('');
+                            setSearchParams(params);
+                        }}
+                        className={`rounded-xl border px-3.5 py-3 text-left transition-colors ${
+                            genderFilter === 'open'
+                                ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/15'
+                                : 'border-white/10 bg-[#161718] hover:border-[#0ECCEE]/25'
+                        }`}
+                    >
+                        <p className="text-[11px] text-[#0ECCEE]/90 font-medium">Open</p>
+                        <p className="text-xl font-semibold tabular-nums text-white mt-1 leading-none">
+                            {stats.othersCount ?? 0}
+                        </p>
+                        <p className="text-[9px] text-gray-500 mt-1 leading-snug">No M/F select</p>
+                    </button>
                 </div>
             ) : null}
 
@@ -698,6 +730,20 @@ export default function RunClubOrganizerParticipantsPage() {
                         }}
                     >
                         Men{stats?.maleCount != null ? ` · ${stats.maleCount}` : ''}
+                    </FilterChip>
+                    <FilterChip
+                        active={genderFilter === 'open'}
+                        onClick={() => {
+                            const next = genderFilter === 'open' ? '' : 'open';
+                            setGenderFilter(next);
+                            setPage(1);
+                            const params = new URLSearchParams(searchParams);
+                            if (next) params.set('gender', next);
+                            else params.delete('gender');
+                            setSearchParams(params);
+                        }}
+                    >
+                        Open{stats?.othersCount != null ? ` · ${stats.othersCount}` : ''}
                     </FilterChip>
                     {isPaidEvent ? (
                         <>

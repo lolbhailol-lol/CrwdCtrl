@@ -1304,7 +1304,10 @@ exports.listParticipants = async (req, res) => {
         const search = String(req.query.search || '').trim();
         const paymentStatus = req.query.paymentStatus;
         const checkInStatus = req.query.checkInStatus;
-        const genderFilter = normalizeGender(req.query.gender);
+        const genderRaw = String(req.query.gender || '').trim().toLowerCase();
+        const genderFilter = (genderRaw === 'open' || genderRaw === 'others' || genderRaw === 'other')
+            ? 'Others'
+            : normalizeGender(req.query.gender);
         const sortBy = req.query.sortBy || 'createdAt';
         let sortDir = req.query.sortDir === 'asc' ? 1 : -1;
 

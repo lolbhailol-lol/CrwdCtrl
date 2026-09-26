@@ -191,6 +191,9 @@ export default function RunClubOrganizerDashboardPage() {
     const maleCount = Number(stats.maleCount)
         || Number(genderRegistration?.quotas?.male?.filled)
         || 0;
+    const openCount = Number(stats.othersCount)
+        || Number(genderRegistration?.quotas?.others?.filled)
+        || 0;
     const femaleCap = Number(genderRegistration?.quotas?.female?.cap || 0);
     const maleCap = Number(genderRegistration?.quotas?.male?.cap || 0);
     const guestsPath = `/run-club-organizer/events/${eventId}/participants`;
@@ -467,6 +470,14 @@ export default function RunClubOrganizerDashboardPage() {
                     icon={Users}
                     to={`${guestsPath}?gender=male`}
                     hint={maleCap > 0 ? `${Math.max(0, maleCap - maleCount)} of ${maleCap} left` : 'Confirmed'}
+                />
+                <StatTile
+                    label="Open"
+                    value={openCount}
+                    tone="accent"
+                    icon={Users}
+                    to={`${guestsPath}?gender=open`}
+                    hint="Extra regs · no M/F select"
                 />
                 <StatTile
                     label="Checked in"

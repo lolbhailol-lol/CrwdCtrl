@@ -38,8 +38,8 @@ function countSportsGenderFromRegs(regs = []) {
             || form.Gender
             || form.participant_gender,
         );
-        if (!gender) continue;
-        const key = genderToQuotaKey(gender);
+        // No Male/Female on the form → Open (Others) bucket on the dashboard
+        const key = gender ? genderToQuotaKey(gender) : 'others';
         const people = Math.max(
             1,
             Number(reg?.bookingPeople) || Number(form.people) || 1,
@@ -427,7 +427,8 @@ async function validateSportsGenderRegistration({
     const participantGender = normalizeGender(fromForm);
 
     if (!isGenderQuotasEnabled(event)) {
-        return { ok: true, participantGender: participantGender || '' };
+        // Male/Female selection not on the form → store under Open (Others)
+        return { ok: true, participantGender: participantGender || 'Others' };
     }
 
     if (!participantGender) {
