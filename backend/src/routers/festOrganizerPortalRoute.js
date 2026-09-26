@@ -10,7 +10,8 @@ const liveCtrl = require('../controllers/festLiveUpdateController');
 const couponCtrl = require('../controllers/festOrganizerCouponController');
 const auditoriumCtrl = require('../controllers/mindsparkAuditoriumController');
 const uploadCtrl = require('../controllers/uploadController');
-const { authenticateFestOrganizer, requireFestAccess } = require('../middleware/festOrganizerAuth');
+const { authenticateFestOrganizer, requireFestAccess, requireAccessManager } = require('../middleware/festOrganizerAuth');
+const accessCtrl = require('../controllers/festOrganizerAccessController');
 const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -39,6 +40,10 @@ router.post(
 );
 
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
+router.get('/fests/:festId/access', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.listAccessMembers);
+router.post('/fests/:festId/access/invite', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.inviteAccessMember);
+router.patch('/fests/:festId/access/:accountId', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.updateAccessMember);
+router.delete('/fests/:festId/access/:accountId', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.revokeAccessMember);
 router.get('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.getOrganizerOps);
 router.patch('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.updateOrganizerConfig);
 router.get('/fests/:festId/auditorium/roster', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.listRoster);

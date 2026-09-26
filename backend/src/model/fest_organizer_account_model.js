@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const ACCOUNT_STATUSES = ['pending', 'approved', 'rejected'];
+const PORTAL_ROLES = ['organizer', 'cohead', 'desk'];
 
 const festOrganizerAccountSchema = new mongoose.Schema(
     {
@@ -10,7 +11,9 @@ const festOrganizerAccountSchema = new mongoose.Schema(
         email: { type: String, trim: true, lowercase: true, sparse: true, unique: true },
         passwordHash: { type: String, required: true },
         phone: { type: String, trim: true, default: '' },
-        portalRole: { type: String, enum: ['organizer', 'desk'], default: 'organizer', index: true },
+        portalRole: { type: String, enum: PORTAL_ROLES, default: 'organizer', index: true },
+        /** Page keys for cohead accounts (see festOrganizerPages.PAGE_KEYS). Ignored for full organizers. */
+        allowedPages: { type: [String], default: [] },
         assignedFestIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FestOrganizer' }],
         status: {
             type: String,
@@ -75,3 +78,4 @@ festOrganizerAccountSchema.statics.ensureSparseEmailIndex = async function ensur
 
 module.exports = mongoose.model('FestOrganizerAccount', festOrganizerAccountSchema);
 module.exports.ACCOUNT_STATUSES = ACCOUNT_STATUSES;
+module.exports.PORTAL_ROLES = PORTAL_ROLES;

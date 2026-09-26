@@ -1,5 +1,14 @@
 const FestOrganizer = require('../model/fest_organizer_model');
 const { normalizeUsername } = require('./normalizeUsername');
+const {
+    festRouteAllowedForOrganizer,
+    isFullOrganizer,
+    publicOrganizerFields,
+    PAGE_CATALOG,
+    PAGE_KEYS,
+    sanitizeAllowedPages,
+    normalizePortalRole,
+} = require('./festOrganizerPages');
 
 const FEST_SELECT = 'festName collegeName city festDates category status coverImage slug isApproved';
 
@@ -21,5 +30,12 @@ module.exports = {
     normalizeUsername,
     getOrganizerFests,
     organizerCanAccessFest,
+    festRouteAllowedForOrganizer,
+    isFullOrganizer,
+    publicOrganizerFields,
+    PAGE_CATALOG,
+    PAGE_KEYS,
+    sanitizeAllowedPages,
+    normalizePortalRole,
     FEST_SELECT,
 };

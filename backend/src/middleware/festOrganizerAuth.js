@@ -1,7 +1,11 @@
 const jwt = require('jsonwebtoken');
 const FestOrganizerAccount = require('../model/fest_organizer_account_model');
 const { getJwtSecret } = require('../config/jwtSecret');
-const { organizerCanAccessFest } = require('../utils/festOrganizerAccess');
+const {
+    organizerCanAccessFest,
+    festRouteAllowedForOrganizer,
+    isFullOrganizer,
+} = require('../utils/festOrganizerAccess');
 const { MINDSPARK_FEST_ID } = require('../modules/fest/plugins/mindspark');
 
 async function authenticateFestOrganizer(req, res, next) {
@@ -46,15 +50,16 @@ async function requireFestAccess(req, res, next) {
             return res.status(403).json({ success: false, message: 'You do not have access to this fest' });
         }
 
-        if (req.organizer.portalRole === 'desk') {
-            const path = String(req.path || '');
-            const allowed = (req.method === 'GET' && /\/fest-day-desk$/.test(path))
-                || (req.method === 'POST' && /\/fest-day-desk\/registrations$/.test(path))
-                || (req.method === 'POST' && /\/fest-day-desk\/bundles$/.test(path))
-                || (req.method === 'POST' && /\/fest-day-desk\/orders\/[^/]+\/refresh$/.test(path));
-            if (!allowed) {
-                return res.status(403).json({ success: false, message: 'Desk accounts can only access Fest Day Desk' });
-            }
+        const path = String(req.path || '');
+        const method = String(req.method || 'GET');
+        if (!festRouteAllowedForOrganizer(req.organizer, method, path)) {
+            const role = String(req.organizer.portalRole || '');
+            const message = role === 'desk'
+                ? 'Desk accounts can only access Fest Day Desk'
+                : role === 'cohead'
+                    ? 'You do not have access to this page'
+                    : 'Access denied';
+            return res.status(403).json({ success: false, message });
         }
 
         req.festId = festId;
@@ -62,6 +67,17 @@ async function requireFestAccess(req, res, next) {
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Access check failed' });
     }
+}
+
+/** Main organizers only — invite / manage co-heads. */
+function requireAccessManager(req, res, next) {
+    if (!isFullOrganizer(req.organizer)) {
+        return res.status(403).json({
+            success: false,
+            message: 'Only main organizers can manage co-head access',
+        });
+    }
+    next();
 }
 
 function requireMindSparkPaymentsAccess(req, res, next) {
@@ -74,4 +90,9 @@ function requireMindSparkPaymentsAccess(req, res, next) {
     next();
 }
 
-module.exports = { authenticateFestOrganizer, requireFestAccess, requireMindSparkPaymentsAccess };
+module.exports = {
+    authenticateFestOrganizer,
+    requireFestAccess,
+    requireAccessManager,
+    requireMindSparkPaymentsAccess,
+};

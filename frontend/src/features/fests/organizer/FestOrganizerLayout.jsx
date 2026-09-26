@@ -3,11 +3,19 @@ import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
     Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag, ScanLine,
-    Lock,
+    Lock, Shield,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../utils/festOrganizerSession';
 import { getFestPlugin } from '../plugins/registry';
 import { useDialog } from '../../../context/DialogContext';
+import {
+    canManageFestAccess,
+    firstGrantedFestPath,
+    navPageKeyForLabel,
+    organizerAllowedPages,
+    organizerPortalRole,
+    pathAllowedForOrganizer,
+} from './festOrganizerPages';
 
 const SIMPLE_PORTAL_UNLOCKED = new Set(['Overview', 'Competitions', 'Participants', 'Check-in']);
 
@@ -19,6 +27,7 @@ const navForFest = (festId, {
     hideLiveNav = false,
     hideFestInfoNav = false,
     showcaseAll = false,
+    showAccess = false,
 } = {}) => {
     const showLive = showcaseAll || !hideLiveNav;
     const showLeads = showcaseAll || !hideStallLeads;
@@ -50,6 +59,9 @@ const navForFest = (festId, {
             : []),
         { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
         { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'ops' },
+        ...(showAccess
+            ? [{ label: 'Access', path: `/fest-organizer/fests/${festId}/access`, icon: Shield, short: 'Access', group: 'ops' }]
+            : []),
         ...(showInfo
             ? [{ label: 'Fest info', path: `/fest-organizer/fests/${festId}/info`, icon: Info, short: 'Info', group: 'ops' }]
             : []),
@@ -143,6 +155,10 @@ export default function FestOrganizerLayout() {
     const hideStallLeads = Boolean(festId && plugin.hideStallLeads);
     const hideProShow = Boolean(festId && plugin.hideProShow);
     const showFestDayDesk = plugin.id === 'mindspark';
+    const canManageAccess = canManageFestAccess(session);
+    const showAccessNav = canManageAccess && (plugin.id === 'mindspark' || Boolean(plugin.showAccessNav));
+    const portalRole = organizerPortalRole(session);
+    const allowedPages = new Set(organizerAllowedPages(session));
     const fullNav = festId
         ? navForFest(festId, {
             hideStallLeads,
@@ -150,17 +166,28 @@ export default function FestOrganizerLayout() {
             showFestDayDesk,
             hideLiveNav: Boolean(plugin.hideLiveNav),
             hideFestInfoNav: Boolean(plugin.hideFestInfoNav),
-            // Simple portals (Kshitij / Techfest): show full Aarohan catalog, lock extras
             showcaseAll: simplePortal,
+            showAccess: showAccessNav,
         }).map((item) => ({
             ...item,
             locked: simplePortal && !SIMPLE_PORTAL_UNLOCKED.has(item.label),
         }))
         : [];
-    const nav = session?.organizer?.portalRole === 'desk'
-        ? fullNav.filter((item) => item.label === 'Fest Day Desk')
-        : fullNav;
-    const isDeskOnly = session?.organizer?.portalRole === 'desk';
+    const nav = (() => {
+        if (portalRole === 'desk') {
+            return fullNav.filter((item) => item.label === 'Fest Day Desk');
+        }
+        if (portalRole === 'cohead') {
+            return fullNav.filter((item) => {
+                const key = navPageKeyForLabel(item.label);
+                if (!key) return false;
+                return allowedPages.has(key);
+            });
+        }
+        return fullNav;
+    })();
+    const isDeskOnly = portalRole === 'desk';
+    const isCohead = portalRole === 'cohead';
     const overviewItem = nav.find((n) => n.label === 'Overview');
     const opsNav = nav.filter((n) => n.group === 'ops' && n.label !== 'Overview');
     const editNav = nav.filter((n) => n.group === 'edit');
@@ -250,6 +277,12 @@ export default function FestOrganizerLayout() {
         const deskPath = `/fest-organizer/fests/${festId}/fest-day-desk`;
         if (location.pathname !== deskPath) navigate(deskPath, { replace: true });
     }, [festId, isDeskOnly, location.pathname, navigate, showFestDayDesk]);
+
+    useEffect(() => {
+        if (!isCohead || !festId) return;
+        if (pathAllowedForOrganizer(location.pathname, festId, session)) return;
+        navigate(firstGrantedFestPath(festId, session), { replace: true });
+    }, [isCohead, festId, location.pathname, navigate, session]);
 
     return (
         <div className="min-h-dvh bg-[#0c0d0e] text-white flex">

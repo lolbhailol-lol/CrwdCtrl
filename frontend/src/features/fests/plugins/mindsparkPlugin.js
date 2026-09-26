@@ -26,6 +26,7 @@ export const mindsparkPlugin = {
   skipFestCommonFormOnCompetition: true,
   hasRosterPersonStep: true,
   showLiveStrip: true,
+  showAccessNav: true,
   LiveBadge: MindSparkLiveBadge,
   competitionSuccessScreen: MindSparkSuccessStep,
   WhatsAppAdmin: MindSparkWhatsAppLinksAdmin,

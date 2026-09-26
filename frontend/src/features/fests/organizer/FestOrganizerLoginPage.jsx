@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { PartyPopper, Loader, ArrowLeft } from 'lucide-react';
 import { festOrganizerLogin, applyFestOrganizerAuthPayload } from '../../../services/api/festOrganizer.api';
 import { showAppPopup } from '../../../utils/appPopup';
+import { firstGrantedFestPath, organizerPortalRole } from './festOrganizerPages';
 
 export default function FestOrganizerLoginPage() {
     const navigate = useNavigate();
@@ -25,10 +26,12 @@ export default function FestOrganizerLoginPage() {
                 message: `Welcome, ${welcome}.`,
                 tone: 'login',
             });
-            const deskFestId = data?.fests?.[0]?._id || data?.fests?.[0]?.id;
-            const destination = data?.organizer?.portalRole === 'desk' && deskFestId
-                ? `/fest-organizer/fests/${deskFestId}/fest-day-desk`
-                : '/fest-organizer';
+            const festId = data?.fests?.[0]?._id || data?.fests?.[0]?.id;
+            const role = organizerPortalRole(data);
+            let destination = '/fest-organizer';
+            if (festId && (role === 'desk' || role === 'cohead')) {
+                destination = firstGrantedFestPath(festId, data);
+            }
             navigate(location.state?.from || destination, { replace: true });
         } catch (err) {
             setError(err.message || 'Login failed');

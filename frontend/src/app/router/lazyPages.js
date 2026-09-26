@@ -154,6 +154,7 @@ export const FestOrganizerAuditoriumScanPage = lazyWithRetry(() => import('../..
 export const FestOrganizerInfoPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerInfoPage'));
 export const FestOrganizerListingEditPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerListingEditPage'));
 export const FestOrganizerCouponsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerCouponsPage'));
+export const FestOrganizerAccessPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerAccessPage'));
 export const FestOrganizerLeadsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerLeadsPage'));
 
 export const MindSparkPaymentsLoginPage = lazyWithRetry(() => import('../../pages/mindspark-payments/MindSparkPaymentsLoginPage'));

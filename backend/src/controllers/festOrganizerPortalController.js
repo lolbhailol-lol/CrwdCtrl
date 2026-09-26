@@ -19,6 +19,7 @@ const { participantsToCsv, participantsToXlsx } = require('../utils/festOrganize
 const {
     normalizeUsername,
     getOrganizerFests,
+    publicOrganizerFields,
 } = require('../utils/festOrganizerAccess');
 const FestOrganizerLoginLog = require('../model/fest_organizer_login_log_model');
 const {
@@ -598,7 +599,7 @@ async function buildOrganizerAuthResponse(organizer, { displayName } = {}) {
             email: organizer.email || '',
             phone: organizer.phone,
             status: FestOrganizerAccount.effectiveStatus(organizer),
-            portalRole: organizer.portalRole === 'desk' ? 'desk' : 'organizer',
+            ...publicOrganizerFields(organizer),
             assignedFestIds: organizer.assignedFestIds || [],
             displayName: typedName,
         },
@@ -767,6 +768,7 @@ exports.getMe = async (req, res) => {
                 phone: req.organizer.phone,
                 status: FestOrganizerAccount.effectiveStatus(req.organizer),
                 displayName: displayName || req.organizer.name || '',
+                ...publicOrganizerFields(req.organizer),
             },
             fests,
             loggedInCount: loggedInUsers.length,

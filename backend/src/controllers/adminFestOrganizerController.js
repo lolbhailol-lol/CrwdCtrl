@@ -60,7 +60,11 @@ exports.createOrganizer = async (req, res) => {
         const phone = String(req.body.phone || '').trim();
         const email = FestOrganizerAccount.normalizeOptionalEmail(req.body.email);
         const assignedFestIds = parseFestIds(req.body.assignedFestIds);
-        const portalRole = req.body.portalRole === 'desk' ? 'desk' : 'organizer';
+        const portalRole = req.body.portalRole === 'desk'
+            ? 'desk'
+            : req.body.portalRole === 'cohead'
+                ? 'cohead'
+                : 'organizer';
 
         if (!name || !username || !password) {
             return res.status(400).json({ success: false, message: 'Name, username and password are required' });
@@ -106,6 +110,10 @@ exports.createOrganizer = async (req, res) => {
             createdBy: req.user?.userId || null,
         };
         if (email) payload.email = email;
+        if (portalRole === 'cohead') {
+            const { sanitizeAllowedPages } = require('../utils/festOrganizerPages');
+            payload.allowedPages = sanitizeAllowedPages(req.body.allowedPages || ['fest-day-desk']);
+        }
 
         const organizer = await FestOrganizerAccount.create(payload);
         res.status(201).json({
@@ -134,7 +142,17 @@ exports.updateOrganizer = async (req, res) => {
 
         if (req.body.name !== undefined) organizer.name = String(req.body.name).trim();
         if (req.body.phone !== undefined) organizer.phone = String(req.body.phone).trim();
-        if (req.body.portalRole !== undefined) organizer.portalRole = req.body.portalRole === 'desk' ? 'desk' : 'organizer';
+        if (req.body.portalRole !== undefined) {
+            organizer.portalRole = req.body.portalRole === 'desk'
+                ? 'desk'
+                : req.body.portalRole === 'cohead'
+                    ? 'cohead'
+                    : 'organizer';
+        }
+        if (req.body.allowedPages !== undefined && organizer.portalRole === 'cohead') {
+            const { sanitizeAllowedPages } = require('../utils/festOrganizerPages');
+            organizer.allowedPages = sanitizeAllowedPages(req.body.allowedPages);
+        }
         if (req.body.email !== undefined) {
             const nextEmail = FestOrganizerAccount.normalizeOptionalEmail(req.body.email);
             if (nextEmail) {

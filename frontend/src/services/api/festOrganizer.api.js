@@ -678,6 +678,30 @@ export async function issueFestOrganizerAuditoriumDesk(festId, body) {
     });
 }
 
+export async function fetchFestOrganizerAccess(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/access`);
+}
+
+export async function inviteFestOrganizerAccess(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/access/invite`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function updateFestOrganizerAccess(festId, accountId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/access/${accountId}`, {
+        method: 'PATCH',
+        body,
+    });
+}
+
+export async function revokeFestOrganizerAccess(festId, accountId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/access/${accountId}`, {
+        method: 'DELETE',
+    });
+}
+
 export function applyFestOrganizerAuthPayload(data) {
     setFestOrganizerSession({
         token: data.token,
