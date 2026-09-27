@@ -166,6 +166,63 @@ function SimpleCompetitionWorkspace({
         const haystack = `${participant.userName || ''} ${participant.teamName || ''} ${participant.college || ''} ${participant.city || ''} ${participant.userPhone || ''} ${participant.userEmail || ''}`.toLowerCase();
         return haystack.includes(q);
     });
+    const approvalRequests = hideReview ? [] : rows.filter((participant) => participant.status === 'pending');
+    const confirmedParticipants = hideReview
+        ? rows
+        : rows.filter((participant) => participant.status === 'approved');
+    const confirmedCount = hideReview
+        ? (participants || []).length
+        : (participants || []).filter((participant) => participant.status === 'approved').length;
+
+    const renderParticipant = (participant) => (
+        <div key={participant.id} className="rounded-2xl border border-white/10 bg-[#161718] p-4 flex items-start gap-3">
+            <div className="size-10 rounded-full bg-[#0ECCEE]/10 text-[#0ECCEE] flex items-center justify-center shrink-0 font-semibold">
+                {(participant.userName || '?').trim().charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="font-semibold text-white truncate">{participant.userName || 'Unnamed participant'}</p>
+                {participant.teamName ? <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">Team · {participant.teamName}</p> : null}
+                {!hideReview ? (
+                    <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${statusTone(participant.status)}`}>
+                        {participant.status === 'pending' ? 'Pending approval' : participant.status}
+                    </span>
+                ) : null}
+                <MetaLine college={participant.college} city={participant.city} year={participant.year} course={participant.course} />
+                <p className="text-xs text-gray-500 mt-1 truncate">{[participant.userPhone, participant.userEmail].filter(Boolean).join(' · ') || 'No contact details'}</p>
+                <OrganizerRosterPreview teamMembers={participant.teamMembers} teamSize={participant.teamSize || participant.memberCount} />
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+                <ContactIcons phone={participant.userPhone} email={participant.userEmail} />
+                <div className="flex items-center gap-1.5">
+                    {!hideReview && participant.status === 'pending' ? (
+                        <button
+                            type="button"
+                            onClick={() => onApprove(participant.id)}
+                            disabled={busyId === `${participant.id}:approved`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-50"
+                        >
+                            {busyId === `${participant.id}:approved`
+                                ? <Loader size={14} className="animate-spin" />
+                                : <Check size={14} />}
+                            Approve
+                        </button>
+                    ) : null}
+                    <button
+                        type="button"
+                        onClick={() => onDelete(participant)}
+                        disabled={busyId === `${participant.id}:delete`}
+                        className="p-2 rounded-lg border border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                        aria-label="Delete entry"
+                        title="Delete entry"
+                    >
+                        {busyId === `${participant.id}:delete`
+                            ? <Loader size={14} className="animate-spin" />
+                            : <Trash2 size={14} />}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="max-w-3xl mx-auto space-y-4 pb-10">
@@ -183,8 +240,8 @@ function SimpleCompetitionWorkspace({
             </div>
 
             <div className="rounded-2xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/8 p-4">
-                <p className="text-3xl font-bold text-white">{participants?.length || 0}</p>
-                <p className="text-sm text-gray-400 mt-1">Participants</p>
+                <p className="text-3xl font-bold text-white">{confirmedCount}</p>
+                <p className="text-sm text-gray-400 mt-1">Approved participants</p>
             </div>
 
             <div className="relative">
@@ -192,58 +249,25 @@ function SimpleCompetitionWorkspace({
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search participants" className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-white/10 text-sm text-white placeholder:text-gray-600" />
             </div>
 
-            <div className="space-y-2.5">
-                {rows.map((participant) => (
-                    <div key={participant.id} className="rounded-2xl border border-white/10 bg-[#161718] p-4 flex items-start gap-3">
-                        <div className="size-10 rounded-full bg-[#0ECCEE]/10 text-[#0ECCEE] flex items-center justify-center shrink-0 font-semibold">
-                            {(participant.userName || '?').trim().charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-white truncate">{participant.userName || 'Unnamed participant'}</p>
-                            {participant.teamName ? <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">Team · {participant.teamName}</p> : null}
-                            {!hideReview ? (
-                                <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${statusTone(participant.status)}`}>
-                                    {participant.status === 'pending' ? 'Pending approval' : participant.status}
-                                </span>
-                            ) : null}
-                            <MetaLine college={participant.college} city={participant.city} year={participant.year} course={participant.course} />
-                            <p className="text-xs text-gray-500 mt-1 truncate">{[participant.userPhone, participant.userEmail].filter(Boolean).join(' · ') || 'No contact details'}</p>
-                            <OrganizerRosterPreview teamMembers={participant.teamMembers} teamSize={participant.teamSize || participant.memberCount} />
-                        </div>
-                        <div className="flex flex-col items-end gap-2 shrink-0">
-                            <ContactIcons phone={participant.userPhone} email={participant.userEmail} />
-                            <div className="flex items-center gap-1.5">
-                                {!hideReview && participant.status === 'pending' ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => onApprove(participant.id)}
-                                        disabled={busyId === `${participant.id}:approved`}
-                                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-50"
-                                    >
-                                        {busyId === `${participant.id}:approved`
-                                            ? <Loader size={14} className="animate-spin" />
-                                            : <Check size={14} />}
-                                        Approve
-                                    </button>
-                                ) : null}
-                                <button
-                                    type="button"
-                                    onClick={() => onDelete(participant)}
-                                    disabled={busyId === `${participant.id}:delete`}
-                                    className="p-2 rounded-lg border border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
-                                    aria-label="Delete entry"
-                                    title="Delete entry"
-                                >
-                                    {busyId === `${participant.id}:delete`
-                                        ? <Loader size={14} className="animate-spin" />
-                                        : <Trash2 size={14} />}
-                                </button>
-                            </div>
-                        </div>
+            {approvalRequests.length ? (
+                <section className="space-y-2.5">
+                    <div>
+                        <p className="text-sm font-semibold text-amber-200">Approval requests</p>
+                        <p className="text-xs text-gray-500 mt-0.5">These entries are not included in the participant list yet.</p>
                     </div>
-                ))}
-                {!rows.length ? <p className="text-center text-sm text-gray-500 py-12">{q ? 'No participants found' : 'No participants yet'}</p> : null}
-            </div>
+                    {approvalRequests.map(renderParticipant)}
+                </section>
+            ) : null}
+
+            <section className="space-y-2.5">
+                <p className="text-sm font-semibold text-white">Participants</p>
+                {confirmedParticipants.map(renderParticipant)}
+                {!confirmedParticipants.length ? (
+                    <p className="text-center text-sm text-gray-500 py-12">
+                        {q ? 'No approved participants found' : 'No approved participants yet'}
+                    </p>
+                ) : null}
+            </section>
         </div>
     );
 }
