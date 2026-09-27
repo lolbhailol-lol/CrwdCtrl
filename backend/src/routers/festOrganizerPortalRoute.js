@@ -53,6 +53,7 @@ router.post('/fests/:festId/auditorium/invites', authenticateFestOrganizer, requ
 router.post('/fests/:festId/auditorium/invites/:inviteId/deactivate', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deactivateInvite);
 router.post('/fests/:festId/auditorium/desk', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deskIssue);
 router.get('/fests/:festId/fest-day-desk', authenticateFestOrganizer, requireFestAccess, ctrl.getFestDayDesk);
+router.delete('/fests/:festId/fest-day-desk/expired', authenticateFestOrganizer, requireFestAccess, ctrl.clearExpiredFestDayDeskEntries);
 router.post('/fests/:festId/fest-day-desk/registrations', authenticateFestOrganizer, requireFestAccess, assistedCtrl.createAssistedRegistration);
 router.post('/fests/:festId/fest-day-desk/bundles', authenticateFestOrganizer, requireFestAccess, bundleCtrl.create('desk'));
 router.post('/fests/:festId/fest-day-desk/orders/:orderId/refresh', authenticateFestOrganizer, requireFestAccess, ctrl.refreshFestDayDeskOrder);

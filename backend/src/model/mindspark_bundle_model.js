@@ -34,6 +34,7 @@ const schema = new mongoose.Schema({
   activeOrderId: { type: String, default: '' },
   orderIds: { type: [String], default: [] },
   expiresAt: { type: Date, required: true },
+  deskHiddenAt: { type: Date, default: null, index: true },
 }, { timestamps: true });
 schema.index({ source: 1, user: 1, submissionKey: 1 }, { unique: true });
 schema.index({ activeOrderId: 1 });

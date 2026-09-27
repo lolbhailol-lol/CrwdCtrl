@@ -3166,6 +3166,7 @@ exports.getFestDayDesk = async (req, res) => {
         const assistedDeskEntries = await FestDayAssistedRegistration.find({
             fest: req.festId,
             paymentOrderId: { $nin: [null, ''] },
+            hiddenAt: null,
         }).select('paymentOrderId +paymentToken').sort({ createdAt: -1 }).limit(300).lean();
         const assistedOrderIds = assistedDeskEntries.map((entry) => entry.paymentOrderId).filter(Boolean);
         const orderFilter = {
@@ -3302,7 +3303,7 @@ exports.getFestDayDesk = async (req, res) => {
         }));
 
         const MindSparkBundle = require('../model/mindspark_bundle_model');
-        const bundleFilter = { fest: req.festId, source: 'desk' };
+        const bundleFilter = { fest: req.festId, source: 'desk', deskHiddenAt: null };
         if (search) {
             const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(escaped, 'i');
@@ -3355,14 +3356,20 @@ exports.getFestDayDesk = async (req, res) => {
                 .map((item) => item.registrationId ? String(item.registrationId) : '')
                 .filter(Boolean);
             const issued = bundle.status === 'paid' && registrationIds.length > 0;
-            const closed = ['failed', 'expired', 'refunded'].includes(String(bundle.status || ''));
+            const timedOut = bundle.expiresAt && new Date(bundle.expiresAt) <= new Date();
+            const closed = ['failed', 'expired', 'refunded'].includes(String(bundle.status || ''))
+                || (timedOut && !issued);
             return {
                 bundleId: String(bundle._id),
                 source: bundle.source,
-                status: issued ? 'paid' : (closed ? bundle.status : 'pending'),
+                status: issued ? 'paid' : (timedOut ? 'expired' : (closed ? bundle.status : 'pending')),
                 deskStatus: issued
                     ? 'successful'
-                    : (closed || bundle.status === 'paid_review' ? (bundle.status === 'paid_review' ? 'paid_review' : bundle.status) : 'draft'),
+                    : (timedOut
+                        ? 'expired'
+                        : (closed || bundle.status === 'paid_review'
+                            ? (bundle.status === 'paid_review' ? 'paid_review' : bundle.status)
+                            : 'draft')),
                 participantName,
                 phone,
                 email,
@@ -3389,6 +3396,83 @@ exports.getFestDayDesk = async (req, res) => {
     } catch (error) {
         console.error('[festOrganizerPortal.getFestDayDesk]', error);
         res.status(500).json({ success: false, message: 'Failed to load Fest Day Desk' });
+    }
+};
+
+/** Hide expired desk attempts from Live activity while preserving payment audit records. */
+exports.clearExpiredFestDayDeskEntries = async (req, res) => {
+    try {
+        if (!requireMindSparkDesk(req, res)) return;
+        const now = new Date();
+        const staleCutoff = new Date(now.getTime() - (30 * 60 * 1000));
+        const assistedEntries = await FestDayAssistedRegistration.find({
+            fest: req.festId,
+            hiddenAt: null,
+            paymentOrderId: { $nin: [null, ''] },
+        }).select('_id paymentOrderId status createdAt').lean();
+        const assistedOrderIds = assistedEntries.map((entry) => entry.paymentOrderId).filter(Boolean);
+        const expiredOrders = assistedOrderIds.length
+            ? await PaymentOrder.find({
+                orderId: { $in: assistedOrderIds },
+                entityType: 'competition',
+                $or: [
+                    { status: 'EXPIRED' },
+                    { status: 'PENDING', createdAt: { $lte: staleCutoff } },
+                ],
+            }).select('orderId').lean()
+            : [];
+        const expiredOrderIds = expiredOrders.map((order) => order.orderId);
+        const expiredAssistedIds = assistedEntries
+            .filter((entry) => entry.status === 'expired' || expiredOrderIds.includes(entry.paymentOrderId))
+            .map((entry) => entry._id);
+
+        const MindSparkBundle = require('../model/mindspark_bundle_model');
+        const [singleResult, orderResult, bundleResult, formSessionResult] = await Promise.all([
+            expiredAssistedIds.length
+                ? FestDayAssistedRegistration.updateMany(
+                    { _id: { $in: expiredAssistedIds }, hiddenAt: null },
+                    { $set: { hiddenAt: now, status: 'expired' } },
+                )
+                : { modifiedCount: 0 },
+            expiredOrderIds.length
+                ? PaymentOrder.updateMany(
+                    { orderId: { $in: expiredOrderIds } },
+                    { $set: { 'orderTags.deskHiddenAt': now } },
+                )
+                : { modifiedCount: 0 },
+            MindSparkBundle.updateMany(
+                {
+                    fest: req.festId,
+                    source: 'desk',
+                    deskHiddenAt: null,
+                    $or: [
+                        { status: 'expired' },
+                        { status: 'pending', expiresAt: { $lte: now } },
+                        { status: 'confirming', expiresAt: { $lte: now } },
+                    ],
+                },
+                { $set: { deskHiddenAt: now, status: 'expired' } },
+            ),
+            FestDayFormSession.deleteMany({ fest: req.festId, expiresAt: { $lte: now } }),
+        ]);
+
+        const singles = Number(singleResult.modifiedCount) || 0;
+        const bundles = Number(bundleResult.modifiedCount) || 0;
+        const formSessions = Number(formSessionResult.deletedCount) || 0;
+        res.json({
+            success: true,
+            cleared: singles + bundles,
+            singles,
+            bundles,
+            formSessions,
+            paymentAuditRecordsPreserved: Number(orderResult.modifiedCount) || 0,
+            message: singles + bundles
+                ? `Cleared ${singles + bundles} expired live entr${singles + bundles === 1 ? 'y' : 'ies'}`
+                : 'No expired live entries to clear',
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.clearExpiredFestDayDeskEntries]', error);
+        res.status(500).json({ success: false, message: 'Failed to clear expired live entries' });
     }
 };
 

@@ -12,9 +12,11 @@ import {
   QrCode,
   ShoppingCart,
   UserRound,
+  Trash2,
 } from "lucide-react";
 import {
   fetchFestDayDesk,
+  clearExpiredFestDayDeskEntries,
   createFestDayAssistedRegistration,
   refundFestDayDeskOrder,
   refreshFestDayDeskOrder,
@@ -523,6 +525,7 @@ export default function FestOrganizerFestDayDeskPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyOrder, setBusyOrder] = useState("");
+  const [clearingExpired, setClearingExpired] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
 
   const load = useCallback(
@@ -588,6 +591,31 @@ export default function FestOrganizerFestDayDeskPage() {
       competitionName: row.competitionNames?.join(" + ") || row.bundleName || "Competition bundle",
     })),
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [activity, bundleActivity]);
+  const expiredEntryCount = useMemo(
+    () => combinedActivity.filter((row) => deskPhase(row) === "expired").length,
+    [combinedActivity],
+  );
+
+  const clearExpiredEntries = async () => {
+    if (!expiredEntryCount || clearingExpired) return;
+    const approved = await confirm({
+      title: `Clear ${expiredEntryCount} expired entr${expiredEntryCount === 1 ? "y" : "ies"}?`,
+      message: "They will be removed from Live activity. Payment audit records will remain available for reconciliation.",
+      confirmLabel: "Clear expired",
+      danger: true,
+    });
+    if (!approved) return;
+    setClearingExpired(true);
+    try {
+      const result = await clearExpiredFestDayDeskEntries(festId);
+      toast(result.message || "Expired entries cleared");
+      await load({ quiet: true });
+    } catch (error) {
+      toast(error.message || "Could not clear expired entries");
+    } finally {
+      setClearingExpired(false);
+    }
+  };
 
   const refreshOrder = async (orderId) => {
     if (!online) return toast("Internet is required to verify a payment");
@@ -692,7 +720,7 @@ export default function FestOrganizerFestDayDeskPage() {
 
       <div className="grid xl:grid-cols-[1.05fr_.95fr] gap-5">
         <section className="rounded-2xl border border-white/10 bg-[#121314] p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <h2 className="font-semibold">New desk registration</h2>
               <p className="text-xs text-gray-500">
@@ -758,11 +786,25 @@ export default function FestOrganizerFestDayDeskPage() {
                 Single and bundle payments in one place
               </p>
             </div>
-            {refreshing ? (
-              <Loader size={16} className="animate-spin text-[#0ECCEE]" />
-            ) : (
-              <CheckCircle2 size={18} className="text-emerald-400" />
-            )}
+            <div className="flex items-center gap-2">
+              {expiredEntryCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={clearExpiredEntries}
+                  disabled={clearingExpired || !online}
+                  className="desk-action text-red-300 border-red-400/20 bg-red-500/10"
+                  title="Remove expired entries from Live activity"
+                >
+                  {clearingExpired ? <Loader size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  Clear expired ({expiredEntryCount})
+                </button>
+              ) : null}
+              {refreshing ? (
+                <Loader size={16} className="animate-spin text-[#0ECCEE]" />
+              ) : (
+                <CheckCircle2 size={18} className="text-emerald-400" />
+              )}
+            </div>
           </div>
           <form
             onSubmit={(event) => {

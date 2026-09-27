@@ -5,7 +5,12 @@ import {
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
     Pencil, Download, ScanLine, Ticket, Loader,
 } from 'lucide-react';
-import { fetchFestOrganizerDashboard, exportFestOrganizerParticipants } from '../../../services/api/festOrganizer.api';
+import {
+    fetchFestOrganizerDashboard,
+    exportFestOrganizerParticipants,
+    fetchFestOrganizerParticipants,
+    updateFestOrganizerParticipantStatus,
+} from '../../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { getFestPlugin } from '../plugins/registry';
@@ -43,14 +48,51 @@ function ProgressBar({ value, max, tone = 'cyan' }) {
 
 /** Techfest / Kshitij — lean ops home: comps + people + Excel */
 function SimpleOrganizerDashboard({ fest, stats, competitions, festId, navigate, reload, pluginId = 'techfest' }) {
-    const { toast } = useDialog();
+    const { confirm, toast } = useDialog();
     const [exporting, setExporting] = useState(false);
+    const [pendingRegistrations, setPendingRegistrations] = useState([]);
+    const [approvalBusy, setApprovalBusy] = useState('');
     const totalParticipants = Number(stats.totalRegistrations || stats.allActive) || 0;
     const publicUrl = fest.slug
         ? `${window.location.origin}/view-details/${fest.slug}`
         : `${window.location.origin}/view-details/${fest.id || festId}`;
     const brand = pluginId === 'kshitij' ? 'Kshitij' : 'Organizer';
     const festLabel = String(fest.festName || brand);
+
+    const loadPendingRegistrations = async () => {
+        if (pluginId !== 'kshitij') return;
+        try {
+            const data = await fetchFestOrganizerParticipants(festId, { status: 'pending', limit: 20 });
+            setPendingRegistrations(data.participants || []);
+        } catch (e) {
+            toast(e.message || 'Could not load pending registrations');
+        }
+    };
+
+    useEffect(() => {
+        loadPendingRegistrations();
+    }, [festId, pluginId]);
+
+    const approveRegistration = async (registration) => {
+        const participantName = registration.userName || registration.userEmail || 'this participant';
+        const ok = await confirm({
+            title: 'Approve registration?',
+            message: `${participantName} will receive their confirmation and ticket.`,
+            confirmText: 'Approve',
+        });
+        if (!ok) return;
+        setApprovalBusy(registration.id);
+        try {
+            await updateFestOrganizerParticipantStatus(festId, registration.id, 'approved');
+            setPendingRegistrations((current) => current.filter((item) => item.id !== registration.id));
+            toast('Registration approved and confirmation queued');
+            await reload();
+        } catch (e) {
+            toast(e.message || 'Approval failed');
+        } finally {
+            setApprovalBusy('');
+        }
+    };
 
     const downloadExcel = async (competitionId = '') => {
         setExporting(true);
@@ -171,6 +213,58 @@ function SimpleOrganizerDashboard({ fest, stats, competitions, festId, navigate,
                     </span>
                 </button>
             </div>
+
+            {pluginId === 'kshitij' ? (
+                <section className="rounded-3xl border border-amber-400/25 bg-[#161718] overflow-hidden">
+                    <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-white/8">
+                        <div>
+                            <h2 className="text-base font-semibold text-white">Pending approval</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                                {pendingRegistrations.length} registration{pendingRegistrations.length === 1 ? '' : 's'} waiting
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/fest-organizer/fests/${festId}/participants?status=pending`)}
+                            className="text-xs font-semibold text-[#0ECCEE]"
+                        >
+                            View all
+                        </button>
+                    </div>
+                    {pendingRegistrations.length ? (
+                        <div className="divide-y divide-white/8">
+                            {pendingRegistrations.slice(0, 6).map((registration) => (
+                                <div key={registration.id} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium text-white truncate">
+                                            {registration.userName || 'Unnamed participant'}
+                                        </p>
+                                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                                            {registration.competitionName || 'General'}
+                                            {registration.teamName ? ` · ${registration.teamName}` : ''}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => approveRegistration(registration)}
+                                        disabled={approvalBusy === registration.id}
+                                        className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/30 px-3 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-50"
+                                    >
+                                        {approvalBusy === registration.id
+                                            ? <Loader size={13} className="animate-spin" />
+                                            : <UserCheck size={13} />}
+                                        Approve
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="px-4 sm:px-5 py-5 flex items-center gap-2 text-sm text-emerald-300">
+                            <CheckCircle2 size={16} /> No registrations waiting for approval
+                        </div>
+                    )}
+                </section>
+            ) : null}
 
             <section className="rounded-3xl border border-white/10 bg-[#161718] overflow-hidden">
                 <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 border-b border-white/8">

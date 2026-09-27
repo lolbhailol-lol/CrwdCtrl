@@ -370,7 +370,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                                     : 'bg-amber-50 text-amber-800'
                             }`}
                         >
-                            Awaiting {item.isSports ? clubLabel : 'organizer'} approval
+                            {item.isSports ? `Awaiting ${clubLabel} approval` : 'Pending organizer approval'}
                         </span>
                     ) : null}
                     {isRejectedPayment ? (

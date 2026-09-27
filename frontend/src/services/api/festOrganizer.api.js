@@ -190,6 +190,12 @@ export async function fetchFestDayDesk(festId, params = {}) {
     });
 }
 
+export async function clearExpiredFestDayDeskEntries(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/expired`, {
+        method: 'DELETE',
+    });
+}
+
 export async function refreshFestDayDeskOrder(festId, orderId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/orders/${encodeURIComponent(orderId)}/refresh`, {
         method: 'POST',

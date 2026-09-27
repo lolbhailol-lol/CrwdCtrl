@@ -10,6 +10,7 @@ const schema = new mongoose.Schema({
   registrationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Registration', default: null },
   submissionKey: { type: String, required: true, trim: true },
   paymentToken: { type: String, required: true, trim: true, unique: true, select: false },
+  hiddenAt: { type: Date, default: null, index: true },
 }, { timestamps: true });
 
 schema.index({ fest: 1, submissionKey: 1 }, { unique: true });
