@@ -39,6 +39,28 @@ const {
     searchTokensForQuery,
 } = require('../utils/runClubPiiCrypto');
 const { summarizeCashfreeSettlement, isCashfreePayment } = require('../utils/cashfreeGatewayFee');
+
+function rushGatewayFeeContext(club) {
+    const slug = String(club?.slug || '').trim().toLowerCase();
+    const name = String(club?.name || '').trim().toLowerCase();
+    const rush = slug === 'the-rush' || name === 'the rush' || name.includes('the rush');
+    if (!rush) {
+        return { gatewayFeeRate: null, gatewayFeePercent: 1.6, gatewayName: 'Cashfree' };
+    }
+    return { gatewayFeeRate: 0.02, gatewayFeePercent: 2, gatewayName: 'Razorpay' };
+}
+
+async function attachGatewayFeeContext(event) {
+    if (!event) return { gatewayFeeRate: null, gatewayFeePercent: 1.6, gatewayName: 'Cashfree' };
+    const club = event.runClubId
+        ? await RunClub.findById(event.runClubId).select('slug name').lean()
+        : null;
+    const fee = rushGatewayFeeContext(club);
+    event.gatewayFeeRate = fee.gatewayFeeRate;
+    event.gatewayFeePercent = fee.gatewayFeePercent;
+    event.gatewayName = fee.gatewayName;
+    return fee;
+}
 const RunClubManagerProfileInvite = require('../model/run_club_manager_profile_invite_model');
 const {
     sanitizeGenderQuotas,
@@ -1209,7 +1231,11 @@ exports.getDashboard = async (req, res) => {
             }),
         ]);
 
-        const settlement = summarizeCashfreeSettlement(paidRegs);
+        const feeContext = await attachGatewayFeeContext(event);
+        const settlement = summarizeCashfreeSettlement(
+            paidRegs,
+            feeContext.gatewayFeeRate ? { feeRate: feeContext.gatewayFeeRate } : {},
+        );
         const organizerRevenue = settlement.revenue;
         const cashfreePaid = paidRegs.filter((r) => isCashfreePayment(r));
         const qrPaid = paidRegs.filter((r) => {
@@ -1276,6 +1302,8 @@ exports.getDashboard = async (req, res) => {
                 organizerRevenue,
                 platformFees: settlement.gatewayFees,
                 gatewayFees: settlement.gatewayFees,
+                gatewayFeePercent: feeContext.gatewayFeePercent,
+                gatewayName: feeContext.gatewayName,
                 grossCollected: settlement.grossCollected,
                 cashfreeCollected,
                 qrCollected,
@@ -1386,13 +1414,14 @@ exports.listParticipants = async (req, res) => {
         const formSchema = event?.registration?.formSchema || [];
         const runClubId = resolveEventRunClubId(event, req.organizer);
         const decrypted = decryptManyRegistrations(registrations, runClubId);
+        if (event) await attachGatewayFeeContext(event);
 
         res.json({
             success: true,
             eventTitle: event?.title || '',
             trekName: event?.title || '',
             registrationMode: event?.registration?.mode || 'internal_form',
-            columns: buildSheetColumns(formSchema),
+            columns: buildSheetColumns(formSchema, event),
             participants: decrypted.map((r) => formatParticipantSheetRow(r, event)),
             pagination: {
                 page,
@@ -1426,6 +1455,7 @@ exports.getParticipant = async (req, res) => {
         const event = await SportsEvent.findById(req.eventId)
             .select('title city registration.formSchema registrationFee eventDate reportingTime runClubId')
             .lean();
+        if (event) await attachGatewayFeeContext(event);
         const decrypted = decryptRegistrationPii(
             registration,
             resolveEventRunClubId(event, req.organizer),
@@ -1515,6 +1545,7 @@ exports.lookupParticipant = async (req, res) => {
         const event = await SportsEvent.findById(req.eventId)
             .select('title city registration.formSchema registrationFee runClubId')
             .lean();
+        if (event) await attachGatewayFeeContext(event);
         const runClubId = resolveEventRunClubId(event, req.organizer);
         const decrypted = decryptManyRegistrations(registrations, runClubId);
 

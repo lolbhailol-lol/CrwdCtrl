@@ -53,6 +53,16 @@ test('Cashfree and Razorpay revenue both apply the configured 1.6% gateway rate'
   assert.equal(summary.revenue, 295.2);
 });
 
+test('settlement summary accepts the Rush 2% Razorpay rate', () => {
+  const summary = summarizeCashfreeSettlement([
+    { amountPaid: 500, payment_gateway: 'razorpay', payment_order_id: 'order_rzp' },
+    { amountPaid: 200, payment_gateway: 'manual_organizer' },
+  ], { feeRate: 0.02 });
+  assert.equal(summary.grossCollected, 700);
+  assert.equal(summary.gatewayFees, 10);
+  assert.equal(summary.revenue, 690);
+});
+
 test('manual / walk-in paid rows keep the full amountPaid', () => {
   const settled = settlementForRegistration({
     amountPaid: 199,

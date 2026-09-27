@@ -78,6 +78,23 @@ function eventsForSlot(bundle, offer, index) {
   return list;
 }
 
+function quoteShares(quote) {
+  const items = quote?.items || [];
+  if (items.length && items.every((item) => item?.payableAmount != null)) {
+    return items.map((item) => Number(item.payableAmount) || 0);
+  }
+  const total = Math.round(Number(quote?.totalAmount) || 0);
+  const originals = items.map((item) => Number(item?.originalAmount ?? item?.amount) || 0);
+  const subtotal = originals.reduce((sum, amount) => sum + amount, 0);
+  if (subtotal <= 0) return originals.map(() => 0);
+  let used = 0;
+  return originals.map((original, index) => {
+    const amount = index === originals.length - 1 ? total - used : Math.round((total * original) / subtotal);
+    used += amount;
+    return amount;
+  });
+}
+
 function eventOptionLabel(event) {
   const fee = event.feeAmount ?? event.registrationFee;
   const amount = Number(fee);
@@ -188,9 +205,14 @@ export default function MindSparkBundlePage({ embedded = false, onClose, initial
   }, [step, formIndex]);
 
   const comps = useMemo(() => {
-    const list = offer?.competitions || [...(offer?.technical || []), ...(offer?.nonTechnical || [])];
-    const byId = new Map(list.map(c => [String(c._id), c]));
-    return selected.map(id => byId.get(String(id)));
+    const list = [
+      ...(offer?.competitions || []),
+      ...(offer?.technical || []),
+      ...(offer?.nonTechnical || []),
+      ...((offer?.bundles || []).flatMap((bundle) => bundle?.competitions || [])),
+    ];
+    const byId = new Map(list.map((competition) => [String(competition?._id || ''), competition]));
+    return selected.map((id) => byId.get(String(id)));
   }, [offer, selected]);
   const activeBundle = useMemo(() => {
     const list = offer?.bundles || [];
@@ -252,12 +274,9 @@ export default function MindSparkBundlePage({ embedded = false, onClose, initial
     && EMAIL_RE.test(customer.email.trim());
   const selectionValid = selected.length === size
     && selected.every(Boolean)
-    && new Set(selected).size === size
-    && (activeBundle.rule !== 'both_tech' || comps.every((c) => c?.group === 'technical'))
-    && (activeBundle.rule !== 'one_each' || (
-      comps.filter((c) => c?.group === 'technical').length === 1
-      && comps.filter((c) => c?.group === 'non_technical').length === 1
-    ));
+    && new Set(selected.map(String)).size === size
+    && selected.every((id, index) => eventsForSlot(activeBundle, offer, index)
+      .some((event) => String(event?._id || '') === String(id)));
   const formsValid = selectionValid && comps.every((c, i) => {
     const members = normalizeMembers(forms[i].members || forms[i].memberNames);
     const min = Math.max(1, Number(c?.teamSizeMin) || 1);
@@ -342,7 +361,10 @@ export default function MindSparkBundlePage({ embedded = false, onClose, initial
     else navigate(-1);
   };
   const submit = async () => {
-    if (!desk && !apiUtils.isAuthenticated()) return navigate(`/login?redirect=${encodeURIComponent('/mindspark/bundle')}`);
+    if (!desk && !apiUtils.isAuthenticated()) {
+      const here = `${window.location.pathname}${window.location.search}`;
+      return navigate(`/login?redirect=${encodeURIComponent(here)}`);
+    }
     setBusy(true); setError('');
     try {
       let result = await createMindSparkBundle({ festId: offer.festId, submissionKey: submissionKey.current, customer, items, bundleKey: activeBundle.key }, desk);
@@ -783,9 +805,14 @@ export default function MindSparkBundlePage({ embedded = false, onClose, initial
                 <button type="button" onClick={() => { setFormIndex(0); setStep(3); }} className="text-sm font-semibold text-[#0ECCEE]">Edit events</button>
               </div>
               <div className={`overflow-hidden rounded-xl border ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
-                {comps.map((c, i) => {
+                {(() => {
+                  const shares = quoteShares(quote);
+                  return comps.map((c, i) => {
                   const members = normalizeMembers(forms[i].members || forms[i].memberNames);
                   const priced = quote?.items?.find(item => String(item.competitionId) === String(c._id));
+                  const shareIndex = (quote?.items || []).findIndex(item => String(item.competitionId) === String(c._id));
+                  const payable = shareIndex >= 0 ? (shares[shareIndex] || 0) : 0;
+                  const original = Number(priced?.originalAmount ?? (priced?.payableAmount == null ? priced?.amount : payable)) || 0;
                   return (
                     <div key={c._id} className={`flex items-start justify-between gap-3 p-4 ${i > 0 ? (isDark ? 'border-t border-gray-700/50' : 'border-t border-gray-200') : ''}`}>
                       <div className="min-w-0">
@@ -796,10 +823,16 @@ export default function MindSparkBundlePage({ embedded = false, onClose, initial
                           <p className={`text-xs ${muted}`}>{forms[i].subcategory}</p>
                         ) : null}
                       </div>
-                      <span className={`shrink-0 text-sm ${titleCls}`}>₹{Number(priced?.amount || 0).toLocaleString('en-IN')}</span>
+                      <span className="shrink-0 text-right">
+                        {original > payable ? (
+                          <span className={`block text-xs line-through ${muted}`}>₹{original.toLocaleString('en-IN')}</span>
+                        ) : null}
+                        <span className={`text-sm font-semibold ${titleCls}`}>₹{payable.toLocaleString('en-IN')}</span>
+                      </span>
                     </div>
                   );
-                })}
+                });
+                })()}
               </div>
               <div className={`rounded-xl border p-4 ${isDark ? 'border-emerald-400/25 bg-emerald-500/8' : 'border-emerald-200 bg-emerald-50'}`}>
                 <div className={`flex justify-between text-sm ${muted}`}>
@@ -822,7 +855,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose, initial
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-6 py-3 font-bold text-black hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-[#0ECCEE]/10"
                   >
                     {busy ? <Loader className="w-4 h-4 animate-spin" /> : <ShieldCheck size={18} />}
-                    {busy ? 'Opening Cashfree…' : `Pay ₹${Number(quote.totalAmount).toLocaleString('en-IN')} & Book`}
+                    {busy ? 'Opening secure payment…' : `Pay ₹${Number(quote.totalAmount).toLocaleString('en-IN')}`}
                   </button>
                 ) : (
                   <div className={`mt-4 flex items-center justify-center gap-2 rounded-xl py-3 text-sm ${muted}`}>

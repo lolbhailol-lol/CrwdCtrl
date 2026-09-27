@@ -203,6 +203,9 @@ export default function RunClubOrganizerDashboardPage() {
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
     const grossCollected = Number(stats.grossCollected ?? revenue);
     const gatewayFees = Number(stats.gatewayFees ?? stats.platformFees ?? 0);
+    const gatewayFeePercent = Number(stats.gatewayFeePercent) || 1.6;
+    const gatewayName = stats.gatewayName || 'Cashfree';
+    const gatewayFeeLabel = `${gatewayFeePercent}%`;
     const seatsFilled = Number(stats.seatsFilled ?? total);
     const pendingReview = isOrganizerQr || pendingReviewRaw > 0 ? pendingReviewRaw : 0;
     const showPaymentReview = isOrganizerQr || pendingReview > 0;
@@ -447,12 +450,12 @@ export default function RunClubOrganizerDashboardPage() {
                     hint={seatsFilled > total ? `${seatsFilled} guests` : 'Guest list'}
                 />
                 <StatTile
-                    label={gatewayFees > 0 ? 'After 1.6% gateway' : 'Collected'}
+                    label={gatewayFees > 0 ? `After ${gatewayFeeLabel} ${gatewayName}` : 'Collected'}
                     value={`₹${revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
                     tone="money"
                     icon={IndianRupee}
                     hint={gatewayFees > 0
-                        ? `Students paid ₹${grossCollected.toLocaleString('en-IN', { maximumFractionDigits: 2 })} · 1.6% ₹${gatewayFees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+                        ? `Students paid ₹${grossCollected.toLocaleString('en-IN', { maximumFractionDigits: 2 })} · ${gatewayFeeLabel} ₹${gatewayFees.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
                         : seatsFilled > total ? 'Group bookings included' : undefined}
                 />
                 <StatTile
@@ -521,7 +524,7 @@ export default function RunClubOrganizerDashboardPage() {
             </div>
             {gatewayFees > 0 ? (
                 <p className="text-[11px] text-gray-500 -mt-1">
-                    1.6% Cashfree gateway is deducted on each online payment. This is not a CrwdCtrl commission. UPI/QR stays in full.
+                    {gatewayFeeLabel} {gatewayName} platform fee is deducted on each online payment. UPI/QR stays in full.
                 </p>
             ) : null}
 

@@ -8,6 +8,7 @@ const OPEN_TTL_MS = 30 * 60 * 1000;
 function isFreshPending(order) {
   if (!order) return false;
   if (String(order.status || '').toUpperCase() !== 'PENDING') return false;
+  if (isLegacyMindSparkMerchant(order)) return false;
   if (order.orderTags?.retired) return false;
   const age = Date.now() - new Date(order.createdAt || 0).getTime();
   return age < OPEN_TTL_MS;

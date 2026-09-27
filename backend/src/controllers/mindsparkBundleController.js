@@ -22,6 +22,7 @@ const {
 const { extractPaymentFields } = require('../utils/paymentVerification');
 const { resolveFestPaymentGateway } = require('../utils/paymentGatewayConfig');
 const {
+  allocate,
   fulfillMindSparkBundle,
   buildMindSparkBundleConfirmationItems,
   sendBundleWhatsAppOnce,
@@ -82,6 +83,7 @@ function serialize(bundle, order) {
     || (gateway === 'cashfree' && orderMerchant !== CASHFREE_MERCHANT)
   );
   const cashfreeMerchant = !order || needsMerchantReplacement ? CASHFREE_MERCHANT : orderMerchant;
+  const shares = allocate(Number(bundle.totalAmount) || 0, bundle.items || []);
   return {
     bundleId: String(bundle._id), status: bundle.status, subtotal: bundle.subtotal,
     discountPercent: bundle.discountPercent, discountAmount: bundle.discountAmount,
@@ -89,6 +91,11 @@ function serialize(bundle, order) {
     bundleName: displayBundleName(bundle),
     eventCount: (bundle.items || []).length,
     amount: bundle.totalAmount, orderId: order?.orderId || bundle.activeOrderId,
+    events: (bundle.items || []).map((item, index) => ({
+      name: item.competitionName,
+      originalAmount: Number(item.originalAmount) || 0,
+      amount: shares[index] || 0,
+    })),
     gateway,
     keyId: gateway === 'razorpay' ? getRazorpayKeyId() : undefined,
     paymentSessionId: gateway === 'cashfree' && order?.status === 'PENDING'
@@ -304,6 +311,7 @@ exports.quote = async (req, res) => {
     const items = await validateItems(req.body.items, { checkSlots: false, bundleKey: bundle.key });
     const subtotal = items.reduce((s, x) => s + x.originalAmount, 0);
     const totalAmount = Math.round(subtotal * PAYABLE_RATIO(bundle.discountPercent));
+    const shares = allocate(totalAmount, items);
     res.json({
       success: true,
       bundleKey: bundle.key,
@@ -312,7 +320,13 @@ exports.quote = async (req, res) => {
       discountPercent: bundle.discountPercent,
       discountAmount: subtotal - totalAmount,
       totalAmount,
-      items: items.map(x => ({ competitionId: x.competition._id, name: x.competition.name, amount: x.originalAmount })),
+      items: items.map((x, index) => ({
+        competitionId: x.competition._id,
+        name: x.competition.name,
+        originalAmount: x.originalAmount,
+        payableAmount: shares[index],
+        amount: shares[index],
+      })),
     });
   } catch (e) { res.status(e.status || 500).json({ success: false, message: e.message }); }
 };

@@ -190,7 +190,7 @@ export default function RunClubOrganizerParticipantModal({ eventId, bookingId, o
                                         <p className="text-[11px] text-gray-500 mt-0.5">
                                             Paid ₹{Number(participant.grossCollected || participant.amountPaid || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                             {' · '}
-                                            1.6% Cashfree ₹{Number(participant.gatewayFee || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                            {participant.gatewayFeeLabel || '1.6% Cashfree'} ₹{Number(participant.gatewayFee || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                         </p>
                                     ) : null}
                                     {participant.couponCode ? (

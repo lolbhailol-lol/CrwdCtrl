@@ -17,8 +17,9 @@ function isCashfreePayment(reg = {}) {
   return String(reg.payment_order_id || '').trim().length > 0;
 }
 
-function cashfreeGatewayFee(amountPaid) {
-  return round2((Number(amountPaid) || 0) * CASHFREE_GATEWAY_FEE_RATE);
+function cashfreeGatewayFee(amountPaid, feeRate = CASHFREE_GATEWAY_FEE_RATE) {
+  const rate = Number.isFinite(Number(feeRate)) ? Number(feeRate) : CASHFREE_GATEWAY_FEE_RATE;
+  return round2((Number(amountPaid) || 0) * rate);
 }
 
 function hasOnlineGatewayFee(reg = {}) {
@@ -28,7 +29,7 @@ function hasOnlineGatewayFee(reg = {}) {
   return String(reg.payment_order_id || '').trim().length > 0;
 }
 
-function settlementForRegistration(reg = {}) {
+function settlementForRegistration(reg = {}, options = {}) {
   const amountPaid = round2(Number(reg.amountPaid) || 0);
   if (!hasOnlineGatewayFee(reg)) {
     return {
@@ -38,7 +39,7 @@ function settlementForRegistration(reg = {}) {
       cashfree: false,
     };
   }
-  const gatewayFee = cashfreeGatewayFee(amountPaid);
+  const gatewayFee = cashfreeGatewayFee(amountPaid, options.feeRate);
   return {
     amountPaid,
     gatewayFee,
@@ -55,12 +56,12 @@ function cashfreeSettlementFields(reg = {}) {
   };
 }
 
-function summarizeCashfreeSettlement(regs = []) {
+function summarizeCashfreeSettlement(regs = [], options = {}) {
   let grossCollected = 0;
   let gatewayFees = 0;
   let revenue = 0;
   for (const reg of regs) {
-    const settled = settlementForRegistration(reg);
+    const settled = settlementForRegistration(reg, options);
     grossCollected += settled.amountPaid;
     gatewayFees += settled.gatewayFee;
     revenue += settled.netToOrganizer;

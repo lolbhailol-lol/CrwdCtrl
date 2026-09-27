@@ -223,11 +223,12 @@ function formatParticipantRow(reg, event = null) {
     const addOnLabel = String(reg.addOnLabel || form.addOnLabel || '').trim();
     const addOnFee = Math.max(0, Number(reg.addOnFee) || Number(form.addOnFee) || 0);
     const addOnTotal = addOnSelected ? addOnFee * people : 0;
+    const feeRate = Number(event?.gatewayFeeRate);
     const settled = settlementForRegistration({
         amountPaid: grossCollected,
         payment_gateway: reg.payment_gateway,
         payment_order_id: reg.payment_order_id,
-    });
+    }, Number.isFinite(feeRate) && feeRate > 0 ? { feeRate } : {});
 
     return {
         bookingId: String(reg._id),
@@ -283,6 +284,7 @@ function formatParticipantRow(reg, event = null) {
         organizerNet: settled.netToOrganizer,
         platformFee: settled.gatewayFee,
         gatewayFee: settled.gatewayFee,
+        gatewayFeeLabel: Number(event?.gatewayFeePercent) === 2 ? '2% Razorpay' : '1.6% Cashfree',
         paymentScreenshotUrl: reg.paymentScreenshotUrl || '',
         transactionId: reg.transactionId || '',
         paymentReviewNote: reg.paymentReviewNote || '',
@@ -333,7 +335,7 @@ function formatParticipantRow(reg, event = null) {
     };
 }
 
-function buildSheetColumns(formSchema = []) {
+function buildSheetColumns(formSchema = [], event = null) {
     const formCols = mergeFormSchemaForDisplay(formSchema)
         .filter((f) => !isInternalFormKey(f.fieldName))
         .map((f) => ({
@@ -360,7 +362,7 @@ function buildSheetColumns(formSchema = []) {
         { key: 'listAmount', label: 'List (₹)', group: 'status', minWidth: 88 },
         { key: 'paymentStatus', label: 'Payment', group: 'status', minWidth: 88 },
         { key: 'grossCollected', label: 'Paid (₹)', group: 'status', minWidth: 88 },
-        { key: 'gatewayFee', label: 'Gateway 1.6% (₹)', group: 'status', minWidth: 118 },
+        { key: 'gatewayFee', label: Number(event?.gatewayFeePercent) === 2 ? 'Platform 2% (₹)' : 'Gateway 1.6% (₹)', group: 'status', minWidth: 118 },
         { key: 'organizerNet', label: 'Your share (₹)', group: 'status', minWidth: 104 },
         { key: 'checkInStatus', label: 'Check-in', group: 'status', minWidth: 100 },
         { key: 'checkedInAt', label: 'Check-in At', group: 'status', minWidth: 138 },
@@ -471,17 +473,19 @@ function buildParticipantTimeline(reg, event = null) {
                 detail: gross > 0 ? `₹${gross.toLocaleString('en-IN')} awaiting review` : 'Awaiting review',
             });
         } else if (gross > 0 && (reg.paymentStatus === 'paid' || booking.status === 'confirmed')) {
+            const feeRate = Number(event?.gatewayFeeRate);
+            const feeLabel = Number(event?.gatewayFeePercent) === 2 ? '2%' : '1.6%';
             const settled = settlementForRegistration({
                 amountPaid: gross,
                 payment_gateway: reg.payment_gateway,
                 payment_order_id: reg.payment_order_id,
-            });
+            }, Number.isFinite(feeRate) && feeRate > 0 ? { feeRate } : {});
             items.push({
                 label: 'Payment received',
                 at: reg.paymentReviewedAt || booking.createdAt,
                 status: 'done',
                 detail: settled.gatewayFee > 0
-                    ? `Paid ₹${settled.amountPaid.toLocaleString('en-IN')} · your share ₹${settled.netToOrganizer.toLocaleString('en-IN')} after 1.6%`
+                    ? `Paid ₹${settled.amountPaid.toLocaleString('en-IN')} · your share ₹${settled.netToOrganizer.toLocaleString('en-IN')} after ${feeLabel}`
                     : `₹${gross.toLocaleString('en-IN')}`,
             });
         } else if (gross > 0) {

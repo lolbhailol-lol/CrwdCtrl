@@ -531,7 +531,7 @@ export default function MindSparkPaymentsPage() {
           <StatCard
             label="Total deductions"
             value={formatINR((viewTotals.crwdctrlFee || 0) + (viewTotals.additionalDeduction || 0))}
-            hint="1.6% gateway fee + ₹2,000 adjustment"
+            hint="Settlement deductions included"
           />
           <StatCard label="Organizer payable" value={formatINR(viewTotals.organizerPayable)} />
           <StatCard

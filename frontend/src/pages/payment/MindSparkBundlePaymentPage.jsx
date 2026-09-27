@@ -30,13 +30,23 @@ export default function MindSparkBundlePaymentPage() {
             <div>
               <span className="text-gray-500 line-through">₹{data.subtotal}</span>
               <p className="text-5xl font-black">₹{data.amount}</p>
-              <p className="text-emerald-300">{discountPercent}% bundle discount applied</p>
+              <p className="text-emerald-300">{discountPercent}% off · pay ₹{data.amount} for {eventCount} events</p>
             </div>
+            {Array.isArray(data.events) && data.events.length ? (
+              <div className="rounded-xl border border-white/10 text-left divide-y divide-white/10">
+                {data.events.map((event, index) => (
+                  <div key={`${event.name}-${index}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate">{event.name}</span>
+                    <span className="shrink-0 font-semibold">₹{Number(event.amount || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {data.status === 'paid' ? (
               <div className="space-y-3">
                 <CheckCircle2 size={48} className="text-emerald-400 mx-auto" />
                 <p className="font-semibold">Payment confirmed · {eventCount} tickets issued</p>
-                {data.tickets.map(t => (
+                {(data.tickets || []).map(t => (
                   <div className="rounded-xl border border-white/10 p-3 space-y-2" key={t.registrationId}>
                     <a className="block font-semibold text-[#0ECCEE]" href={t.ticketUrl}>
                       {t.competitionName} · Open ticket
@@ -72,7 +82,7 @@ export default function MindSparkBundlePaymentPage() {
             ) : (
               <button disabled={!data.orderId || (data.gateway !== 'razorpay' && !data.paymentSessionId) || busy} onClick={pay} className="w-full rounded-xl bg-[#0ECCEE] py-3 font-bold text-black disabled:opacity-50 inline-flex items-center justify-center gap-2">
                 {busy ? <Loader size={18} className="animate-spin" /> : null}
-                {busy ? 'Opening secure payment…' : `Pay securely with ${data.gateway === 'razorpay' ? 'Razorpay' : 'Cashfree'}`}
+                {busy ? 'Opening secure payment…' : `Pay ₹${Number(data.amount || 0).toLocaleString('en-IN')}`}
               </button>
             )}
           </>

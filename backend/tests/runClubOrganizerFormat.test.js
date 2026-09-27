@@ -123,6 +123,21 @@ test('cashfree bookings deduct 1.6% gateway from organizer share', () => {
   assert.equal(row.organizerNet, 491.02);
 });
 
+test('Rush participant rows deduct and label the 2% Razorpay fee', () => {
+  const row = formatParticipantSheetRow(sampleReg({
+    payment_gateway: 'razorpay',
+    payment_order_id: 'order_rzp',
+    amountPaid: 500,
+  }), {
+    ...EVENT,
+    gatewayFeeRate: 0.02,
+    gatewayFeePercent: 2,
+  });
+  assert.equal(row.gatewayFee, 10);
+  assert.equal(row.organizerNet, 490);
+  assert.equal(row.gatewayFeeLabel, '2% Razorpay');
+});
+
 test('confirmation email extras include post-game fuel and skill level', () => {
   const reg = sampleReg();
   const formSchema = EVENT.registration.formSchema;
