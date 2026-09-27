@@ -841,6 +841,7 @@ exports.getDashboard = async (req, res) => {
             todayRegistrations,
             allActiveCount,
             peopleHeadcount,
+            festDayHeadcount,
             competitions,
             byCompetition,
             paymentBreakdown,
@@ -864,6 +865,38 @@ exports.getDashboard = async (req, res) => {
                         _id: null,
                         totalParticipants: { $sum: '$_people' },
                         totalRegistrations: { $sum: 1 },
+                    },
+                },
+            ]),
+            Registration.aggregate([
+                { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true } } },
+                {
+                    $addFields: {
+                        _people: peopleExpr,
+                        _festDayEntryKey: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $ne: ['$responses.mindspark_bundle_id', null] },
+                                        { $ne: ['$responses.mindspark_bundle_id', ''] },
+                                    ],
+                                },
+                                { $concat: ['bundle:', { $toString: '$responses.mindspark_bundle_id' }] },
+                                { $concat: ['registration:', { $toString: '$_id' }] },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: '$_festDayEntryKey',
+                        people: { $max: '$_people' },
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: '$people' },
                     },
                 },
             ]),
@@ -965,6 +998,7 @@ exports.getDashboard = async (req, res) => {
             Number(head.totalParticipants) || 0,
             Number(totalRegistrations) || 0,
         );
+        const festDayAttendees = Number(festDayHeadcount[0]?.total) || 0;
 
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
@@ -1233,6 +1267,7 @@ exports.getDashboard = async (req, res) => {
             stats: {
                 totalRegistrations,
                 totalParticipants,
+                festDayAttendees,
                 pendingRegistrations,
                 rejectedRegistrations,
                 allActive: allActiveCount,

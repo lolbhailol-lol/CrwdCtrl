@@ -393,6 +393,7 @@ export default function FestOrganizerDashboardPage() {
         peopleFromComps,
         totalApproved,
     );
+    const festDayAttendees = Number(stats.festDayAttendees) || totalParticipants;
     const checkedIn = Number(stats.checkedIn) || 0;
     const pendingCheckIn = Number(stats.pendingCheckIn) || 0;
     const checkInRate = Number(stats.checkInRate) || 0;
@@ -540,7 +541,7 @@ export default function FestOrganizerDashboardPage() {
                     </p>
                     <p className="text-[11px] text-gray-500 mt-1">
                         {hideProShow
-                            ? `${totalParticipants.toLocaleString('en-IN')} people overall`
+                            ? `${festDayAttendees.toLocaleString('en-IN')} people coming Fest Day`
                             : `${stats.allActive || 0} active total`}
                     </p>
                 </button>
@@ -553,11 +554,11 @@ export default function FestOrganizerDashboardPage() {
                     >
                         <Users size={16} className="text-sky-300 mb-2" />
                         <p className="text-2xl font-bold tabular-nums text-white">
-                            {totalParticipants.toLocaleString('en-IN')}
+                            {festDayAttendees.toLocaleString('en-IN')}
                         </p>
-                        <p className="text-xs text-sky-200/90 mt-1">People</p>
+                        <p className="text-xs text-sky-200/90 mt-1">Fest Day people</p>
                         <p className="text-[11px] text-gray-500 mt-1">
-                            All names on paid / approved rosters
+                            Bundles counted once · team members counted
                         </p>
                     </button>
                 ) : null}
