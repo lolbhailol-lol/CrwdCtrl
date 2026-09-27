@@ -42,6 +42,7 @@ const { verifyCashfreePayment } = require('../services/cashfreeService');
 const CashfreeSettlement = require('../model/cashfree_settlement_model');
 const { sendCompetitionRegistrationEmailForRecord } = require('../services/emailService');
 const { scheduleRegistrationNotification } = require('./registration/helpers');
+const { extractCompetitionChoice } = require('../utils/festCompetitionAssignment');
 
 const TOKEN_TTL = '7d';
 const FRONTEND_BASE = () => String(
@@ -338,7 +339,10 @@ function formatParticipant(reg) {
         whatsappGroupJoined: Boolean(reg.whatsappGroupJoined),
         whatsappGroupJoinedAt: reg.whatsappGroupJoinedAt || null,
         competitionId: reg.competitionId?._id || reg.competitionId || null,
-        competitionName: reg.competitionId?.competitionName || reg.competitionId?.name || '',
+        competitionName: reg.competitionId?.competitionName
+            || reg.competitionId?.name
+            || extractCompetitionChoice(responses)
+            || '',
         teamSizeMax: reg.competitionId?.teamSizeMax || reg.competitionId?.registration?.teamSizeMax || null,
         userName,
         userEmail,

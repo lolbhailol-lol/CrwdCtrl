@@ -385,7 +385,7 @@ export default function FestOrganizerParticipantsPage() {
                                                 {participant.userName || 'Unnamed participant'}
                                             </p>
                                             <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">
-                                                {participant.competitionName || 'General'}
+                                                {participant.competitionName || 'Competition name unavailable'}
                                                 {participant.teamName ? ` · ${participant.teamName}` : ''}
                                             </p>
                                             {!noReview ? (

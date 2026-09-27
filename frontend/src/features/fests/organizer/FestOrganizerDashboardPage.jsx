@@ -240,7 +240,7 @@ function SimpleOrganizerDashboard({ fest, stats, competitions, festId, navigate,
                                             {registration.userName || 'Unnamed participant'}
                                         </p>
                                         <p className="text-xs text-gray-500 truncate mt-0.5">
-                                            {registration.competitionName || 'General'}
+                                            {registration.competitionName || 'Competition name unavailable'}
                                             {registration.teamName ? ` · ${registration.teamName}` : ''}
                                         </p>
                                     </div>
