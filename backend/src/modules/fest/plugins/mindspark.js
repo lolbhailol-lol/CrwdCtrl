@@ -27,7 +27,7 @@ const mindsparkPlugin = {
         cashfreeLockRevenue: 435303,
         razorpayPaidGross: 9314,
         razorpayPaidRevenue: 9165,
-        gatewayFeeRate: 0.016,
+        gatewayFeeRate: 0.0195,
         additionalDeduction: 0,
     },
 };

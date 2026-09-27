@@ -599,11 +599,15 @@ export default function FestOrganizerDashboardPage() {
                         {hideProShow ? 'After payment gateway charges and taxes' : 'Revenue'}
                     </p>
                     {Number(stats.cashfreeLockRevenue) > 0 && Number(stats.razorpayPaidRevenue) > 0 ? (
-                        <p className="text-[11px] text-gray-500 mt-1">
-                            Cashfree ₹{Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                            {' + Razorpay ₹'}
-                            {Number(stats.razorpayPaidRevenue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                        </p>
+                        <div className="text-[11px] text-gray-500 mt-1 space-y-0.5">
+                            <p>
+                                Cashfree locked ₹{Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            </p>
+                            <p>
+                                Razorpay after gateway fee ₹
+                                {Number(stats.razorpayPaidRevenue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </p>
+                        </div>
                     ) : null}
                     <p className="text-[11px] text-gray-500 mt-1">
                         {hideProShow
