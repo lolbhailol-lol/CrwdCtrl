@@ -109,7 +109,12 @@ export default function FestOrganizerRevenuePage() {
                 <p className="text-3xl font-bold tabular-nums text-white mt-2">
                     ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </p>
-                <p className="text-[11px] text-gray-400 mt-2">
+                {mindSparkMode && Number(stats.cashfreeLockRevenue) > 0 ? (
+                    <p className="text-[11px] text-gray-400 mt-2">
+                        {`Cashfree ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay ₹${Number(stats.razorpayPaidRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+                    </p>
+                ) : null}
+                <p className="text-[11px] text-gray-400 mt-1">
                     {mindSparkMode
                         ? `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`
                         : `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} entries`}

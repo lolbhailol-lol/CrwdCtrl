@@ -43,9 +43,21 @@ const CashfreeSettlement = require('../model/cashfree_settlement_model');
 const { sendCompetitionRegistrationEmailForRecord } = require('../services/emailService');
 const { scheduleRegistrationNotification } = require('./registration/helpers');
 const { extractCompetitionChoice } = require('../utils/festCompetitionAssignment');
-const { countFestDayAttendees } = require('../utils/festDayHeadcount');
+const { countFestDayAttendees, rosterDetails } = require('../utils/festDayHeadcount');
 
 const TOKEN_TTL = '7d';
+const MINDSPARK_MONEY_TTL_MS = 20000;
+const mindsparkMoneyCache = new Map();
+
+function readMindSparkMoney(festId) {
+    const hit = mindsparkMoneyCache.get(String(festId));
+    if (!hit || Date.now() - hit.at > MINDSPARK_MONEY_TTL_MS) return null;
+    return hit.money;
+}
+
+function rememberMindSparkMoney(festId, money) {
+    mindsparkMoneyCache.set(String(festId), { at: Date.now(), money });
+}
 const FRONTEND_BASE = () => String(
     process.env.PRODUCTION_FRONTEND_URL
     || process.env.PUBLIC_FRONTEND_URL
@@ -817,7 +829,16 @@ exports.getMe = async (req, res) => {
 exports.getDashboard = async (req, res) => {
     try {
         const festId = req.festId;
-        await clearMindSparkReviewQueue(festId);
+        const moneyCache = isMindSparkFestId(festId) ? readMindSparkMoney(festId) : null;
+        const razorpayPromise = moneyCache || !isMindSparkFestId(festId)
+            ? Promise.resolve(null)
+            : require('./mindsparkPaymentsController').getRazorpayMindSparkActivity().catch((error) => {
+                console.error('[festOrganizerPortal.getDashboard] razorpay totals', error);
+                return null;
+            });
+        clearMindSparkReviewQueue(festId).catch((error) => {
+            console.error('[festOrganizerPortal.getDashboard] review queue', error);
+        });
         const festOid = new mongoose.Types.ObjectId(String(festId));
         const fest = await FestOrganizer.findById(festId)
             .select('festName collegeName city festDate festDates festType venue category status coverImage slug registration description subtitle ticketPrice feeAmount')
@@ -842,6 +863,7 @@ exports.getDashboard = async (req, res) => {
             todayRegistrations,
             allActiveCount,
             peopleHeadcount,
+            bundleHeadcountRegs,
             competitions,
             byCompetition,
             paymentBreakdown,
@@ -851,7 +873,9 @@ exports.getDashboard = async (req, res) => {
             Registration.countDocuments({ ...notProShow, status: 'pending' }),
             Registration.countDocuments({ ...notProShow, status: 'rejected' }),
             Registration.countDocuments({ ...baseApproved, checkedIn: true }),
-            Registration.find(baseApproved).select('amountPaid paymentStatus payment_gateway payment_order_id competitionId responses').lean(),
+            moneyCache
+                ? Promise.resolve([])
+                : Registration.find(baseApproved).select('amountPaid paymentStatus payment_gateway payment_order_id competitionId').lean(),
             Registration.countDocuments({
                 ...notProShow,
                 createdAt: { $gte: today, $lt: tomorrow },
@@ -868,6 +892,12 @@ exports.getDashboard = async (req, res) => {
                     },
                 },
             ]),
+            Registration.find({
+                ...baseApproved,
+                'responses.mindspark_bundle_id': { $nin: [null, ''] },
+            })
+                .select('responses.mindspark_bundle_id responses.team_members responses.members responses.team_size')
+                .lean(),
             Competition.find({ fest: festId })
                 .select('name competitionType category module coverImage subtitle feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.whatsappGroupLink registration.status')
                 .sort({ name: 1 })
@@ -966,12 +996,23 @@ exports.getDashboard = async (req, res) => {
             Number(head.totalParticipants) || 0,
             Number(totalRegistrations) || 0,
         );
-        const festDayAttendees = countFestDayAttendees(paidRegs);
+        const rawBundlePeople = bundleHeadcountRegs.reduce(
+            (sum, registration) => sum + rosterDetails(registration).declaredPeople,
+            0,
+        );
+        const festDayAttendees = Math.max(
+            0,
+            totalParticipants - rawBundlePeople + countFestDayAttendees(bundleHeadcountRegs),
+        );
 
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
         let earlierClearGross = 0;
         let earlierClearRevenue = 0;
+        let razorpayPaidGross = 0;
+        let razorpayPaidRevenue = 0;
+        let cashfreeLockGross = 0;
+        let cashfreeLockRevenue = 0;
         let gatewayFees = 0;
         let additionalDeduction = 0;
         const statsById = new Map(
@@ -1068,7 +1109,24 @@ exports.getDashboard = async (req, res) => {
             });
         }
 
-        if (getFestPlugin(festId).useCashfreeSettlement) {
+        if (moneyCache) {
+            for (const c of competitionStats) {
+                const saved = moneyCache.byCompetition[String(c.id || 'none')];
+                if (!saved) continue;
+                c.grossCollected = saved.grossCollected;
+                c.revenue = saved.revenue;
+            }
+            grossCollected = moneyCache.grossCollected;
+            gatewayFees = moneyCache.gatewayFees;
+            revenue = moneyCache.revenue;
+            additionalDeduction = moneyCache.additionalDeduction;
+            earlierClearGross = moneyCache.earlierClearGross;
+            earlierClearRevenue = moneyCache.earlierClearRevenue;
+            razorpayPaidGross = moneyCache.razorpayPaidGross;
+            razorpayPaidRevenue = moneyCache.razorpayPaidRevenue;
+            cashfreeLockGross = moneyCache.cashfreeLockGross;
+            cashfreeLockRevenue = moneyCache.cashfreeLockRevenue;
+        } else if (getFestPlugin(festId).useCashfreeSettlement) {
             const plugin = getFestPlugin(festId);
             const excludeIds = new Set(
                 (plugin.settlementExcludeCompetitionIds || []).map((id) => String(id)),
@@ -1108,13 +1166,8 @@ exports.getDashboard = async (req, res) => {
             }
             const override = plugin.settlementOverride;
             if (override && Number(override.cashfreeLockGross) > 0 && Number(override.razorpayPaidGross) > 0) {
-                let liveRazorpayOrderGross = null;
-                try {
-                    const razorpay = await require('./mindsparkPaymentsController').getRazorpayMindSparkActivity();
-                    liveRazorpayOrderGross = Number(razorpay?.totalCollected) || 0;
-                } catch (error) {
-                    console.error('[festOrganizerPortal.getDashboard] razorpay totals', error);
-                }
+                const razorpay = await razorpayPromise;
+                const liveRazorpayOrderGross = Number(razorpay?.totalCollected) || 0;
                 const applied = applyMindSparkCollectedTotals(
                     competitionStats,
                     settlementRegs,
@@ -1127,6 +1180,26 @@ exports.getDashboard = async (req, res) => {
                 additionalDeduction = applied.additionalDeduction;
                 earlierClearGross = applied.earlierClearGross;
                 earlierClearRevenue = applied.earlierClearRevenue;
+                razorpayPaidGross = applied.razorpayPaidGross;
+                razorpayPaidRevenue = applied.razorpayPaidRevenue;
+                cashfreeLockGross = applied.cashfreeLockGross;
+                cashfreeLockRevenue = applied.cashfreeLockRevenue;
+                rememberMindSparkMoney(festId, {
+                    grossCollected,
+                    revenue,
+                    gatewayFees,
+                    additionalDeduction,
+                    earlierClearGross,
+                    earlierClearRevenue,
+                    razorpayPaidGross,
+                    razorpayPaidRevenue,
+                    cashfreeLockGross,
+                    cashfreeLockRevenue,
+                    byCompetition: Object.fromEntries(competitionStats.map((row) => [String(row.id || 'none'), {
+                        grossCollected: row.grossCollected,
+                        revenue: row.revenue,
+                    }])),
+                });
             } else if (override) {
                 const floorGross = Number(override.grossCollected) || 0;
                 const floorFeeRate = Number(override.gatewayFeeRate || 0);
@@ -1248,6 +1321,10 @@ exports.getDashboard = async (req, res) => {
                 grossCollected,
                 earlierClearGross,
                 earlierClearRevenue,
+                razorpayPaidGross,
+                razorpayPaidRevenue,
+                cashfreeLockGross,
+                cashfreeLockRevenue,
                 gatewayFees,
                 additionalDeduction,
                 totalDeductions: Math.round((gatewayFees + additionalDeduction) * 100) / 100,
@@ -2051,7 +2128,9 @@ exports.getCompetitionOps = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid competition ID' });
         }
 
-        await clearMindSparkReviewQueue(festId, competitionId);
+        clearMindSparkReviewQueue(festId, competitionId).catch((error) => {
+            console.error('[festOrganizerPortal.getCompetitionOps] review queue', error);
+        });
 
         const Competition = mongoose.model('Competition');
         const [fest, competition] = await Promise.all([
@@ -2069,12 +2148,7 @@ exports.getCompetitionOps = async (req, res) => {
         const festOid = new mongoose.Types.ObjectId(String(festId));
         const competitionOid = new mongoose.Types.ObjectId(String(competitionId));
         // No row cap: desk roster + WA invite queue must match dashboard waNotJoined aggregates.
-        const [pendingRows, activeRows, rejectedCount, paidApproved, waAgg] = await Promise.all([
-            Registration.find({ ...base, status: 'pending' })
-                .populate('user', 'name email phone phoneNumber')
-                .populate('competitionId', 'name')
-                .sort({ createdAt: -1 })
-                .lean(),
+        const [activeRows, rejectedCount, paidApproved, waAgg] = await Promise.all([
             Registration.find({ ...base, status: { $in: ['pending', 'approved'] } })
                 .populate('user', 'name email phone phoneNumber')
                 .populate('competitionId', 'name')
@@ -2103,7 +2177,7 @@ exports.getCompetitionOps = async (req, res) => {
         ]);
 
         const participants = activeRows.map(formatParticipant);
-        const pending = pendingRows.map(formatParticipant);
+        const pending = participants.filter((row) => row.status === 'pending');
 
         const bundleIdStrings = [...new Set(
             [...participants, ...pending]

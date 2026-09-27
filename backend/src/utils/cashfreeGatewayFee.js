@@ -238,6 +238,8 @@ function applyMindSparkCollectedTotals(competitionStats = [], settlementRegs = [
     additionalDeduction,
     razorpayPaidGross: locked.razorpayPaidGross,
     razorpayPaidRevenue: locked.razorpayPaidRevenue,
+    cashfreeLockRevenue: locked.cashfreeRevenue,
+    cashfreeLockGross: locked.cashfreeGross,
     earlierClearGross: round2(Math.max(0, grossCollected - countedGross)),
     earlierClearRevenue: round2(Math.max(0, revenue - countedRevenue)),
   };

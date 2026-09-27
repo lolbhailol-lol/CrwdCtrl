@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   CheckCircle2,
@@ -28,6 +28,8 @@ import { organizerCompetitionFeeLabel } from "../../../utils/competitionFeeTiers
 import { useDialog } from "../../../context/DialogContext";
 import { getFestOrganizerSession } from "../../../utils/festOrganizerSession";
 import LocalQRCode from "../../../components/LocalQRCode";
+
+const MindSparkBundlePage = lazy(() => import("../mindspark/MindSparkBundlePage"));
 
 const statusLabels = {
   draft: "Draft",
@@ -527,6 +529,7 @@ export default function FestOrganizerFestDayDeskPage() {
   const [busyOrder, setBusyOrder] = useState("");
   const [clearingExpired, setClearingExpired] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
+  const [bundleOpen, setBundleOpen] = useState(false);
 
   const load = useCallback(
     async ({ quiet = false } = {}) => {
@@ -573,13 +576,13 @@ export default function FestOrganizerFestDayDeskPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return competitions.filter(
-      (competition) =>
-        !q ||
-        `${competition.name} ${competition.category || ""} ${competition.module || ""}`
-          .toLowerCase()
-          .includes(q),
-    );
+    return competitions.filter((competition) => {
+      if (/auditorium/i.test(String(competition.name || ""))) return false;
+      if (!q) return true;
+      return `${competition.name} ${competition.category || ""} ${competition.module || ""}`
+        .toLowerCase()
+        .includes(q);
+    });
   }, [competitions, query]);
 
   const combinedActivity = useMemo(() => [
@@ -707,14 +710,15 @@ export default function FestOrganizerFestDayDeskPage() {
             <p className="font-semibold text-white text-sm">Single competition</p>
             <p className="text-[11px] text-gray-400 mt-1">Organizer fills details, then the payment QR stays on Draft</p>
           </div>
-          <Link
-            to="/mindspark/bundle?desk=1"
+          <button
+            type="button"
+            onClick={() => setBundleOpen(true)}
             className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-left hover:border-emerald-300/50"
           >
             <ShoppingCart size={18} className="text-emerald-300 mb-2" />
             <p className="font-semibold text-emerald-100 text-sm">Competition bundles</p>
             <p className="text-[11px] text-gray-400 mt-1">Same steps: fill details, show the payment QR, then Successful</p>
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -740,9 +744,7 @@ export default function FestOrganizerFestDayDeskPage() {
           </div>
           <div className="grid sm:grid-cols-2 gap-2 max-h-[58vh] overflow-y-auto">
             {filtered.map((competition) => {
-              const closed =
-                competition.registrationsOpen === false || competition.slotsLeft === 0;
-              const slots = Number(competition.slotsAllotted) || 0;
+              const closed = competition.registrationsOpen === false;
               return (
                 <button
                   key={competition._id}
@@ -759,13 +761,7 @@ export default function FestOrganizerFestDayDeskPage() {
                     {organizerCompetitionFeeLabel(competition)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {competition.registrationsOpen === false
-                      ? "Registration closed"
-                      : competition.slotsLeft === 0
-                        ? "Sold out"
-                        : slots > 0
-                          ? `${competition.slotsLeft} of ${slots} slots left`
-                          : "Registration open"}
+                    {closed ? "Registration closed" : "Registration open"}
                   </p>
                   {(competition.pendingToday || competition.paidToday) ? (
                     <p className="text-[11px] text-gray-400 mt-2">
@@ -949,6 +945,20 @@ export default function FestOrganizerFestDayDeskPage() {
 
       <p className="text-center text-xs text-gray-500">Draft shows the payment QR. Successful means the registration is done.</p>
 
+      {bundleOpen ? (
+        <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#0c0d0e]">
+          <Suspense fallback={<div className="min-h-dvh grid place-items-center"><Loader className="animate-spin text-[#0ECCEE]" /></div>}>
+            <MindSparkBundlePage
+              embedded
+              deskMode
+              onClose={() => {
+                setBundleOpen(false);
+                load({ quiet: true });
+              }}
+            />
+          </Suspense>
+        </div>
+      ) : null}
       {selected ? (
         <AssistedEntryModal
           festId={festId}

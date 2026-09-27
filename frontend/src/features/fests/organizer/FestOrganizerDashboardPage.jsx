@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Bell, QrCode, ExternalLink, RefreshCw,
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
-    Pencil, Download, ScanLine, Ticket, Loader,
+    Pencil, Download, ScanLine, Loader,
 } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
@@ -400,7 +400,6 @@ export default function FestOrganizerDashboardPage() {
 
     const quickOps = hideProShow
         ? [
-            { label: 'Auditorium', desc: 'Seats · invites · gate', to: 'auditorium', icon: Ticket, glow: 'from-violet-500/15' },
             { label: 'Competitions', desc: `${stats.competitionCount || comps.length} desks`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
             { label: 'Fest Day Desk', desc: 'Pay · issue · assist', to: 'fest-day-desk', icon: ScanLine, glow: 'from-sky-500/10' },
             { label: 'Scan', desc: 'Gate check-in', to: 'scan', icon: QrCode, glow: 'from-emerald-500/15' },
@@ -601,6 +600,13 @@ export default function FestOrganizerDashboardPage() {
                     <p className="text-xs text-gray-400 mt-1">
                         {hideProShow ? 'After payment gateway charges and taxes' : 'Revenue'}
                     </p>
+                    {Number(stats.cashfreeLockRevenue) > 0 && Number(stats.razorpayPaidRevenue) > 0 ? (
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            Cashfree ₹{Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            {' + Razorpay ₹'}
+                            {Number(stats.razorpayPaidRevenue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </p>
+                    ) : null}
                     <p className="text-[11px] text-gray-500 mt-1">
                         {hideProShow
                             ? (unpaidCount > 0
@@ -612,7 +618,7 @@ export default function FestOrganizerDashboardPage() {
             </div>
 
             {/* Quick ops */}
-            <div className={`grid grid-cols-2 ${hideProShow ? 'sm:grid-cols-3 lg:grid-cols-5' : 'sm:grid-cols-5'} gap-2`}>
+            <div className={`grid grid-cols-2 ${hideProShow ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-5'} gap-2`}>
                 {quickOps.map((item) => (
                     <button
                         key={item.to}

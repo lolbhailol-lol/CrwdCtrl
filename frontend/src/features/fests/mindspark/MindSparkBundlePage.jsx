@@ -109,10 +109,10 @@ function fieldClass(isDark) {
   }`;
 }
 
-export default function MindSparkBundlePage({ embedded = false, onClose, initialBundleKey = '' }) {
+export default function MindSparkBundlePage({ embedded = false, onClose, initialBundleKey = '', deskMode = false }) {
   const [params] = useSearchParams();
   const { bundleSlug } = useParams();
-  const desk = params.get('desk') === '1';
+  const desk = deskMode || params.get('desk') === '1';
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
   const { isAuthenticated, user } = useAuth();
