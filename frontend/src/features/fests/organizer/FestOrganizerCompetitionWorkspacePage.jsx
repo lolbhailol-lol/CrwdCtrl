@@ -146,7 +146,20 @@ function MetaLine({ college, city, year, course }) {
     );
 }
 
-function SimpleCompetitionWorkspace({ competition, participants, query, setQuery, festId, navigate, reload, loading }) {
+function SimpleCompetitionWorkspace({
+    competition,
+    participants,
+    query,
+    setQuery,
+    festId,
+    navigate,
+    reload,
+    loading,
+    busyId,
+    onApprove,
+    onDelete,
+    hideReview = false,
+}) {
     const q = query.trim().toLowerCase();
     const rows = (participants || []).filter((participant) => {
         if (!q) return true;
@@ -188,11 +201,45 @@ function SimpleCompetitionWorkspace({ competition, participants, query, setQuery
                         <div className="min-w-0 flex-1">
                             <p className="font-semibold text-white truncate">{participant.userName || 'Unnamed participant'}</p>
                             {participant.teamName ? <p className="text-xs text-[#0ECCEE] mt-0.5 truncate">Team · {participant.teamName}</p> : null}
+                            {!hideReview ? (
+                                <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${statusTone(participant.status)}`}>
+                                    {participant.status === 'pending' ? 'Pending approval' : participant.status}
+                                </span>
+                            ) : null}
                             <MetaLine college={participant.college} city={participant.city} year={participant.year} course={participant.course} />
                             <p className="text-xs text-gray-500 mt-1 truncate">{[participant.userPhone, participant.userEmail].filter(Boolean).join(' · ') || 'No contact details'}</p>
                             <OrganizerRosterPreview teamMembers={participant.teamMembers} teamSize={participant.teamSize || participant.memberCount} />
                         </div>
-                        <ContactIcons phone={participant.userPhone} email={participant.userEmail} />
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                            <ContactIcons phone={participant.userPhone} email={participant.userEmail} />
+                            <div className="flex items-center gap-1.5">
+                                {!hideReview && participant.status === 'pending' ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onApprove(participant.id)}
+                                        disabled={busyId === `${participant.id}:approved`}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-50"
+                                    >
+                                        {busyId === `${participant.id}:approved`
+                                            ? <Loader size={14} className="animate-spin" />
+                                            : <Check size={14} />}
+                                        Approve
+                                    </button>
+                                ) : null}
+                                <button
+                                    type="button"
+                                    onClick={() => onDelete(participant)}
+                                    disabled={busyId === `${participant.id}:delete`}
+                                    className="p-2 rounded-lg border border-red-400/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                                    aria-label="Delete entry"
+                                    title="Delete entry"
+                                >
+                                    {busyId === `${participant.id}:delete`
+                                        ? <Loader size={14} className="animate-spin" />
+                                        : <Trash2 size={14} />}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 ))}
                 {!rows.length ? <p className="text-center text-sm text-gray-500 py-12">{q ? 'No participants found' : 'No participants yet'}</p> : null}
@@ -1231,6 +1278,10 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                 navigate={navigate}
                 reload={() => load({ quiet: true })}
                 loading={loading}
+                busyId={busyId}
+                onApprove={(id) => setStatus(id, 'approved')}
+                onDelete={deleteEntry}
+                hideReview={noReview}
             />
         );
     }
