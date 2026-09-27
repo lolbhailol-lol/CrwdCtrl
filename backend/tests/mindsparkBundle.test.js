@@ -2,22 +2,44 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   BUNDLE_COMPETITION_IDS,
-  DISCOUNT_PERCENT,
-  BUNDLE_SIZE,
+  TECH_IDS,
+  NON_TECH_IDS,
+  BUNDLES,
   isBundleEligible,
   groupFor,
+  assertBundleSelection,
+  resolveBundle,
 } = require('../src/modules/fest/plugins/mindsparkBundle');
 const { allocate } = require('../src/services/mindsparkBundleService');
 
-test('MindSpark bundle is any 3 from the approved list at 65% off', () => {
-  assert.equal(DISCOUNT_PERCENT, 65);
-  assert.equal(BUNDLE_SIZE, 3);
-  assert.equal(BUNDLE_COMPETITION_IDS.length, 20);
-  assert.equal(new Set(BUNDLE_COMPETITION_IDS).size, BUNDLE_COMPETITION_IDS.length);
-  assert.equal(isBundleEligible('6a7f158e0e5ff505e2a4c495'), true); // CODE JUNKIE
-  assert.equal(isBundleEligible('6a7f158f0e5ff505e2a4c4ad'), false); // HACKATHON not in list
-  assert.equal(isBundleEligible('6a7f158f0e5ff505e2a4c4bf'), false); // SHERLOCKED removed
-  assert.equal(groupFor('6a7f158e0e5ff505e2a4c48f'), 'bundle'); // TAKE OFF
+const tech = TECH_IDS[0];
+const tech2 = TECH_IDS[1];
+const nonTech = NON_TECH_IDS[0];
+const nonTech2 = NON_TECH_IDS[1];
+
+test('MindSpark baskets: hat-trick, tech duo, dynamic duo', () => {
+  assert.equal(BUNDLES.length, 3);
+  assert.deepEqual(BUNDLES.map((b) => [b.key, b.size, b.discountPercent]), [
+    ['hat_trick', 3, 65],
+    ['tech_duo', 2, 50],
+    ['dynamic_duo', 2, 40],
+  ]);
+  assert.equal(BUNDLE_COMPETITION_IDS.length, 19);
+  assert.equal(new Set(BUNDLE_COMPETITION_IDS).size, 19);
+  assert.equal(TECH_IDS.length + NON_TECH_IDS.length, 19);
+  assert.equal(isBundleEligible('6a7f158e0e5ff505e2a4c495'), true);
+  assert.equal(isBundleEligible('6a7f158f0e5ff505e2a4c49e'), false); // FUSION ID removed
+  assert.equal(groupFor(tech), 'technical');
+  assert.equal(groupFor(nonTech), 'non_technical');
+});
+
+test('tech duo rejects non-tech; dynamic duo requires one of each', () => {
+  assert.doesNotThrow(() => assertBundleSelection(resolveBundle('tech_duo'), [tech, tech2]));
+  assert.throws(() => assertBundleSelection(resolveBundle('tech_duo'), [tech, nonTech]), /tech events/);
+  assert.doesNotThrow(() => assertBundleSelection(resolveBundle('dynamic_duo'), [tech, nonTech]));
+  assert.throws(() => assertBundleSelection(resolveBundle('dynamic_duo'), [tech, tech2]), /1 tech/);
+  assert.throws(() => assertBundleSelection(resolveBundle('dynamic_duo'), [nonTech, nonTech2]), /1 tech/);
+  assert.doesNotThrow(() => assertBundleSelection(resolveBundle('hat_trick'), [tech, tech2, nonTech]));
 });
 
 test('bundle allocation exactly reconciles to the one Cashfree payment', () => {

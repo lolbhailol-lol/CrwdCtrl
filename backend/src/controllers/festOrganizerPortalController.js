@@ -34,6 +34,7 @@ const {
     cashfreeBaseOrderId,
     filterCashfreeConfirmedRegs,
     scaleCompetitionSettlementToTotals,
+    applyMindSparkCollectedTotals,
 } = require('../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../modules/fest/plugins');
 const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
@@ -65,6 +66,28 @@ function requireMindSparkDesk(req, res) {
     if (isMindSparkFestId(req.festId)) return true;
     res.status(404).json({ success: false, message: 'Fest Day Desk is available for MindSpark only' });
     return false;
+}
+
+function bundleNameFromRecord(bundle) {
+    const key = String(bundle?.bundleKey || '');
+    const pct = Number(bundle?.discountPercent) || 0;
+    if (key === 'tech_duo' || pct === 50) return 'Tech duo basket';
+    if (key === 'dynamic_duo' || pct === 40) return 'Dynamic duo basket';
+    return 'Hat-Trick basket';
+}
+
+function bundleLabelFromResponses(responses) {
+    if (!responses?.mindspark_bundle_id) return '';
+    const key = String(responses.mindspark_bundle_key || '');
+    const pct = Number(responses.bundle_discount_percent)
+        || (key === 'tech_duo' ? 50 : key === 'dynamic_duo' ? 40 : 65);
+    const stored = String(responses.mindspark_bundle_name || '').trim();
+    const name = stored || (
+        key === 'tech_duo' ? 'Tech duo basket'
+            : key === 'dynamic_duo' ? 'Dynamic duo basket'
+                : 'Hat-Trick basket'
+    );
+    return `${name} · ${pct}%`;
 }
 
 function deskDraftIdentity(order) {
@@ -336,6 +359,9 @@ function formatParticipant(reg) {
             || String(responses.mindspark_bundle_source || '').toLowerCase() === 'desk',
         isMindSparkBundle: Boolean(responses.mindspark_bundle_id),
         mindsparkBundleId: responses.mindspark_bundle_id || null,
+        bundleDiscountPercent: Number(responses.bundle_discount_percent) || 0,
+        bundleKey: responses.mindspark_bundle_key || '',
+        bundleLabel: bundleLabelFromResponses(responses),
         submittedAt: reg.submittedAt || reg.createdAt,
         createdAt: reg.createdAt,
         updatedAt: reg.updatedAt,
@@ -408,6 +434,7 @@ function buildSingleRegTeamCard(p) {
         isFestDayDesk: Boolean(p.isFestDayDesk),
         isMindSparkBundle: Boolean(p.isMindSparkBundle),
         mindsparkBundleId: p.mindsparkBundleId || null,
+        bundleLabel: p.bundleLabel || '',
         memberCount: size,
         checkedIn: Boolean(p.checkedIn),
         whatsappGroupJoined: Boolean(p.whatsappGroupJoined),
@@ -513,6 +540,8 @@ function groupParticipantsIntoTeams(participants) {
         if (p.isFestDayDesk) t.isFestDayDesk = true;
         if (p.isMindSparkBundle) {
             t.isMindSparkBundle = true;
+            if (p.bundleLabel) t.bundleLabel = p.bundleLabel;
+        }
             t.mindsparkBundleId = t.mindsparkBundleId || p.mindsparkBundleId || null;
         }
         const submitted = p.submittedAt || p.createdAt;
@@ -934,6 +963,8 @@ exports.getDashboard = async (req, res) => {
 
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
+        let earlierClearGross = 0;
+        let earlierClearRevenue = 0;
         let gatewayFees = 0;
         let additionalDeduction = 0;
         const statsById = new Map(
@@ -1069,7 +1100,27 @@ exports.getDashboard = async (req, res) => {
                 c.revenue = sum.revenue;
             }
             const override = plugin.settlementOverride;
-            if (override) {
+            if (override && Number(override.cashfreeLockGross) > 0 && Number(override.razorpayPaidGross) > 0) {
+                let liveRazorpayOrderGross = null;
+                try {
+                    const razorpay = await require('./mindsparkPaymentsController').getRazorpayMindSparkActivity();
+                    liveRazorpayOrderGross = Number(razorpay?.totalCollected) || 0;
+                } catch (error) {
+                    console.error('[festOrganizerPortal.getDashboard] razorpay totals', error);
+                }
+                const applied = applyMindSparkCollectedTotals(
+                    competitionStats,
+                    settlementRegs,
+                    override,
+                    liveRazorpayOrderGross,
+                );
+                grossCollected = applied.grossCollected;
+                gatewayFees = applied.gatewayFees;
+                revenue = applied.revenue;
+                additionalDeduction = applied.additionalDeduction;
+                earlierClearGross = applied.earlierClearGross;
+                earlierClearRevenue = applied.earlierClearRevenue;
+            } else if (override) {
                 const floorGross = Number(override.grossCollected) || 0;
                 const floorFeeRate = Number(override.gatewayFeeRate || 0);
                 const floorExtra = Number(override.additionalDeduction) || 0;
@@ -1187,6 +1238,8 @@ exports.getDashboard = async (req, res) => {
                     : 0,
                 revenue,
                 grossCollected,
+                earlierClearGross,
+                earlierClearRevenue,
                 gatewayFees,
                 additionalDeduction,
                 totalDeductions: Math.round((gatewayFees + additionalDeduction) * 100) / 100,
@@ -3164,6 +3217,9 @@ exports.getFestDayDesk = async (req, res) => {
                 teamName: draftIdentity.teamName,
                 registrationId: registration?._id ? String(registration._id) : null,
                 ticketQr: registration?.qrCodeData || null,
+                deskStatus: status === 'paid'
+                    ? 'successful'
+                    : (['failed', 'expired', 'paid_review'].includes(status) ? status : 'draft'),
                 refundStatus: refund ? String(refund.status || '').toLowerCase() : '',
                 resumeUrl: assistedEntry?.paymentToken
                     ? `${FRONTEND_BASE()}/desk-payment/${assistedEntry.paymentToken}`
@@ -3220,6 +3276,13 @@ exports.getFestDayDesk = async (req, res) => {
             .sort({ createdAt: -1 })
             .limit(60)
             .lean();
+        const bundleOrderIds = recentBundles.map((bundle) => bundle.activeOrderId).filter(Boolean);
+        const bundlePayOrders = bundleOrderIds.length
+            ? await PaymentOrder.find({ orderId: { $in: bundleOrderIds } }).select('orderId gateway').lean()
+            : [];
+        const bundleGatewayByOrder = new Map(
+            bundlePayOrders.map((order) => [String(order.orderId), order.gateway === 'razorpay' ? 'razorpay' : 'cashfree']),
+        );
         const bundleActivity = recentBundles.map((bundle) => {
             const user = bundle.user && typeof bundle.user === 'object' ? bundle.user : null;
             const roster = bundle.items?.[0]?.roster || {};
@@ -3229,18 +3292,28 @@ exports.getFestDayDesk = async (req, res) => {
             const registrationIds = (bundle.items || [])
                 .map((item) => item.registrationId ? String(item.registrationId) : '')
                 .filter(Boolean);
+            const issued = bundle.status === 'paid' && registrationIds.length > 0;
+            const closed = ['failed', 'expired', 'refunded'].includes(String(bundle.status || ''));
             return {
                 bundleId: String(bundle._id),
                 source: bundle.source,
-                status: bundle.status,
+                status: issued ? 'paid' : (closed ? bundle.status : 'pending'),
+                deskStatus: issued
+                    ? 'successful'
+                    : (closed || bundle.status === 'paid_review' ? (bundle.status === 'paid_review' ? 'paid_review' : bundle.status) : 'draft'),
                 participantName,
                 phone,
                 email,
                 competitionNames: (bundle.items || []).map((item) => item.competitionName),
+                bundleKey: bundle.bundleKey || 'hat_trick',
+                bundleName: bundle.bundleName || bundleNameFromRecord(bundle),
+                discountPercent: Number(bundle.discountPercent) || 65,
+                eventCount: (bundle.items || []).length,
                 registrationIds,
                 subtotal: Number(bundle.subtotal) || 0,
                 discountAmount: Number(bundle.discountAmount) || 0,
                 amount: Number(bundle.totalAmount) || 0,
+                gateway: bundleGatewayByOrder.get(String(bundle.activeOrderId || '')) || '',
                 activeOrderId: bundle.activeOrderId || '',
                 orderIds: bundle.orderIds || [],
                 paymentPath: bundle.paymentToken ? `${FRONTEND_BASE()}/mindspark/bundle-pay/${bundle.paymentToken}` : null,

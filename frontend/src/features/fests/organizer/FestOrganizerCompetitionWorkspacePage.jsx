@@ -248,6 +248,9 @@ function SoloEntryCard({
                         {p.checkedIn ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">checked in</span>
                         ) : null}
+                        {p.bundleLabel ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">{p.bundleLabel}</span>
+                        ) : null}
                         {p.isFestDayDesk ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">Desk</span>
                         ) : p.isManual ? (
@@ -404,6 +407,9 @@ function TeamCard({ team, busyId, onApproveIds, onRejectIds, onDelete, onNotify,
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
                                 {team.checkedInCount} checked in
                             </span>
+                        ) : null}
+                        {team.bundleLabel ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">{team.bundleLabel}</span>
                         ) : null}
                         {team.isFestDayDesk ? (
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300">Desk</span>
@@ -814,7 +820,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         if (listFilter === 'wa_in') rows = rows.filter((entry) => entry.whatsappGroupJoined);
         if (listFilter === 'wa_out') rows = rows.filter((entry) => !entry.whatsappGroupJoined);
         if (!q) return rows;
-        return rows.filter((entry) => `${entry.userName || ''} ${entry.teamName || ''} ${entry.captainName || ''} ${entry.college || ''} ${entry.userPhone || ''} ${entry.userEmail || ''} ${entry.mindsparkBundleId || ''} ${memberHay(entry)}`.toLowerCase().includes(q));
+        return rows.filter((entry) => `${entry.userName || ''} ${entry.teamName || ''} ${entry.captainName || ''} ${entry.college || ''} ${entry.userPhone || ''} ${entry.userEmail || ''} ${entry.bundleLabel || ''} ${entry.mindsparkBundleId || ''} ${memberHay(entry)}`.toLowerCase().includes(q));
     };
     const filteredBundleSolo = filterBundleRows(bundleSolo);
     const filteredBundleTeams = filterBundleRows(bundleTeams);
@@ -1246,8 +1252,8 @@ export default function FestOrganizerCompetitionWorkspacePage() {
         teams: noReview
             ? '2+ people from the form — expand for roster. No approve step; payment is on Connect if needed.'
             : '2+ people from the form — expand a card for the full roster.',
-        bundle: 'Website MindSpark any-3 bundle registrations for this competition (not Fest Day Desk).',
-        desk: 'Walk-up Fest Day Desk registrations — solo, team, and desk bundle — paid via Cashfree QR at the counter.',
+        bundle: 'Website MindSpark bundle registrations for this competition: Hat-Trick 65%, Tech duo 50%, or Dynamic duo 40%. Fest Day Desk entries are on the Desk tab.',
+        desk: 'Walk-up Fest Day Desk registrations — solo, team, and desk bundles (Hat-Trick, Tech duo, Dynamic duo) — paid via Cashfree QR at the counter.',
     };
 
     const soloPendingCount = noReview ? 0 : regularSolo.filter((p) => p.status === 'pending').length;
@@ -1315,6 +1321,17 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             {noReview
                                 ? `${stats.teamCount || 0} teams · ${stats.soloCount || 0} solo`
                                 : `${stats.approved} approved`}
+                        </p>
+                    </div>
+                    <div className="rounded-2xl border border-emerald-400/30 bg-linear-to-br from-emerald-500/15 to-[#161718] p-3.5">
+                        <p className="text-[10px] uppercase tracking-wide text-emerald-200/80">Collected</p>
+                        <p className="text-2xl font-bold tabular-nums text-white mt-1">
+                            ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-1">
+                            {Number(stats.grossCollected) > 0 && Number(stats.grossCollected) !== Number(stats.revenue)
+                                ? `₹${Number(stats.grossCollected).toLocaleString('en-IN', { maximumFractionDigits: 0 })} paid · after gateway fee`
+                                : 'Paid entries on this competition'}
                         </p>
                     </div>
                     {noReview ? (

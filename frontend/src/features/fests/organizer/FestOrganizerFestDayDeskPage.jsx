@@ -20,6 +20,7 @@ import {
   refreshFestDayDeskOrder,
 } from "../../../services/api/festOrganizer.api";
 import { verifyDeskPayment } from "../../../services/api/deskPayment.api";
+import { verifyMindSparkBundlePayment } from "../../../services/api/mindsparkBundle.api";
 import { buildBrandedCompetitionQrDataUrl } from "../../../utils/competitionPublicQr";
 import { organizerCompetitionFeeLabel } from "../../../utils/competitionFeeTiers";
 import { useDialog } from "../../../context/DialogContext";
@@ -27,13 +28,15 @@ import { getFestOrganizerSession } from "../../../utils/festOrganizerSession";
 import LocalQRCode from "../../../components/LocalQRCode";
 
 const statusLabels = {
-  form_started: "Form started",
-  payment_pending: "Draft · payment pending",
-  confirming: "Confirming payment",
-  paid: "Paid",
+  draft: "Draft",
+  successful: "Successful",
+  form_started: "Draft",
+  payment_pending: "Draft",
+  confirming: "Draft",
+  pending: "Draft",
+  paid: "Successful",
   failed: "Failed",
   expired: "Expired",
-  pending: "Draft · payment pending",
   paid_review: "Paid — review required",
   refund_pending: "Refund pending",
   refunded: "Refunded",
@@ -41,18 +44,35 @@ const statusLabels = {
 };
 
 const statusClasses = {
-  form_started: "bg-blue-500/15 text-blue-300 border-blue-400/20",
+  draft: "bg-amber-500/15 text-amber-300 border-amber-400/20",
+  successful: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20",
+  form_started: "bg-amber-500/15 text-amber-300 border-amber-400/20",
   payment_pending: "bg-amber-500/15 text-amber-300 border-amber-400/20",
-  confirming: "bg-cyan-500/15 text-cyan-300 border-cyan-400/20",
+  confirming: "bg-amber-500/15 text-amber-300 border-amber-400/20",
+  pending: "bg-amber-500/15 text-amber-300 border-amber-400/20",
   paid: "bg-emerald-500/15 text-emerald-300 border-emerald-400/20",
   failed: "bg-red-500/15 text-red-300 border-red-400/20",
   expired: "bg-white/5 text-gray-400 border-white/10",
-  pending: "bg-amber-500/15 text-amber-300 border-amber-400/20",
   paid_review: "bg-orange-500/15 text-orange-300 border-orange-400/20",
   refund_pending: "bg-violet-500/15 text-violet-300 border-violet-400/20",
   refunded: "bg-gray-500/15 text-gray-300 border-gray-400/20",
   refund_failed: "bg-red-500/15 text-red-300 border-red-400/20",
 };
+
+function deskPhase(row) {
+  if (row?.refundStatus === "success") return "refunded";
+  if (["failed", "cancelled"].includes(row?.refundStatus)) return "refund_failed";
+  if (row?.refundStatus) return "refund_pending";
+  if (row?.deskStatus === "successful" || row?.status === "paid") return "successful";
+  if (["failed", "expired", "paid_review"].includes(row?.deskStatus) || ["failed", "expired", "paid_review"].includes(row?.status)) {
+    return row.deskStatus || row.status;
+  }
+  return "draft";
+}
+
+function paymentUrlOf(row) {
+  return row?.resumeUrl || row?.paymentPath || "";
+}
 
 function formatWhen(value) {
   if (!value) return "";
@@ -184,7 +204,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
               {teamMin === teamMax ? teamMin : `${teamMin}–${teamMax}`}
             </p>
             <p className="mt-2 text-xs text-amber-200/90 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1.5">
-              Full single-event price — not the any-3 bundle (65% off). Use Bundle if they want 3 events.
+              Full single-event price. Bundles are Hat-Trick 65%, Tech duo 50%, or Dynamic duo 40%.
             </p>
           </div>
           <button
@@ -211,7 +231,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
                   : "border-amber-400/30 bg-amber-500/10 text-amber-100"
               }`}
             >
-              {paid ? "ENTRY TICKET QR — show at gate" : "DRAFT · PAYMENT QR — not for gate entry"}
+              {paid ? "SUCCESSFUL — registration done" : "DRAFT · payment QR"}
             </div>
             <div className="rounded-3xl bg-white p-4 flex items-center justify-center min-h-[320px]">
               {paid && ticketQr ? (
@@ -236,12 +256,8 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
               </p>
               <p className={paid ? "text-sm text-emerald-300" : "text-sm text-amber-300"}>
                 {paid
-                  ? "Paid · ticket ready · confirmation email sent"
-                  : result.status === "paid_review"
-                    ? "Payment received — refund/review in progress. Do not create another entry."
-                  : result.status === "confirming"
-                    ? "Payment confirming — waiting for ticket…"
-                    : "Student scans this QR and pays on their phone"}
+                  ? "Successful · registration is on this competition"
+                  : "Draft · student scans this QR and pays on their phone"}
               </p>
               <p className="font-mono text-xs text-gray-500 mt-1">{result.orderId}</p>
               {result.registrationId ? (
@@ -399,23 +415,43 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
   );
 }
 
-function DeskQrModal({ row, onClose }) {
-  const isTicket = row.mode === "ticket" || row.status === "paid";
+function DeskQrModal({ row, onClose, onPaid }) {
+  const phase = deskPhase(row);
+  const isTicket = row.mode === "ticket" || phase === "successful";
+  const payUrl = paymentUrlOf(row);
   const [payQr, setPayQr] = useState("");
 
   useEffect(() => {
-    if (isTicket || !row.resumeUrl) {
+    if (isTicket || !payUrl) {
       setPayQr("");
       return undefined;
     }
     let cancelled = false;
-    buildBrandedCompetitionQrDataUrl(row.resumeUrl, { size: 900 }).then((url) => {
+    buildBrandedCompetitionQrDataUrl(payUrl, { size: 900 }).then((url) => {
       if (!cancelled) setPayQr(url);
     });
     return () => {
       cancelled = true;
     };
-  }, [isTicket, row.resumeUrl]);
+  }, [isTicket, payUrl]);
+
+  useEffect(() => {
+    if (isTicket) return undefined;
+    const bundleToken = String(payUrl).match(/\/bundle-pay\/([^/?#]+)/)?.[1] || "";
+    const deskToken = paymentTokenFromUrl(payUrl);
+    if (!bundleToken && !deskToken) return undefined;
+    const timer = window.setInterval(async () => {
+      try {
+        const next = bundleToken
+          ? await verifyMindSparkBundlePayment(bundleToken)
+          : await verifyDeskPayment(deskToken);
+        if (next?.status === "paid" || next?.issued) onPaid?.();
+      } catch {
+        /* keep the draft QR up */
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [isTicket, payUrl, onPaid]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 p-3 sm:p-6 flex items-center justify-center">
@@ -423,7 +459,7 @@ function DeskQrModal({ row, onClose }) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className={`text-xs uppercase tracking-wider ${isTicket ? "text-emerald-300" : "text-amber-300"}`}>
-              {isTicket ? "ENTRY TICKET QR" : "PAYMENT QR — not for gate"}
+              {isTicket ? "SUCCESSFUL" : "DRAFT · payment QR"}
             </p>
             <h2 className="text-lg font-bold text-white mt-1">{row.participantName}</h2>
             <p className="text-sm text-gray-400">{row.competitionName}</p>
@@ -438,17 +474,15 @@ function DeskQrModal({ row, onClose }) {
           ) : !isTicket && payQr ? (
             <img src={payQr} alt="Scan to pay" className="w-full max-w-[360px] aspect-square" />
           ) : isTicket ? (
-            <p className="text-sm text-gray-600 py-10">Ticket QR not available yet — tap Check payment</p>
+            <p className="text-sm text-gray-600 py-10">Registration is successful. Ticket QR will appear after refresh.</p>
           ) : (
             <Loader className="animate-spin text-black" />
           )}
         </div>
         <p className="text-center text-sm text-gray-400">
           {isTicket
-            ? "Paid · show this at the gate"
-            : row.status === "confirming"
-              ? "Payment confirming — wait, then Show ticket"
-              : "Student pays on their phone · status updates in Live activity"}
+            ? "Successful · registration is done"
+            : "Draft · student pays on their phone. This becomes Successful as soon as payment lands."}
         </p>
         {row.registrationId ? (
           <button
@@ -551,7 +585,7 @@ export default function FestOrganizerFestDayDeskPage() {
       ...row,
       activityType: "bundle",
       orderId: row.activeOrderId,
-      competitionName: row.competitionNames?.join(" + ") || "3-competition bundle",
+      competitionName: row.competitionNames?.join(" + ") || row.bundleName || "Competition bundle",
     })),
   ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [activity, bundleActivity]);
 
@@ -627,7 +661,7 @@ export default function FestOrganizerFestDayDeskPage() {
           <div>
             <p className="text-xs uppercase tracking-wider text-[#0ECCEE]">MindSpark operations</p>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">Fest Day Desk</h1>
-            <p className="text-sm text-gray-400 mt-2">Select competition → enter details → show payment QR.</p>
+            <p className="text-sm text-gray-400 mt-2">Fill the form, show the payment QR, then it turns Successful when they pay.</p>
           </div>
           <button
             type="button"
@@ -643,15 +677,15 @@ export default function FestOrganizerFestDayDeskPage() {
           <div className="rounded-2xl border border-[#0ECCEE] bg-[#0ECCEE]/15 p-3 text-left">
             <UserRound size={18} className="text-[#0ECCEE] mb-2" />
             <p className="font-semibold text-white text-sm">Single competition</p>
-            <p className="text-[11px] text-gray-400 mt-1">Choose a competition below</p>
+            <p className="text-[11px] text-gray-400 mt-1">Organizer fills details, then the payment QR stays on Draft</p>
           </div>
           <Link
             to="/mindspark/bundle?desk=1"
             className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-left hover:border-emerald-300/50"
           >
             <ShoppingCart size={18} className="text-emerald-300 mb-2" />
-            <p className="font-semibold text-emerald-100 text-sm">3-competition bundle · 65% off</p>
-            <p className="text-[11px] text-gray-400 mt-1">Create bundle registration</p>
+            <p className="font-semibold text-emerald-100 text-sm">Competition bundles</p>
+            <p className="text-[11px] text-gray-400 mt-1">Same steps: fill details, show the payment QR, then Successful</p>
           </Link>
         </div>
       </section>
@@ -753,14 +787,8 @@ export default function FestOrganizerFestDayDeskPage() {
           <div className="space-y-2 max-h-[58vh] overflow-y-auto">
             {combinedActivity.length ? (
               combinedActivity.map((row) => {
-                const displayStatus =
-                  row.refundStatus === "success"
-                    ? "refunded"
-                    : ["failed", "cancelled"].includes(row.refundStatus)
-                      ? "refund_failed"
-                      : row.refundStatus
-                        ? "refund_pending"
-                        : row.status;
+                const phase = deskPhase(row);
+                const payUrl = paymentUrlOf(row);
                 return (
                   <article
                     key={`${row.activityType}-${row.orderId || row.bundleId}`}
@@ -773,60 +801,64 @@ export default function FestOrganizerFestDayDeskPage() {
                           {row.competitionName}
                           {row.teamName ? ` · ${row.teamName}` : ""}
                         </p>
-                        {row.activityType === "bundle" ? <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">65% bundle</p> : null}
+                        {row.activityType === "bundle" ? (
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                            {row.bundleName || "Hat-Trick basket"} · {row.discountPercent || 65}%
+                          </p>
+                        ) : null}
                       </div>
                       <span
-                        className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${statusClasses[displayStatus] || statusClasses.expired}`}
+                        className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold ${statusClasses[phase] || statusClasses.expired}`}
                       >
-                        {statusLabels[displayStatus] || displayStatus}
+                        {statusLabels[phase] || phase}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-gray-500">
-                      <span>
-                        {row.status === "form_started"
-                          ? "Form in progress"
-                          : `₹${Number(row.amount).toLocaleString("en-IN")}`}
-                      </span>
-                      {row.source ? (
-                        <span className="uppercase tracking-wide">{row.source}</span>
-                      ) : null}
+                      <span>₹{Number(row.amount || 0).toLocaleString("en-IN")}</span>
+                      {row.activityType === "bundle" ? (
+                        <span className="uppercase tracking-wide">Bundle</span>
+                      ) : (
+                        <span className="uppercase tracking-wide">Single</span>
+                      )}
                       {row.gateway ? (
                         <span className="uppercase tracking-wide text-[#0ECCEE]">{row.gateway}</span>
                       ) : null}
                       <span>{formatWhen(row.createdAt)}</span>
-                      {row.status !== "form_started" ? (
-                        <span className="font-mono">{row.orderId}</span>
-                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2 mt-3">
-                      {row.orderId ? <button
-                        type="button"
-                        onClick={() => refreshOrder(row.orderId)}
-                        disabled={
-                          busyOrder === row.orderId || !online || row.status === "form_started"
-                        }
-                        className="desk-action flex-1"
-                      >
-                        {busyOrder === row.orderId ? (
-                          <Loader size={14} className="animate-spin" />
-                        ) : (
-                          <RefreshCw size={14} />
-                        )}
-                        {row.status === "form_started"
-                          ? "Awaiting payment"
-                          : row.status === "paid"
-                            ? "Refresh"
-                            : "Check payment"}
-                      </button> : null}
-                      {row.activityType === "single" && row.status === "paid" && (row.ticketQr || row.registrationId) ? (
+                      {phase === "draft" && payUrl ? (
                         <button
                           type="button"
                           className="desk-action flex-1"
-                          onClick={() =>
+                          onClick={() => setDeskQrPreview({ ...row, mode: "payment", resumeUrl: payUrl, paymentPath: payUrl })}
+                        >
+                          <QrCode size={14} /> Show payment QR
+                        </button>
+                      ) : null}
+                      {phase === "draft" && row.orderId ? (
+                        <button
+                          type="button"
+                          onClick={() => refreshOrder(row.orderId)}
+                          disabled={busyOrder === row.orderId || !online}
+                          className="desk-action flex-1"
+                        >
+                          {busyOrder === row.orderId ? (
+                            <Loader size={14} className="animate-spin" />
+                          ) : (
+                            <RefreshCw size={14} />
+                          )}
+                          Check payment
+                        </button>
+                      ) : null}
+                      {phase === "successful" && row.activityType === "single" && (row.ticketQr || row.registrationId) ? (
+                        <button
+                          type="button"
+                          className="desk-action flex-1"
+                          onClick={() => (
                             row.ticketQr
                               ? setDeskQrPreview({ ...row, mode: "ticket" })
                               : copyId(row.registrationId)
-                          }
+                          )}
                         >
                           {row.ticketQr ? (
                             <>
@@ -839,23 +871,7 @@ export default function FestOrganizerFestDayDeskPage() {
                           )}
                         </button>
                       ) : null}
-                      {row.activityType === "single" && !["paid", "form_started", "failed", "expired", "refunded"].includes(
-                        displayStatus,
-                      ) && row.resumeUrl ? (
-                        <button
-                          type="button"
-                          className="desk-action flex-1"
-                          onClick={() => setDeskQrPreview({ ...row, mode: "payment" })}
-                        >
-                          <QrCode size={14} /> Show pay QR
-                        </button>
-                      ) : null}
-                      {row.activityType === "bundle" && row.status !== "paid" && row.paymentPath ? (
-                        <a href={row.paymentPath} target="_blank" rel="noreferrer" className="desk-action flex-1">
-                          <QrCode size={14} /> Payment page
-                        </a>
-                      ) : null}
-                      {row.activityType === "bundle" && row.status === "paid" && row.registrationIds?.[0] ? (
+                      {phase === "successful" && row.activityType === "bundle" && row.registrationIds?.length ? (
                         isDeskRole ? (
                           <button type="button" className="desk-action flex-1" onClick={() => copyId(row.registrationIds[0])}>
                             <Copy size={14} /> Copy reg id
@@ -866,18 +882,7 @@ export default function FestOrganizerFestDayDeskPage() {
                           </Link>
                         )
                       ) : null}
-                      {row.activityType === "single" && row.status === "paid" &&
-                      !isDeskRole &&
-                      row.registrationId &&
-                      !row.ticketQr ? (
-                        <Link
-                          to={`/fest-organizer/fests/${festId}/participants?q=${encodeURIComponent(row.registrationId)}`}
-                          className="desk-action flex-1"
-                        >
-                          <ExternalLink size={14} /> Open entry
-                        </Link>
-                      ) : null}
-                      {canRefund && row.status === "paid" && !row.refundStatus && row.gateway !== "razorpay" ? (
+                      {canRefund && phase === "successful" && !row.refundStatus && row.gateway !== "razorpay" && row.orderId ? (
                         <button
                           type="button"
                           onClick={() => refundOrder(row)}
@@ -900,7 +905,7 @@ export default function FestOrganizerFestDayDeskPage() {
         </section>
       </div>
 
-      <p className="text-center text-xs text-gray-500">Only a verified paid entry receives a ticket QR.</p>
+      <p className="text-center text-xs text-gray-500">Draft shows the payment QR. Successful means the registration is done.</p>
 
       {selected ? (
         <AssistedEntryModal
@@ -912,7 +917,15 @@ export default function FestOrganizerFestDayDeskPage() {
         />
       ) : null}
       {deskQrPreview ? (
-        <DeskQrModal row={deskQrPreview} onClose={() => setDeskQrPreview(null)} />
+        <DeskQrModal
+          row={deskQrPreview}
+          onClose={() => setDeskQrPreview(null)}
+          onPaid={() => {
+            setDeskQrPreview(null);
+            load({ quiet: true });
+            toast("Successful — registration is done");
+          }}
+        />
       ) : null}
     </div>
   );

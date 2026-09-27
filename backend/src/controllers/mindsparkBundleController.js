@@ -3,7 +3,7 @@ const Bundle = require('../model/mindspark_bundle_model');
 const Competition = require('../model/competition_model');
 const PaymentOrder = require('../model/payment_order_model');
 const User = require('../model/usermodel');
-const { FEST_ID, BUNDLE_COMPETITION_IDS, DISCOUNT_PERCENT, BUNDLE_SIZE, BUNDLE_GROUP, isBundleEligible, groupFor } = require('../modules/fest/plugins/mindsparkBundle');
+const { FEST_ID, BUNDLE_COMPETITION_IDS, BUNDLES, groupFor, resolveBundle, idsForBundle, assertBundleSelection } = require('../modules/fest/plugins/mindsparkBundle');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 const { assertCompetitionsAcceptRegistration } = require('../utils/competitionSlots');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
@@ -35,8 +35,8 @@ const FRONTEND = () => String(
   || process.env.FRONTEND_URL
   || 'https://www.crwdctrl.in',
 ).replace(/\/$/, '');
-const PAYABLE_RATIO = (100 - DISCOUNT_PERCENT) / 100;
-const ORDER_NOTE = `MindSpark Any ${BUNDLE_SIZE} Bundle (${DISCOUNT_PERCENT}% off)`;
+const PAYABLE_RATIO = (percent) => (100 - Number(percent || 0)) / 100;
+const orderNoteFor = (bundle) => `MindSpark ${bundle.name} (${bundle.discountPercent}% off)`;
 const PLACEHOLDER_PHONE = '9999999999';
 const clean = (v, n = 180) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, n);
 const phone = v => String(v || '').replace(/\D/g, '').slice(-10);
@@ -64,6 +64,16 @@ function resolveBundlePhone(bundle, user, extraPhone = '') {
   ]);
 }
 
+function displayBundleName(bundle) {
+  const stored = String(bundle?.bundleName || '').trim();
+  if (stored) return stored;
+  const key = String(bundle?.bundleKey || '');
+  const pct = Number(bundle?.discountPercent) || 0;
+  if (key === 'tech_duo' || pct === 50) return 'Tech duo basket';
+  if (key === 'dynamic_duo' || pct === 40) return 'Dynamic duo basket';
+  return 'Hat-Trick basket';
+}
+
 function serialize(bundle, order) {
   const gateway = resolveFestPaymentGateway();
   const orderMerchant = order?.cashfreeMerchant === 'events' ? 'events' : 'platform';
@@ -75,6 +85,9 @@ function serialize(bundle, order) {
   return {
     bundleId: String(bundle._id), status: bundle.status, subtotal: bundle.subtotal,
     discountPercent: bundle.discountPercent, discountAmount: bundle.discountAmount,
+    bundleKey: bundle.bundleKey || 'hat_trick',
+    bundleName: displayBundleName(bundle),
+    eventCount: (bundle.items || []).length,
     amount: bundle.totalAmount, orderId: order?.orderId || bundle.activeOrderId,
     gateway,
     keyId: gateway === 'razorpay' ? getRazorpayKeyId() : undefined,
@@ -161,16 +174,28 @@ exports.offer = async (_req, res) => {
     return res.json(offerCache.payload);
   }
   const list = await competitions();
-  const shaped = list.map(c => ({ ...c, group: groupFor(c._id) }));
+  const byId = new Map(list.map((c) => [String(c._id), c]));
+  const shape = (id) => {
+    const c = byId.get(String(id));
+    if (!c) return null;
+    return { ...c, group: groupFor(c._id) };
+  };
+  const byName = (a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'en', { sensitivity: 'base' });
+  const bundles = BUNDLES.map((bundle) => ({
+    ...bundle,
+    competitions: idsForBundle(bundle).map(shape).filter(Boolean).sort(byName),
+  }));
+  const shaped = BUNDLE_COMPETITION_IDS.map(shape).filter(Boolean).sort(byName);
+  const hatTrick = BUNDLES.find((b) => b.key === 'hat_trick');
   const payload = {
     success: true,
     festId: FEST_ID,
-    discountPercent: DISCOUNT_PERCENT,
-    bundleSize: BUNDLE_SIZE,
+    bundles,
+    discountPercent: hatTrick.discountPercent,
+    bundleSize: hatTrick.size,
     competitions: shaped,
-    // Back-compat for older clients
-    technical: shaped,
-    nonTechnical: shaped,
+    technical: shaped.filter((c) => c.group === 'technical'),
+    nonTechnical: shaped.filter((c) => c.group === 'non_technical'),
   };
   offerCache.at = Date.now();
   offerCache.payload = payload;
@@ -180,26 +205,22 @@ exports.offer = async (_req, res) => {
 
 /**
  * @param {object[]} rawItems
- * @param {{ checkSlots?: boolean }} [opts] — quote is display-only; skip slot DB work under rush.
+ * @param {{ checkSlots?: boolean, bundleKey?: string }} [opts]
  */
 async function validateItems(rawItems, opts = {}) {
   const checkSlots = opts.checkSlots !== false;
-  if (!Array.isArray(rawItems) || rawItems.length !== BUNDLE_SIZE) {
-    const e = new Error(`Select exactly ${BUNDLE_SIZE} different competitions from the bundle list.`);
+  const bundle = resolveBundle(opts.bundleKey || 'hat_trick');
+  if (!Array.isArray(rawItems)) {
+    const e = new Error(`${bundle.name}: select your events.`);
     e.status = 400;
     throw e;
   }
-  const ids = rawItems.map(i => String(i.competitionId || ''));
-  if (new Set(ids).size !== BUNDLE_SIZE || ids.some(id => !isBundleEligible(id))) {
-    const e = new Error(`Bundle must contain ${BUNDLE_SIZE} different competitions from the approved list.`);
-    e.status = 400;
-    throw e;
-  }
-  // No fest populate — pricing/slots only need competition fields (avoids N+1 under quote spam).
+  assertBundleSelection(bundle, rawItems.map((i) => i.competitionId));
+  const ids = rawItems.map((i) => String(i.competitionId || ''));
   const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID })
     .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration slotsAllotted registrationsOpen')
     .lean();
-  if (docs.length !== BUNDLE_SIZE) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
+  if (docs.length !== bundle.size) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
   if (checkSlots) {
     await assertCompetitionsAcceptRegistration(docs);
   }
@@ -237,6 +258,12 @@ async function validateItems(rawItems, opts = {}) {
       e.status = 400;
       throw e;
     }
+    const leaderPhone = phone(roster.phone);
+    const leaderEmail = clean(roster.email, 120).toLowerCase();
+    if (members[0]) {
+      if (!members[0].phone && leaderPhone.length === 10) members[0].phone = leaderPhone;
+      if (!members[0].email && validEmail(leaderEmail)) members[0].email = leaderEmail;
+    }
     const priced = resolveCompetitionTicketPrice(competition, clean(raw.feeTierId, 80));
     const subcategory = resolveSubcategory(
       competition,
@@ -244,9 +271,14 @@ async function validateItems(rawItems, opts = {}) {
     );
     const rosterOut = {
       ...roster,
+      full_name: clean(roster.full_name, 100),
+      phone: leaderPhone,
+      contact_no: leaderPhone,
+      email: leaderEmail,
       team_members: members,
       team_size: members.length,
       feeTierId: priced.tier?.id || '',
+      feeTierLabel: priced.tier?.label || priced.tier?.name || '',
     };
     if (subcategory) {
       rosterOut.subcategory = subcategory;
@@ -257,7 +289,7 @@ async function validateItems(rawItems, opts = {}) {
     }
     return {
       competition,
-      group: BUNDLE_GROUP,
+      group: groupFor(competition._id) || 'technical',
       feeTierId: priced.tier?.id || '',
       subcategory,
       roster: rosterOut,
@@ -268,13 +300,16 @@ async function validateItems(rawItems, opts = {}) {
 
 exports.quote = async (req, res) => {
   try {
-    const items = await validateItems(req.body.items, { checkSlots: false });
+    const bundle = resolveBundle(req.body.bundleKey || 'hat_trick');
+    const items = await validateItems(req.body.items, { checkSlots: false, bundleKey: bundle.key });
     const subtotal = items.reduce((s, x) => s + x.originalAmount, 0);
-    const totalAmount = Math.round(subtotal * PAYABLE_RATIO);
+    const totalAmount = Math.round(subtotal * PAYABLE_RATIO(bundle.discountPercent));
     res.json({
       success: true,
+      bundleKey: bundle.key,
+      bundleName: bundle.name,
       subtotal,
-      discountPercent: DISCOUNT_PERCENT,
+      discountPercent: bundle.discountPercent,
       discountAmount: subtotal - totalAmount,
       totalAmount,
       items: items.map(x => ({ competitionId: x.competition._id, name: x.competition.name, amount: x.originalAmount })),
@@ -382,7 +417,7 @@ async function createOrderForBundle(bundle, user) {
       ticketPrice: 0, amountBeforeDiscount: 0, amountAfterDiscount: 0, totalAmount: 0,
       status: 'PAID', gateway: 'cashfree', customerEmail: user.email, customerPhone,
       cashfreeMerchant: CASHFREE_MERCHANT,
-      orderTags: { bundleId: String(bundle._id), festId: FEST_ID, zeroFee: true },
+      orderTags: { bundleId: String(bundle._id), festId: FEST_ID, bundleName: bundle.bundleName || '', zeroFee: true },
     });
   } else {
     const gateway = resolveFestPaymentGateway();
@@ -401,7 +436,10 @@ async function createOrderForBundle(bundle, user) {
             customerPhone,
           },
           orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` },
-          orderNote: ORDER_NOTE,
+          orderNote: orderNoteFor({
+            name: bundle.bundleName || 'Hat-Trick basket',
+            discountPercent: bundle.discountPercent,
+          }),
           orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
           merchant: CASHFREE_MERCHANT,
         });
@@ -421,7 +459,7 @@ async function createOrderForBundle(bundle, user) {
       cashfreeMerchant: CASHFREE_MERCHANT,
       customerEmail: user.email,
       customerPhone,
-      orderTags: { bundleId: String(bundle._id), festId: FEST_ID },
+      orderTags: { bundleId: String(bundle._id), festId: FEST_ID, bundleName: bundle.bundleName || '' },
     });
   }
   bundle.activeOrderId = order.orderId;
@@ -459,7 +497,8 @@ exports.create = source => async (req, res) => {
       }
       return res.json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${existing.paymentToken}`, ...await serializeWithTickets(existing, order) });
     }
-    const valid = await validateItems(req.body.items);
+    const offerBundle = resolveBundle(req.body.bundleKey || 'hat_trick');
+    const valid = await validateItems(req.body.items, { bundleKey: offerBundle.key });
     const { findOpenMindSparkCheckout, retireOpenRazorpayCheckout } = require('../utils/openMindSparkCheckout');
     const openCheckout = await findOpenMindSparkCheckout({
       festId: FEST_ID,
@@ -531,7 +570,7 @@ exports.create = source => async (req, res) => {
     }
     for (const item of valid) reservations.push(await acquireCompetitionSlot({ competition: item.competition, userId: user._id }));
     const subtotal = valid.reduce((s, x) => s + x.originalAmount, 0);
-    const totalAmount = Math.round(subtotal * PAYABLE_RATIO);
+    const totalAmount = Math.round(subtotal * PAYABLE_RATIO(offerBundle.discountPercent));
     const token = crypto.randomBytes(32).toString('hex');
     const bundle = await Bundle.create({
       fest: FEST_ID,
@@ -540,8 +579,10 @@ exports.create = source => async (req, res) => {
       createdByOrganizer: source === 'desk' ? req.organizerId : null,
       submissionKey: key,
       paymentToken: token,
+      bundleKey: offerBundle.key,
+      bundleName: offerBundle.name,
       subtotal,
-      discountPercent: DISCOUNT_PERCENT,
+      discountPercent: offerBundle.discountPercent,
       discountAmount: subtotal - totalAmount,
       totalAmount,
       expiresAt: new Date(Date.now() + TTL),
@@ -660,7 +701,10 @@ exports.reissue = async (req, res) => {
             customerPhone,
           },
           orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` },
-          orderNote: ORDER_NOTE,
+          orderNote: orderNoteFor({
+            name: bundle.bundleName || 'Hat-Trick basket',
+            discountPercent: bundle.discountPercent,
+          }),
           orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
           merchant: CASHFREE_MERCHANT,
         });
@@ -680,7 +724,7 @@ exports.reissue = async (req, res) => {
       cashfreeMerchant: CASHFREE_MERCHANT,
       customerEmail: user.email,
       customerPhone,
-      orderTags: { bundleId: String(bundle._id), festId: FEST_ID },
+      orderTags: { bundleId: String(bundle._id), festId: FEST_ID, bundleName: bundle.bundleName || '' },
     });
     bundle.items.forEach((item, i) => { item.reservationToken = reservations[i]?.token || ''; }); bundle.activeOrderId = replacement.orderId; bundle.orderIds.push(replacement.orderId); bundle.status = 'pending'; bundle.expiresAt = new Date(Date.now() + TTL); await bundle.save();
     await Promise.all(reservations.filter(Boolean).map(r => attachReservationToOrder(r.token, replacement.orderId)));

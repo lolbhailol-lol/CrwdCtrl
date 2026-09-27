@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, MapPin, Heart } from "lucide-react";
-import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import shareIcon from '../../../assets/share.svg';
@@ -39,6 +39,26 @@ import { getFestPlugin } from '../plugins/registry';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { trackFestView } from '../../../services/analyticsService';
 import { isMindSparkFest } from '../mindspark/isMindSparkFest';
+
+function MindSparkBundleEntry({ isDark }) {
+  useEffect(() => {
+    void import('../mindspark/MindSparkBundlePage');
+  }, []);
+  return (
+    <Link
+      to="/mindspark/bundle/hat-trick"
+      className={`flex items-center justify-between gap-3 rounded-2xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/10 px-4 py-3.5 text-left transition hover:border-[#0ECCEE]/70 active:scale-[0.99] ${isDark ? '' : 'shadow-sm'}`}
+    >
+      <span className="min-w-0">
+        <span className={`block text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>MindSpark bundles</span>
+        <span className={`mt-1 block text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+          Hat-Trick 65% · Tech duo 50% · Dynamic duo 40%
+        </span>
+      </span>
+      <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">Set up →</span>
+    </Link>
+  );
+}
 
 const CrwdCtrlLogin = lazy(() => import('../../../pages/auth/login'));
 const CrwdCtrlRegister = lazy(() => import('../../../pages/auth/register'));
@@ -188,6 +208,7 @@ function EventDetailsPage() {
   const [showRegister, setShowRegister] = useState(false);
   const [showMindSparkBundle, setShowMindSparkBundle] = useState(false);
   const [openBundleAfterLogin, setOpenBundleAfterLogin] = useState(false);
+  const [bundleKey, setBundleKey] = useState('hat_trick');
   const [showFullOverview, setShowFullOverview] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -439,7 +460,9 @@ function EventDetailsPage() {
     setSearchParams({}); // Clear URL parameters
   };
 
-  const handleOpenMindSparkBundle = () => {
+  const handleOpenMindSparkBundle = (key = 'hat_trick') => {
+    const nextKey = typeof key === 'string' ? key : 'hat_trick';
+    setBundleKey(nextKey);
     void import('../mindspark/MindSparkBundlePage');
     if (!isAuthenticated) {
       setOpenBundleAfterLogin(true);
@@ -1024,14 +1047,9 @@ function EventDetailsPage() {
                   </div>
 
                   {mindSparkDesktop ? (
-                    <button
-                      type="button"
-                      onClick={handleOpenMindSparkBundle}
-                      className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-4 py-3 text-left transition hover:border-[#0ECCEE]/70"
-                    >
-                      <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>MindSpark Competition Bundle</span>
-                      <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">65% OFF →</span>
-                    </button>
+                    <div className="mb-4">
+                      <MindSparkBundleEntry isDark={isDark} />
+                    </div>
                   ) : null}
 
                   <div className={smoothFestLayout ? 'space-y-2 mb-3' : 'space-y-3 sm:space-y-4 mb-4 sm:mb-6'}>
@@ -1479,16 +1497,8 @@ function EventDetailsPage() {
           </div>
         ) : null}
         {mindSparkDesktop ? (
-          <div className="px-4 mb-4">
-            <button
-              type="button"
-              onClick={handleOpenMindSparkBundle}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-4 py-3 text-left transition active:scale-[0.99]"
-              aria-label="Open MindSpark Competition Bundle registration and get 65% off"
-            >
-              <span className="text-sm font-bold text-white">MindSpark Competition Bundle</span>
-              <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">65% OFF →</span>
-            </button>
+          <div className="px-4 mb-5">
+            <MindSparkBundleEntry isDark={isDark} />
           </div>
         ) : null}
         {showCompetitionSkeleton ? (
@@ -1798,7 +1808,11 @@ function EventDetailsPage() {
                   </div>
                 )}
               >
-                <MindSparkBundlePage embedded onClose={() => setShowMindSparkBundle(false)} />
+                <MindSparkBundlePage
+                  embedded
+                  initialBundleKey={bundleKey}
+                  onClose={() => setShowMindSparkBundle(false)}
+                />
               </Suspense>
             </div>
           </div>,

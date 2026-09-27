@@ -226,6 +226,17 @@ export default function FestOrganizerRevenuePage() {
                 </div>
                 {ranked.length ? (
                     <div className="space-y-2">
+                        {Number(stats?.earlierClearRevenue) > 0 ? (
+                            <div className="rounded-xl border border-white/8 bg-[#121314] px-3.5 py-3">
+                                <p className="text-sm text-white font-medium">Cashfree cleared earlier</p>
+                                <p className="text-[11px] text-gray-500 mt-0.5">
+                                    Merchant clear already recorded. New payments, including bundles, are added on each competition below.
+                                </p>
+                                <p className="text-sm font-semibold tabular-nums text-emerald-300 mt-2">
+                                    ₹{Number(stats.earlierClearRevenue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                        ) : null}
                         {ranked.map((c, idx) => {
                             const rev = Number(c.revenue) || 0;
                             const gross = Number(c.grossCollected);

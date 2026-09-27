@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Loader, ShieldCheck } from 'lucide-react';
 import { apiUtils } from '../../../utils/api';
 import { useAuth } from '../../../context/AuthContext';
@@ -10,8 +10,9 @@ import { openPaymentCheckout } from '../../../utils/usePaymentCheckout';
 import { buildBrandedCompetitionQrDataUrl } from '../../../utils/competitionPublicQr';
 import { PUBLIC_WEB_ORIGIN } from '../../../utils/publicWebOrigin';
 import LocalQRCode from '../../../components/LocalQRCode';
+import MindSparkBundleChoices, { MINDSPARK_BUNDLE_CHOICES, mindsparkBundleEvents, mindsparkBundleKeyFromSlug, mindsparkBundlePath } from './MindSparkBundleChoices';
 
-const STEPS = ['Your details', 'Choose events', 'Participants', 'Pay'];
+const STEPS = ['Bundle', 'Details', 'Events', 'People', 'Pay'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const emptyMember = () => ({ name: '', email: '' });
 
@@ -63,6 +64,26 @@ function subcategoryComplete(competition, form) {
   return Boolean(String(form?.subcategory || '').trim());
 }
 
+function sortEvents(list) {
+  return [...(list || [])].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'en', { sensitivity: 'base' }));
+}
+
+function eventsForSlot(bundle, offer, index) {
+  const raw = (bundle?.competitions?.length ? bundle.competitions : offer?.competitions) || [];
+  const list = sortEvents(mindsparkBundleEvents(raw));
+  if (bundle?.rule === 'both_tech') return list.filter((event) => event.group === 'technical');
+  if (bundle?.rule === 'one_each') {
+    return list.filter((event) => event.group === (index === 0 ? 'technical' : 'non_technical'));
+  }
+  return list;
+}
+
+function eventOptionLabel(event) {
+  const fee = event.feeAmount ?? event.registrationFee;
+  const amount = Number(fee);
+  return Number.isFinite(amount) && String(fee) !== '' ? `${event.name} · ₹${amount.toLocaleString('en-IN')}` : event.name;
+}
+
 function fieldClass(isDark) {
   return `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${
     isDark
@@ -71,18 +92,23 @@ function fieldClass(isDark) {
   }`;
 }
 
-export default function MindSparkBundlePage({ embedded = false, onClose }) {
+export default function MindSparkBundlePage({ embedded = false, onClose, initialBundleKey = '' }) {
   const [params] = useSearchParams();
+  const { bundleSlug } = useParams();
   const desk = params.get('desk') === '1';
   const navigate = useNavigate();
   const { isDark } = useDarkMode();
   const { isAuthenticated, user } = useAuth();
+  const startKey = mindsparkBundleKeyFromSlug(bundleSlug) || initialBundleKey || 'hat_trick';
+  const startChoice = MINDSPARK_BUNDLE_CHOICES.find((bundle) => bundle.key === startKey) || MINDSPARK_BUNDLE_CHOICES[0];
   const [showLogin, setShowLogin] = useState(false);
   const [step, setStep] = useState(1);
   const [formIndex, setFormIndex] = useState(0);
   const [offer, setOffer] = useState(null);
-  const [selected, setSelected] = useState(['', '', '']);
-  const [forms, setForms] = useState([{}, {}, {}]);
+  const [offerStatus, setOfferStatus] = useState('loading');
+  const [bundleKey, setBundleKey] = useState(startChoice.key);
+  const [selected, setSelected] = useState(() => Array.from({ length: startChoice.size }, () => ''));
+  const [forms, setForms] = useState(() => Array.from({ length: startChoice.size }, () => ({})));
   const [customer, setCustomer] = useState({ name: '', phone: '', email: '' });
   const [quote, setQuote] = useState(null);
   const [error, setError] = useState('');
@@ -93,7 +119,28 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   const scrollRef = useRef(null);
   const inputCls = fieldClass(isDark);
 
-  useEffect(() => { fetchMindSparkBundleOffer().then(setOffer).catch(e => setError(e.message)); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    fetchMindSparkBundleOffer()
+      .then((data) => {
+        if (cancelled) return;
+        setOffer(data);
+        setOfferStatus('ready');
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e.message);
+        setOfferStatus('error');
+      });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    if (embedded) return undefined;
+    const path = mindsparkBundlePath(startChoice.key, { desk });
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current !== path) navigate(path, { replace: true });
+    return undefined;
+  }, [desk, embedded, navigate, startChoice.key]);
   useEffect(() => {
     if (!deskPay?.paymentUrl) {
       setDeskPayQr('');
@@ -145,7 +192,44 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     const byId = new Map(list.map(c => [String(c._id), c]));
     return selected.map(id => byId.get(String(id)));
   }, [offer, selected]);
-  const discountPercent = Number(offer?.discountPercent) || 65;
+  const activeBundle = useMemo(() => {
+    const list = offer?.bundles || [];
+    const fromOffer = list.find((b) => b.key === bundleKey);
+    if (fromOffer) return fromOffer;
+    const choice = MINDSPARK_BUNDLE_CHOICES.find((b) => b.key === bundleKey) || MINDSPARK_BUNDLE_CHOICES[0];
+    return {
+      key: choice.key,
+      name: choice.basket,
+      size: choice.size,
+      discountPercent: choice.off,
+      rule: choice.rule,
+      blurb: choice.blurb,
+    };
+  }, [offer, bundleKey]);
+  const size = Math.max(2, Number(activeBundle.size) || selected.length || 3);
+  const discountPercent = Number(activeBundle.discountPercent) || 65;
+  const pickBundle = (key) => {
+    const next = (offer?.bundles || []).find((b) => b.key === key);
+    const fallback = MINDSPARK_BUNDLE_CHOICES.find((b) => b.key === key);
+    const n = Math.max(2, Number(next?.size) || Number(fallback?.size) || 3);
+    setBundleKey(key);
+    setSelected(Array.from({ length: n }, () => ''));
+    setForms(Array.from({ length: n }, () => ({})));
+    setFormIndex(0);
+    setQuote(null);
+    setError('');
+    if (!embedded) {
+      const path = mindsparkBundlePath(key, { desk });
+      const current = `${window.location.pathname}${window.location.search}`;
+      if (current !== path) navigate(path, { replace: true });
+    }
+  };
+  const appliedBundleKey = useRef('');
+  useEffect(() => {
+    if (!initialBundleKey || appliedBundleKey.current === initialBundleKey) return;
+    appliedBundleKey.current = initialBundleKey;
+    pickBundle(initialBundleKey);
+  }, [initialBundleKey, offer]);
   const items = useMemo(() => selected.map((competitionId, i) => ({
     competitionId,
     feeTierId: forms[i].feeTierId || '',
@@ -166,7 +250,14 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     && customer.phone.replace(/\D/g, '').length === 10
     && customer.phone.replace(/\D/g, '').slice(-10) !== '9999999999'
     && EMAIL_RE.test(customer.email.trim());
-  const selectionValid = selected.every(Boolean) && new Set(selected).size === 3;
+  const selectionValid = selected.length === size
+    && selected.every(Boolean)
+    && new Set(selected).size === size
+    && (activeBundle.rule !== 'both_tech' || comps.every((c) => c?.group === 'technical'))
+    && (activeBundle.rule !== 'one_each' || (
+      comps.filter((c) => c?.group === 'technical').length === 1
+      && comps.filter((c) => c?.group === 'non_technical').length === 1
+    ));
   const formsValid = selectionValid && comps.every((c, i) => {
     const members = normalizeMembers(forms[i].members || forms[i].memberNames);
     const min = Math.max(1, Number(c?.teamSizeMin) || 1);
@@ -190,7 +281,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     if (!detailsValid || !formsValid) { setQuote(null); return undefined; }
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      quoteMindSparkBundle(items)
+      quoteMindSparkBundle({ bundleKey: activeBundle.key, items })
         .then((data) => {
           if (!cancelled) { setQuote(data); setError(''); }
         })
@@ -202,15 +293,23 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [detailsValid, formsValid, items]);
+  }, [detailsValid, formsValid, items, activeBundle.key]);
 
   const setForm = (i, field, value) => setForms(all => all.map((form, index) => index === i ? { ...form, [field]: value } : form));
   const goNext = () => {
     setError('');
-    if (step === 1 && !desk && !isAuthenticated) { setShowLogin(true); return; }
-    if (step === 1 && !detailsValid) return setError('Enter the team leader’s name, 10-digit WhatsApp number, and valid email.');
-    if (step === 2 && !selectionValid) return setError('Select any 3 different competitions from the bundle list.');
-    if (step === 2) setForms(all => all.map((form, i) => {
+    if (step === 1) {
+      setStep(2);
+      return;
+    }
+    if (step === 2 && !desk && !isAuthenticated) { setShowLogin(true); return; }
+    if (step === 2 && !detailsValid) return setError('Enter the team leader’s name, 10-digit WhatsApp number, and valid email.');
+    if (step === 3 && !selectionValid) {
+      if (activeBundle.rule === 'both_tech') return setError('Pick 2 different tech events.');
+      if (activeBundle.rule === 'one_each') return setError('Pick 1 tech event and 1 non-tech event.');
+      return setError('Pick 3 different events.');
+    }
+    if (step === 3) setForms(all => all.map((form, i) => {
       const min = Math.max(1, Number(comps[i]?.teamSizeMin) || 1);
       const existing = normalizeMembers(form.members || form.memberNames);
       if (!existing.length) {
@@ -224,20 +323,20 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
       while (existing.length < min) existing.push(emptyMember());
       return { ...form, members: existing.slice(0, Math.max(min, existing.length)), memberNames: undefined };
     }));
-    if (step === 3 && !currentFormValid) {
+    if (step === 4 && !currentFormValid) {
       const field = getSubcategoryField(comps[formIndex]);
       if (field && !subcategoryComplete(comps[formIndex], forms[formIndex])) {
-        return setError(`Select a subcategory for ${comps[formIndex]?.name || 'this competition'}.`);
+        return setError(`Select a subcategory for ${comps[formIndex]?.name || 'this event'}.`);
       }
       return setError('Every participant needs a full name and a valid email.');
     }
-    if (step === 3 && formIndex < 2) { setFormIndex(index => index + 1); return; }
-    if (step === 3 && !formsValid) return setError('Complete the required participant details for every competition.');
-    setStep(current => Math.min(4, current + 1));
+    if (step === 4 && formIndex < size - 1) { setFormIndex(index => index + 1); return; }
+    if (step === 4 && !formsValid) return setError('Add the people for every event before paying.');
+    setStep(current => Math.min(5, current + 1));
   };
   const goBack = () => {
     setError('');
-    if (step === 3 && formIndex > 0) { setFormIndex(index => index - 1); return; }
+    if (step === 4 && formIndex > 0) { setFormIndex(index => index - 1); return; }
     if (step > 1) { setStep(current => current - 1); return; }
     if (onClose) onClose();
     else navigate(-1);
@@ -246,7 +345,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     if (!desk && !apiUtils.isAuthenticated()) return navigate(`/login?redirect=${encodeURIComponent('/mindspark/bundle')}`);
     setBusy(true); setError('');
     try {
-      let result = await createMindSparkBundle({ festId: offer.festId, submissionKey: submissionKey.current, customer, items }, desk);
+      let result = await createMindSparkBundle({ festId: offer.festId, submissionKey: submissionKey.current, customer, items, bundleKey: activeBundle.key }, desk);
       if (desk) {
         const paymentToken = String(result.paymentUrl || '')
           .split('/bundle-pay/')[1]
@@ -301,23 +400,15 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   const titleCls = isDark ? 'text-white' : 'text-gray-900';
   const muted = isDark ? 'text-gray-400' : 'text-gray-500';
 
-  if (!offer) {
-    return (
-      <main className={`${pageClass} grid place-items-center`}>
-        <Loader className="animate-spin text-[#0ECCEE]" />
-      </main>
-    );
-  }
-
   if (desk && deskPay) {
     const paid = deskPay.status === 'paid';
-    const deskFestId = offer.festId || '6a7f1010ed26d983b34e55c2';
+    const deskFestId = offer?.festId || '6a7f1010ed26d983b34e55c2';
     const deskContent = (
       <div className="mx-auto w-full max-w-lg px-4 py-6 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-[#0ECCEE]">Fest Day Desk · Bundle</p>
-            <h1 className={`text-xl font-bold mt-1 ${titleCls}`}>Any 3 · {discountPercent}% off</h1>
+            <h1 className={`text-xl font-bold mt-1 ${titleCls}`}>{activeBundle.name} · {discountPercent}% off</h1>
           </div>
           <Link
             to={`/fest-organizer/fests/${deskFestId}/fest-day-desk`}
@@ -331,7 +422,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
             ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
             : 'border-amber-400/30 bg-amber-500/10 text-amber-100'
         }`}>
-          {paid ? 'PAID — tickets issued · confirmation emails sent' : 'PAYMENT QR — not for gate entry'}
+          {paid ? 'SUCCESSFUL — registrations done' : 'DRAFT · payment QR'}
         </div>
         <div className="rounded-3xl bg-white p-4 flex items-center justify-center min-h-[300px]">
           {paid ? (
@@ -346,10 +437,8 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
           <p className={`text-3xl font-bold ${titleCls}`}>₹{Number(deskPay.amount || 0).toLocaleString('en-IN')}</p>
           <p className={paid ? 'text-sm text-emerald-300' : 'text-sm text-amber-300'}>
             {paid
-              ? 'Bundle confirmed'
-              : deskPay.status === 'confirming' || deskPay.status === 'paid_review'
-                ? 'Payment confirming…'
-                : 'Student scans this QR and pays on their phone'}
+              ? 'Successful · each event now has its registration'
+              : 'Draft · student scans this QR and pays on their phone'}
           </p>
           <p className={`font-mono text-xs ${muted}`}>{deskPay.orderId}</p>
         </div>
@@ -395,7 +484,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   };
   const activeMin = Math.max(1, Number(activeCompetition?.teamSizeMin) || 1);
   const activeMax = Math.max(activeMin, Number(activeCompetition?.teamSizeMax) || activeMin);
-  const needsLogin = step === 1 && !desk && !isAuthenticated;
+  const needsLogin = step === 2 && !desk && !isAuthenticated;
   const labelCls = `block text-sm font-medium mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`;
 
   const content = (
@@ -410,9 +499,9 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold leading-tight ${titleCls}`}>
-            MindSpark bundle
+            MindSpark bundles
           </h1>
-          <p className={`text-sm mt-0.5 ${muted}`}>Any 3 from the list · {discountPercent}% off</p>
+          <p className={`text-sm mt-0.5 ${muted}`}>{activeBundle.name} · {activeBundle.blurb} · {discountPercent}% off</p>
         </div>
         <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
           {discountPercent}% OFF
@@ -422,23 +511,14 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
       <div className={`rounded-2xl p-4 sm:p-6 md:p-8 border transition-all duration-300 ${
         isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'
       }`}>
-        <div className={`rounded-lg p-4 mb-5 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <h3 className={`text-sm font-semibold ${titleCls}`}>Progress</h3>
-            <span className={`text-xs ${muted}`}>
-              {STEPS[step - 1]}
-              {step === 3 ? ` · ${formIndex + 1}/3` : ''}
-              {' · '}
-              Step {step} of {STEPS.length}
-            </span>
-          </div>
-          <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+        <div className="mb-5">
+          <div className={`w-full rounded-full h-1.5 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
             <div
-              className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((step - 1 + (step === 3 ? (formIndex + 1) / 3 : 0)) / STEPS.length) * 100}%` }}
+              className="bg-[#0ECCEE] h-1.5 rounded-full transition-all duration-300"
+              style={{ width: `${((step - 1 + (step === 4 ? (formIndex + 1) / size : 0)) / STEPS.length) * 100}%` }}
             />
           </div>
-          <div className="flex justify-between gap-2 overflow-x-auto pb-1">
+          <div className="flex justify-between gap-1">
             {STEPS.map((label, i) => {
               const n = i + 1;
               const done = n < step;
@@ -454,7 +534,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                   }`}>
                     {done ? '✓' : n}
                   </div>
-                  <span className={`text-xs mt-1 text-center max-w-24 truncate ${muted}`}>{label}</span>
+                  <span className={`text-[11px] mt-1 text-center ${current ? titleCls : muted}`}>{label}</span>
                 </div>
               );
             })}
@@ -463,12 +543,26 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
 
         <div key={`${step}-${formIndex}`} className="space-y-4 animate-detail-enter">
           {step === 1 ? (
+            <div className="space-y-3">
+              <MindSparkBundleChoices
+                isDark={isDark}
+                selectedKey={bundleKey}
+                onPick={pickBundle}
+                title=""
+                subtitle=""
+              />
+              <p className={`rounded-xl px-3 py-3 text-sm leading-relaxed ${isDark ? 'bg-[#111213] text-gray-300' : 'bg-gray-50 text-gray-700'}`}>
+                {MINDSPARK_BUNDLE_CHOICES.find((bundle) => bundle.key === bundleKey)?.guide}
+              </p>
+            </div>
+          ) : null}
+
+          {step === 2 ? (
             <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-              <h3 className={`text-xs font-bold uppercase tracking-widest mb-1 ${muted}`}>Your details</h3>
-              <p className={`text-sm mb-4 ${muted}`}>Team leader contact — used for all 3 registrations.</p>
-              <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
+              <h3 className={`text-sm font-bold mb-1 ${titleCls}`}>Team leader</h3>
+              <p className={`text-sm mb-4 ${muted}`}>This contact is used for every event in the bundle.</p>
               {needsLogin ? (
-                <p className={`text-sm ${muted}`}>Sign in with Google to fill the form and continue.</p>
+                <p className={`text-sm ${muted}`}>Sign in with Google, then add the team leader.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                   <div className="md:col-span-2">
@@ -488,23 +582,46 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
             </div>
           ) : null}
 
-          {step === 2 ? (
+          {step === 3 ? (
+            offerStatus !== 'ready' ? (
+              <p className={`py-8 text-center text-sm font-semibold ${titleCls}`}>Loading events</p>
+            ) : (
             <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-              <div className="flex items-end justify-between gap-3 mb-1">
-                <h3 className={`text-xs font-bold uppercase tracking-widest ${muted}`}>Choose 3 competitions</h3>
-                <span className="text-xs font-bold text-[#0ECCEE]">{selected.filter(Boolean).length}/3</span>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h3 className={`text-sm font-bold ${titleCls}`}>Choose events</h3>
+                  <p className={`text-sm mt-0.5 ${muted}`}>{MINDSPARK_BUNDLE_CHOICES.find((bundle) => bundle.key === bundleKey)?.guide}</p>
+                </div>
+                <button type="button" onClick={() => setStep(1)} className="shrink-0 text-xs font-bold text-[#0ECCEE]">
+                  Change bundle
+                </button>
               </div>
-              <p className={`text-sm mb-4 ${muted}`}>Pick any 3 different competitions from the approved list.</p>
-              <div className={`border-b mb-4 ${isDark ? 'border-gray-700/70' : 'border-gray-200'}`} />
               <div className="space-y-4">
-                {[0, 1, 2].map(i => {
-                  const list = offer.competitions || offer.technical || [];
+                {selected.map((_, i) => {
+                  const slotList = eventsForSlot(activeBundle, offer, i);
+                  const techEvents = slotList.filter((event) => event.group !== 'non_technical');
+                  const nonTechEvents = slotList.filter((event) => event.group === 'non_technical');
+                  const grouped = activeBundle.rule === 'any' && nonTechEvents.length > 0;
+                  const slotLabel = activeBundle.rule === 'one_each'
+                    ? (i === 0 ? 'Tech event' : 'Non-tech event')
+                    : activeBundle.rule === 'both_tech'
+                      ? `Tech event ${i + 1}`
+                      : `Event ${i + 1}`;
+                  const renderOption = (event) => (
+                    <option
+                      key={event._id}
+                      value={event._id}
+                      disabled={selected.some((id, index) => index !== i && String(id) === String(event._id))}
+                    >
+                      {eventOptionLabel(event)}
+                    </option>
+                  );
                   return (
-                    <label key={i} className="block">
-                      <span className={labelCls}>Competition {i + 1} <span className="text-red-400">*</span></span>
+                    <label key={`${activeBundle.key}-${i}`} className="block">
+                      <span className={labelCls}>{slotLabel} <span className="text-red-400">*</span></span>
                       <select
-                        aria-label={`Select competition ${i + 1}`}
-                        value={selected[i]}
+                        aria-label={`Select ${slotLabel}`}
+                        value={selected[i] || ''}
                         onChange={(e) => {
                           const nextId = e.target.value;
                           setSelected((all) => all.map((id, index) => (index === i ? nextId : id)));
@@ -514,21 +631,28 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                         }}
                         className={inputCls}
                       >
-                        <option value="">Select competition</option>
-                        {list.map(c => (
-                          <option key={c._id} value={c._id} disabled={selected.some((id, index) => index !== i && id === c._id)}>
-                            {c.name} · {c.registrationFee}
-                          </option>
-                        ))}
+                        <option value="">Select event</option>
+                        {grouped ? (
+                          <>
+                            <optgroup label={`Tech · ${techEvents.length}`}>
+                              {techEvents.map(renderOption)}
+                            </optgroup>
+                            <optgroup label={`Non-tech · ${nonTechEvents.length}`}>
+                              {nonTechEvents.map(renderOption)}
+                            </optgroup>
+                          </>
+                        ) : slotList.map(renderOption)}
                       </select>
                     </label>
                   );
                 })}
               </div>
+              <p className={`text-xs mt-3 ${muted}`}>{selected.filter(Boolean).length} of {size} picked</p>
             </div>
+            )
           ) : null}
 
-          {step === 3 && activeCompetition ? (
+          {step === 4 && activeCompetition ? (
             <div>
               <div className="mb-4 flex gap-2">
                 {comps.map((competition, index) => (
@@ -547,7 +671,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                 ))}
               </div>
               <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-                <p className="text-xs font-bold uppercase tracking-widest text-[#0ECCEE]">Competition {formIndex + 1} of 3</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-[#0ECCEE]">Event {formIndex + 1} of {size}</p>
                 <h2 className={`mt-1 text-lg font-bold ${titleCls}`}>{activeCompetition.name}</h2>
                 <p className={`mt-1 text-xs mb-4 ${muted}`}>
                   {activeMin === activeMax ? `${activeMin} participant${activeMin > 1 ? 's' : ''} required` : `${activeMin}–${activeMax} participants allowed`}
@@ -652,11 +776,11 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
             </div>
           ) : null}
 
-          {step === 4 ? (
+          {step === 5 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className={`text-xs font-bold uppercase tracking-widest ${muted}`}>Review and pay</h3>
-                <button type="button" onClick={() => { setFormIndex(0); setStep(2); }} className="text-sm font-semibold text-[#0ECCEE]">Edit</button>
+                <button type="button" onClick={() => { setFormIndex(0); setStep(3); }} className="text-sm font-semibold text-[#0ECCEE]">Edit events</button>
               </div>
               <div className={`overflow-hidden rounded-xl border ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
                 {comps.map((c, i) => {
@@ -705,7 +829,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                     <Loader size={16} className="animate-spin" />Calculating price…
                   </div>
                 )}
-                <p className={`mt-2 text-center text-[11px] ${muted}`}>One secure payment for all 3 registrations</p>
+                <p className={`mt-2 text-center text-[11px] ${muted}`}>One secure payment for all {size} registrations</p>
               </div>
             </div>
           ) : null}
@@ -717,7 +841,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
           </div>
         ) : null}
 
-        {step < 4 ? (
+        {step < 5 ? (
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 pb-2">
             <button
               type="button"
@@ -731,7 +855,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
               onClick={needsLogin ? () => setShowLogin(true) : goNext}
               className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10"
             >
-              {needsLogin ? 'Continue with Google' : step === 3 && formIndex >= 2 ? 'Review and pay' : 'Next Step'}
+              {needsLogin ? 'Continue with Google' : step === 1 ? 'Continue' : step === 4 && formIndex >= size - 1 ? 'Review and pay' : 'Next'}
             </button>
           </div>
         ) : (

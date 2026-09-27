@@ -74,6 +74,8 @@ async function deliverMindSparkBundleConfirmationEmail(bundle, user, { resend = 
     bundleId: String(bundle._id),
     paymentToken: bundle.paymentToken,
     items: await buildMindSparkBundleConfirmationItems(bundle),
+    bundleName: bundle.bundleName || '',
+    discountPercent: Number(bundle.discountPercent) || 0,
     resend,
     userId: user?._id || user?.id,
     fest,
@@ -100,7 +102,7 @@ async function sendBundleWhatsAppOnce(bundleId) {
     user: claimed.user,
     responses: firstTicket.roster,
     name: claimed.user?.name || firstTicket.roster?.full_name,
-    eventName: `${fest?.festName || 'MindSpark'} bundle`,
+    eventName: `${fest?.festName || 'MindSpark'} · ${claimed.bundleName || 'bundle'}`,
     bookingId: firstTicket.registrationId,
     date: fest?.festDate || fest?.startDate || '',
     amount: claimed.totalAmount,
@@ -231,6 +233,8 @@ async function fulfillMindSparkBundle(paymentOrder) {
                 bundle_payment_order_id: paymentOrder.orderId,
                 bundle_original_amount: item.originalAmount,
                 bundle_discount_percent: Number(lockedBundle.discountPercent) || 65,
+                mindspark_bundle_key: lockedBundle.bundleKey || 'hat_trick',
+                mindspark_bundle_name: lockedBundle.bundleName || '',
               },
               status: 'approved',
               payment_order_id: derivedOrderId,
@@ -250,7 +254,9 @@ async function fulfillMindSparkBundle(paymentOrder) {
         item.registrationId = registration._id;
         item.allocatedPaidAmount = allocations[i];
       }
-      if (registrations.length !== 3) throw new Error('Bundle did not produce exactly three registrations');
+      if (registrations.length !== lockedBundle.items.length) {
+        throw new Error('Bundle did not produce a registration for every selected event');
+      }
       lockedBundle.status = 'paid';
       lockedBundle.fulfillmentState = 'complete';
       lockedBundle.fulfillmentStartedAt = null;

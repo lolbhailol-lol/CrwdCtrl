@@ -537,7 +537,7 @@ export default function MindSparkPaymentsPage() {
           <StatCard
             label="MindSpark payments"
             value={viewTotals.successfulPayments || 0}
-            hint="Cashfree success"
+            hint="Cashfree and Razorpay"
           />
           <StatCard
             label="Still to clear"

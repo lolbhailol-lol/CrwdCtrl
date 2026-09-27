@@ -16,11 +16,14 @@ export default function MindSparkBundlePaymentPage() {
   const pay = async () => { setBusy(true); setError(''); try { const result = await openCheckout(data); if (!result?.redirectDeferred) setData(await verifyCheckout(data, result)); } catch (e) { setError(e.message); } finally { setBusy(false); } };
   const retry = async () => { setBusy(true); setError(''); try { const next = await reissueMindSparkBundlePayment(token); setData(next); if (!next.orderId || (next.gateway !== 'razorpay' && !next.paymentSessionId)) throw new Error('Could not prepare the payment. Please tap Retry payment again.'); const result = await openCheckout(next); if (!result?.redirectDeferred) setData(await verifyCheckout(next, result)); } catch(e) { setError(e.message); } finally { setBusy(false); } };
   const discountPercent = Number(data?.discountPercent) || 65;
+  const basketName = data?.bundleName
+    || (data?.bundleKey === 'tech_duo' ? 'Tech duo basket' : data?.bundleKey === 'dynamic_duo' ? 'Dynamic duo basket' : 'Hat-Trick basket');
+  const eventCount = Number(data?.eventCount) || data?.tickets?.length || (data?.bundleKey === 'tech_duo' || data?.bundleKey === 'dynamic_duo' ? 2 : 3);
   return (
     <main className="min-h-dvh bg-[#090b0d] text-white grid place-items-center p-4">
       <section className="w-full max-w-lg rounded-3xl border border-cyan-400/20 bg-[#151719] p-6 space-y-5 text-center">
         <p className="text-xs uppercase tracking-[.2em] text-[#0ECCEE]">MindSpark bundle</p>
-        <h1 className="text-2xl font-bold">Any 3 competitions</h1>
+        <h1 className="text-2xl font-bold">{data ? basketName : 'MindSpark bundle'}</h1>
         {busy && !data ? <Loader className="animate-spin mx-auto" /> : null}
         {data ? (
           <>
@@ -32,7 +35,7 @@ export default function MindSparkBundlePaymentPage() {
             {data.status === 'paid' ? (
               <div className="space-y-3">
                 <CheckCircle2 size={48} className="text-emerald-400 mx-auto" />
-                <p className="font-semibold">Payment confirmed · 3 tickets issued</p>
+                <p className="font-semibold">Payment confirmed · {eventCount} tickets issued</p>
                 {data.tickets.map(t => (
                   <div className="rounded-xl border border-white/10 p-3 space-y-2" key={t.registrationId}>
                     <a className="block font-semibold text-[#0ECCEE]" href={t.ticketUrl}>

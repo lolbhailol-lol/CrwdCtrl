@@ -134,3 +134,63 @@ test('scaleCompetitionSettlementToTotals matches locked gross and revenue', () =
   assert.equal(Math.round(sumR * 100) / 100, 435303);
   assert.equal(comps[2].grossCollected, 0);
 });
+
+test('MindSpark totals keep each competition’s real payments and add new Razorpay there', () => {
+  const { applyMindSparkCollectedTotals } = require('../src/utils/cashfreeGatewayFee');
+  const comps = [
+    { id: 'a', name: 'A' },
+    { id: 'b', name: 'B' },
+  ];
+  const regs = [
+    { competitionId: 'a', amountPaid: 400, payment_gateway: 'cashfree' },
+    { competitionId: 'b', amountPaid: 200, payment_gateway: 'cashfree' },
+    { competitionId: 'a', amountPaid: 140, payment_gateway: 'razorpay_bundle' },
+  ];
+  const applied = applyMindSparkCollectedTotals(comps, regs, {
+    cashfreeLockGross: 1000,
+    cashfreeLockRevenue: 984,
+    razorpayPaidGross: 100,
+    razorpayPaidRevenue: 98.4,
+    gatewayFeeRate: 0.016,
+    additionalDeduction: 0,
+  });
+  assert.equal(comps[0].grossCollected, 540);
+  assert.equal(comps[0].revenue, 531.36);
+  assert.equal(comps[1].grossCollected, 200);
+  assert.equal(comps[1].revenue, 196.8);
+  assert.equal(applied.grossCollected, 1140);
+  assert.equal(applied.revenue, 1121.76);
+  assert.equal(applied.earlierClearGross, 400);
+  assert.equal(applied.earlierClearRevenue, 393.6);
+});
+
+test('locked Cashfree 435303 stays put while live Razorpay above 9314 increases revenue', () => {
+  const { mindSparkLockedTotals } = require('../src/utils/cashfreeGatewayFee');
+  const override = {
+    cashfreeLockGross: 442381,
+    cashfreeLockRevenue: 435303,
+    razorpayPaidGross: 9314,
+    razorpayPaidRevenue: 9165,
+    gatewayFeeRate: 0.016,
+  };
+  const held = mindSparkLockedTotals({
+    cashfreeGross: 380000,
+    cashfreeRevenue: 373920,
+    razorpayGross: 9314,
+    override,
+  });
+  assert.equal(held.grossCollected, 451695);
+  assert.equal(held.revenue, 444468);
+  assert.equal(held.razorpayPaidGross, 9314);
+
+  const grown = mindSparkLockedTotals({
+    cashfreeGross: 380000,
+    cashfreeRevenue: 373920,
+    razorpayGross: 10314,
+    override,
+  });
+  assert.equal(grown.grossCollected, 452695);
+  assert.equal(grown.revenue, 445451.98);
+  assert.equal(grown.razorpayPaidGross, 10314);
+  assert.equal(grown.cashfreeRevenue, 435303);
+});

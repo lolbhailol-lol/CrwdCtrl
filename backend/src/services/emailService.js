@@ -2005,12 +2005,18 @@ async function sendMindSparkBundleConfirmationEmail({
     bundleId,
     paymentToken,
     items = [],
+    bundleName = '',
     resend = false,
     stallCoupon = null,
     userId = null,
     fest = null,
 }) {
-    if (!email || items.length !== 3) throw new Error('A bundle confirmation requires an email and three registrations');
+    if (!email || (items.length !== 2 && items.length !== 3)) {
+        throw new Error('A bundle confirmation requires an email and two or three registrations');
+    }
+    const count = items.length;
+    const basket = String(bundleName || '').trim() || (count === 3 ? 'Hat-Trick basket' : 'MindSpark bundle');
+    const ticketWord = count === 1 ? 'ticket' : 'tickets';
     const frontend = String(process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '');
     const rows = items.map((item, index) => {
         const roster = Array.isArray(item.roster?.team_members) ? item.roster.team_members : [];
@@ -2030,12 +2036,12 @@ async function sendMindSparkBundleConfirmationEmail({
     }).join('');
     const statusUrl = `${frontend}/mindspark/bundle-pay/${encodeURIComponent(paymentToken)}`;
     const intro = resend
-        ? `<p style="margin:0 0 12px;">Hi ${escapeHtml(name || 'there')}, here are your three MindSpark tickets again, <strong>including WhatsApp group links</strong> for each competition.</p>`
-        : `<p style="margin:0 0 12px;">Hi ${escapeHtml(name || 'there')}, your payment is verified and all three registrations are ready.</p>`;
-    const title = resend ? 'MindSpark bundle — WhatsApp links' : 'MindSpark bundle confirmed';
+        ? `<p style="margin:0 0 12px;">Hi ${escapeHtml(name || 'there')}, here are your ${count} MindSpark tickets again, <strong>including WhatsApp group links</strong> for each competition.</p>`
+        : `<p style="margin:0 0 12px;">Hi ${escapeHtml(name || 'there')}, your ${escapeHtml(basket)} payment is verified and all ${count} registrations are ready.</p>`;
+    const title = resend ? `${basket} — WhatsApp links` : `${basket} confirmed`;
     const subject = resend
-        ? 'MindSpark bundle — WhatsApp groups for your 3 competitions'
-        : '✅ MindSpark bundle confirmed — 3 competition tickets';
+        ? `MindSpark ${basket} — WhatsApp groups for your ${count} competitions`
+        : `✅ MindSpark ${basket} confirmed — ${count} competition ${ticketWord}`;
 
     let coupon = stallCoupon;
     if (!coupon?.brand && (fest || userId)) {
@@ -2055,10 +2061,10 @@ async function sendMindSparkBundleConfirmationEmail({
         html: buildEmailShell({
             preheader: coupon?.brand
                 ? `MindSpark bundle confirmed — plus ${coupon.discountPercent || 20}% off at ${coupon.brand}`
-                : 'MindSpark bundle confirmed — your 3 competition tickets',
+                : `MindSpark ${basket} confirmed — your ${count} competition ${ticketWord}`,
             eyebrow: 'MindSpark',
             title,
-            subtitle: '3 competitions · tickets ready',
+            subtitle: `${basket} · ${count} competitions · tickets ready`,
             bodyHtml: `
                 ${intro}
                 ${rows}

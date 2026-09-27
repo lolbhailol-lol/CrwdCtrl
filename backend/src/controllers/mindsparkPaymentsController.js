@@ -5,6 +5,7 @@ const FestOrganizerAccount = require('../model/fest_organizer_account_model');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { normalizeUsername, organizerCanAccessFest, getOrganizerFests } = require('../utils/festOrganizerAccess');
 const { MINDSPARK_FEST_ID, mindsparkPlugin } = require('../modules/fest/plugins/mindspark');
+const { mindSparkLockedTotals, round2 } = require('../utils/cashfreeGatewayFee');
 const { syncSettlements, autoSyncDashboardSettlements } = require('../services/cashfreeSettlementSync');
 const { getPaymentSummary, getPaymentHistory, exportPaymentCsv } = require('../services/paymentSettlementService');
 const PaymentOrder = require('../model/payment_order_model');
@@ -18,7 +19,7 @@ function actorLabel(req) {
     return req.organizer?.username || 'mindspark-payments';
 }
 
-function scopeSummaryToMindspark(summary) {
+function scopeSummaryToMindspark(summary, razorpayActivity = null) {
     const buckets = (summary.buckets || []).filter((b) => b.id === BUCKET);
     const override = mindsparkPlugin.settlementOverride;
     let liveGross = 0;
@@ -26,28 +27,27 @@ function scopeSummaryToMindspark(summary) {
     if (buckets[0] && override) {
         liveGross = Number(buckets[0].gross) || 0;
         livePayable = Number(buckets[0].organizerPayable) || 0;
-        const floorGross = Number(override.grossCollected) || 0;
         const feeRate = Number(override.gatewayFeeRate || 0);
         const extra = Number(override.additionalDeduction) || 0;
-        const floorPayable = override.revenue != null
-            ? Number(override.revenue) || 0
-            : Math.round((floorGross - Math.round(floorGross * feeRate * 100) / 100 - extra) * 100) / 100;
-        const mode = String(override.mode || 'lock').toLowerCase();
-
-        let gross = floorGross;
-        let organizerPayable = floorPayable;
-        if (mode === 'floor_plus_live') {
-            const baseLiveGross = Number(override.liveBaselineGross) || 0;
-            const baseLiveRevenue = Number(override.liveBaselineRevenue) || 0;
-            gross = Math.round((floorGross + Math.max(0, liveGross - baseLiveGross)) * 100) / 100;
-            organizerPayable = Math.round((floorPayable + Math.max(0, livePayable - baseLiveRevenue)) * 100) / 100;
-        } else if (mode === 'floor') {
-            if (liveGross >= floorGross && livePayable >= floorPayable) {
-                gross = liveGross;
-                organizerPayable = livePayable;
-            }
-        }
-        const fee = Math.round(gross * feeRate * 100) / 100;
+        const razorpayOrders = round2(Number(razorpayActivity?.totalCollected) || 0);
+        const razorpayNet = round2(razorpayOrders * (1 - feeRate));
+        const cashfreeLiveGross = razorpayOrders > 0 && liveGross + 0.01 >= razorpayOrders
+            ? round2(Math.max(0, liveGross - razorpayOrders))
+            : 0;
+        const cashfreeLiveRevenue = razorpayOrders > 0 && liveGross + 0.01 >= razorpayOrders
+            ? round2(Math.max(0, livePayable - razorpayNet))
+            : 0;
+        const locked = mindSparkLockedTotals({
+            cashfreeGross: cashfreeLiveGross,
+            cashfreeRevenue: cashfreeLiveRevenue,
+            razorpayGross: razorpayOrders,
+            override,
+        });
+        const gross = locked.grossCollected;
+        const organizerPayable = locked.revenue;
+        buckets[0].razorpayPaidGross = locked.razorpayPaidGross;
+        buckets[0].razorpayPaidRevenue = locked.razorpayPaidRevenue;
+        const fee = locked.gatewayFees;
         buckets[0] = {
             ...buckets[0],
             gross,
@@ -84,10 +84,10 @@ function scopeSummaryToMindspark(summary) {
             // Actual live confirmed paid (Cashfree SUCCESS/PENDING/SETTLED + Razorpay)
             actualPaidGross: liveGross || ms.liveGross || 0,
             actualPaidRevenue: livePayable || ms.liveOrganizerPayable || 0,
-            cashfreeLockGross: 442381,
-            cashfreeLockRevenue: 435303,
-            razorpayPaidGross: 9314,
-            razorpayPaidRevenue: 9165,
+            cashfreeLockGross: override?.cashfreeLockGross || 442381,
+            cashfreeLockRevenue: override?.cashfreeLockRevenue || 435303,
+            razorpayPaidGross: ms.razorpayPaidGross || override?.razorpayPaidGross || 0,
+            razorpayPaidRevenue: ms.razorpayPaidRevenue || override?.razorpayPaidRevenue || 0,
         },
         schedule: {
             ...schedule,
@@ -102,14 +102,9 @@ function scopeSummaryToMindspark(summary) {
 async function getRazorpayMindSparkActivity() {
     const [competitions, bundles] = await Promise.all([
         Competition.find({ fest: MINDSPARK_FEST_ID }).select('_id name').lean(),
-        MindSparkBundle.find({ fest: MINDSPARK_FEST_ID }).select('_id activeOrderId').lean(),
+        MindSparkBundle.find({ fest: MINDSPARK_FEST_ID }).select('_id').lean(),
     ]);
     const competitionNameById = new Map(competitions.map((row) => [String(row._id), row.name]));
-    const activeBundleOrderId = new Map(
-        bundles
-            .filter((row) => row.activeOrderId)
-            .map((row) => [String(row._id), String(row.activeOrderId)]),
-    );
     const orders = await PaymentOrder.find({
         gateway: 'razorpay',
         status: 'PAID',
@@ -136,14 +131,6 @@ async function getRazorpayMindSparkActivity() {
             skippedExtra += 1;
             continue;
         }
-        if (order.entityType === 'competition_bundle') {
-            const activeId = activeBundleOrderId.get(String(order.entityId));
-            // Prefer the bundle's active order only — older PAID QRs after reissue are extras.
-            if (activeId && orderId !== activeId) {
-                skippedExtra += 1;
-                continue;
-            }
-        }
         if (orderId && seenOrderIds.has(orderId)) {
             skippedExtra += 1;
             continue;
@@ -160,7 +147,7 @@ async function getRazorpayMindSparkActivity() {
             gateway: 'razorpay',
             status: 'paid',
             eventName: order.entityType === 'competition_bundle'
-                ? 'MindSpark Bundle'
+                ? (order.orderTags?.bundleName || 'MindSpark bundle')
                 : competitionNameById.get(String(order.entityId))
                     || order.orderTags?.competitionName
                     || order.orderTags?.festName
@@ -177,6 +164,8 @@ async function getRazorpayMindSparkActivity() {
         rows,
     };
 }
+
+exports.getRazorpayMindSparkActivity = getRazorpayMindSparkActivity;
 
 exports.login = async (req, res) => {
     try {
@@ -276,7 +265,7 @@ exports.getSummary = async (req, res) => {
             getPaymentSummary(),
             getRazorpayMindSparkActivity(),
         ]);
-        res.json({ success: true, ...scopeSummaryToMindspark(summary), razorpay });
+        res.json({ success: true, ...scopeSummaryToMindspark(summary, razorpay), razorpay });
     } catch (err) {
         console.error('[mindsparkPayments] summary', err);
         res.status(500).json({ success: false, message: 'Failed to load payment summary' });

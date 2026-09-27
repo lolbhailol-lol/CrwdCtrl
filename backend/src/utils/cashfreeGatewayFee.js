@@ -146,6 +146,102 @@ function scaleCompetitionSettlementToTotals(competitionStats = [], targets = {})
   return competitionStats;
 }
 
+/**
+ * Fest total = Cashfree, never below the merchant lock, plus live Razorpay,
+ * never below the known snapshot.
+ */
+function mindSparkLockedTotals({
+  cashfreeGross = 0,
+  cashfreeRevenue = 0,
+  razorpayGross = 0,
+  override = {},
+} = {}) {
+  const feeRate = Number(override.gatewayFeeRate ?? CASHFREE_GATEWAY_FEE_RATE);
+  const cfLockGross = round2(Number(override.cashfreeLockGross) || 0);
+  const cfLockRevenue = round2(Number(override.cashfreeLockRevenue) || 0);
+  const rzBaseGross = round2(Number(override.razorpayPaidGross) || 0);
+  const rzBaseRevenue = round2(Number(override.razorpayPaidRevenue) || 0);
+  const cfGross = round2(Math.max(Number(cashfreeGross) || 0, cfLockGross));
+  const cfRevenue = round2(Math.max(Number(cashfreeRevenue) || 0, cfLockRevenue));
+  const rzGross = round2(Math.max(Number(razorpayGross) || 0, rzBaseGross));
+  const rzRevenue = rzGross <= rzBaseGross + 0.009
+    ? rzBaseRevenue
+    : round2(rzGross * (1 - feeRate));
+  const grossCollected = round2(cfGross + rzGross);
+  return {
+    grossCollected,
+    revenue: round2(cfRevenue + rzRevenue),
+    gatewayFees: round2(grossCollected * feeRate),
+    razorpayPaidGross: rzGross,
+    razorpayPaidRevenue: rzRevenue,
+    cashfreeGross: cfGross,
+    cashfreeRevenue: cfRevenue,
+  };
+}
+
+/**
+ * Each competition keeps the real Cashfree and Razorpay amounts paid on it,
+ * including bundle splits. The fest total stays at least the Cashfree lock
+ * plus live Razorpay. The gap is returned as earlier clear.
+ */
+function applyMindSparkCollectedTotals(competitionStats = [], settlementRegs = [], override = {}, liveRazorpayOrderGross = null) {
+  const additionalDeduction = Number(override.additionalDeduction) || 0;
+  const isRazorpay = (reg) => String(reg.payment_gateway || '').toLowerCase().includes('razorpay');
+  const cfRegs = settlementRegs.filter((reg) => !isRazorpay(reg));
+  const rzRegs = settlementRegs.filter(isRazorpay);
+  const knownIds = new Set(competitionStats.filter((row) => row.id).map((row) => String(row.id)));
+
+  const matching = (regs, competition) => regs.filter((reg) => {
+    const cid = reg.competitionId ? String(reg.competitionId) : '';
+    if (competition.id) return cid === String(competition.id);
+    return !cid || !knownIds.has(cid);
+  });
+
+  for (const competition of competitionStats) {
+    const cf = summarizeCashfreeSettlement(matching(cfRegs, competition));
+    const rz = summarizeCashfreeSettlement(matching(rzRegs, competition));
+    competition.grossCollected = cf.grossCollected;
+    competition.revenue = cf.revenue;
+    competition._rzGross = rz.grossCollected;
+    competition._rzRevenue = rz.revenue;
+  }
+
+  const cfOverall = summarizeCashfreeSettlement(cfRegs);
+  const rzOverall = summarizeCashfreeSettlement(rzRegs);
+
+  for (const competition of competitionStats) {
+    competition.grossCollected = round2((Number(competition.grossCollected) || 0) + (Number(competition._rzGross) || 0));
+    competition.revenue = round2((Number(competition.revenue) || 0) + (Number(competition._rzRevenue) || 0));
+    delete competition._rzGross;
+    delete competition._rzRevenue;
+  }
+
+  const rzOrderGross = liveRazorpayOrderGross == null
+    ? rzOverall.grossCollected
+    : round2(Number(liveRazorpayOrderGross) || 0);
+  const locked = mindSparkLockedTotals({
+    cashfreeGross: cfOverall.grossCollected,
+    cashfreeRevenue: cfOverall.revenue,
+    razorpayGross: Math.max(rzOverall.grossCollected, rzOrderGross),
+    override,
+  });
+  const grossCollected = locked.grossCollected;
+  const revenue = locked.revenue;
+  const countedGross = round2(competitionStats.reduce((sum, row) => sum + (Number(row.grossCollected) || 0), 0));
+  const countedRevenue = round2(competitionStats.reduce((sum, row) => sum + (Number(row.revenue) || 0), 0));
+
+  return {
+    grossCollected,
+    gatewayFees: locked.gatewayFees,
+    revenue,
+    additionalDeduction,
+    razorpayPaidGross: locked.razorpayPaidGross,
+    razorpayPaidRevenue: locked.razorpayPaidRevenue,
+    earlierClearGross: round2(Math.max(0, grossCollected - countedGross)),
+    earlierClearRevenue: round2(Math.max(0, revenue - countedRevenue)),
+  };
+}
+
 module.exports = {
   CASHFREE_GATEWAY_FEE_RATE,
   round2,
@@ -159,4 +255,6 @@ module.exports = {
   isCashfreeConfirmedRegistration,
   filterCashfreeConfirmedRegs,
   scaleCompetitionSettlementToTotals,
+  applyMindSparkCollectedTotals,
+  mindSparkLockedTotals,
 };

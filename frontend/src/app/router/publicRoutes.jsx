@@ -71,7 +71,7 @@ export const publicRoutes = (
       <Route path="/payment/checkout" element={<PaymentCheckoutPage />} />
       <Route path="/desk-payment/:token" element={<DeskPaymentPage />} />
       {mindsparkRedirects}
-      <Route path="/mindspark/bundle" element={<MindSparkBundlePage />} />
+      <Route path="/mindspark/bundle/:bundleSlug?" element={<MindSparkBundlePage />} />
       <Route path="/mindspark/bundle-pay/:token" element={<MindSparkBundlePaymentPage />} />
       <Route path="/mindspark/auditorium" element={<MindSparkAuditoriumPage />} />
       <Route path="/mindspark/coupon-preview" element={<MindSparkCouponPreviewPage />} />
