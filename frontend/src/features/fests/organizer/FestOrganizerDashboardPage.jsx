@@ -555,9 +555,9 @@ export default function FestOrganizerDashboardPage() {
                         <p className="text-2xl font-bold tabular-nums text-white">
                             {festDayAttendees.toLocaleString('en-IN')}
                         </p>
-                        <p className="text-xs text-sky-200/90 mt-1">Fest Day people</p>
+                        <p className="text-xs text-sky-200/90 mt-1">Overall participants</p>
                         <p className="text-[11px] text-gray-500 mt-1">
-                            Bundles counted once · team members counted
+                            Fest Day · bundles counted once · team members counted
                         </p>
                     </button>
                 ) : null}

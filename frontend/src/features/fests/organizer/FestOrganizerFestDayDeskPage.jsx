@@ -17,13 +17,13 @@ import {
 import {
   fetchFestDayDesk,
   clearExpiredFestDayDeskEntries,
+  deleteFestDayDeskDrafts,
   createFestDayAssistedRegistration,
   refundFestDayDeskOrder,
   refreshFestDayDeskOrder,
 } from "../../../services/api/festOrganizer.api";
 import { verifyDeskPayment } from "../../../services/api/deskPayment.api";
 import { verifyMindSparkBundlePayment } from "../../../services/api/mindsparkBundle.api";
-import { buildBrandedCompetitionQrDataUrl } from "../../../utils/competitionPublicQr";
 import { organizerCompetitionFeeLabel } from "../../../utils/competitionFeeTiers";
 import { useDialog } from "../../../context/DialogContext";
 import { getFestOrganizerSession } from "../../../utils/festOrganizerSession";
@@ -108,9 +108,9 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
     feeTierId: "",
   });
   const [members, setMembers] = useState(() => Array.from({ length: extraMin }, emptyMember));
-  const [qr, setQr] = useState("");
   const [ticketQr, setTicketQr] = useState("");
   const [result, setResult] = useState(null);
+  const [savedQrs, setSavedQrs] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const submissionKey = useRef(crypto.randomUUID());
@@ -167,22 +167,28 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
       setResult(data);
       if (data.status === "paid" && data.ticketQr) {
         setTicketQr(data.ticketQr);
-      } else if (data.paymentUrl) {
-        setQr(await buildBrandedCompetitionQrDataUrl(data.paymentUrl, { size: 900 }));
       }
-      onCreated?.();
+      onCreated?.({
+        ...data,
+        participantName: form.name,
+        competitionName: competition.name,
+        activityType: "single",
+      });
     } catch (err) {
       if (err?.openPayment && err?.paymentUrl) {
-        setResult({
+        const reused = {
           status: "pending",
           amount: err.amount,
           orderId: err.orderId,
           paymentUrl: err.paymentUrl,
-          competitionName: err.competitionName,
+          competitionName: err.competitionName || competition.name,
+          participantName: form.name,
           reused: true,
           openPaymentBlocked: true,
-        });
-        setQr(await buildBrandedCompetitionQrDataUrl(err.paymentUrl, { size: 900 }));
+          activityType: "single",
+        };
+        setResult(reused);
+        onCreated?.(reused);
         setError(err.message || "This person already has an open payment QR");
       } else {
         setError(err.message || "Could not create registration");
@@ -192,8 +198,26 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
     }
   };
 
+  const startNext = () => {
+    if (result?.paymentUrl) {
+      const snapshot = {
+        ...result,
+        participantName: result.participantName || form.name,
+        competitionName: result.competitionName || competition.name,
+      };
+      setSavedQrs((list) => [snapshot, ...list.filter((row) => row.orderId !== snapshot.orderId)].slice(0, 6));
+    }
+    submissionKey.current = crypto.randomUUID();
+    setResult(null);
+    setTicketQr("");
+    setError("");
+    setBusy(false);
+    setForm({ name: "", phone: "", email: "", college: "", teamName: "", feeTierId: "" });
+    setMembers(Array.from({ length: extraMin }, emptyMember));
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 p-3 sm:p-6 flex items-center justify-center">
+    <div className="fixed inset-0 z-[90] bg-black/90 p-3 sm:p-6 flex items-center justify-center">
       <div className="w-full max-w-4xl max-h-[96dvh] overflow-y-auto rounded-3xl border border-white/10 bg-[#121314] p-4 sm:p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
@@ -244,12 +268,8 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
                 </div>
               ) : paid ? (
                 <CheckCircle2 className="text-emerald-600" size={54} />
-              ) : qr ? (
-                <img
-                  src={qr}
-                  alt="Scan to pay"
-                  className="w-full max-w-[520px] aspect-square"
-                />
+              ) : result.paymentUrl ? (
+                <LocalQRCode data={result.paymentUrl} size={360} className="w-full max-w-[420px]" printSafe />
               ) : (
                 <Loader className="animate-spin text-black" />
               )}
@@ -268,24 +288,38 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
                 <p className="text-xs text-gray-400 mt-1">Reg: {result.registrationId}</p>
               ) : null}
             </div>
-            {paid ? (
-              <button type="button" onClick={onClose} className="desk-action w-full">
-                Done — next student
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <button type="button" onClick={onClose} className="desk-action w-full bg-[#0ECCEE]/15 border-[#0ECCEE]/40 text-[#0ECCEE]">
-                  Next student — keep this in Live activity
-                </button>
-                <p className="text-center text-xs text-gray-500">
-                  They can keep paying on their phone. Later tap <span className="text-gray-300">Show pay QR</span> or{" "}
-                  <span className="text-gray-300">Show ticket</span> in the live bar.
-                </p>
-              </div>
-            )}
+            <button type="button" onClick={startNext} className="w-full rounded-xl bg-[#0ECCEE] text-black py-3 font-semibold">
+              Next person
+            </button>
+            <button type="button" onClick={onClose} className="desk-action w-full">
+              Close
+            </button>
+            <p className="text-center text-xs text-gray-500">
+              Next person keeps this QR saved on this screen and in Live activity.
+            </p>
           </div>
         ) : (
           <form onSubmit={submit} className="grid sm:grid-cols-2 gap-3">
+            {savedQrs.length ? (
+              <div className="sm:col-span-2 rounded-xl border border-amber-400/20 bg-amber-500/10 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">Saved payment QRs</p>
+                <div className="mt-2 flex flex-col gap-2">
+                  {savedQrs.map((row) => (
+                    <button
+                      key={row.orderId || row.paymentUrl}
+                      type="button"
+                      onClick={() => {
+                        setTicketQr(row.ticketQr || "");
+                        setResult(row);
+                      }}
+                      className="rounded-lg bg-black/30 px-3 py-2 text-left text-sm font-semibold text-white"
+                    >
+                      Show QR · {row.participantName || "Student"} · ₹{Number(row.amount || 0).toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <label className="space-y-1">
               <span className="text-xs text-gray-400">Captain name *</span>
               <input
@@ -410,7 +444,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
               disabled={busy || !online}
               className="sm:col-span-2 rounded-xl bg-[#0ECCEE] text-black py-3 font-semibold disabled:opacity-50"
             >
-              {busy ? "Creating draft…" : "Create draft & payment QR"}
+              {busy ? "Creating payment QR…" : "Show payment QR"}
             </button>
           </form>
         )}
@@ -423,21 +457,6 @@ function DeskQrModal({ row, onClose, onPaid }) {
   const phase = deskPhase(row);
   const isTicket = row.mode === "ticket" || phase === "successful";
   const payUrl = paymentUrlOf(row);
-  const [payQr, setPayQr] = useState("");
-
-  useEffect(() => {
-    if (isTicket || !payUrl) {
-      setPayQr("");
-      return undefined;
-    }
-    let cancelled = false;
-    buildBrandedCompetitionQrDataUrl(payUrl, { size: 900 }).then((url) => {
-      if (!cancelled) setPayQr(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isTicket, payUrl]);
 
   useEffect(() => {
     if (isTicket) return undefined;
@@ -458,7 +477,7 @@ function DeskQrModal({ row, onClose, onPaid }) {
   }, [isTicket, payUrl, onPaid]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 p-3 sm:p-6 flex items-center justify-center">
+    <div className="fixed inset-0 z-[90] bg-black/90 p-3 sm:p-6 flex items-center justify-center">
       <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#121314] p-4 sm:p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -475,8 +494,8 @@ function DeskQrModal({ row, onClose, onPaid }) {
         <div className="rounded-3xl bg-white p-4 flex justify-center min-h-[280px] items-center">
           {isTicket && row.ticketQr ? (
             <LocalQRCode data={row.ticketQr} size={280} printSafe />
-          ) : !isTicket && payQr ? (
-            <img src={payQr} alt="Scan to pay" className="w-full max-w-[360px] aspect-square" />
+          ) : !isTicket && payUrl ? (
+            <LocalQRCode data={payUrl} size={320} className="w-full max-w-[360px]" printSafe />
           ) : isTicket ? (
             <p className="text-sm text-gray-600 py-10">Registration is successful. Ticket QR will appear after refresh.</p>
           ) : (
@@ -504,7 +523,7 @@ function DeskQrModal({ row, onClose, onPaid }) {
           </button>
         ) : null}
         <button type="button" onClick={onClose} className="desk-action w-full">
-          Close — next student
+          Close
         </button>
       </div>
     </div>
@@ -520,6 +539,7 @@ export default function FestOrganizerFestDayDeskPage() {
   const [competitions, setCompetitions] = useState([]);
   const [activity, setActivity] = useState([]);
   const [bundleActivity, setBundleActivity] = useState([]);
+  const [festDayAttendees, setFestDayAttendees] = useState(0);
   const [query, setQuery] = useState("");
   const [activityQuery, setActivityQuery] = useState("");
   const [selected, setSelected] = useState(null);
@@ -528,8 +548,39 @@ export default function FestOrganizerFestDayDeskPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [busyOrder, setBusyOrder] = useState("");
   const [clearingExpired, setClearingExpired] = useState(false);
+  const [deletingDrafts, setDeletingDrafts] = useState(false);
+  const [deletingKey, setDeletingKey] = useState("");
   const [online, setOnline] = useState(() => navigator.onLine);
   const [bundleOpen, setBundleOpen] = useState(false);
+  const [activityView, setActivityView] = useState("unpaid");
+  const [lastQr, setLastQr] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(`desk-last-qr:${festId}`) || "null");
+    } catch {
+      return null;
+    }
+  });
+
+  const rememberQr = useCallback((row) => {
+    const paymentUrl = row?.paymentUrl || row?.resumeUrl || row?.paymentPath || "";
+    if (!paymentUrl || row?.status === "paid") return;
+    const saved = {
+      participantName: row.participantName || "Student",
+      competitionName: row.competitionName || "",
+      amount: row.amount,
+      resumeUrl: paymentUrl,
+      paymentPath: paymentUrl,
+      orderId: row.orderId,
+      activityType: row.activityType || "single",
+      status: "draft",
+    };
+    setLastQr(saved);
+    try {
+      sessionStorage.setItem(`desk-last-qr:${festId}`, JSON.stringify(saved));
+    } catch {
+      /* the live list still keeps the QR */
+    }
+  }, [festId]);
 
   const load = useCallback(
     async ({ quiet = false } = {}) => {
@@ -544,6 +595,7 @@ export default function FestOrganizerFestDayDeskPage() {
         setCompetitions(data.competitions || []);
         setActivity(data.activity || []);
         setBundleActivity(data.bundleActivity || []);
+        if (data.festDayAttendees != null) setFestDayAttendees(Number(data.festDayAttendees) || 0);
       } catch (error) {
         if (!quiet) toast(error.message || "Could not load Fest Day Desk");
       } finally {
@@ -573,6 +625,14 @@ export default function FestOrganizerFestDayDeskPage() {
   useEffect(() => {
     if (online) load({ quiet: true });
   }, [online, load]);
+  useEffect(() => {
+    if (!lastQr?.orderId) return;
+    const match = combinedActivity.find((row) => row.orderId === lastQr.orderId);
+    if (match && deskPhase(match) === "successful") {
+      setLastQr(null);
+      try { sessionStorage.removeItem(`desk-last-qr:${festId}`); } catch { /* ignore */ }
+    }
+  }, [combinedActivity, festId, lastQr]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -585,15 +645,37 @@ export default function FestOrganizerFestDayDeskPage() {
     });
   }, [competitions, query]);
 
-  const combinedActivity = useMemo(() => [
-    ...activity.map((row) => ({ ...row, activityType: "single" })),
-    ...bundleActivity.map((row) => ({
-      ...row,
-      activityType: "bundle",
-      orderId: row.activeOrderId,
-      competitionName: row.competitionNames?.join(" + ") || row.bundleName || "Competition bundle",
-    })),
-  ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), [activity, bundleActivity]);
+  const combinedActivity = useMemo(() => {
+    const phaseRank = (row) => {
+      const phase = deskPhase(row);
+      if (phase === "draft") return 0;
+      if (phase === "successful") return 1;
+      return 2;
+    };
+    return [
+      ...activity.map((row) => ({ ...row, activityType: "single" })),
+      ...bundleActivity.map((row) => ({
+        ...row,
+        activityType: "bundle",
+        orderId: row.activeOrderId,
+        competitionName: row.competitionNames?.join(" + ") || row.bundleName || "Competition bundle",
+      })),
+    ].sort((a, b) => phaseRank(a) - phaseRank(b) || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [activity, bundleActivity]);
+  const unpaidCount = useMemo(
+    () => combinedActivity.filter((row) => deskPhase(row) === "draft").length,
+    [combinedActivity],
+  );
+  const paidCount = useMemo(
+    () => combinedActivity.filter((row) => deskPhase(row) === "successful").length,
+    [combinedActivity],
+  );
+  const visibleActivity = useMemo(() => combinedActivity.filter((row) => {
+    const phase = deskPhase(row);
+    if (activityView === "unpaid") return phase === "draft";
+    if (activityView === "paid") return phase === "successful";
+    return true;
+  }), [activityView, combinedActivity]);
   const expiredEntryCount = useMemo(
     () => combinedActivity.filter((row) => deskPhase(row) === "expired").length,
     [combinedActivity],
@@ -617,6 +699,64 @@ export default function FestOrganizerFestDayDeskPage() {
       toast(error.message || "Could not clear expired entries");
     } finally {
       setClearingExpired(false);
+    }
+  };
+
+  const forgetQr = (orderId) => {
+    if (lastQr?.orderId && (!orderId || lastQr.orderId === orderId)) {
+      setLastQr(null);
+      try { sessionStorage.removeItem(`desk-last-qr:${festId}`); } catch { /* ignore */ }
+    }
+    if (deskQrPreview?.orderId && (!orderId || deskQrPreview.orderId === orderId)) {
+      setDeskQrPreview(null);
+    }
+  };
+
+  const deleteDraft = async (row) => {
+    if (!online || deletingDrafts || deletingKey) return;
+    const approved = await confirm({
+      title: "Delete this draft?",
+      message: `${row.participantName || "This student"} will be removed from the desk and the payment QR will stop working. Successful registrations are not deleted.`,
+      confirmLabel: "Delete draft",
+      danger: true,
+    });
+    if (!approved) return;
+    const key = `${row.activityType}-${row.orderId || row.bundleId}`;
+    setDeletingKey(key);
+    try {
+      const result = await deleteFestDayDeskDrafts(
+        festId,
+        row.activityType === "bundle" ? { bundleId: row.bundleId } : { orderId: row.orderId },
+      );
+      toast(result.message || "Draft deleted");
+      forgetQr(row.orderId);
+      await load({ quiet: true });
+    } catch (error) {
+      toast(error.message || "Could not delete draft");
+    } finally {
+      setDeletingKey("");
+    }
+  };
+
+  const deleteAllDrafts = async () => {
+    if (!online || !unpaidCount || deletingDrafts) return;
+    const approved = await confirm({
+      title: `Delete ${unpaidCount} unpaid draft${unpaidCount === 1 ? "" : "s"}?`,
+      message: "Every unpaid single and bundle QR on this desk will stop working. Successful registrations stay.",
+      confirmLabel: "Delete all drafts",
+      danger: true,
+    });
+    if (!approved) return;
+    setDeletingDrafts(true);
+    try {
+      const result = await deleteFestDayDeskDrafts(festId, { all: true });
+      toast(result.message || "Drafts deleted");
+      forgetQr();
+      await load({ quiet: true });
+    } catch (error) {
+      toast(error.message || "Could not delete drafts");
+    } finally {
+      setDeletingDrafts(false);
     }
   };
 
@@ -692,7 +832,7 @@ export default function FestOrganizerFestDayDeskPage() {
           <div>
             <p className="text-xs uppercase tracking-wider text-[#0ECCEE]">MindSpark operations</p>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">Fest Day Desk</h1>
-            <p className="text-sm text-gray-400 mt-2">Fill the form, show the payment QR, then it turns Successful when they pay.</p>
+            <p className="text-sm text-gray-400 mt-2">Fill the form, show the payment QR, then start the next person. Unpaid QRs stay saved.</p>
           </div>
           <button
             type="button"
@@ -704,11 +844,17 @@ export default function FestOrganizerFestDayDeskPage() {
             Refresh
           </button>
         </div>
-        <div className="mt-4 grid sm:grid-cols-2 gap-2">
+        <div className="mt-4 grid sm:grid-cols-3 gap-2">
+          <div className="rounded-2xl border border-white/15 bg-black/25 p-3 text-left">
+            <UserRound size={18} className="text-white mb-2" />
+            <p className="text-2xl font-bold tabular-nums text-white">{festDayAttendees.toLocaleString("en-IN")}</p>
+            <p className="font-semibold text-white text-sm mt-1">Overall participants</p>
+            <p className="text-[11px] text-gray-400 mt-1">Bundles counted once · team members counted</p>
+          </div>
           <div className="rounded-2xl border border-[#0ECCEE] bg-[#0ECCEE]/15 p-3 text-left">
             <UserRound size={18} className="text-[#0ECCEE] mb-2" />
             <p className="font-semibold text-white text-sm">Single competition</p>
-            <p className="text-[11px] text-gray-400 mt-1">Organizer fills details, then the payment QR stays on Draft</p>
+            <p className="text-[11px] text-gray-400 mt-1">Fill the form, show the payment QR, then tap Next person</p>
           </div>
           <button
             type="button"
@@ -717,7 +863,7 @@ export default function FestOrganizerFestDayDeskPage() {
           >
             <ShoppingCart size={18} className="text-emerald-300 mb-2" />
             <p className="font-semibold text-emerald-100 text-sm">Competition bundles</p>
-            <p className="text-[11px] text-gray-400 mt-1">Same steps: fill details, show the payment QR, then Successful</p>
+            <p className="text-[11px] text-gray-400 mt-1">Pick a bundle, show the payment QR, then start the next person</p>
           </button>
         </div>
       </section>
@@ -779,10 +925,22 @@ export default function FestOrganizerFestDayDeskPage() {
             <div>
               <h2 className="font-semibold">Live activity</h2>
               <p className="text-xs text-gray-500">
-                Single and bundle payments in one place
+                Unpaid QRs stay here after you start the next person
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {unpaidCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={deleteAllDrafts}
+                  disabled={deletingDrafts || !online}
+                  className="desk-action text-red-300 border-red-400/20 bg-red-500/10"
+                  title="Delete every unpaid draft"
+                >
+                  {deletingDrafts ? <Loader size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  Delete all drafts ({unpaidCount})
+                </button>
+              ) : null}
               {expiredEntryCount > 0 ? (
                 <button
                   type="button"
@@ -802,6 +960,39 @@ export default function FestOrganizerFestDayDeskPage() {
               )}
             </div>
           </div>
+          <div className="flex gap-2 mb-3">
+            {[
+              ["unpaid", `Unpaid ${unpaidCount}`],
+              ["paid", `Successful ${paidCount}`],
+              ["all", "All"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActivityView(key)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold border ${
+                  activityView === key
+                    ? "border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]"
+                    : "border-white/10 text-gray-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {lastQr?.resumeUrl ? (
+            <button
+              type="button"
+              onClick={() => setDeskQrPreview({ ...lastQr, mode: "payment" })}
+              className="mb-3 w-full rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-3 text-left"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-200">Last payment QR</p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {lastQr.participantName} · {lastQr.competitionName} · ₹{Number(lastQr.amount || 0).toLocaleString("en-IN")}
+              </p>
+              <p className="mt-1 text-xs text-[#0ECCEE]">Show QR</p>
+            </button>
+          ) : null}
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -823,8 +1014,8 @@ export default function FestOrganizerFestDayDeskPage() {
             </button>
           </form>
           <div className="space-y-2 max-h-[58vh] overflow-y-auto">
-            {combinedActivity.length ? (
-              combinedActivity.map((row) => {
+            {visibleActivity.length ? (
+              visibleActivity.map((row) => {
                 const phase = deskPhase(row);
                 const payUrl = paymentUrlOf(row);
                 return (
@@ -871,6 +1062,21 @@ export default function FestOrganizerFestDayDeskPage() {
                           onClick={() => setDeskQrPreview({ ...row, mode: "payment", resumeUrl: payUrl, paymentPath: payUrl })}
                         >
                           <QrCode size={14} /> Show payment QR
+                        </button>
+                      ) : null}
+                      {phase === "draft" && (row.orderId || row.bundleId) ? (
+                        <button
+                          type="button"
+                          onClick={() => deleteDraft(row)}
+                          disabled={deletingDrafts || deletingKey === `${row.activityType}-${row.orderId || row.bundleId}` || !online}
+                          className="desk-action text-red-300"
+                        >
+                          {deletingKey === `${row.activityType}-${row.orderId || row.bundleId}` ? (
+                            <Loader size={14} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
+                          Delete
                         </button>
                       ) : null}
                       {phase === "draft" && row.orderId ? (
@@ -936,7 +1142,11 @@ export default function FestOrganizerFestDayDeskPage() {
               })
             ) : (
               <div className="py-14 text-center text-sm text-gray-500">
-                No matching payment attempts yet.
+                {activityView === "unpaid"
+                  ? "No unpaid QRs. New ones appear here as soon as you show a payment QR."
+                  : activityView === "paid"
+                    ? "No successful registrations yet."
+                    : "No matching payment attempts yet."}
               </div>
             )}
           </div>
@@ -951,6 +1161,10 @@ export default function FestOrganizerFestDayDeskPage() {
             <MindSparkBundlePage
               embedded
               deskMode
+              onSaved={(row) => {
+                rememberQr(row);
+                load({ quiet: true });
+              }}
               onClose={() => {
                 setBundleOpen(false);
                 load({ quiet: true });
@@ -965,7 +1179,10 @@ export default function FestOrganizerFestDayDeskPage() {
           competition={selected}
           online={online}
           onClose={() => setSelected(null)}
-          onCreated={() => load({ quiet: true })}
+          onCreated={(row) => {
+            rememberQr(row);
+            load({ quiet: true });
+          }}
         />
       ) : null}
       {deskQrPreview ? (

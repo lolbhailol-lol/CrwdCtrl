@@ -156,8 +156,11 @@ async function responseFor(entry, order = null, competitionName = '') {
   const issued = entry.registrationId
     ? await Registration.findById(entry.registrationId)
     : order?.orderId ? await Registration.findOne({ payment_order_id: order.orderId }) : null;
-  if (issued && entry.status !== 'paid') {
-    entry.status = 'paid'; entry.registrationId = issued._id; await entry.save();
+  if (issued && (entry.status !== 'paid' || entry.hiddenAt)) {
+    entry.status = 'paid';
+    entry.registrationId = issued._id;
+    entry.hiddenAt = null;
+    await entry.save();
   }
   return publicState(entry, order, issued, competitionName);
 }

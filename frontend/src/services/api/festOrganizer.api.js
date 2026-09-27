@@ -196,6 +196,15 @@ export async function clearExpiredFestDayDeskEntries(festId) {
     });
 }
 
+export async function deleteFestDayDeskDrafts(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/drafts`, {
+        method: 'DELETE',
+        body,
+        retries: 0,
+        timeout: 25000,
+    });
+}
+
 export async function refreshFestDayDeskOrder(festId, orderId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/orders/${encodeURIComponent(orderId)}/refresh`, {
         method: 'POST',

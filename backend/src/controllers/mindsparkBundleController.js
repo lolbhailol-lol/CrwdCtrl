@@ -666,6 +666,10 @@ exports.verify = async (req, res) => {
       }
     }
     const fresh = await Bundle.findById(bundle._id).select('+paymentToken');
+    if (fresh?.status === 'paid' && fresh.deskHiddenAt) {
+      fresh.deskHiddenAt = null;
+      await fresh.save();
+    }
     res.json({ success: true, issued: fresh.status === 'paid', paidReview: fresh.status === 'paid_review', inProgress: fulfillment?.inProgress || fresh.fulfillmentState === 'processing', ...await serializeWithTickets(fresh, await PaymentOrder.findById(order._id)) });
   } catch (_error) {
     res.status(500).json({ success: false, message: 'Could not verify payment.' });

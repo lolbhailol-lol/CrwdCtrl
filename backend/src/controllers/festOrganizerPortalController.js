@@ -84,6 +84,23 @@ function requireMindSparkDesk(req, res) {
     return false;
 }
 
+const deskHeadcountCache = new Map();
+const DESK_HEADCOUNT_TTL_MS = 20000;
+
+async function festDayOverallParticipants(festId) {
+    const key = String(festId);
+    const hit = deskHeadcountCache.get(key);
+    if (hit && Date.now() - hit.at < DESK_HEADCOUNT_TTL_MS) return hit.value;
+    const regs = await Registration.find({
+        fest: festId,
+        status: 'approved',
+        isProShow: { $ne: true },
+    }).select('responses').lean();
+    const value = countFestDayAttendees(regs);
+    deskHeadcountCache.set(key, { at: Date.now(), value });
+    return value;
+}
+
 function bundleNameFromRecord(bundle) {
     const key = String(bundle?.bundleKey || '');
     const pct = Number(bundle?.discountPercent) || 0;
@@ -3206,6 +3223,10 @@ exports.createManualParticipant = async (req, res) => {
 exports.getFestDayDesk = async (req, res) => {
     try {
         if (!requireMindSparkDesk(req, res)) return;
+        const headcountPromise = festDayOverallParticipants(req.festId).catch((error) => {
+            console.error('[festOrganizerPortal.getFestDayDesk.headcount]', error);
+            return 0;
+        });
         const search = String(req.query.search || '').trim().toLowerCase();
         const Competition = mongoose.model('Competition');
         const competitions = await Competition.find({ fest: req.festId })
@@ -3473,7 +3494,15 @@ exports.getFestDayDesk = async (req, res) => {
             };
         });
 
-        res.json({ success: true, competitions: competitionRows, activity, bundleActivity, refreshedAt: new Date().toISOString() });
+        const festDayAttendees = await headcountPromise;
+        res.json({
+            success: true,
+            festDayAttendees,
+            competitions: competitionRows,
+            activity,
+            bundleActivity,
+            refreshedAt: new Date().toISOString(),
+        });
     } catch (error) {
         console.error('[festOrganizerPortal.getFestDayDesk]', error);
         res.status(500).json({ success: false, message: 'Failed to load Fest Day Desk' });
@@ -3554,6 +3583,146 @@ exports.clearExpiredFestDayDeskEntries = async (req, res) => {
     } catch (error) {
         console.error('[festOrganizerPortal.clearExpiredFestDayDeskEntries]', error);
         res.status(500).json({ success: false, message: 'Failed to clear expired live entries' });
+    }
+};
+
+/** Remove unpaid desk drafts from Live activity and stop their payment QR. Paid registrations stay. */
+exports.deleteFestDayDeskDrafts = async (req, res) => {
+    try {
+        if (!requireMindSparkDesk(req, res)) return;
+        const now = new Date();
+        const all = req.body?.all === true;
+        const orderId = String(req.body?.orderId || '').trim();
+        const bundleId = String(req.body?.bundleId || '').trim();
+        if (!all && !orderId && !bundleId) {
+            return res.status(400).json({ success: false, message: 'Choose a draft to delete, or delete all unpaid drafts.' });
+        }
+
+        const MindSparkBundle = require('../model/mindspark_bundle_model');
+        const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
+        let singles = 0;
+        let bundles = 0;
+        let keptPaid = 0;
+
+        const retireSingle = async (entry) => {
+            const order = entry.paymentOrderId
+                ? await PaymentOrder.findOne({ orderId: entry.paymentOrderId })
+                : null;
+            if (entry.status === 'paid' || String(order?.status || '').toUpperCase() === 'PAID') {
+                keptPaid += 1;
+                return false;
+            }
+            if (order && String(order.status || '').toUpperCase() === 'PENDING') {
+                const slotToken = order.orderTags?.slotReservationToken || '';
+                order.status = 'EXPIRED';
+                order.orderTags = {
+                    ...(order.orderTags || {}),
+                    retired: true,
+                    retiredAt: now.toISOString(),
+                    deskDeletedAt: now.toISOString(),
+                };
+                await order.save();
+                if (slotToken) await releaseCompetitionSlot(slotToken).catch(() => {});
+            }
+            const result = await FestDayAssistedRegistration.updateOne(
+                { _id: entry._id, status: { $ne: 'paid' }, hiddenAt: null },
+                { $set: { hiddenAt: now, status: 'expired' } },
+            );
+            return (result.modifiedCount || 0) > 0;
+        };
+
+        const retireBundle = async (bundle) => {
+            const issued = (bundle.items || []).some((item) => item.registrationId);
+            if (issued || ['paid', 'paid_review', 'refunded'].includes(String(bundle.status || ''))) {
+                keptPaid += 1;
+                return false;
+            }
+            const order = bundle.activeOrderId
+                ? await PaymentOrder.findOne({ orderId: bundle.activeOrderId })
+                : null;
+            if (String(order?.status || '').toUpperCase() === 'PAID') {
+                keptPaid += 1;
+                return false;
+            }
+            if (order && String(order.status || '').toUpperCase() === 'PENDING') {
+                order.status = 'EXPIRED';
+                order.orderTags = {
+                    ...(order.orderTags || {}),
+                    retired: true,
+                    retiredAt: now.toISOString(),
+                    deskDeletedAt: now.toISOString(),
+                };
+                await order.save();
+            }
+            await Promise.all((bundle.items || []).map((item) => (
+                item.reservationToken ? releaseCompetitionSlot(item.reservationToken).catch(() => {}) : null
+            )));
+            bundle.deskHiddenAt = now;
+            bundle.status = 'expired';
+            await bundle.save();
+            return true;
+        };
+
+        if (all) {
+            const entries = await FestDayAssistedRegistration.find({
+                fest: req.festId,
+                hiddenAt: null,
+                status: 'pending',
+            }).limit(300);
+            for (const entry of entries) {
+                if (await retireSingle(entry)) singles += 1;
+            }
+            const bundleRows = await MindSparkBundle.find({
+                fest: req.festId,
+                source: 'desk',
+                deskHiddenAt: null,
+                status: { $in: ['pending', 'confirming'] },
+            }).limit(300);
+            for (const bundle of bundleRows) {
+                if (await retireBundle(bundle)) bundles += 1;
+            }
+        } else if (bundleId) {
+            if (!mongoose.Types.ObjectId.isValid(bundleId)) {
+                return res.status(400).json({ success: false, message: 'Draft not found' });
+            }
+            const bundle = await MindSparkBundle.findOne({
+                _id: bundleId,
+                fest: req.festId,
+                source: 'desk',
+                deskHiddenAt: null,
+            });
+            if (!bundle) return res.status(404).json({ success: false, message: 'Draft not found' });
+            if (!(await retireBundle(bundle))) {
+                return res.status(409).json({ success: false, message: 'This payment already landed. It stays as Successful.' });
+            }
+            bundles = 1;
+        } else {
+            const entry = await FestDayAssistedRegistration.findOne({
+                fest: req.festId,
+                paymentOrderId: orderId,
+                hiddenAt: null,
+            });
+            if (!entry) return res.status(404).json({ success: false, message: 'Draft not found' });
+            if (!(await retireSingle(entry))) {
+                return res.status(409).json({ success: false, message: 'This payment already landed. It stays as Successful.' });
+            }
+            singles = 1;
+        }
+
+        const cleared = singles + bundles;
+        res.json({
+            success: true,
+            cleared,
+            singles,
+            bundles,
+            keptPaid,
+            message: cleared
+                ? `Deleted ${cleared} unpaid draft${cleared === 1 ? '' : 's'}`
+                : 'No unpaid drafts to delete',
+        });
+    } catch (error) {
+        console.error('[festOrganizerPortal.deleteFestDayDeskDrafts]', error);
+        res.status(500).json({ success: false, message: 'Failed to delete drafts' });
     }
 };
 

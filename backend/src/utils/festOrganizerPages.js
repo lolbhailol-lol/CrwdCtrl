@@ -34,7 +34,7 @@ const PAGE_ROUTE_MATCHERS = {
         { methods: ['GET', 'PATCH', 'PUT', 'POST', 'DELETE'], re: /\/leads/ },
     ],
     'fest-day-desk': [
-        { methods: ['GET', 'POST'], re: /\/fest-day-desk(\/|$)/ },
+        { methods: ['GET', 'POST', 'DELETE'], re: /\/fest-day-desk(\/|$)/ },
     ],
     competitions: [
         { methods: ['GET', 'PATCH', 'PUT', 'POST', 'DELETE'], re: /\/competitions(\/|$)/ },
@@ -68,6 +68,8 @@ const DESK_ROUTE_ALLOWED = [
     { method: 'POST', re: /\/fest-day-desk\/registrations$/ },
     { method: 'POST', re: /\/fest-day-desk\/bundles$/ },
     { method: 'POST', re: /\/fest-day-desk\/orders\/[^/]+\/refresh$/ },
+    { method: 'DELETE', re: /\/fest-day-desk\/drafts$/ },
+    { method: 'DELETE', re: /\/fest-day-desk\/expired$/ },
 ];
 
 function normalizePortalRole(role) {
