@@ -43,6 +43,7 @@ const CashfreeSettlement = require('../model/cashfree_settlement_model');
 const { sendCompetitionRegistrationEmailForRecord } = require('../services/emailService');
 const { scheduleRegistrationNotification } = require('./registration/helpers');
 const { extractCompetitionChoice } = require('../utils/festCompetitionAssignment');
+const { countFestDayAttendees } = require('../utils/festDayHeadcount');
 
 const TOKEN_TTL = '7d';
 const FRONTEND_BASE = () => String(
@@ -841,7 +842,6 @@ exports.getDashboard = async (req, res) => {
             todayRegistrations,
             allActiveCount,
             peopleHeadcount,
-            festDayHeadcount,
             competitions,
             byCompetition,
             paymentBreakdown,
@@ -851,7 +851,7 @@ exports.getDashboard = async (req, res) => {
             Registration.countDocuments({ ...notProShow, status: 'pending' }),
             Registration.countDocuments({ ...notProShow, status: 'rejected' }),
             Registration.countDocuments({ ...baseApproved, checkedIn: true }),
-            Registration.find(baseApproved).select('amountPaid paymentStatus payment_gateway payment_order_id competitionId').lean(),
+            Registration.find(baseApproved).select('amountPaid paymentStatus payment_gateway payment_order_id competitionId responses').lean(),
             Registration.countDocuments({
                 ...notProShow,
                 createdAt: { $gte: today, $lt: tomorrow },
@@ -865,38 +865,6 @@ exports.getDashboard = async (req, res) => {
                         _id: null,
                         totalParticipants: { $sum: '$_people' },
                         totalRegistrations: { $sum: 1 },
-                    },
-                },
-            ]),
-            Registration.aggregate([
-                { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true } } },
-                {
-                    $addFields: {
-                        _people: peopleExpr,
-                        _festDayEntryKey: {
-                            $cond: [
-                                {
-                                    $and: [
-                                        { $ne: ['$responses.mindspark_bundle_id', null] },
-                                        { $ne: ['$responses.mindspark_bundle_id', ''] },
-                                    ],
-                                },
-                                { $concat: ['bundle:', { $toString: '$responses.mindspark_bundle_id' }] },
-                                { $concat: ['registration:', { $toString: '$_id' }] },
-                            ],
-                        },
-                    },
-                },
-                {
-                    $group: {
-                        _id: '$_festDayEntryKey',
-                        people: { $max: '$_people' },
-                    },
-                },
-                {
-                    $group: {
-                        _id: null,
-                        total: { $sum: '$people' },
                     },
                 },
             ]),
@@ -998,7 +966,7 @@ exports.getDashboard = async (req, res) => {
             Number(head.totalParticipants) || 0,
             Number(totalRegistrations) || 0,
         );
-        const festDayAttendees = Number(festDayHeadcount[0]?.total) || 0;
+        const festDayAttendees = countFestDayAttendees(paidRegs);
 
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
