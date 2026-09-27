@@ -1351,7 +1351,7 @@ export default function EventDetailsPage() {
                       </div>
                     </>
                   );
-                })()}                })()}
+                })()}
               </div>
             </div>
           ) : null}

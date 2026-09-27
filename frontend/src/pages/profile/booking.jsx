@@ -303,7 +303,7 @@ function mergeOptimisticPending(list, pending) {
 function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCalendar }) {
     const hasValidDate = item.date && !Number.isNaN(new Date(item.date).getTime());
     const showCalendar = hasValidDate && !isEventCompleted(item);
-    const isPendingPayment = item.isSports && item.registrationStatus === 'pending';
+    const isPendingPayment = item.registrationStatus === 'pending';
     const isRejectedPayment = item.isSports && item.registrationStatus === 'cancelled' && (item.paymentStatus === 'failed' || item.paymentReviewNote);
     const canDownloadTicket = !isPendingPayment && !isRejectedPayment && item.registrationStatus !== 'cancelled';
     const clubLabel = item.clubName || 'The club';
@@ -370,7 +370,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                                     : 'bg-amber-50 text-amber-800'
                             }`}
                         >
-                            Awaiting {clubLabel} approval
+                            Awaiting {item.isSports ? clubLabel : 'organizer'} approval
                         </span>
                     ) : null}
                     {isRejectedPayment ? (

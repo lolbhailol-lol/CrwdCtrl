@@ -40,6 +40,8 @@ const { getFestPlugin } = require('../modules/fest/plugins');
 const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 const { verifyCashfreePayment } = require('../services/cashfreeService');
 const CashfreeSettlement = require('../model/cashfree_settlement_model');
+const { sendCompetitionRegistrationEmailForRecord } = require('../services/emailService');
+const { scheduleRegistrationNotification } = require('./registration/helpers');
 
 const TOKEN_TTL = '7d';
 const FRONTEND_BASE = () => String(
@@ -542,8 +544,7 @@ function groupParticipantsIntoTeams(participants) {
             t.isMindSparkBundle = true;
             if (p.bundleLabel) t.bundleLabel = p.bundleLabel;
         }
-            t.mindsparkBundleId = t.mindsparkBundleId || p.mindsparkBundleId || null;
-        }
+        t.mindsparkBundleId = t.mindsparkBundleId || p.mindsparkBundleId || null;
         const submitted = p.submittedAt || p.createdAt;
         if (submitted && (!t.submittedAt || new Date(submitted) < new Date(t.submittedAt))) {
             t.submittedAt = submitted;
@@ -1669,23 +1670,84 @@ exports.updateParticipantStatus = async (req, res) => {
         const reg = await Registration.findOne({ _id: registrationId, fest: req.festId });
         if (!reg) return res.status(404).json({ success: false, message: 'Participant not found' });
 
+        const previousStatus = String(reg.status || '').toLowerCase();
         reg.status = status;
         await reg.save();
 
         const populated = await Registration.findById(reg._id)
             .populate('user', 'name email phone phoneNumber')
-            .populate('competitionId', 'competitionName name')
+            .populate('competitionId', 'competitionName name coverImage image registration')
             .lean();
+
+        const fest = await FestOrganizer.findById(req.festId)
+            .select('festName slug venue festDate startDate coverImage registration')
+            .lean();
+        const plugin = getFestPlugin(fest || req.festId);
+        const shouldConfirmParticipant = status === 'approved'
+            && previousStatus !== 'approved'
+            && plugin.manualApprovalRequired === true;
 
         res.json({
             success: true,
             message: status === 'approved'
-                ? 'Registration approved'
+                ? (shouldConfirmParticipant
+                    ? 'Registration approved. Confirmation is being sent.'
+                    : 'Registration approved')
                 : status === 'rejected'
                     ? 'Registration rejected'
                     : 'Registration set to pending',
             participant: formatParticipant(populated),
         });
+
+        if (shouldConfirmParticipant && populated?.user && populated?.competitionId) {
+            setImmediate(async () => {
+                const competitionName = populated.competitionId.name
+                    || populated.competitionId.competitionName
+                    || 'competition';
+                try {
+                    if (!populated.confirmationEmailSentAt) {
+                        const result = await sendCompetitionRegistrationEmailForRecord({
+                            user: populated.user,
+                            fest,
+                            competition: populated.competitionId,
+                            registration: populated,
+                        });
+                        if (result && result.success !== false) {
+                            await Registration.updateOne(
+                                { _id: populated._id, confirmationEmailSentAt: null },
+                                { $set: { confirmationEmailSentAt: new Date() } },
+                            );
+                        }
+                    }
+
+                    scheduleRegistrationNotification(populated.user._id, {
+                        title: 'Registration approved!',
+                        message: `Your registration for ${competitionName} has been approved. Your ticket is ready.`,
+                        body: `You're confirmed for ${competitionName}`,
+                        link: `/qr-ticket/${populated._id}`,
+                        metadata: {
+                            festId: req.festId,
+                            competitionId: populated.competitionId._id,
+                            registrationId: populated._id,
+                        },
+                        ...(!populated.confirmationWhatsAppSentAt ? { whatsapp: {
+                            trackingRegistrationId: populated._id,
+                            name: populated.user.name,
+                            user: populated.user,
+                            responses: populated.responses,
+                            eventName: competitionName,
+                            bookingId: populated._id,
+                            type: '',
+                            date: fest?.startDate || fest?.festDate || '',
+                            time: '',
+                            amount: populated.amountPaid || 0,
+                        } } : {}),
+                    });
+                } catch (notificationError) {
+                    console.error('[festOrganizerPortal.updateParticipantStatus.confirmation]', notificationError);
+                }
+            });
+        }
     } catch (error) {
         console.error('[festOrganizerPortal.updateParticipantStatus]', error);
         res.status(500).json({ success: false, message: 'Failed to update registration' });

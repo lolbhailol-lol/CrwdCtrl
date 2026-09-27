@@ -8,10 +8,12 @@ const {
     isTechfestFest,
     techfestPlugin,
 } = require('./techfest');
+const { isKshitijFest, kshitijPlugin } = require('./kshitij');
 
 const defaultFestPlugin = {
     id: 'default',
     autoConfirmOnRegister: false,
+    manualApprovalRequired: false,
     forcePersonFields: false,
     useCashfreeSettlement: false,
     skipReviewQueue: false,
@@ -24,7 +26,15 @@ function getFestPlugin(festIdOrFest) {
         : festIdOrFest;
     if (isMindSparkFestId(id)) return mindsparkPlugin;
     if (isTechfestFest(festIdOrFest)) return techfestPlugin;
+    if (isKshitijFest(festIdOrFest)) return kshitijPlugin;
     return defaultFestPlugin;
+}
+
+function shouldAutoConfirmRegistration(plugin, paymentStatus) {
+    if (plugin?.manualApprovalRequired === true) return false;
+    return plugin?.autoConfirmOnRegister === true
+        || paymentStatus === 'paid'
+        || paymentStatus === 'free';
 }
 
 module.exports = {
@@ -35,5 +45,8 @@ module.exports = {
     TECHFEST_SLUG,
     isTechfestFest,
     techfestPlugin,
+    isKshitijFest,
+    kshitijPlugin,
+    shouldAutoConfirmRegistration,
     defaultFestPlugin,
 };

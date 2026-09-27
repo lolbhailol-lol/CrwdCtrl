@@ -7,6 +7,7 @@ const { performCheckinFromRaw } = require('../services/checkinService');
 const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 const { captureFlowEvent } = require('../config/sentry');
 const MindSparkBundle = require('../model/mindspark_bundle_model');
+const { getFestPlugin } = require('../modules/fest/plugins');
 
 // ===== GET: Generate QR code for a registration =====
 const generateQR = async (req, res) => {
@@ -17,12 +18,24 @@ const generateQR = async (req, res) => {
     const registration = await Registration.findOne({
       _id: registrationId,
       user: userId,
-    }).populate('fest', 'festName festDate venue stallBrand stallDiscountPercent registration.whatsappCommunityLink')
+    }).populate('fest', 'festName slug festDate venue stallBrand stallDiscountPercent registration.whatsappCommunityLink')
       .populate('competitionId', 'name registration.whatsappGroupLink')
       .populate('user', 'name');
 
     if (!registration) {
       return res.status(404).json({ success: false, message: 'Registration not found' });
+    }
+
+    if (
+      getFestPlugin(registration.fest).manualApprovalRequired === true
+      && registration.status !== 'approved'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: registration.status === 'rejected'
+          ? 'This registration was not approved. Ticket unavailable.'
+          : 'Ticket available after the organizer approves your registration.',
+      });
     }
 
     if (!registration.qrCodeData) {

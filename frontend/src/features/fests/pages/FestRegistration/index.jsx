@@ -30,6 +30,7 @@ export default function FestRegistration() {
     setPaymentResumeError,
     retryPaymentResume,
     registrationId,
+    registrationStatus,
     loading,
     waitingOnAuth,
     hasAuth,
@@ -105,6 +106,7 @@ export default function FestRegistration() {
         competition={competition}
         fest={fest}
         registrationId={registrationId}
+        registrationStatus={registrationStatus}
         navigate={navigate}
         competitionId={competitionId}
         festId={festId}

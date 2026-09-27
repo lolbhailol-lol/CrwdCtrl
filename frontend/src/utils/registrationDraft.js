@@ -178,6 +178,7 @@ export function saveFestRegistrationSuccess({
   festMongoId,
   competitionId,
   registrationId,
+  registrationStatus,
   festAliases,
 }) {
   if (!festId && !festMongoId && !competitionId) return;
@@ -204,6 +205,7 @@ export function saveFestRegistrationSuccess({
       festAliases: aliases,
       competitionId: competitionId ? String(competitionId) : '',
       registrationId: registrationId ? String(registrationId) : '',
+      registrationStatus: registrationStatus ? String(registrationStatus) : '',
       ts: Date.now(),
     });
     sessionStorage.setItem(FEST_REG_SUCCESS_KEY, payload);

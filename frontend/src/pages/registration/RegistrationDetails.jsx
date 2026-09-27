@@ -499,7 +499,7 @@ export default function RegistrationDetails() {
         status: registration.paymentStatus || 'free',
       };
 
-  const isPendingSports = treatAsSports && registration.status === 'pending';
+  const isPendingSports = registration.status === 'pending';
   const isRejectedSports = treatAsSports && registration.status === 'cancelled';
 
   const hasPaymentReceipt =
@@ -534,7 +534,7 @@ export default function RegistrationDetails() {
   const sportsClubName = registration.clubName || '';
   const sportsWaIsPhone = /^https?:\/\/wa\.me\//i.test(sportsGroupLink);
   const sportsWaLabel = sportsWaIsPhone ? 'Message club on WhatsApp' : 'Join WhatsApp group';
-  const competitionWhatsAppGroups = isCompetitionRegistration
+  const competitionWhatsAppGroups = isCompetitionRegistration && !isPendingSports
     ? (Array.isArray(registration.bundleGroups) && registration.bundleGroups.length
         ? registration.bundleGroups
         : registration.whatsappGroupLink
@@ -567,7 +567,7 @@ export default function RegistrationDetails() {
               )}
               <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {isPendingSports
-                  ? 'Payment submitted'
+                  ? (treatAsSports ? 'Payment submitted' : 'Registration submitted')
                   : isRejectedSports
                     ? 'Payment not approved'
                     : 'Registration Confirmed'}
@@ -575,7 +575,9 @@ export default function RegistrationDetails() {
             </div>
             <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mt-0.5`}>
               {isPendingSports
-                ? `${sportsClubName || 'The club'} will confirm your payment soon.`
+                ? (treatAsSports
+                    ? `${sportsClubName || 'The club'} will confirm your payment soon.`
+                    : 'The organizer will review your registration soon.')
                 : isTrekBooking
                 ? 'Trek Booking'
                 : isEventRegistration
@@ -598,7 +600,9 @@ export default function RegistrationDetails() {
               </div>
               {paymentInfo.amountPaid > 0 ? (
                 <div className="flex justify-between gap-3">
-                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Amount paid to club</span>
+                  <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>
+                    {treatAsSports ? 'Amount paid to club' : 'Amount paid'}
+                  </span>
                   <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{formatAmount(paymentInfo.amountPaid)}</span>
                 </div>
               ) : null}

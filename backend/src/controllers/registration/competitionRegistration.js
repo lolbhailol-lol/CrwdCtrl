@@ -8,7 +8,7 @@ const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationF
 const { competitionRequiresPayment, resolvePaidOrderTotal } = require('../../utils/competitionFeeTiers');
 const { logger } = require('../../utils/logger');
 const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
-const { getFestPlugin } = require('../../modules/fest/plugins');
+const { getFestPlugin, shouldAutoConfirmRegistration } = require('../../modules/fest/plugins');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
 const { normalizeLeadIdentityFromRoster } = require('../../utils/rosterResponses');
 const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
@@ -321,9 +321,8 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
     // Create registration record
     const festIdForReg = competition.fest?._id || competition.fest;
-    const autoConfirm = getFestPlugin(competition.fest || festIdForReg).autoConfirmOnRegister
-      || paymentStatus === 'paid'
-      || paymentStatus === 'free';
+    const festPlugin = getFestPlugin(competition.fest || festIdForReg);
+    const autoConfirm = shouldAutoConfirmRegistration(festPlugin, paymentStatus);
     const paidAmount = paymentStatus === 'paid' ? competitionTotalAmount : 0;
     const payment_gateway = paymentStatus === 'paid' ? 'cashfree' : null;
     const registration = new Registration({
@@ -379,16 +378,20 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     });
 
     scheduleRegistrationNotification(userId, {
-      title: 'Registration Confirmed!',
-      message: `You've successfully registered for ${competition.name}.`,
-      body: `You've registered for ${competition.name}`,
+      title: autoConfirm ? 'Registration Confirmed!' : 'Registration submitted',
+      message: autoConfirm
+        ? `You've successfully registered for ${competition.name}.`
+        : `Your registration for ${competition.name} is pending organizer approval.`,
+      body: autoConfirm
+        ? `You've registered for ${competition.name}`
+        : `Your registration for ${competition.name} is pending organizer approval`,
       link: customCompRegistrationLink,
       metadata: {
         competitionId: competition._id,
         festId: competition.fest?._id,
         registrationId: registration._id,
       },
-      whatsapp: {
+      ...(autoConfirm ? { whatsapp: {
         name: user?.name || req.user?.name,
         user,
         responses: registration.responses,
@@ -398,7 +401,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
         date: competition.fest?.startDate || '',
         time: '',
         amount: registration.amountPaid || 0,
-      },
+      } } : {}),
     });
 
     // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
@@ -406,14 +409,16 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     setImmediate(async () => {
       try {
         logger.debug('📧 Sending competition registration email (async)...');
-        await sendCompetitionRegistrationEmailForRecord({
-          user,
-          fest: competition.fest,
-          competition,
-          registration,
-          extras: { stallCoupon: stallCoupon || null },
-        });
-        logger.debug('✅ Competition registration email sent successfully');
+        if (autoConfirm) {
+          await sendCompetitionRegistrationEmailForRecord({
+            user,
+            fest: competition.fest,
+            competition,
+            registration,
+            extras: { stallCoupon: stallCoupon || null },
+          });
+          logger.debug('✅ Competition registration email sent successfully');
+        }
 
         // Send organizer notification email if configured
         // Check both confirmationEmail (competition model) and organizerEmail (fest model) for flexibility
@@ -796,9 +801,8 @@ const submitCompetitionRegistration = async (req, res) => {
 
     // Create registration with competition reference
     const festIdForReg = competition.fest?._id || competition.fest;
-    const autoConfirm = getFestPlugin(competition.fest || festIdForReg).autoConfirmOnRegister
-      || paymentStatusRoute === 'paid'
-      || paymentStatusRoute === 'free';
+    const festPlugin = getFestPlugin(competition.fest || festIdForReg);
+    const autoConfirm = shouldAutoConfirmRegistration(festPlugin, paymentStatusRoute);
     const paidAmountRoute = paymentStatusRoute === 'paid' ? competitionTotalAmount : 0;
     const paymentGatewayRoute = paymentStatusRoute === 'paid' ? 'cashfree' : null;
     const registration = new Registration({
@@ -840,22 +844,27 @@ const submitCompetitionRegistration = async (req, res) => {
       message: 'Registration successful',
       _id: registration._id,
       registrationId: registration._id,
+      status: registration.status,
       festName: fest.festName,
       competitionName: competition.name,
       stallCoupon: stallCoupon || null,
     });
 
     scheduleRegistrationNotification(userId, {
-      title: 'Registration Successful!',
-      message: `You've registered for ${competition.name} at ${fest.festName}.`,
-      body: `You've registered for ${competition.name} at ${fest.festName}`,
+      title: autoConfirm ? 'Registration Confirmed!' : 'Registration submitted',
+      message: autoConfirm
+        ? `You've registered for ${competition.name} at ${fest.festName}.`
+        : `Your registration for ${competition.name} is pending organizer approval.`,
+      body: autoConfirm
+        ? `You've registered for ${competition.name} at ${fest.festName}`
+        : `Your registration for ${competition.name} is pending organizer approval`,
       link: competitionRegistrationLink,
       metadata: {
         festId: fest._id,
         competitionId: competition._id,
         registrationId: registration._id,
       },
-      whatsapp: {
+      ...(autoConfirm ? { whatsapp: {
         name: user?.name,
         user,
         responses: registration.responses,
@@ -865,7 +874,7 @@ const submitCompetitionRegistration = async (req, res) => {
         date: fest.startDate || '',
         time: '',
         amount: registration.amountPaid || 0,
-      },
+      } } : {}),
     });
 
     // ✅ PERFORMANCE: Run all async operations in background (don't wait for them)
@@ -874,14 +883,16 @@ const submitCompetitionRegistration = async (req, res) => {
       try {
         try {
           logger.debug('📧 Sending competition registration email (async)...');
-          await sendCompetitionRegistrationEmailForRecord({
-            user,
-            fest,
-            competition,
-            registration,
-            extras: { stallCoupon: stallCoupon || null },
-          });
-          logger.debug('✅ Competition registration email sent successfully');
+          if (autoConfirm) {
+            await sendCompetitionRegistrationEmailForRecord({
+              user,
+              fest,
+              competition,
+              registration,
+              extras: { stallCoupon: stallCoupon || null },
+            });
+            logger.debug('✅ Competition registration email sent successfully');
+          }
         } catch (emailError) {
           logger.error('⚠️ Competition registration email failed:', emailError.message);
         }

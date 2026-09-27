@@ -22,7 +22,8 @@ export function getInitialFestRegistrationUi(pathname, search, navigationState =
     !freshStart && (
       navigationState?.registrationComplete
         ? {
-            registrationId: navigationState.registrationId || null,
+              registrationId: navigationState.registrationId || null,
+              registrationStatus: navigationState.registrationStatus || '',
             festId: options.festId || '',
             competitionId: options.competitionId || navigationState.competitionId || '',
           }
@@ -37,6 +38,7 @@ export function getInitialFestRegistrationUi(pathname, search, navigationState =
       completingPayment: false,
       success: true,
       registrationId: restoredSuccess?.registrationId || navigationState?.registrationId || null,
+      registrationStatus: restoredSuccess?.registrationStatus || navigationState?.registrationStatus || '',
     };
   }
 
@@ -47,7 +49,12 @@ export function getInitialFestRegistrationUi(pathname, search, navigationState =
     currentPath,
     search,
   );
-  return { completingPayment: resumingPayment, success: false, registrationId: null };
+  return {
+    completingPayment: resumingPayment,
+    success: false,
+    registrationId: null,
+    registrationStatus: '',
+  };
 }
 
 export function generateFieldId(field) {

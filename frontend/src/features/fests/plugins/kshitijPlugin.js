@@ -16,7 +16,7 @@ export const kshitijPlugin = {
   hideLiveNav: true,
   hideFestInfoNav: true,
   hideCompetitionProbables: true,
-  skipRegistrationReview: true,
+  skipRegistrationReview: false,
   suppressDefaultSuccessPopup: true,
   skipFestCommonFormOnCompetition: true,
   hasRosterPersonStep: true,

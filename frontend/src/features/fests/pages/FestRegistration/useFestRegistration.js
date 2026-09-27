@@ -109,6 +109,9 @@ export default function useFestRegistration() {
   const [success, setSuccess] = useState(() => Boolean(initialUi.success));
   const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
   const [registrationId, setRegistrationId] = useState(() => initialUi.registrationId || null);
+  const [registrationStatus, setRegistrationStatus] = useState(
+    () => initialUi.registrationStatus || '',
+  );
   const [uploadingFiles, setUploadingFiles] = useState({});
   // Cashfree verified payment fields
   const [paymentFields, setPaymentFields] = useState(null);
@@ -1969,12 +1972,24 @@ export default function useFestRegistration() {
       const result = await response.json();
       if (result.stallCoupon) setStallCoupon(result.stallCoupon);   // 👈 naya
 
-      setSubmissionProgress('Registration completed successfully!');
+      const submittedStatus = result.status
+        || result.data?.status
+        || result.registration?.status
+        || 'approved';
+      setRegistrationStatus(submittedStatus);
+
+      setSubmissionProgress(
+        submittedStatus === 'pending'
+          ? 'Registration submitted for approval!'
+          : 'Registration completed successfully!',
+      );
       const regId = result._id || result.registration?._id || result.registrationId;
       setRegistrationId(regId);
       await waitAtLeast(processUiStartedAt.current, PROCESS_UI_MIN_MS);
       setProcessOverlayMode('success');
-      setSubmissionProgress('You\'re registered!');
+      setSubmissionProgress(
+        submittedStatus === 'pending' ? 'Pending organizer approval' : 'You\'re registered!',
+      );
       saveFestRegistrationSuccess({
         festId: festId || fest?._id,
         festMongoId: fest?._id || fest?.id || null,
@@ -1982,6 +1997,7 @@ export default function useFestRegistration() {
           ? (resolvedCompetitionId || competitionId || competition?._id || null)
           : null,
         registrationId: regId,
+        registrationStatus: submittedStatus,
       });
       setCompletingPayment(false);
       setSubmitting(false);
@@ -2278,6 +2294,7 @@ export default function useFestRegistration() {
     completingPayment,
     setCompletingPayment,
     registrationId,
+    registrationStatus,
     uploadingFiles,
     paymentFields,
     stallCoupon,

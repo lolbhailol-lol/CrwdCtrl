@@ -301,13 +301,14 @@ const getRegistrationDetails = async (req, res) => {
       );
     }
 
+    const isApproved = String(payload.status || '').toLowerCase() === 'approved';
     const festWhatsApp = String(payload.fest?.registration?.whatsappCommunityLink || '').trim();
-    payload.whatsappGroupLink = String(
-      payload.competitionId?.registration?.whatsappGroupLink || festWhatsApp,
-    ).trim();
+    payload.whatsappGroupLink = isApproved
+      ? String(payload.competitionId?.registration?.whatsappGroupLink || festWhatsApp).trim()
+      : '';
     const bundleId = String(payload.responses?.mindspark_bundle_id || '').trim();
     payload.bundleGroups = [];
-    if (bundleId) {
+    if (bundleId && isApproved) {
       const Bundle = require('../../model/mindspark_bundle_model');
       const { buildMindSparkBundleConfirmationItems } = require('../../services/mindsparkBundleService');
       const bundle = await Bundle.findOne({ _id: bundleId, user: userId, status: 'paid' }).lean();
