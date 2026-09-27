@@ -138,7 +138,7 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
       } catch {
         /* keep polling */
       }
-    }, 3000);
+    }, 15000);
     return () => window.clearInterval(timer);
   }, [paymentToken, paid, result?.status, onCreated]);
 
@@ -289,13 +289,13 @@ function AssistedEntryModal({ festId, competition, online, onClose, onCreated })
               ) : null}
             </div>
             <button type="button" onClick={startNext} className="w-full rounded-xl bg-[#0ECCEE] text-black py-3 font-semibold">
-              Next person
+              Next student
             </button>
             <button type="button" onClick={onClose} className="desk-action w-full">
               Close
             </button>
             <p className="text-center text-xs text-gray-500">
-              Next person keeps this QR saved on this screen and in Live activity.
+              Next student keeps this QR as Draft and opens a blank form for the same event.
             </p>
           </div>
         ) : (
@@ -472,7 +472,7 @@ function DeskQrModal({ row, onClose, onPaid }) {
       } catch {
         /* keep the draft QR up */
       }
-    }, 3000);
+    }, 15000);
     return () => window.clearInterval(timer);
   }, [isTicket, payUrl, onPaid]);
 
@@ -539,7 +539,6 @@ export default function FestOrganizerFestDayDeskPage() {
   const [competitions, setCompetitions] = useState([]);
   const [activity, setActivity] = useState([]);
   const [bundleActivity, setBundleActivity] = useState([]);
-  const [festDayAttendees, setFestDayAttendees] = useState(0);
   const [query, setQuery] = useState("");
   const [activityQuery, setActivityQuery] = useState("");
   const [selected, setSelected] = useState(null);
@@ -553,6 +552,7 @@ export default function FestOrganizerFestDayDeskPage() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [bundleOpen, setBundleOpen] = useState(false);
   const [activityView, setActivityView] = useState("unpaid");
+  const catalogLoadedRef = useRef(false);
   const [lastQr, setLastQr] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem(`desk-last-qr:${festId}`) || "null");
@@ -582,23 +582,28 @@ export default function FestOrganizerFestDayDeskPage() {
     }
   }, [festId]);
 
+  const deskLoadInFlight = useRef(false);
   const load = useCallback(
     async ({ quiet = false } = {}) => {
       if (!navigator.onLine) return;
-      if (!quiet) setLoading(true);
+      if (quiet && deskLoadInFlight.current) return;
+      deskLoadInFlight.current = true;
+      if (!quiet && !catalogLoadedRef.current) setLoading(true);
       else setRefreshing(true);
       try {
         const data = await fetchFestDayDesk(
           festId,
           activityQuery ? { search: activityQuery } : {},
         );
-        setCompetitions(data.competitions || []);
+        if (Array.isArray(data.competitions) && data.competitions.length > 0) {
+          setCompetitions(data.competitions);
+        }
         setActivity(data.activity || []);
         setBundleActivity(data.bundleActivity || []);
-        if (data.festDayAttendees != null) setFestDayAttendees(Number(data.festDayAttendees) || 0);
       } catch (error) {
         if (!quiet) toast(error.message || "Could not load Fest Day Desk");
       } finally {
+        deskLoadInFlight.current = false;
         setLoading(false);
         setRefreshing(false);
       }
@@ -607,43 +612,20 @@ export default function FestOrganizerFestDayDeskPage() {
   );
 
   useEffect(() => {
+    let active = true;
+    fetchFestDayDesk(festId, { catalogOnly: "1" })
+      .then((data) => {
+        if (!active) return;
+        setCompetitions(data.competitions || []);
+        catalogLoadedRef.current = true;
+        setLoading(false);
+      })
+      .catch(() => {
+        // The full desk request below remains the source of truth.
+      });
     load();
+    return () => { active = false; };
   }, [load]);
-  useEffect(() => {
-    const timer = window.setInterval(() => load({ quiet: true }), 8000);
-    return () => window.clearInterval(timer);
-  }, [load]);
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-  useEffect(() => {
-    if (online) load({ quiet: true });
-  }, [online, load]);
-  useEffect(() => {
-    if (!lastQr?.orderId) return;
-    const match = combinedActivity.find((row) => row.orderId === lastQr.orderId);
-    if (match && deskPhase(match) === "successful") {
-      setLastQr(null);
-      try { sessionStorage.removeItem(`desk-last-qr:${festId}`); } catch { /* ignore */ }
-    }
-  }, [combinedActivity, festId, lastQr]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return competitions.filter((competition) => {
-      if (/auditorium/i.test(String(competition.name || ""))) return false;
-      if (!q) return true;
-      return `${competition.name} ${competition.category || ""} ${competition.module || ""}`
-        .toLowerCase()
-        .includes(q);
-    });
-  }, [competitions, query]);
 
   const combinedActivity = useMemo(() => {
     const phaseRank = (row) => {
@@ -662,6 +644,37 @@ export default function FestOrganizerFestDayDeskPage() {
       })),
     ].sort((a, b) => phaseRank(a) - phaseRank(b) || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [activity, bundleActivity]);
+
+  useEffect(() => {
+    const hasPendingDrafts = combinedActivity.some((row) => ["draft", "pending", "payment_pending", "confirming"].includes(deskPhase(row)));
+    if (!hasPendingDrafts) return undefined;
+    const timer = window.setInterval(() => load({ quiet: true }), 20000);
+    return () => window.clearInterval(timer);
+  }, [combinedActivity, load]);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  useEffect(() => {
+    if (online) load({ quiet: true });
+  }, [online, load]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return competitions.filter((competition) => {
+      if (/auditorium/i.test(String(competition.name || ""))) return false;
+      if (!q) return true;
+      return `${competition.name} ${competition.category || ""} ${competition.module || ""}`
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [competitions, query]);
+
   const unpaidCount = useMemo(
     () => combinedActivity.filter((row) => deskPhase(row) === "draft").length,
     [combinedActivity],
@@ -680,6 +693,14 @@ export default function FestOrganizerFestDayDeskPage() {
     () => combinedActivity.filter((row) => deskPhase(row) === "expired").length,
     [combinedActivity],
   );
+  useEffect(() => {
+    if (!lastQr?.orderId) return;
+    const match = combinedActivity.find((row) => row.orderId === lastQr.orderId);
+    if (match && deskPhase(match) === "successful") {
+      setLastQr(null);
+      try { sessionStorage.removeItem(`desk-last-qr:${festId}`); } catch { /* ignore */ }
+    }
+  }, [combinedActivity, festId, lastQr]);
 
   const clearExpiredEntries = async () => {
     if (!expiredEntryCount || clearingExpired) return;
@@ -810,7 +831,7 @@ export default function FestOrganizerFestDayDeskPage() {
     }
   };
 
-  if (loading)
+  if (loading && competitions.length === 0)
     return (
       <div className="min-h-[55vh] flex items-center justify-center">
         <Loader className="animate-spin text-[#0ECCEE]" size={30} />
@@ -832,7 +853,7 @@ export default function FestOrganizerFestDayDeskPage() {
           <div>
             <p className="text-xs uppercase tracking-wider text-[#0ECCEE]">MindSpark operations</p>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">Fest Day Desk</h1>
-            <p className="text-sm text-gray-400 mt-2">Fill the form, show the payment QR, then start the next person. Unpaid QRs stay saved.</p>
+            <p className="text-sm text-gray-400 mt-2">Pick one competition, or open a bundle. Then generate the payment QR.</p>
           </div>
           <button
             type="button"
@@ -844,17 +865,11 @@ export default function FestOrganizerFestDayDeskPage() {
             Refresh
           </button>
         </div>
-        <div className="mt-4 grid sm:grid-cols-3 gap-2">
-          <div className="rounded-2xl border border-white/15 bg-black/25 p-3 text-left">
-            <UserRound size={18} className="text-white mb-2" />
-            <p className="text-2xl font-bold tabular-nums text-white">{festDayAttendees.toLocaleString("en-IN")}</p>
-            <p className="font-semibold text-white text-sm mt-1">Overall participants</p>
-            <p className="text-[11px] text-gray-400 mt-1">Bundles counted once · team members counted</p>
-          </div>
+        <div className="mt-4 grid sm:grid-cols-2 gap-2">
           <div className="rounded-2xl border border-[#0ECCEE] bg-[#0ECCEE]/15 p-3 text-left">
             <UserRound size={18} className="text-[#0ECCEE] mb-2" />
-            <p className="font-semibold text-white text-sm">Single competition</p>
-            <p className="text-[11px] text-gray-400 mt-1">Fill the form, show the payment QR, then tap Next person</p>
+            <p className="font-semibold text-white text-sm">Competition</p>
+            <p className="text-[11px] text-gray-400 mt-1">Select one competition below, fill the form, then generate the payment QR</p>
           </div>
           <button
             type="button"
@@ -862,8 +877,8 @@ export default function FestOrganizerFestDayDeskPage() {
             className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-left hover:border-emerald-300/50"
           >
             <ShoppingCart size={18} className="text-emerald-300 mb-2" />
-            <p className="font-semibold text-emerald-100 text-sm">Competition bundles</p>
-            <p className="text-[11px] text-gray-400 mt-1">Pick a bundle, show the payment QR, then start the next person</p>
+            <p className="font-semibold text-emerald-100 text-sm">Bundle</p>
+            <p className="text-[11px] text-gray-400 mt-1">Hat-Trick, Tech duo, or Dynamic duo. Next student keeps the last QR as Draft</p>
           </button>
         </div>
       </section>
@@ -872,9 +887,9 @@ export default function FestOrganizerFestDayDeskPage() {
         <section className="rounded-2xl border border-white/10 bg-[#121314] p-4">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <h2 className="font-semibold">New desk registration</h2>
+              <h2 className="font-semibold">Individual competition</h2>
               <p className="text-xs text-gray-500">
-                Select a competition to enter participant details
+                Select one competition
               </p>
             </div>
             <QrCode className="text-[#0ECCEE]" />

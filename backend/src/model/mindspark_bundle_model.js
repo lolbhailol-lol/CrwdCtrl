@@ -38,4 +38,5 @@ const schema = new mongoose.Schema({
 }, { timestamps: true });
 schema.index({ source: 1, user: 1, submissionKey: 1 }, { unique: true });
 schema.index({ activeOrderId: 1 });
+schema.index({ fest: 1, source: 1, deskHiddenAt: 1, createdAt: -1 });
 module.exports = mongoose.models.MindSparkBundle || mongoose.model('MindSparkBundle', schema);

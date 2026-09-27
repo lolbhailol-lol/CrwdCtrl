@@ -100,6 +100,15 @@ function eventOptionLabel(event) {
   return Number.isFinite(amount) && String(fee) !== '' ? `${event.name} · ₹${amount.toLocaleString('en-IN')}` : event.name;
 }
 
+function localCompetitionPrice(competition, feeTierId) {
+  const tiers = Array.isArray(competition?.feeTiers) ? competition.feeTiers : [];
+  if (tiers.length) {
+    const tier = tiers.find((item) => String(item?.id || '') === String(feeTierId || ''));
+    return Number(tier?.amount) || 0;
+  }
+  return Number(competition?.feeAmount ?? competition?.registrationFee) || 0;
+}
+
 function fieldClass(isDark) {
   return `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${
     isDark
@@ -174,7 +183,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
       } catch {
         /* keep polling */
       }
-    }, 5000);
+    }, 20000);
     return () => window.clearInterval(timer);
   }, [desk, deskPay?.paymentToken, deskPay?.status]);
   useEffect(() => {
@@ -284,9 +293,31 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
       && (!competition.feeTiers?.length || Boolean(forms[formIndex]?.feeTierId))
       && subcategoryComplete(competition, forms[formIndex]);
   })();
+  const localQuote = useMemo(() => {
+    if (!selectionValid || !comps.length) return null;
+    const items = comps.map((competition, index) => ({
+      competitionId: competition._id,
+      name: competition.name,
+      originalAmount: localCompetitionPrice(competition, forms[index]?.feeTierId),
+    }));
+    const subtotal = items.reduce((sum, item) => sum + item.originalAmount, 0);
+    if (!items.every((item) => item.originalAmount > 0)) return null;
+    const totalAmount = Math.round(subtotal * ((100 - discountPercent) / 100));
+    const shares = quoteShares({ totalAmount, items });
+    return {
+      bundleKey: activeBundle.key,
+      bundleName: activeBundle.name,
+      subtotal,
+      discountPercent,
+      discountAmount: subtotal - totalAmount,
+      totalAmount,
+      items: items.map((item, index) => ({ ...item, payableAmount: shares[index], amount: shares[index] })),
+    };
+  }, [activeBundle.key, activeBundle.name, comps, discountPercent, forms, selectionValid]);
 
   useEffect(() => {
     if (!detailsValid || !formsValid) { setQuote(null); return undefined; }
+    setQuote(null);
     let cancelled = false;
     const timer = window.setTimeout(() => {
       quoteMindSparkBundle({ bundleKey: activeBundle.key, items })
@@ -296,12 +327,14 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
         .catch((e) => {
           if (!cancelled) { setQuote(null); setError(e.message); }
         });
-    }, 450);
+    }, 100);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
   }, [detailsValid, formsValid, items, activeBundle.key]);
+
+  const displayQuote = quote || localQuote;
 
   const setForm = (i, field, value) => setForms(all => all.map((form, index) => index === i ? { ...form, [field]: value } : form));
   const goNext = () => {
@@ -520,13 +553,28 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
           </button>
         ) : (
           <button type="button" onClick={startNextDeskPerson} className="w-full rounded-xl bg-[#0ECCEE] text-black py-3 font-semibold">
-            Next person
+            Next student
           </button>
         )}
+        {!archiveView && savedQrs.length ? (
+          <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">Earlier drafts</p>
+            {savedQrs.map((row) => (
+              <button
+                key={row.orderId || row.paymentUrl}
+                type="button"
+                onClick={() => setArchiveView(row)}
+                className="w-full rounded-lg bg-black/30 px-3 py-2 text-left text-sm font-semibold text-white"
+              >
+                Draft · {row.savedName || 'Student'} · ₹{Number(row.amount || 0).toLocaleString('en-IN')}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <p className={`text-center text-xs ${muted}`}>
           {archiveView
-            ? 'This saved QR stays available. The form you were filling is still here.'
-            : 'Next person keeps this QR saved on this screen and in Live activity.'}
+            ? 'This one is still Draft until they pay. Go back to finish the student you are entering now.'
+            : 'Next student keeps this QR as Draft and opens a blank form for the same bundle.'}
         </p>
       </div>
     );
@@ -574,7 +622,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
       </div>
       {desk && savedQrs.length ? (
         <div className={`mb-4 rounded-xl border p-3 ${isDark ? 'border-amber-400/20 bg-amber-500/10' : 'border-amber-200 bg-amber-50'}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>Saved payment QRs</p>
+          <p className={`text-xs font-semibold uppercase tracking-wide ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>Drafts still waiting for payment</p>
           <div className="mt-2 flex flex-col gap-2">
             {savedQrs.map((row) => (
               <button
@@ -583,7 +631,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
                 onClick={() => setArchiveView(row)}
                 className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${isDark ? 'bg-black/30 text-white' : 'bg-white text-gray-900'}`}
               >
-                Show QR · {row.savedName || 'Student'} · {row.savedLabel || 'Bundle'} · ₹{Number(row.amount || 0).toLocaleString('en-IN')}
+                Draft · {row.savedName || 'Student'} · {row.savedLabel || 'Bundle'} · ₹{Number(row.amount || 0).toLocaleString('en-IN')}
               </button>
             ))}
           </div>
@@ -866,11 +914,11 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
               </div>
               <div className={`overflow-hidden rounded-xl border ${isDark ? 'border-gray-700/50' : 'border-gray-200'}`}>
                 {(() => {
-                  const shares = quoteShares(quote);
+                  const shares = quoteShares(displayQuote);
                   return comps.map((c, i) => {
                   const members = normalizeMembers(forms[i].members || forms[i].memberNames);
-                  const priced = quote?.items?.find(item => String(item.competitionId) === String(c._id));
-                  const shareIndex = (quote?.items || []).findIndex(item => String(item.competitionId) === String(c._id));
+                  const priced = displayQuote?.items?.find(item => String(item.competitionId) === String(c._id));
+                  const shareIndex = (displayQuote?.items || []).findIndex(item => String(item.competitionId) === String(c._id));
                   const payable = shareIndex >= 0 ? (shares[shareIndex] || 0) : 0;
                   const original = Number(priced?.originalAmount ?? (priced?.payableAmount == null ? priced?.amount : payable)) || 0;
                   return (
@@ -897,17 +945,17 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
               <div className={`rounded-xl border p-4 ${isDark ? 'border-emerald-400/25 bg-emerald-500/8' : 'border-emerald-200 bg-emerald-50'}`}>
                 <div className={`flex justify-between text-sm ${muted}`}>
                   <span>Original total</span>
-                  <span className="line-through">₹{Number(quote?.subtotal || 0).toLocaleString('en-IN')}</span>
+                  <span className="line-through">₹{Number(displayQuote?.subtotal || 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className={`mt-2 flex justify-between text-sm font-semibold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
                   <span>You save {discountPercent}%</span>
-                  <span>₹{Number(quote?.discountAmount || 0).toLocaleString('en-IN')}</span>
+                  <span>₹{Number(displayQuote?.discountAmount || 0).toLocaleString('en-IN')}</span>
                 </div>
                 <div className={`mt-3 flex justify-between border-t pt-3 text-xl font-black ${isDark ? 'border-white/10' : 'border-emerald-200'} ${titleCls}`}>
                   <span>Pay now</span>
-                  <span>₹{Number(quote?.totalAmount || 0).toLocaleString('en-IN')}</span>
+                  <span>₹{Number(displayQuote?.totalAmount || 0).toLocaleString('en-IN')}</span>
                 </div>
-                {quote ? (
+                {displayQuote ? (
                   <button
                     type="button"
                     onClick={submit}
@@ -915,7 +963,7 @@ export default function MindSparkBundlePage({ embedded = false, onClose, onSaved
                     className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-6 py-3 font-bold text-black hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all disabled:opacity-50 shadow-lg shadow-[#0ECCEE]/10"
                   >
                     {busy ? <Loader className="w-4 h-4 animate-spin" /> : <ShieldCheck size={18} />}
-                    {busy ? (desk ? 'Creating payment QR…' : 'Opening secure payment…') : desk ? 'Show payment QR' : `Pay ₹${Number(quote.totalAmount).toLocaleString('en-IN')}`}
+                    {busy ? (desk ? 'Creating payment QR…' : 'Opening secure payment…') : desk ? 'Generate payment QR' : `Pay ₹${Number(displayQuote.totalAmount).toLocaleString('en-IN')}`}
                   </button>
                 ) : (
                   <div className={`mt-4 flex items-center justify-center gap-2 rounded-xl py-3 text-sm ${muted}`}>

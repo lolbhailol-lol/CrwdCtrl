@@ -179,14 +179,23 @@ export async function fetchFestOrganizerMe() {
 }
 
 export async function fetchFestOrganizerDashboard(festId) {
-    return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`, { timeout: 45000, retries: 1 });
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`, { timeout: 35000, retries: 0 });
 }
 
 export async function fetchFestDayDesk(festId, params = {}) {
     const qs = new URLSearchParams(params).toString();
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk${qs ? `?${qs}` : ''}`, {
-        retries: 1,
-        timeout: 15000,
+        retries: 0,
+        timeout: 20000,
+    });
+}
+
+export async function createFestDayDeskBundle(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/bundles`, {
+        method: 'POST',
+        body,
+        retries: 0,
+        timeout: 35000,
     });
 }
 

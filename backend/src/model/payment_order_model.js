@@ -64,6 +64,7 @@ const paymentOrderSchema = new mongoose.Schema(
 );
 
 paymentOrderSchema.index({ entityType: 1, entityId: 1 });
+paymentOrderSchema.index({ entityType: 1, entityId: 1, orderId: 1, createdAt: -1 });
 paymentOrderSchema.index({ status: 1 });
 paymentOrderSchema.index({ couponCode: 1, status: 1 });
 paymentOrderSchema.index({ userId: 1, entityType: 1, entityId: 1, status: 1, createdAt: -1 });

@@ -148,6 +148,7 @@ registrationSchema.index({ fest: 1, user: 1, competitionId: 1 });
 registrationSchema.index({ user: 1, submittedAt: -1 });
 registrationSchema.index({ fest: 1, status: 1 });
 registrationSchema.index({ fest: 1, isProShow: 1, status: 1 });
+registrationSchema.index({ fest: 1, competitionId: 1, status: 1 });
 registrationSchema.index({ reminderSent: 1, status: 1 });
 registrationSchema.index(
   { payment_order_id: 1 },

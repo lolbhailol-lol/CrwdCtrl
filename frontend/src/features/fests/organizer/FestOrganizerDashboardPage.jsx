@@ -388,12 +388,10 @@ export default function FestOrganizerDashboardPage() {
         (sum, c) => sum + (Number(c.participants) || 0),
         0,
     );
-    const totalParticipants = Math.max(
-        Number(stats.totalParticipants) || 0,
-        peopleFromComps,
-        totalApproved,
-    );
-    const festDayAttendees = Number(stats.festDayAttendees) || totalParticipants;
+    const overallPeople = Number(stats.totalParticipants) || peopleFromComps;
+    const festDayAttendees = stats.festDayAttendees != null
+        ? Number(stats.festDayAttendees) || 0
+        : overallPeople;
     const checkedIn = Number(stats.checkedIn) || 0;
     const pendingCheckIn = Number(stats.pendingCheckIn) || 0;
     const checkInRate = Number(stats.checkInRate) || 0;
@@ -534,13 +532,13 @@ export default function FestOrganizerDashboardPage() {
                     className="rounded-2xl border border-[#0ECCEE]/30 bg-linear-to-br from-[#0ECCEE]/20 to-[#161718] p-4 text-left hover:scale-[1.01] active:scale-[0.99] transition"
                 >
                     <Users size={16} className="text-[#0ECCEE] mb-2" />
-                    <p className="text-2xl font-bold tabular-nums text-white">{totalApproved}</p>
+                    <p className="text-2xl font-bold tabular-nums text-white">{(hideProShow ? overallPeople : totalApproved).toLocaleString('en-IN')}</p>
                     <p className="text-xs text-[#0ECCEE]/90 mt-1">
-                        {hideProShow ? 'Registrations' : 'Participants in'}
+                        {hideProShow ? 'Overall people' : 'Participants in'}
                     </p>
                     <p className="text-[11px] text-gray-500 mt-1">
                         {hideProShow
-                            ? `${festDayAttendees.toLocaleString('en-IN')} people coming Fest Day`
+                            ? `${totalApproved.toLocaleString('en-IN')} registrations · counted on every event`
                             : `${stats.allActive || 0} active total`}
                     </p>
                 </button>
@@ -555,9 +553,9 @@ export default function FestOrganizerDashboardPage() {
                         <p className="text-2xl font-bold tabular-nums text-white">
                             {festDayAttendees.toLocaleString('en-IN')}
                         </p>
-                        <p className="text-xs text-sky-200/90 mt-1">Overall participants</p>
+                        <p className="text-xs text-sky-200/90 mt-1">Fest Day people</p>
                         <p className="text-[11px] text-gray-500 mt-1">
-                            Fest Day · bundles counted once · team members counted
+                            Bundles counted once · team members counted
                         </p>
                     </button>
                 ) : null}

@@ -14,6 +14,7 @@ const schema = new mongoose.Schema({
 }, { timestamps: true });
 
 schema.index({ fest: 1, submissionKey: 1 }, { unique: true });
+schema.index({ fest: 1, hiddenAt: 1, createdAt: -1 });
 
 module.exports = mongoose.models.FestDayAssistedRegistration
   || mongoose.model('FestDayAssistedRegistration', schema);

@@ -10,6 +10,7 @@ const competitionSlotReservationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 competitionSlotReservationSchema.index({ competitionId: 1, slot: 1 }, { unique: true });
+competitionSlotReservationSchema.index({ competitionId: 1, expiresAt: 1 });
 competitionSlotReservationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.models.CompetitionSlotReservation

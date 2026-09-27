@@ -1,6 +1,6 @@
 import { getApiBaseUrl, PRODUCTION_API_BASE_URL } from '../../config/apiBase';
 import { apiUtils } from '../../utils/api';
-import { getFestOrganizerToken } from '../../utils/festOrganizerSession';
+import { createFestDayDeskBundle } from './festOrganizer.api';
 
 async function call(path, { method = 'GET', body, token, base = getApiBaseUrl() } = {}) {
   const response = await fetch(`${base}${path}`, { method, headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -28,7 +28,9 @@ export const quoteMindSparkBundle = (payload) => call('/mindspark/bundle/quote',
   method: 'POST',
   body: Array.isArray(payload) ? { items: payload } : payload,
 });
-export const createMindSparkBundle = (payload, desk = false) => call(desk ? `/fest-organizer/fests/${payload.festId}/fest-day-desk/bundles` : '/mindspark/bundle/orders', { method: 'POST', body: payload, token: desk ? getFestOrganizerToken() : apiUtils.getToken() });
+export const createMindSparkBundle = (payload, desk = false) => desk
+  ? createFestDayDeskBundle(payload.festId, payload)
+  : call('/mindspark/bundle/orders', { method: 'POST', body: payload, token: apiUtils.getToken() });
 export const fetchMindSparkBundlePayment = token => call(`/mindspark/bundle/pay/${token}`);
 export const verifyMindSparkBundlePayment = (token, payment = null) => call(`/mindspark/bundle/pay/${token}/verify`, { method: 'POST', ...(payment ? { body: payment } : {}) });
 export const reissueMindSparkBundlePayment = token => call(`/mindspark/bundle/pay/${token}/reissue`, { method: 'POST' });

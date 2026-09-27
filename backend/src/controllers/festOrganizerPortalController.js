@@ -35,6 +35,7 @@ const {
     filterCashfreeConfirmedRegs,
     scaleCompetitionSettlementToTotals,
     applyMindSparkCollectedTotals,
+    mindSparkLockedTotals,
 } = require('../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../modules/fest/plugins');
 const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
@@ -47,7 +48,23 @@ const { countFestDayAttendees, rosterDetails } = require('../utils/festDayHeadco
 
 const TOKEN_TTL = '7d';
 const MINDSPARK_MONEY_TTL_MS = 20000;
+const DASHBOARD_SNAP_TTL_MS = 20000;
+const DASHBOARD_SNAP_STALE_MS = 5 * 60 * 1000;
 const mindsparkMoneyCache = new Map();
+const dashboardSnapCache = new Map();
+const dashboardRefreshInflight = new Set();
+
+function readDashboardSnap(festId) {
+    const hit = dashboardSnapCache.get(String(festId));
+    if (!hit) return null;
+    const age = Date.now() - hit.at;
+    if (age > DASHBOARD_SNAP_STALE_MS) return null;
+    return { body: hit.body, fresh: age <= DASHBOARD_SNAP_TTL_MS };
+}
+
+function rememberDashboardSnap(festId, body) {
+    dashboardSnapCache.set(String(festId), { at: Date.now(), body });
+}
 
 function readMindSparkMoney(festId) {
     const hit = mindsparkMoneyCache.get(String(festId));
@@ -85,19 +102,63 @@ function requireMindSparkDesk(req, res) {
 }
 
 const deskHeadcountCache = new Map();
-const DESK_HEADCOUNT_TTL_MS = 20000;
+const DESK_HEADCOUNT_TTL_MS = 25000;
+const deskSnapCache = new Map();
+const deskRefreshInflight = new Set();
+const DESK_SNAP_TTL_MS = 12000;
+const DESK_SNAP_STALE_MS = 2 * 60 * 1000;
+
+function deskSnapKey(festId, search, catalogOnly = false) {
+    return `${festId}:${search || ''}:${catalogOnly ? 'catalog' : 'full'}`;
+}
+
+function readDeskSnap(key) {
+    const hit = deskSnapCache.get(key);
+    if (!hit) return null;
+    const age = Date.now() - hit.at;
+    if (age > DESK_SNAP_STALE_MS) return null;
+    return { body: hit.body, fresh: age <= DESK_SNAP_TTL_MS };
+}
+
+function rememberDeskSnap(key, body) {
+    deskSnapCache.set(key, { at: Date.now(), body });
+}
+
+function clearDeskSnaps(festId) {
+    const prefix = `${festId}:`;
+    for (const key of deskSnapCache.keys()) {
+        if (String(key).startsWith(prefix)) deskSnapCache.delete(key);
+    }
+}
+
+function rememberFestDayHeadcount(festId, value) {
+    deskHeadcountCache.set(String(festId), { at: Date.now(), value: Number(value) || 0 });
+}
 
 async function festDayOverallParticipants(festId) {
     const key = String(festId);
     const hit = deskHeadcountCache.get(key);
     if (hit && Date.now() - hit.at < DESK_HEADCOUNT_TTL_MS) return hit.value;
-    const regs = await Registration.find({
-        fest: festId,
-        status: 'approved',
-        isProShow: { $ne: true },
-    }).select('responses').lean();
-    const value = countFestDayAttendees(regs);
-    deskHeadcountCache.set(key, { at: Date.now(), value });
+    const festOid = new mongoose.Types.ObjectId(key);
+    const [headRows, bundleRegs] = await Promise.all([
+        Registration.aggregate([
+            { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true } } },
+            { $group: { _id: null, totalParticipants: { $sum: registrationPeopleCountExpr() } } },
+        ]),
+        Registration.find({
+            fest: festId,
+            status: 'approved',
+            isProShow: { $ne: true },
+            'responses.mindspark_bundle_id': { $nin: [null, ''] },
+        }).select('responses.mindspark_bundle_id responses.team_members responses.members responses.team_size').lean(),
+    ]);
+    const totalParticipants = Number(headRows[0]?.totalParticipants) || 0;
+    const rawBundlePeople = bundleRegs.reduce(
+        (sum, registration) => sum + rosterDetails(registration).declaredPeople,
+        0,
+    );
+    const value = Math.max(0, totalParticipants - rawBundlePeople + countFestDayAttendees(bundleRegs));
+    rememberFestDayHeadcount(festId, value);
     return value;
 }
 
@@ -844,8 +905,21 @@ exports.getMe = async (req, res) => {
 };
 
 exports.getDashboard = async (req, res) => {
+    const festId = req.festId;
+    const dashKey = String(festId || '');
+    let sent = false;
+    let refreshing = false;
     try {
-        const festId = req.festId;
+        if (isMindSparkFestId(festId)) {
+            const snap = readDashboardSnap(festId);
+            if (snap) {
+                res.json(snap.body);
+                sent = true;
+                if (snap.fresh || dashboardRefreshInflight.has(dashKey)) return;
+                dashboardRefreshInflight.add(dashKey);
+                refreshing = true;
+            }
+        }
         const moneyCache = isMindSparkFestId(festId) ? readMindSparkMoney(festId) : null;
         const razorpayPromise = moneyCache || !isMindSparkFestId(festId)
             ? Promise.resolve(null)
@@ -890,7 +964,7 @@ exports.getDashboard = async (req, res) => {
             Registration.countDocuments({ ...notProShow, status: 'pending' }),
             Registration.countDocuments({ ...notProShow, status: 'rejected' }),
             Registration.countDocuments({ ...baseApproved, checkedIn: true }),
-            moneyCache
+            (moneyCache || isMindSparkFestId(festId))
                 ? Promise.resolve([])
                 : Registration.find(baseApproved).select('amountPaid paymentStatus payment_gateway payment_order_id competitionId').lean(),
             Registration.countDocuments({
@@ -1021,6 +1095,7 @@ exports.getDashboard = async (req, res) => {
             0,
             totalParticipants - rawBundlePeople + countFestDayAttendees(bundleHeadcountRegs),
         );
+        rememberFestDayHeadcount(festId, festDayAttendees);
 
         let revenue = paidRegs.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
@@ -1143,6 +1218,42 @@ exports.getDashboard = async (req, res) => {
             razorpayPaidRevenue = moneyCache.razorpayPaidRevenue;
             cashfreeLockGross = moneyCache.cashfreeLockGross;
             cashfreeLockRevenue = moneyCache.cashfreeLockRevenue;
+        } else if (isMindSparkFestId(festId)) {
+            const override = getFestPlugin(festId).settlementOverride || {};
+            const razorpay = await razorpayPromise;
+            const locked = mindSparkLockedTotals({
+                cashfreeGross: Number(override.cashfreeLockGross) || 0,
+                cashfreeRevenue: Number(override.cashfreeLockRevenue) || 0,
+                razorpayGross: Number(razorpay?.totalCollected) || 0,
+                override,
+            });
+            grossCollected = locked.grossCollected;
+            gatewayFees = locked.gatewayFees;
+            revenue = locked.revenue;
+            additionalDeduction = Number(override.additionalDeduction) || 0;
+            razorpayPaidGross = locked.razorpayPaidGross;
+            razorpayPaidRevenue = locked.razorpayPaidRevenue;
+            cashfreeLockGross = locked.cashfreeLockGross;
+            cashfreeLockRevenue = locked.cashfreeLockRevenue;
+            const counted = Math.round(competitionStats.reduce((sum, row) => sum + (Number(row.revenue) || 0), 0) * 100) / 100;
+            earlierClearGross = Math.max(0, Math.round((grossCollected - counted) * 100) / 100);
+            earlierClearRevenue = Math.max(0, Math.round((revenue - counted) * 100) / 100);
+            rememberMindSparkMoney(festId, {
+                grossCollected,
+                revenue,
+                gatewayFees,
+                additionalDeduction,
+                earlierClearGross,
+                earlierClearRevenue,
+                razorpayPaidGross,
+                razorpayPaidRevenue,
+                cashfreeLockGross,
+                cashfreeLockRevenue,
+                byCompetition: Object.fromEntries(competitionStats.map((row) => [String(row.id || 'none'), {
+                    grossCollected: row.revenue,
+                    revenue: row.revenue,
+                }])),
+            });
         } else if (getFestPlugin(festId).useCashfreeSettlement) {
             const plugin = getFestPlugin(festId);
             const excludeIds = new Set(
@@ -1300,7 +1411,7 @@ exports.getDashboard = async (req, res) => {
             };
         });
 
-        res.json({
+        const payload = {
             success: true,
             fest: {
                 id: fest._id,
@@ -1351,10 +1462,14 @@ exports.getDashboard = async (req, res) => {
             },
             competitions: competitionStats,
             recent,
-        });
+        };
+        if (isMindSparkFestId(festId)) rememberDashboardSnap(festId, payload);
+        if (!sent) res.json(payload);
     } catch (error) {
         console.error('[festOrganizerPortal.getDashboard]', error);
-        res.status(500).json({ success: false, message: 'Failed to load dashboard' });
+        if (!sent) res.status(500).json({ success: false, message: 'Failed to load dashboard' });
+    } finally {
+        if (refreshing) dashboardRefreshInflight.delete(dashKey);
     }
 };
 
@@ -3221,34 +3336,94 @@ exports.createManualParticipant = async (req, res) => {
 
 /** MindSpark day-of desk: competition catalogue plus recent payment attempts. */
 exports.getFestDayDesk = async (req, res) => {
+    const festId = req.festId;
+    let sent = false;
+    let refreshing = false;
+    let deskKey = String(festId || '');
     try {
         if (!requireMindSparkDesk(req, res)) return;
-        const headcountPromise = festDayOverallParticipants(req.festId).catch((error) => {
-            console.error('[festOrganizerPortal.getFestDayDesk.headcount]', error);
-            return 0;
-        });
         const search = String(req.query.search || '').trim().toLowerCase();
+        const catalogOnly = String(req.query.catalogOnly || '') === '1';
+        deskKey = deskSnapKey(festId, search, catalogOnly);
+        const snap = readDeskSnap(deskKey);
+        if (snap) {
+            res.json(snap.body);
+            sent = true;
+            if (snap.fresh || deskRefreshInflight.has(deskKey)) return;
+            deskRefreshInflight.add(deskKey);
+            refreshing = true;
+        }
+        const headcountPromise = catalogOnly
+            ? Promise.resolve(0)
+            : festDayOverallParticipants(festId).catch((error) => {
+                console.error('[festOrganizerPortal.getFestDayDesk.headcount]', error);
+                return 0;
+            });
         const Competition = mongoose.model('Competition');
-        const competitions = await Competition.find({ fest: req.festId })
-            .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.status category module teamSizeMin teamSizeMax teamSizeLabel')
-            .sort({ name: 1 })
-            .lean();
+        const MindSparkBundle = require('../model/mindspark_bundle_model');
+        const bundleFilter = { fest: req.festId, source: 'desk', deskHiddenAt: null };
+        const recentBundlesPromise = catalogOnly || search
+            ? null
+            : MindSparkBundle.find(bundleFilter)
+                .select('+paymentToken')
+                .populate('user', 'name email phone phoneNumber')
+                .sort({ createdAt: -1 })
+                .limit(60)
+                .lean();
+        const [competitions, assistedDeskEntries] = await Promise.all([
+            Competition.find({ fest: req.festId })
+                .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.status category module teamSizeMin teamSizeMax teamSizeLabel')
+                .sort({ name: 1 })
+                .lean(),
+            catalogOnly ? Promise.resolve([]) : FestDayAssistedRegistration.find({
+                fest: req.festId,
+                paymentOrderId: { $nin: [null, ''] },
+                hiddenAt: null,
+            }).select('paymentOrderId +paymentToken').sort({ createdAt: -1 }).limit(300).lean(),
+        ]);
+        if (catalogOnly) {
+            const competitionRows = competitions.map((competition) => {
+            const registrationStatus = String(competition.registration?.status || '');
+            return {
+                ...competition,
+                slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
+                slotsFilled: 0,
+                slotsLeft: Number(competition.slotsAllotted) > 0 ? Number(competition.slotsAllotted) : null,
+                registrationsOpen: registrationStatus.toLowerCase() !== 'registration_closed',
+                pendingToday: 0,
+                paidToday: 0,
+            };
+            });
+            const payload = {
+            success: true,
+            festDayAttendees: 0,
+            competitions: competitionRows,
+            activity: [],
+            bundleActivity: [],
+            refreshedAt: new Date().toISOString(),
+            };
+            rememberDeskSnap(deskKey, payload);
+            res.json(payload);
+            return;
+        }
         const competitionIds = competitions.map((competition) => competition._id);
-        const filledRows = await Registration.aggregate([
-            {
-                $match: {
-                    fest: new mongoose.Types.ObjectId(String(req.festId)),
-                    competitionId: { $in: competitionIds },
-                    status: 'approved',
+        const [filledRows, reservedRows] = await Promise.all([
+            Registration.aggregate([
+                {
+                    $match: {
+                        fest: new mongoose.Types.ObjectId(String(req.festId)),
+                        competitionId: { $in: competitionIds },
+                        status: 'approved',
+                    },
                 },
-            },
-            { $group: { _id: '$competitionId', count: { $sum: 1 } } },
+                { $group: { _id: '$competitionId', count: { $sum: 1 } } },
+            ]),
+            CompetitionSlotReservation.aggregate([
+                { $match: { competitionId: { $in: competitionIds }, expiresAt: { $gt: new Date() } } },
+                { $group: { _id: '$competitionId', count: { $sum: 1 } } },
+            ]),
         ]);
         const filledByCompetition = new Map(filledRows.map((row) => [String(row._id), Number(row.count) || 0]));
-        const reservedRows = await CompetitionSlotReservation.aggregate([
-            { $match: { competitionId: { $in: competitionIds }, expiresAt: { $gt: new Date() } } },
-            { $group: { _id: '$competitionId', count: { $sum: 1 } } },
-        ]);
         const reservedByCompetition = new Map(reservedRows.map((row) => [String(row._id), Number(row.count) || 0]));
         const competitionRowsBase = competitions.map((competition) => {
             const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
@@ -3265,11 +3440,6 @@ exports.getFestDayDesk = async (req, res) => {
                 paidToday: 0,
             };
         });
-        const assistedDeskEntries = await FestDayAssistedRegistration.find({
-            fest: req.festId,
-            paymentOrderId: { $nin: [null, ''] },
-            hiddenAt: null,
-        }).select('paymentOrderId +paymentToken').sort({ createdAt: -1 }).limit(300).lean();
         const assistedOrderIds = assistedDeskEntries.map((entry) => entry.paymentOrderId).filter(Boolean);
         const orderFilter = {
             entityType: 'competition',
@@ -3404,8 +3574,6 @@ exports.getFestDayDesk = async (req, res) => {
             paidToday: paidTodayByComp.get(String(competition._id)) || 0,
         }));
 
-        const MindSparkBundle = require('../model/mindspark_bundle_model');
-        const bundleFilter = { fest: req.festId, source: 'desk', deskHiddenAt: null };
         if (search) {
             const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(escaped, 'i');
@@ -3435,12 +3603,12 @@ exports.getFestDayDesk = async (req, res) => {
                 { _id: { $in: registrationBundleIds } },
             ];
         }
-        const recentBundles = await MindSparkBundle.find(bundleFilter)
+        const recentBundles = await (recentBundlesPromise || MindSparkBundle.find(bundleFilter)
             .select('+paymentToken')
             .populate('user', 'name email phone phoneNumber')
             .sort({ createdAt: -1 })
             .limit(60)
-            .lean();
+            .lean());
         const bundleOrderIds = recentBundles.map((bundle) => bundle.activeOrderId).filter(Boolean);
         const bundlePayOrders = bundleOrderIds.length
             ? await PaymentOrder.find({ orderId: { $in: bundleOrderIds } }).select('orderId gateway').lean()
@@ -3495,17 +3663,21 @@ exports.getFestDayDesk = async (req, res) => {
         });
 
         const festDayAttendees = await headcountPromise;
-        res.json({
+        const payload = {
             success: true,
             festDayAttendees,
             competitions: competitionRows,
             activity,
             bundleActivity,
             refreshedAt: new Date().toISOString(),
-        });
+        };
+        rememberDeskSnap(deskKey, payload);
+        if (!sent) res.json(payload);
     } catch (error) {
         console.error('[festOrganizerPortal.getFestDayDesk]', error);
-        res.status(500).json({ success: false, message: 'Failed to load Fest Day Desk' });
+        if (!sent) res.status(500).json({ success: false, message: 'Failed to load Fest Day Desk' });
+    } finally {
+        if (refreshing) deskRefreshInflight.delete(deskKey);
     }
 };
 
@@ -3513,6 +3685,7 @@ exports.getFestDayDesk = async (req, res) => {
 exports.clearExpiredFestDayDeskEntries = async (req, res) => {
     try {
         if (!requireMindSparkDesk(req, res)) return;
+        clearDeskSnaps(req.festId);
         const now = new Date();
         const staleCutoff = new Date(now.getTime() - (30 * 60 * 1000));
         const assistedEntries = await FestDayAssistedRegistration.find({
@@ -3590,6 +3763,7 @@ exports.clearExpiredFestDayDeskEntries = async (req, res) => {
 exports.deleteFestDayDeskDrafts = async (req, res) => {
     try {
         if (!requireMindSparkDesk(req, res)) return;
+        clearDeskSnaps(req.festId);
         const now = new Date();
         const all = req.body?.all === true;
         const orderId = String(req.body?.orderId || '').trim();
