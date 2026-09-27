@@ -18,7 +18,9 @@ import AuditoriumTicketPass, {
 } from '../../features/fests/mindspark/AuditoriumTicketPass';
 import JoinCommunityButton from '../../components/JoinCommunityButton';
 
-const ticketCacheKey = (type, id) => `crwdctrl_ticket_${type || 'fest'}_${id}`;
+// Bump when ticket presentation data changes so stale dates cannot be shown first.
+const TICKET_CACHE_VERSION = 'v2';
+const ticketCacheKey = (type, id) => `crwdctrl_ticket_${TICKET_CACHE_VERSION}_${type || 'fest'}_${id}`;
 
 const readCachedTicket = (key) => {
   try {

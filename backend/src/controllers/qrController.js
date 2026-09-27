@@ -19,7 +19,7 @@ const generateQR = async (req, res) => {
       _id: registrationId,
       user: userId,
     }).populate('fest', 'festName slug festDate venue stallBrand stallDiscountPercent registration.whatsappCommunityLink')
-      .populate('competitionId', 'name registration.whatsappGroupLink')
+      .populate('competitionId', 'name dateTime registration.whatsappGroupLink')
       .populate('user', 'name');
 
     if (!registration) {
@@ -85,7 +85,7 @@ const generateQR = async (req, res) => {
         qrHash: registration.qrCodeData,
         userName: registration.user?.name || responses.full_name || responses.name || null,
         festName: registration.fest?.festName || 'Unknown',
-        festDate: registration.fest?.festDate || null,
+        festDate: registration.competitionId?.dateTime || registration.fest?.festDate || null,
         venue: registration.fest?.venue || null,
         competitionName: registration.competitionId?.name || null,
         whatsappGroupLink: whatsappGroupLink || null,

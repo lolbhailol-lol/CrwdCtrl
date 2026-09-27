@@ -1217,7 +1217,12 @@ async function sendCompetitionRegistrationEmailForRecord({
     const paymentStatus = registration.paymentStatus || 'free';
     const festName = festDoc?.festName || festDoc?.name || (isTechfest ? 'Techfest IIT Bombay' : 'Fest');
     const venue = String(festDoc?.venue || (isTechfest ? 'IIT Bombay, Mumbai' : '')).trim();
-    const baseDetails = amountPaid > 0 ? [{ label: 'Amount paid', value: `₹${amountPaid}` }] : [];
+    const baseDetails = [
+        (competition?.dateTime || festDoc?.festDate)
+            ? { label: 'Date & time', value: String(competition?.dateTime || festDoc.festDate) }
+            : null,
+        amountPaid > 0 ? { label: 'Amount paid', value: `₹${amountPaid}` } : null,
+    ].filter(Boolean);
     const extraDetails = Array.isArray(extras.details) ? extras.details : [];
 
     const userId = user._id || user.id || user.userId;
