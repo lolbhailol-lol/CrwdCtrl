@@ -19,8 +19,9 @@ test('auditorium identity claims enforce one atomic claim per identity', () => {
   assert.ok(uniqueIndex, 'compound unique identity index is required');
 });
 
-test('auditorium student directory accepts MBA category', () => {
+test('auditorium student directory accepts postgraduate categories', () => {
   const path = AuditoriumStudent.schema.path('categoryId');
+  assert.ok(path.enumValues.includes('mtech'));
   assert.ok(path.enumValues.includes('mba'));
 });
 

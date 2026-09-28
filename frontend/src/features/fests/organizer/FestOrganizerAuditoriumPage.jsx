@@ -341,14 +341,14 @@ export default function FestOrganizerAuditoriumPage() {
                             </div>
                             <span className="text-xs font-semibold text-[#7DE8F7] tabular-nums">{directory.total || 0} emails</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
                             {[
                                 ['first_year', 'First'], ['second_year', 'Second'],
-                                ['third_year', 'Third'], ['fourth_year', 'Fourth'], ['mba', 'MBA'],
+                                ['third_year', 'Third'], ['fourth_year', 'Fourth'], ['mtech', 'M.Tech'], ['mba', 'MBA'],
                             ].map(([id, label]) => (
                                 <div key={id} className="rounded-xl border border-white/8 bg-white/3 px-3 py-2">
                                     <p className="text-sm font-semibold text-white tabular-nums">{directory.byCategory?.[id] || 0}</p>
-                                    <p className="text-[10px] uppercase tracking-wide text-gray-500">{id === 'mba' ? label : `${label} year`}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-gray-500">{['mtech', 'mba'].includes(id) ? label : `${label} year`}</p>
                                 </div>
                             ))}
                         </div>
@@ -362,6 +362,7 @@ export default function FestOrganizerAuditoriumPage() {
                                 <option value="second_year">Second year</option>
                                 <option value="third_year">Third year</option>
                                 <option value="fourth_year">Fourth year</option>
+                                <option value="mtech">M.Tech</option>
                                 <option value="mba">MBA</option>
                             </select>
                             <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-3 py-2.5 text-sm font-bold text-black ${directoryBusy ? 'opacity-50 pointer-events-none' : ''}`}>

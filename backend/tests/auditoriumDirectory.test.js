@@ -13,9 +13,9 @@ const {
   DIRECTORY_YEARS,
 } = require('../src/utils/auditoriumDirectory');
 
-test('student directory supports engineering years and MBA', () => {
+test('student directory supports engineering years, M.Tech and MBA', () => {
   assert.deepEqual([...DIRECTORY_YEARS], [
-    'first_year', 'second_year', 'third_year', 'fourth_year', 'mba',
+    'first_year', 'second_year', 'third_year', 'fourth_year', 'mtech', 'mba',
   ]);
 });
 
