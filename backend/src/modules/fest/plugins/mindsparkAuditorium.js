@@ -34,7 +34,7 @@ function sanitizeCategory(raw = {}) {
     : 'public';
   const seats = Math.max(0, Math.floor(Number(raw.seats) || 0));
   const label = String(raw.label || id).trim().slice(0, 120) || id;
-  return { id, label, seats, channel };
+  return { id, label, seats, channel, enabled: raw.enabled !== false };
 }
 
 function sanitizeCategories(list) {

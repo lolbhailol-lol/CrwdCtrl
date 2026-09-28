@@ -152,6 +152,23 @@ function sanitizeUploadFolder(folder) {
   return 'crwdctrl';
 }
 
+// Return a short-lived signature so high-volume clients can upload directly to
+// Cloudinary instead of buffering every image in the application server.
+exports.createAuditoriumUploadSignature = (req, res) => {
+  const cloudName = String(process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+  const apiKey = String(process.env.CLOUDINARY_API_KEY || '').trim();
+  const apiSecret = String(process.env.CLOUDINARY_API_SECRET || '').trim();
+  if (!cloudName || !apiKey || !apiSecret) {
+    return res.status(503).json({ success: false, message: 'Photo upload is temporarily unavailable' });
+  }
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const folder = 'crwdctrl/auditorium-tickets';
+  const signature = cloudinary.utils.api_sign_request({ folder, timestamp }, apiSecret);
+  res.set('Cache-Control', 'no-store');
+  return res.json({ success: true, cloudName, apiKey, timestamp, folder, signature });
+};
+
 
 // Single image upload
 exports.uploadImage = async (req, res) => {

@@ -96,6 +96,7 @@ export default function FestOrganizerAuditoriumPage() {
                 label: c.label,
                 seats: c.seats,
                 channel: c.channel,
+                enabled: c.enabled !== false,
             })));
             const inviteCats = (payload?.config?.categories || []).filter((c) => c.channel === 'invite' || c.channel === 'desk');
             if (inviteCats[0] && !inviteForm.categoryId) {
@@ -151,7 +152,7 @@ export default function FestOrganizerAuditoriumPage() {
             }));
             if (next.stats?.categories) {
                 setSeatDraft(next.stats.categories.map((c) => ({
-                    id: c.id, label: c.label, seats: c.seats, channel: c.channel,
+                    id: c.id, label: c.label, seats: c.seats, channel: c.channel, enabled: c.enabled !== false,
                 })));
             }
             toast('Saved');
@@ -282,6 +283,24 @@ export default function FestOrganizerAuditoriumPage() {
                                 patchConfig({ registrationOpen: !config.registrationOpen });
                             }}
                         />
+                        {['first_year', 'second_year'].map((categoryId) => {
+                            const category = seatDraft.find((item) => item.id === categoryId);
+                            if (!category) return null;
+                            const isOpen = category.enabled !== false;
+                            return (
+                                <Toggle
+                                    key={categoryId}
+                                    on={isOpen}
+                                    label={`${category.label} passes`}
+                                    hint={isOpen ? 'Students in this year can claim auditorium passes' : 'Claims for this year are paused'}
+                                    onClick={() => patchConfig({
+                                        categories: seatDraft.map((item) => (
+                                            item.id === categoryId ? { ...item, enabled: !isOpen } : item
+                                        )),
+                                    })}
+                                />
+                            );
+                        })}
                     </section>
 
                     <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">

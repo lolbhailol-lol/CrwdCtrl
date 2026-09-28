@@ -11,6 +11,7 @@ router.get('/meta', ctrl.getPublicMeta);
 /** Login required — Google session fills identity; blocks anonymous seat farming */
 router.post('/register', authenticateToken, registrationLimiter, ctrl.publicRegister);
 router.get('/my-ticket', authenticateToken, ctrl.getMyTicket);
+router.post('/upload-signature', authenticateToken, registrationLimiter, uploadCtrl.createAuditoriumUploadSignature);
 
 router.post(
   '/upload-photo',

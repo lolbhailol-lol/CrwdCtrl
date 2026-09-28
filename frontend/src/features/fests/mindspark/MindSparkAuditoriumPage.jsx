@@ -42,6 +42,28 @@ function clearDraft() {
 
 async function uploadTicketPhoto(file, token) {
   if (!token) throw new Error('Sign in required to upload');
+  try {
+    const signed = await authenticatedFetchJSON(resolveUrl('/mindspark/auditorium/upload-signature'), {
+      method: 'POST',
+    });
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('api_key', signed.apiKey);
+    fd.append('timestamp', String(signed.timestamp));
+    fd.append('folder', signed.folder);
+    fd.append('signature', signed.signature);
+    const direct = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(signed.cloudName)}/image/upload`, {
+      method: 'POST',
+      body: fd,
+    });
+    const directData = await direct.json().catch(() => ({}));
+    if (!direct.ok) throw new Error(directData.error?.message || 'Direct photo upload failed');
+    if (directData.secure_url) return directData.secure_url;
+  } catch {
+    // Keep the proxied upload as a compatibility fallback during deployment or
+    // if a device/network blocks direct Cloudinary requests.
+  }
+
   const fd = new FormData();
   fd.append('image', file);
   fd.append('folder', 'crwdctrl/auditorium-tickets');

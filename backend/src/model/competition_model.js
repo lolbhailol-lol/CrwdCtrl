@@ -373,6 +373,7 @@ const competitionSchema = new mongoose.Schema(
       id: { type: String, trim: true },
       label: { type: String, trim: true },
       seats: { type: Number, default: 0, min: 0 },
+      enabled: { type: Boolean, default: true },
       channel: {
         type: String,
         enum: ['public', 'invite', 'desk'],

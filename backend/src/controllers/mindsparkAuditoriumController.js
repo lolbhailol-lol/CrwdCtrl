@@ -229,7 +229,7 @@ async function findInvite(competitionId, code) {
 function publicMetaPayload(competition, stats, inviteCategory = null) {
   const cfg = normalizeAuditoriumConfig(competition.auditorium || {});
   const publicCats = (stats.categories || [])
-    .filter((c) => c.channel === 'public')
+    .filter((c) => c.channel === 'public' && c.enabled !== false)
     .map((c) => ({
       id: c.id,
       label: c.label,
@@ -389,6 +389,13 @@ async function createAuditoriumTicket({
   if (!category) {
     const err = new Error('Invalid category');
     err.status = 400;
+    throw err;
+  }
+
+  if (category.channel === 'public' && category.enabled === false && channelHint === 'public') {
+    const err = new Error(`${category.label} auditorium passes are currently closed`);
+    err.status = 403;
+    err.code = 'CATEGORY_CLOSED';
     throw err;
   }
 
@@ -992,6 +999,9 @@ exports.updateOrganizerConfig = async (req, res) => {
       competition.registration.settings.maxRegistrations = competition.slotsAllotted;
     }
     await competition.save();
+
+    auditoriumMetaCache.at = 0;
+    auditoriumMetaCache.payload = null;
 
     for (const cat of current.categories) {
       await syncCategoryCounter(competition._id, cat.id);

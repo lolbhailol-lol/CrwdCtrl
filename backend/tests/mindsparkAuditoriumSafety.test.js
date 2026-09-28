@@ -34,4 +34,16 @@ test('auditorium config normalization keeps safe defaults and seat categories', 
   assert.equal(config.enabled, true);
   assert.ok(config.categories.length >= 1);
   assert.ok(config.categories.every((category) => Number(category.seats) >= 0));
+  assert.ok(config.categories.every((category) => category.enabled === true));
+});
+
+test('auditorium config preserves independent category switches', () => {
+  const defaults = defaultAuditoriumConfig();
+  const categories = defaults.categories.map((category) => (
+    category.id === 'first_year' ? { ...category, enabled: false } : category
+  ));
+  const config = normalizeAuditoriumConfig({ enabled: true, categories });
+
+  assert.equal(config.categories.find((category) => category.id === 'first_year').enabled, false);
+  assert.equal(config.categories.find((category) => category.id === 'second_year').enabled, true);
 });

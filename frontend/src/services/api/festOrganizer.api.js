@@ -179,7 +179,7 @@ export async function fetchFestOrganizerMe() {
 }
 
 export async function fetchFestOrganizerDashboard(festId) {
-    return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`, { timeout: 35000, retries: 0 });
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`, { timeout: 45000, retries: 0 });
 }
 
 export async function fetchFestDayDesk(festId, params = {}) {
