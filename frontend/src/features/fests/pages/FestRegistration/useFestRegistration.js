@@ -921,7 +921,11 @@ export default function useFestRegistration() {
     for (let i = 0; i < people; i += 1) {
       steps.push({
         stepNumber: n + i,
-        stepTitle: people === 1 ? 'Your details' : `Person ${i + 1}`,
+        stepTitle: people === 1
+          ? 'Your details'
+          : i === 0
+            ? 'Team leader'
+            : `Team member ${i + 1}`,
       });
     }
     return steps;

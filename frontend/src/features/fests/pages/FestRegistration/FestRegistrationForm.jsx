@@ -77,7 +77,8 @@ export default function FestRegistrationForm({
   const festPlugin = getFestPluginFromAny(fest, competition?.fest, competition);
   const hideFestCommonForm =
     Boolean(isCompetitionRegistration) && festPlugin.skipFestCommonFormOnCompetition;
-  const mindSparkLayout = festPlugin.id === 'mindspark';
+  const wideRosterLayout = festPlugin.registrationLayout === 'roster-wide';
+  const lazyMountRegistrationSteps = festPlugin.lazyMountRegistrationSteps === true;
   const submitLabel = festPlugin.id === 'kshitij' ? 'Submit Registration' : 'Confirm Booking';
   const PersonStep = festPlugin.id === 'techfest' ? TechfestRosterPersonStep : RosterPersonStep;
   const onParticipantStep = typeof isOnParticipantStep === 'function' && isOnParticipantStep();
@@ -132,7 +133,7 @@ export default function FestRegistrationForm({
         }
         progressMessage={submissionProgress || 'Processing your registration…'}
       />
-      <div className={`mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${mindSparkLayout ? 'max-w-5xl' : 'max-w-4xl'} ${formLocked ? 'opacity-90' : ''}`}>
+      <div className={`mx-auto px-4 sm:px-6 lg:px-8 transition-opacity duration-300 ${wideRosterLayout ? 'max-w-5xl' : 'max-w-4xl'} ${formLocked ? 'opacity-90' : ''}`}>
         {festDayMode && (
           <div className={`mb-4 rounded-xl border px-4 py-3 ${isDark ? 'border-[#0ECCEE]/30 bg-[#0ECCEE]/10' : 'border-cyan-200 bg-cyan-50'}`}>
             <p className={`text-sm font-semibold ${isDark ? 'text-[#0ECCEE]' : 'text-cyan-800'}`}>Fast fest-day registration</p>
@@ -197,6 +198,7 @@ export default function FestRegistrationForm({
           isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'
         } ${formLocked ? 'pointer-events-none select-none blur-[2px] saturate-75' : ''}`}>
           <form
+            key={lazyMountRegistrationSteps ? `registration-step-${currentStep}` : 'registration-form'}
             noValidate={Boolean(hasParticipantStep?.())}
             onSubmit={(e) => { if (formLocked) { e.preventDefault(); return; } handleSubmit(e); }}
             className="space-y-4"
@@ -438,7 +440,7 @@ export default function FestRegistrationForm({
                       </button>
                     </div>
                     {couponError ? <p className="text-xs text-red-400 mt-1.5">{couponError}</p> : null}
-                    {mindSparkLayout ? (
+                    {festPlugin.showRegistrationReferral ? (
                       <div className="mt-4">
                         <label
                           htmlFor="mindspark-referred-by"
