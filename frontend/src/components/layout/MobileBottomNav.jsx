@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Home, Heart, Calendar, User } from 'lucide-react';
 
 /** Prevent duplicate profile opens from double-tap. */
@@ -108,9 +109,16 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onNavigate, isProfile
                                     onClick={() => handleNavClick(item.path, item.id)}
                                     aria-label={item.label}
                                     aria-current={active ? 'page' : undefined}
-                                    className="bottom-nav-item touch-target"
+                                    className="bottom-nav-item touch-target relative"
                                 >
-                                    <span className="bottom-nav-item__icon crisp-icon-svg">
+                                    {active && (
+                                        <motion.div
+                                            layoutId="mobile-bottom-nav-pill"
+                                            className="absolute inset-1 rounded-2xl bg-[#0eccee]/15 dark:bg-[#0eccee]/20 pointer-events-none"
+                                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                                        />
+                                    )}
+                                    <span className="bottom-nav-item__icon crisp-icon-svg relative z-10">
                                         <IconComponent size={22} strokeWidth={2} />
                                     </span>
                                 </button>
