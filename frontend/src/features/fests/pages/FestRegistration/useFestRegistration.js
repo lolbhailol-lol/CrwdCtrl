@@ -784,7 +784,7 @@ export default function useFestRegistration() {
   const isMindSparkCompetitionReg = () =>
     Boolean(isCompetitionRegistration && competition && festPlugin.hasRosterPersonStep);
 
-  /** MindSpark comps always use roster person form (solo = 1 person step; teams = size + people) */
+  /** Named team fests use roster person form (solo = 1 person step; teams = size + people). */
   const hasParticipantStep = () => isMindSparkCompetitionReg();
 
   /** Only when team can be 2+ ? solo skips straight to person details */

@@ -197,6 +197,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     let paymentOrderId = null;
     let paymentId = null;
     let paymentStatus = 'free';
+    let verifiedPaymentGateway = null;
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
     const festPlatformFeePercent = resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3);
     let competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
@@ -214,9 +215,10 @@ const submitCustomCompetitionRegistration = async (req, res) => {
 
       paymentOrderId = paymentCheck.orderId;
       paymentId = paymentCheck.paymentId;
+      verifiedPaymentGateway = paymentCheck.gateway || 'cashfree';
       paymentStatus = 'paid';
       competitionTotalAmount = await resolvePaidOrderTotal(paymentOrderId, competitionTotalAmount);
-      logger.debug('✅ Cashfree payment verified:', paymentId);
+      logger.debug(`✅ ${paymentCheck.gateway || 'cashfree'} payment verified:`, paymentId);
 
       const existingRegistration = await Registration.findOne({
         payment_order_id: paymentOrderId,
@@ -324,7 +326,9 @@ const submitCustomCompetitionRegistration = async (req, res) => {
     const festPlugin = getFestPlugin(competition.fest || festIdForReg);
     const autoConfirm = shouldAutoConfirmRegistration(festPlugin, paymentStatus);
     const paidAmount = paymentStatus === 'paid' ? competitionTotalAmount : 0;
-    const payment_gateway = paymentStatus === 'paid' ? 'cashfree' : null;
+    const payment_gateway = paymentStatus === 'paid'
+      ? (verifiedPaymentGateway || 'cashfree')
+      : null;
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,
@@ -727,6 +731,7 @@ const submitCompetitionRegistration = async (req, res) => {
     let paymentOrderId = null;
     let paymentId = null;
     let paymentStatusRoute = 'free';
+    let verifiedPaymentGateway = null;
     const competitionTicketPrice = parseTicketPrice(competition.feeAmount) || parseTicketPrice(competition.registrationFee);
     const festPlatformFeePercent = resolveTrekPlatformFeePercent(fest?.platformFeePercent, 3);
     let competitionTotalAmount = buildPriceBreakdown(competitionTicketPrice, festPlatformFeePercent).totalAmount;
@@ -745,9 +750,10 @@ const submitCompetitionRegistration = async (req, res) => {
 
       paymentOrderId = paymentCheck.orderId;
       paymentId = paymentCheck.paymentId;
+      verifiedPaymentGateway = paymentCheck.gateway || 'cashfree';
       paymentStatusRoute = 'paid';
       competitionTotalAmount = await resolvePaidOrderTotal(paymentOrderId, competitionTotalAmount);
-      logger.debug('✅ Cashfree payment verified (competition route):', paymentId);
+      logger.debug(`✅ ${paymentCheck.gateway || 'cashfree'} payment verified (competition route):`, paymentId);
 
       const existingPaid = await Registration.findOne({
         payment_order_id: paymentOrderId,
@@ -804,7 +810,9 @@ const submitCompetitionRegistration = async (req, res) => {
     const festPlugin = getFestPlugin(competition.fest || festIdForReg);
     const autoConfirm = shouldAutoConfirmRegistration(festPlugin, paymentStatusRoute);
     const paidAmountRoute = paymentStatusRoute === 'paid' ? competitionTotalAmount : 0;
-    const paymentGatewayRoute = paymentStatusRoute === 'paid' ? 'cashfree' : null;
+    const paymentGatewayRoute = paymentStatusRoute === 'paid'
+      ? (verifiedPaymentGateway || 'cashfree')
+      : null;
     const registration = new Registration({
       fest: competition.fest._id,
       user: userId,

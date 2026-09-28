@@ -78,6 +78,7 @@ async function verifyPaymentForRegistration(body, {
       return {
         ok: true,
         orderId: String(orderId),
+        gateway: paymentOrder.gateway === 'razorpay' ? 'razorpay' : 'cashfree',
         paymentId: paymentOrder.paymentId || paymentId || null,
         amountPaid: Number(paymentOrder.totalAmount) || null,
         locallyVerified: true,
@@ -137,6 +138,7 @@ async function verifyPaymentForRegistration(body, {
     return {
       ok: true,
       orderId: result.orderId,
+      gateway: paymentOrder.gateway === 'razorpay' ? 'razorpay' : 'cashfree',
       paymentId: result.paymentId,
       amountPaid: Number(paymentOrder.totalAmount) || null,
     };

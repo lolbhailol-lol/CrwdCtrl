@@ -100,6 +100,8 @@ async function main() {
     }
 
     if (c.name === 'Glamour Nova') {
+      set.feeAmount = 600;
+      set.registrationFee = '₹600';
       rounds = [
         {
           roundNumber: 1,
@@ -146,6 +148,8 @@ async function main() {
     }
 
     if (c.name === 'Box Football') {
+      set.feeAmount = 1200;
+      set.registrationFee = '₹1200';
       rounds = rounds.map((round) => {
         const rules = [];
         let teamLineDone = false;
@@ -194,6 +198,40 @@ async function main() {
         return { ...round, rules };
       });
       console.log('Box Football → team/substitution wording');
+    }
+
+    if (c.name === 'Box Football') {
+      const requiredRule =
+        'All 8 players (6 players + 2 substitutes) must be present before their allotted slot. Any participant who fails to report on time will not be allowed to participate later.';
+      rounds = rounds.map((round) => ({
+        ...round,
+        rules: [requiredRule, ...round.rules.filter((rule) => !/must be present before their allotted slot/i.test(String(rule)))],
+      }));
+      set.commonRules = [
+        'All the players must bring a valid ID Proof for verification. Only the players who signed up at the time of registration will be allowed to play the match; no player swapping will be allowed.',
+      ];
+    }
+
+    if (c.name === 'Box Cricket') {
+      set.feeAmount = 1200;
+      set.registrationFee = '₹1200';
+      const requiredRule =
+        'All 7 players (6 players + 1 substitute) must be present before their allotted slot. Any participant who fails to report on time will not be allowed to participate later.';
+      rounds = rounds.map((round) => ({
+        ...round,
+        rules: [requiredRule, ...round.rules.filter((rule) => !/must be present before their allotted slot/i.test(String(rule)))],
+      }));
+      set.commonRules = [
+        'All the players must bring a valid ID Proof for verification. Only the players who signed up at the time of registration will be allowed to play the match; no player swapping will be allowed.',
+      ];
+    }
+
+    if (c.name === 'Solo Smash') {
+      set.prizePool = 'Winner: ₹5,000 (solo male/female)\nRunner-up: ₹3,000 (solo male/female)';
+    }
+
+    if (c.name === 'Shuttle Synergy') {
+      set.prizePool = 'Winner: ₹8,000 (duo male/female)\nRunner-up: ₹5,000 (duo male/female)';
     }
 
     set.rounds = rounds;

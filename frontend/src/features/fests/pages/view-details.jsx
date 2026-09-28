@@ -39,6 +39,7 @@ import { getFestPlugin } from '../plugins/registry';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { trackFestView } from '../../../services/analyticsService';
 import { isMindSparkFest } from '../mindspark/isMindSparkFest';
+import { isAarohanFest } from '../aarohan';
 
 function MindSparkBundleEntry({ isDark }) {
   useEffect(() => {
@@ -569,6 +570,7 @@ function EventDetailsPage() {
   }
 
   const pageEvent = eventData;
+  const isAarohan = isAarohanFest(pageEvent);
   const festPlugin = getFestPlugin(pageEvent?.id || eventId, pageEvent);
   const LiveBadge = festPlugin.LiveBadge;
   const mindSparkDesktop = festPlugin.id === 'mindspark';
@@ -970,7 +972,7 @@ function EventDetailsPage() {
                             fill={smoothFestLayout}
                             hideFee={false}
                             largeCover={mindSparkDesktop}
-                            eagerCover={idx < 6}
+                            eagerCover={isAarohan ? idx < 10 : idx < 6}
                             isDark={isDark}
                             isFavorite={isFavorite(comp.id)}
                             onToggleFavorite={() => toggleFavorite(comp.id, {
@@ -1538,7 +1540,7 @@ function EventDetailsPage() {
                     comp={comp}
                     hideFee={false}
                     largeCover={mindSparkDesktop}
-                    eagerCover={idx < 4}
+                    eagerCover={isAarohan ? idx < 8 : idx < 4}
                     isDark={isDark}
                     isFavorite={isFavorite(comp.id)}
                     onToggleFavorite={() => toggleFavorite(comp.id, {

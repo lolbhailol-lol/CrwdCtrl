@@ -256,7 +256,7 @@ const resolvePricedEntity = async ({
   if (resolvedCompetitionId) {
     const competition = await Competition.findById(resolvedCompetitionId)
       .select('name feeAmount registrationFee feeTiers fest slotsAllotted registration.maxRegistrations registration.settings.maxRegistrations registration.status')
-      .populate('fest', 'platformFeePercent')
+      .populate('fest', 'platformFeePercent festName slug')
       .lean();
     if (!competition) return null;
     await assertCompetitionAcceptsRegistration(competition);
@@ -268,6 +268,8 @@ const resolvePricedEntity = async ({
       notes: {
         competitionId: competition._id.toString(),
         festId: competition.fest?._id?.toString?.() || '',
+        festSlug: competition.fest?.slug || '',
+        festName: competition.fest?.festName || '',
         competitionName: competition.name || '',
         ...(tier ? { tierId: tier.id, tierName: tier.label } : {}),
       },
@@ -566,7 +568,12 @@ exports.createOrder = async (req, res) => {
     // MindSpark uses the separate Delulu/events Cashfree merchant. The platform
     // merchant can hit its monthly transaction cap independently.
     const cashfreeMerchant = resolveFestCashfreeMerchant(pricing);
-    checkoutGateway = resolveCheckoutGateway({ entityType: pricing.entityType });
+    checkoutGateway = resolveCheckoutGateway({
+      entityType: pricing.entityType,
+      festId: pricing.notes?.festId,
+      festSlug: pricing.notes?.festSlug,
+      festName: pricing.notes?.festName,
+    });
 
     const { sanitizeRegistrationDraft } = require('../services/eventShowPaymentFulfillment');
     const { sanitizeFestCompetitionDraft } = require('../utils/festCompetitionDraft');
