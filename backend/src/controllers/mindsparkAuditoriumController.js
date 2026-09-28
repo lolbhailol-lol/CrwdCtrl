@@ -1175,7 +1175,7 @@ exports.updateOrganizerConfig = async (req, res) => {
   }
 };
 
-/** Organizer: replace one year's student email directory from CSV/XLSX. */
+/** Organizer: replace one student-category email directory from JSON/CSV/XLSX. */
 exports.importStudentDirectory = async (req, res) => {
   try {
     if (!isMindSparkFestId(req.festId)) {
@@ -1183,7 +1183,7 @@ exports.importStudentDirectory = async (req, res) => {
     }
     const categoryId = String(req.params.categoryId || '').trim();
     if (!DIRECTORY_YEARS.has(categoryId)) {
-      return res.status(400).json({ success: false, message: 'Choose a valid student year' });
+      return res.status(400).json({ success: false, message: 'Choose a valid student category' });
     }
     if (!req.file?.buffer) {
       return res.status(400).json({ success: false, message: 'Choose a CSV or XLSX file' });

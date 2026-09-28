@@ -336,19 +336,19 @@ export default function FestOrganizerAuditoriumPage() {
                                     <MailCheck size={17} className="text-[#0ECCEE]" /> Student email directory
                                 </h2>
                                 <p className="text-[11px] text-gray-500 mt-1">
-                                    Upload JSON, CSV or XLSX files. Emails are stored as protected hashes and the selected year is assigned automatically.
+                                    Upload JSON, CSV or XLSX files. Emails are stored as protected hashes and the selected category is assigned automatically.
                                 </p>
                             </div>
                             <span className="text-xs font-semibold text-[#7DE8F7] tabular-nums">{directory.total || 0} emails</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                             {[
                                 ['first_year', 'First'], ['second_year', 'Second'],
-                                ['third_year', 'Third'], ['fourth_year', 'Fourth'],
+                                ['third_year', 'Third'], ['fourth_year', 'Fourth'], ['mba', 'MBA'],
                             ].map(([id, label]) => (
                                 <div key={id} className="rounded-xl border border-white/8 bg-white/3 px-3 py-2">
                                     <p className="text-sm font-semibold text-white tabular-nums">{directory.byCategory?.[id] || 0}</p>
-                                    <p className="text-[10px] uppercase tracking-wide text-gray-500">{label} year</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-gray-500">{id === 'mba' ? label : `${label} year`}</p>
                                 </div>
                             ))}
                         </div>
@@ -362,6 +362,7 @@ export default function FestOrganizerAuditoriumPage() {
                                 <option value="second_year">Second year</option>
                                 <option value="third_year">Third year</option>
                                 <option value="fourth_year">Fourth year</option>
+                                <option value="mba">MBA</option>
                             </select>
                             <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-3 py-2.5 text-sm font-bold text-black ${directoryBusy ? 'opacity-50 pointer-events-none' : ''}`}>
                                 {directoryBusy ? <Loader size={16} className="animate-spin" /> : <Upload size={16} />}
@@ -380,7 +381,7 @@ export default function FestOrganizerAuditoriumPage() {
                             </label>
                         </div>
                         <p className="text-[10px] text-gray-600">
-                            Uploading a year again replaces that year’s previous list. The email can be in any column.
+                            Uploading a category again replaces that category’s previous list. The email can be in any column.
                         </p>
                     </section>
 

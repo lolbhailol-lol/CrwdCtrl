@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const TicketClaim = require('../src/model/mindspark_auditorium_ticket_claim_model');
+const AuditoriumStudent = require('../src/model/mindspark_auditorium_student_model');
 const { occupiedFilter } = require('../src/utils/auditoriumQuota');
 const {
   defaultAuditoriumConfig,
@@ -16,6 +17,11 @@ test('auditorium identity claims enforce one atomic claim per identity', () => {
     && options.unique === true
   ));
   assert.ok(uniqueIndex, 'compound unique identity index is required');
+});
+
+test('auditorium student directory accepts MBA category', () => {
+  const path = AuditoriumStudent.schema.path('categoryId');
+  assert.ok(path.enumValues.includes('mba'));
 });
 
 test('auditorium quota counts only issued free or paid tickets', () => {

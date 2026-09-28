@@ -10,7 +10,14 @@ const {
   signEligibilityToken,
   verifyEligibilityToken,
   extractDirectoryEmails,
+  DIRECTORY_YEARS,
 } = require('../src/utils/auditoriumDirectory');
+
+test('student directory supports engineering years and MBA', () => {
+  assert.deepEqual([...DIRECTORY_YEARS], [
+    'first_year', 'second_year', 'third_year', 'fourth_year', 'mba',
+  ]);
+});
 
 test('directory emails normalize and hash without retaining plaintext', () => {
   assert.equal(normalizeDirectoryEmail(' Student@COEP.AC.IN '), 'student@coep.ac.in');

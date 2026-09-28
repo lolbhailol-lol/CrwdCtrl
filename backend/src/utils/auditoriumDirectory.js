@@ -6,7 +6,7 @@ const ExcelJS = require('exceljs');
 const { Readable } = require('stream');
 const { getJwtSecret } = require('../config/jwtSecret');
 
-const DIRECTORY_YEARS = new Set(['first_year', 'second_year', 'third_year', 'fourth_year']);
+const DIRECTORY_YEARS = new Set(['first_year', 'second_year', 'third_year', 'fourth_year', 'mba']);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function normalizeDirectoryEmail(value) {
