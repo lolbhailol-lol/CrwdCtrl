@@ -1,11 +1,23 @@
 const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
+const { createEmailBatcher } = require('../utils/emailBatcher');
 
 // Initialize Resend
 let resendInstance = null;
 if (process.env.RESEND_API_KEY) {
     resendInstance = new Resend(process.env.RESEND_API_KEY);
 }
+
+// Resend accepts up to 100 emails per batch. Grouping OTPs prevents a fest-day
+// rush from exceeding the provider's default request-per-second limit.
+const auditoriumOtpBatcher = createEmailBatcher({
+    sendBatch: async (messages) => {
+        if (!resendInstance) throw new Error('Resend API key not configured');
+        const { data, error } = await resendInstance.batch.send(messages);
+        if (error) throw error;
+        return data;
+    },
+});
 
 // ============================================
 // 📧 EMAIL QUEUE SYSTEM - Prevents Rate Limiting
@@ -491,7 +503,7 @@ const sendEmail = async (mailOptions) => {
     });
 };
 
-/** OTP delivery bypasses the legacy 1-email/sec campaign queue. */
+/** OTP delivery uses Resend's batch endpoint so simultaneous requests stay responsive. */
 const sendAuditoriumOtpEmail = async (email, code) => {
     const mail = {
         from: getDefaultFrom(),
@@ -500,7 +512,16 @@ const sendAuditoriumOtpEmail = async (email, code) => {
         text: `Your MindSpark auditorium verification code is ${code}. It expires in 5 minutes. Do not share this code.`,
         html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;color:#111827"><p style="color:#0891b2;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">MindSpark auditorium</p><h1 style="font-size:34px;letter-spacing:.16em;margin:16px 0">${code}</h1><p style="font-size:15px;line-height:1.6">Enter this code to verify your college email. It expires in 5 minutes.</p><p style="font-size:12px;color:#6b7280">Do not share this code. CrwdCtrl will never ask for it by phone or message.</p></div>`,
     };
-    if (process.env.RESEND_API_KEY && resendInstance) return sendWithResend(mail);
+    if (process.env.RESEND_API_KEY && resendInstance) {
+        return auditoriumOtpBatcher.enqueue({
+            from: mail.from,
+            to: [mail.to],
+            subject: mail.subject,
+            text: mail.text,
+            html: mail.html,
+            reply_to: 'team.crwdctrl@gmail.com',
+        });
+    }
     return sendEmail(mail);
 };
 
