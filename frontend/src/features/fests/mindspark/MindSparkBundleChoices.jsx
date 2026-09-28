@@ -9,6 +9,7 @@ const NON_TECH_EVENT_IDS = [
   '6a7f158f0e5ff505e2a4c4a4',
   '6a7f158f0e5ff505e2a4c4a7',
   '6a7f15b543825c1b6ced805c',
+  '6ab9616b9da31251f82b3ab6',
 ];
 
 const BUNDLE_EVENT_IDS = [
@@ -31,6 +32,7 @@ const BUNDLE_EVENT_IDS = [
   '6a7f15900e5ff505e2a4c4df',
   '6a7f15900e5ff505e2a4c4e3',
   '6a7f15900e5ff505e2a4c4e9',
+  '6ab9616b9da31251f82b3ab6',
 ];
 
 const allowedEventIds = new Set(BUNDLE_EVENT_IDS);

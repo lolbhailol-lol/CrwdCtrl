@@ -6,7 +6,6 @@ const FEST_ID = '6a7f1010ed26d983b34e55c2';
  * - Tech duo basket — 2 tech events, 50% off
  * - Dynamic duo basket — 1 tech + 1 non-tech, 40% off
  *
- * Droneverse was requested as non-tech but is not a MindSpark competition.
  * Fusion ID is not on the approved list.
  */
 const NON_TECH_IDS = [
@@ -16,6 +15,7 @@ const NON_TECH_IDS = [
   '6a7f158f0e5ff505e2a4c4a4', // BEYOND SUITS
   '6a7f158f0e5ff505e2a4c4a7', // FANDOM
   '6a7f15b543825c1b6ced805c', // GOOGLER
+  '6ab9616b9da31251f82b3ab6', // DRONEVERSE
 ];
 
 const BUNDLE_COMPETITION_IDS = [
@@ -38,6 +38,7 @@ const BUNDLE_COMPETITION_IDS = [
   '6a7f15900e5ff505e2a4c4df', // ON THE ETCH
   '6a7f15900e5ff505e2a4c4e3', // CIRCUIT FIXER
   '6a7f15900e5ff505e2a4c4e9', // MICROAPPS
+  '6ab9616b9da31251f82b3ab6', // DRONEVERSE
 ];
 
 const nonTechSet = new Set(NON_TECH_IDS.map(String));
