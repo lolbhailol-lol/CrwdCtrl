@@ -1075,7 +1075,13 @@ export default function EventDetailsPage() {
                       ) : null}
                     </>
                   ) : (
-                    <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
+                    <p className={`mt-0.5 text-2xl font-bold leading-none ${
+                      packageTiers.length
+                        ? (isDark ? 'text-white' : 'text-gray-900')
+                        : 'text-green-500'
+                    }`}>
+                      {packageTiers.length ? 'Select class' : 'Free'}
+                    </p>
                   )}
                 </div>
                 <button
