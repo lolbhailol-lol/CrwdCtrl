@@ -1229,15 +1229,24 @@ export default function useFestRegistration() {
 
   const fetchCompetitionAndFestDetails = async () => {
     try {
-
-      // Fetch competition details first
-      const competitionResponse = await fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`, {
-        credentials: 'omit', // ? iOS/Safari fix - no credentials for public API
-        mode: 'cors',
-        headers: { 'Accept': 'application/json' }
-      });
+      const cacheBuster = Date.now();
+      const [competitionResponse, festResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/fests/competitions/${competitionId}/public`, {
+          credentials: 'omit',
+          mode: 'cors',
+          headers: { 'Accept': 'application/json' },
+        }),
+        fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
+          credentials: 'omit',
+          mode: 'cors',
+          headers: { 'Accept': 'application/json' },
+        }),
+      ]);
       if (!competitionResponse.ok) {
         throw new Error('Failed to fetch competition details');
+      }
+      if (!festResponse.ok) {
+        throw new Error('Failed to fetch fest details');
       }
       const competitionData = await competitionResponse.json();
       // Normalize missing feeTiers (older lean docs) so quote/coupon UI never blocks
@@ -1245,16 +1254,6 @@ export default function useFestRegistration() {
         competitionData.feeTiers = [];
       }
       setCompetition(competitionData);
-
-      const cacheBuster = Date.now();
-      const festResponse = await fetch(`${API_BASE_URL}/fests/${festId}/public?_cb=${cacheBuster}`, {
-        credentials: 'omit',
-        mode: 'cors',
-        headers: { 'Accept': 'application/json' },
-      });
-      if (!festResponse.ok) {
-        throw new Error('Failed to fetch fest details');
-      }
       const festData = await festResponse.json();
 
       if (competitionData.registrationType === 'fest') {

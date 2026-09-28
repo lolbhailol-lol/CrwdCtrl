@@ -53,6 +53,14 @@ async function main() {
   const rows = await comps.find({ fest: fest._id }).toArray();
   console.log(`Fest ${fest.festName} — ${rows.length} comps — dryRun=${DRY}`);
 
+  if (!DRY) {
+    await mongoose.connection.collection('festorganizers').updateOne(
+      { _id: fest._id },
+      { $set: { platformFeePercent: 0 } },
+    );
+  }
+  console.log('Aarohan 2027 → 0% platform fee');
+
   for (const c of rows) {
     const set = {};
     let rounds = Array.isArray(c.rounds) ? JSON.parse(JSON.stringify(c.rounds)) : [];
