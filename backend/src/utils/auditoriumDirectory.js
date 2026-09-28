@@ -35,6 +35,27 @@ function verifyEligibilityToken(token) {
 }
 
 async function extractDirectoryEmails(buffer, filename = '') {
+  if (/\.json$/i.test(filename)) {
+    const parsed = JSON.parse(Buffer.from(buffer).toString('utf8').replace(/^\uFEFF/, ''));
+    const emails = new Set();
+    const visit = (value) => {
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (!value || typeof value !== 'object') return;
+      for (const [key, item] of Object.entries(value)) {
+        if (/email/i.test(key)) {
+          const email = normalizeDirectoryEmail(item);
+          if (email) emails.add(email);
+        } else if (item && typeof item === 'object') {
+          visit(item);
+        }
+      }
+    };
+    visit(parsed);
+    return [...emails];
+  }
   const workbook = new ExcelJS.Workbook();
   if (/\.csv$/i.test(filename)) {
     await workbook.csv.read(Readable.from(buffer));

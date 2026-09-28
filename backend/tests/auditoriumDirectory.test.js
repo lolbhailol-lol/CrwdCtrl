@@ -47,3 +47,14 @@ test('XLSX directory parser finds emails across worksheets', async () => {
   const emails = await extractDirectoryEmails(Buffer.from(buffer), 'students.xlsx');
   assert.deepEqual(emails.sort(), ['fourth.year@coep.ac.in', 'third.year@coep.ac.in']);
 });
+
+test('JSON directory parser reads email fields and removes duplicates', async () => {
+  const json = Buffer.from(JSON.stringify([
+    { name: 'One', email: 'ONE@COEP.AC.IN' },
+    { name: 'Two', student_email: 'two@coep.ac.in' },
+    { nested: { email: 'one@coep.ac.in' } },
+    { email: 'invalid' },
+  ]));
+  const emails = await extractDirectoryEmails(json, 'students.json');
+  assert.deepEqual(emails.sort(), ['one@coep.ac.in', 'two@coep.ac.in']);
+});

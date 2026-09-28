@@ -309,7 +309,7 @@ export default function FestOrganizerAuditoriumPage() {
                             hint="Checks uploaded year-wise directories before public registration"
                             onClick={() => patchConfig({ requireDirectoryOtp: !config.requireDirectoryOtp })}
                         />
-                        {['first_year', 'second_year'].map((categoryId) => {
+                        {['first_year', 'second_year', 'third_year', 'fourth_year'].map((categoryId) => {
                             const category = seatDraft.find((item) => item.id === categoryId);
                             if (!category) return null;
                             const isOpen = category.enabled !== false;
@@ -336,7 +336,7 @@ export default function FestOrganizerAuditoriumPage() {
                                     <MailCheck size={17} className="text-[#0ECCEE]" /> Student email directory
                                 </h2>
                                 <p className="text-[11px] text-gray-500 mt-1">
-                                    Upload CSV/XLSX files. Emails are stored as protected hashes and the selected year is assigned automatically.
+                                    Upload JSON, CSV or XLSX files. Emails are stored as protected hashes and the selected year is assigned automatically.
                                 </p>
                             </div>
                             <span className="text-xs font-semibold text-[#7DE8F7] tabular-nums">{directory.total || 0} emails</span>
@@ -368,7 +368,7 @@ export default function FestOrganizerAuditoriumPage() {
                                 {directoryBusy ? 'Uploading…' : 'Upload / replace list'}
                                 <input
                                     type="file"
-                                    accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    accept=".json,.csv,.xlsx,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                                     className="hidden"
                                     disabled={directoryBusy}
                                     onChange={(e) => {

@@ -1189,8 +1189,8 @@ exports.importStudentDirectory = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Choose a CSV or XLSX file' });
     }
     const filename = String(req.file.originalname || '');
-    if (!/\.(csv|xlsx)$/i.test(filename)) {
-      return res.status(400).json({ success: false, message: 'Only CSV and XLSX files are supported' });
+    if (!/\.(csv|xlsx|json)$/i.test(filename)) {
+      return res.status(400).json({ success: false, message: 'Only JSON, CSV and XLSX files are supported' });
     }
     const emails = await extractDirectoryEmails(req.file.buffer, filename);
     if (!emails.length) {
