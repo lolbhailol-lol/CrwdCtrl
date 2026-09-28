@@ -1,7 +1,9 @@
 import { AAROHAN_SLUG } from '../aarohan/isAarohanFest';
+import { defaultFestPlugin } from './defaultPlugin';
 
 /** Aarohan uses the roster-per-person registration flow. */
 export const aarohanPlugin = {
+  ...defaultFestPlugin,
   id: 'aarohan',
   skipRegistrationReview: false,
   suppressDefaultSuccessPopup: false,
