@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
     Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag, ScanLine,
-    Lock, Shield,
+    Lock, Shield, Ticket,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../utils/festOrganizerSession';
 import { getFestPlugin } from '../plugins/registry';
@@ -28,6 +28,7 @@ const navForFest = (festId, {
     hideFestInfoNav = false,
     showcaseAll = false,
     showAccess = false,
+    showAuditorium = false,
 } = {}) => {
     const showLive = showcaseAll || !hideLiveNav;
     const showLeads = showcaseAll || !hideStallLeads;
@@ -54,6 +55,9 @@ const navForFest = (festId, {
             : []),
         { label: 'Participants', path: `/fest-organizer/fests/${festId}/participants`, icon: Users, short: 'Guests', group: 'ops' },
         { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'ops' },
+        ...(showAuditorium
+            ? [{ label: 'Auditorium', path: `/fest-organizer/fests/${festId}/auditorium`, icon: Ticket, short: 'Passes', group: 'ops' }]
+            : []),
         ...(showCoupons
             ? [{ label: 'Coupons', path: `/fest-organizer/fests/${festId}/coupons`, icon: Tag, short: 'Codes', group: 'ops' }]
             : []),
@@ -155,6 +159,7 @@ export default function FestOrganizerLayout() {
     const hideStallLeads = Boolean(festId && plugin.hideStallLeads);
     const hideProShow = Boolean(festId && plugin.hideProShow);
     const showFestDayDesk = plugin.id === 'mindspark';
+    const showAuditorium = plugin.id === 'mindspark';
     const canManageAccess = canManageFestAccess(session);
     const showAccessNav = canManageAccess && (plugin.id === 'mindspark' || Boolean(plugin.showAccessNav));
     const portalRole = organizerPortalRole(session);
@@ -168,6 +173,7 @@ export default function FestOrganizerLayout() {
             hideFestInfoNav: Boolean(plugin.hideFestInfoNav),
             showcaseAll: simplePortal,
             showAccess: showAccessNav,
+            showAuditorium,
         }).map((item) => ({
             ...item,
             locked: simplePortal && !SIMPLE_PORTAL_UNLOCKED.has(item.label),

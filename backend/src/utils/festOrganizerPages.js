@@ -11,7 +11,7 @@ const PAGE_CATALOG = [
     { key: 'competitions', label: 'Competitions', navLabels: ['Competitions'] },
     { key: 'participants', label: 'Participants', navLabels: ['Participants'] },
     { key: 'check-in', label: 'Check-in', navLabels: ['Check-in'] },
-    { key: 'auditorium', label: 'Auditorium', navLabels: [] },
+    { key: 'auditorium', label: 'Auditorium', navLabels: ['Auditorium'] },
     { key: 'coupons', label: 'Coupons', navLabels: ['Coupons'] },
     { key: 'revenue', label: 'Revenue', navLabels: ['Revenue'] },
     { key: 'connect', label: 'Connect', navLabels: ['Connect'] },
