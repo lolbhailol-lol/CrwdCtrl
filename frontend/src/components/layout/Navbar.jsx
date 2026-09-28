@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Bell, MapPin, Sun, Moon, Menu, Clock, Calendar, X, User, Navigation, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, Bell, MapPin, Sun, Moon, Clock, Calendar, X, User, Navigation, Loader2, ChevronDown, Heart, LogOut, HelpCircle, Sparkles, LayoutDashboard, ChevronRight } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useAuth } from '../../context/AuthContext';
+import ProfileAvatarUpload from '../ProfileAvatarUpload';
 import { useDialog } from '../../context/DialogContext';
 import { useNotifications } from '../../context/NotificationsContext';
+import { useSidebar } from '../../context/SidebarContext';
 import { searchAll } from '../../services/searchService';
 import { CATEGORY_NAV_ICONS } from '../../constants/categoryNavIcons';
 import { DetailLoader3DIcon } from '../DetailPageLoader';
 import { openExternalUrl } from '../../utils/externalLink';
 import { isNativeApp } from '../../utils/capacitorPlatform';
 import { canOfferBrowserNotifications } from '../../utils/notificationPrompt';
+import AppLogo from '../AppLogo';
 import {
     getRecentSearches,
     clearRecentSearches,
@@ -70,9 +74,21 @@ const NavItem = ({ item, isActive, isDark, layout = 'stacked', onClick, classNam
     );
 };
 
+function GoogleIcon({ className = 'w-5 h-5' }) {
+    return (
+        <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+        </svg>
+    );
+}
+
 const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     const { isDark } = useDarkMode();
-    const { user, isAuthenticated } = useAuth();
+    const { isCollapsed, toggleCollapse } = useSidebar();
+    const { user, isAuthenticated, logout } = useAuth();
     const { confirm } = useDialog();
     const { notifications, unreadCount, markAsRead, refreshNotifications, enableBrowserNotifications } = useNotifications();
     const [enablingPush, setEnablingPush] = useState(false);
@@ -82,6 +98,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     const [_searchParams, _setSearchParams] = useSearchParams();
     const [isNotificationOpen, setIsNotificationOpen] = useState(false);
     const notificationRef = useRef(null);
+    const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+    const profileDropdownRef = useRef(null);
 
     // Location states
     const [currentLocation, setCurrentLocation] = useState({
@@ -105,19 +123,19 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     const searchRef = useRef(null);
 
     // Get user's location on component mount
-     
+
     useEffect(() => {
         console.log('🚀 Navbar component mounted, checking for stored location...');
-        
+
         const getStoredLocation = () => {
             try {
                 const stored = localStorage.getItem('crwdctrl_user_location');
                 console.log('💾 Stored location data:', stored);
-                
+
                 if (stored) {
                     const parsedLocation = JSON.parse(stored);
                     console.log('📍 Parsed stored location:', parsedLocation);
-                    
+
                     setCurrentLocation(prev => ({
                         ...prev,
                         ...parsedLocation,
@@ -146,7 +164,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
         } else {
             console.log('✅ Using stored location');
         }
-         
+
     }, []);
 
     // Search functionality
@@ -156,7 +174,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                 setIsSearching(true);
                 try {
                     const results = await searchAll(searchQuery);
-                    
+
                     setSearchResults((results.results || []).slice(0, 8));
                     setIsSearchDropdownOpen(true);
                 } catch (error) {
@@ -184,6 +202,9 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
             if (notificationRef.current && !notificationRef.current.contains(event.target)) {
                 setIsNotificationOpen(false);
             }
+            if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
+                setIsProfileDropdownOpen(false);
+            }
             if (locationRef.current && !locationRef.current.contains(event.target)) {
                 setIsLocationDropdownOpen(false);
             }
@@ -193,11 +214,11 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
             }
         };
 
-        if (isNotificationOpen || isLocationDropdownOpen || isSearchDropdownOpen || isSearchFocused) {
+        if (isNotificationOpen || isLocationDropdownOpen || isSearchDropdownOpen || isSearchFocused || isProfileDropdownOpen) {
             document.addEventListener('mousedown', handleClickOutside);
             return () => document.removeEventListener('mousedown', handleClickOutside);
         }
-    }, [isNotificationOpen, isLocationDropdownOpen, isSearchDropdownOpen, isSearchFocused]);
+    }, [isNotificationOpen, isLocationDropdownOpen, isSearchDropdownOpen, isSearchFocused, isProfileDropdownOpen]);
 
     // Listen for location detection trigger from Dashboard
     useEffect(() => {
@@ -207,7 +228,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
         };
 
         window.addEventListener('triggerLocationDetection', handleLocationDetectionTrigger);
-        
+
         return () => {
             window.removeEventListener('triggerLocationDetection', handleLocationDetectionTrigger);
         };
@@ -246,7 +267,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     // Function to detect user's location
     const detectUserLocation = async () => {
         console.log('🌍 Starting location detection...');
-        
+
         if (!navigator.geolocation) {
             console.log('❌ Geolocation is not supported by this browser');
             return;
@@ -436,7 +457,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                     console.error('❌ GEOLOCATION ERROR:', error);
                     console.error('❌ Error code:', error.code);
                     console.error('❌ Error message:', error.message);
-                    
+
                     setCurrentLocation(prev => {
                         const newState = {
                             ...prev,
@@ -523,7 +544,7 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
         setSearchQuery('');
         setIsSearchDropdownOpen(false);
         setIsSearchFocused(false);
-        
+
         navigateToSearchResult(navigate, event);
     };
 
@@ -536,32 +557,35 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     };
 
     return (
-        <header className={`fixed top-0 left-20 right-0 z-50 px-5 py-2 border-b backdrop-blur-md transition-all duration-300 ${isDark
-            ? 'bg-[#161718]/95 border-white/8'
-            : 'bg-[#EDEDF2]/95 border-gray-200'
+        <header className={`hidden lg:flex fixed top-0 right-4 ${isCollapsed ? 'lg:left-[6rem]' : 'lg:left-[15.5rem]'} left-4 z-[100] px-5 h-14 items-center rounded-b-[2rem] border-b border-x backdrop-blur-3xl backdrop-saturate-180 backdrop-brightness-105 transition-all duration-300 ease-in-out shadow-md ${isDark
+            ? 'bg-[#070a13]/65 border-white/15 text-white shadow-black/30'
+            : 'bg-[#F3F4F9]/90 border-gray-200/90 text-gray-900 shadow-gray-200/40'
             }`} style={{ fontFamily: 'Poppins, -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-            <div className="flex items-center justify-between">
+            <div className="w-full flex items-center justify-between">
+
                 {/* Left Section: Location and Navigation */}
                 <div className="flex items-center space-x-2 lg:space-x-4">
                     {/* Location Selector */}
                     <div className="relative" ref={locationRef}>
                         <button
+                            type="button"
                             onClick={handleLocationClick}
-                            className={`flex items-center space-x-2 px-3 lg:px-4 py-2 rounded-full border border-[#119999] transition-all duration-200 hover:shadow-md touch-manipulation ${isDark
-                                ? 'bg-gray-800/60 text-gray-300 hover:bg-gray-700/80'
-                                : 'bg-gray-50/80 text-gray-700 hover:bg-gray-100/80'
-                                } ${isLocationDropdownOpen ? 'ring-2 ring-[#119999]/30' : ''}`}
+                            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full border transition-all duration-200 shadow-xs hover:shadow-md touch-manipulation cursor-pointer active:scale-95 ${isDark
+                                ? 'bg-white/5 border-[#007BFF]/40 hover:border-[#007BFF] text-gray-200 hover:bg-white/10'
+                                : 'bg-white/90 border-[#007BFF]/30 hover:border-[#007BFF] text-gray-700 hover:bg-white'
+                                } ${isLocationDropdownOpen ? 'ring-2 ring-[#007BFF]/30 border-[#007BFF]' : ''}`}
                         >
                             {currentLocation.isDetecting ? (
-                                <Loader2 className="w-4 h-4 text-[#119999] animate-spin" />
-                            ) : currentLocation.hasPermission ? (
-                                <MapPin className="w-4 h-4 text-[#119999] fill-[#119999]/20" />
+                                <Loader2 className="w-4 h-4 text-[#007BFF] animate-spin" />
                             ) : (
-                                <MapPin className="w-4 h-4 text-[#119999]" />
+                                <MapPin className="w-4 h-4 text-[#007BFF]" />
                             )}
-                            <span className="text-sm font-medium hidden text-[#119999] sm:inline">
+                            <span className={`text-sm font-semibold hidden sm:inline ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                                 {currentLocation.isDetecting ? 'Detecting...' : currentLocation.city}
                             </span>
+                            <div className={`transition-transform duration-200 ${isLocationDropdownOpen ? 'rotate-180' : ''}`}>
+                                <ChevronDown className={`w-3.5 h-3.5 ${isDark ? 'text-gray-400 group-hover:text-[#007BFF]' : 'text-gray-600 group-hover:text-[#007BFF]'}`} />
+                            </div>
                         </button>
 
                         {/* Location Dropdown */}
@@ -658,21 +682,8 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                         )}
                     </div>
 
-                    {/* Mobile Menu Button */}
-                    <button
-                        type="button"
-                        aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                        className={`lg:hidden p-2 rounded-xl transition-all duration-200 ${isDark
-                            ? 'text-gray-300 hover:text-[#007BFF] hover:bg-gray-800/60'
-                            : 'text-gray-600 hover:text-[#007BFF] hover:bg-[#007BFF]/5'
-                            }`}
-                    >
-                        <Menu className="w-5 h-5" />
-                    </button>
-
                     {/* Desktop Navigation Links */}
-                    <nav className="hidden lg:flex items-center gap-0.5">
+                    <nav className="hidden lg:flex items-center space-x-2 ml-4">
                         {NAV_ITEMS.map((item) => {
                             const isActive = isNavItemActive(item, location.pathname);
                             return (
@@ -680,15 +691,30 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                     key={item.id}
                                     type="button"
                                     onClick={() => handleNavigation(item.path)}
-                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                                        isActive
-                                            ? 'text-[#007BFF] bg-[#007BFF]/10'
-                                            : isDark
-                                                ? 'text-gray-300 hover:text-white hover:bg-white/5'
-                                                : 'text-gray-600 hover:text-gray-900 hover:bg-black/5'
-                                    }`}
+                                    className={`relative px-3.5 py-1.5 text-sm font-semibold rounded-xl transition-colors duration-200 cursor-pointer active:scale-95 ${isActive
+                                        ? isDark
+                                            ? 'text-white font-bold'
+                                            : 'text-[#007BFF] font-bold'
+                                        : isDark
+                                            ? 'text-gray-300 hover:text-white hover:bg-white/5'
+                                            : 'text-gray-900 font-bold hover:text-[#007BFF] hover:bg-black/5'
+                                        }`}
                                 >
-                                    {item.label}
+                                    {isActive && (
+                                        <>
+                                            <motion.div
+                                                layoutId="navbar-active-pill"
+                                                className={`absolute inset-0 rounded-xl pointer-events-none ${isDark ? 'bg-white/10' : 'bg-[#007BFF]/10 shadow-xs'}`}
+                                                transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                                            />
+                                            <motion.div
+                                                layoutId="navbar-active-line"
+                                                className={`absolute -bottom-1 left-2 right-2 h-0.5 rounded-full pointer-events-none ${isDark ? 'bg-white' : 'bg-[#007BFF]'}`}
+                                                transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                                            />
+                                        </>
+                                    )}
+                                    <span className="relative z-10">{item.label}</span>
                                 </button>
                             );
                         })}
@@ -704,22 +730,22 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                     <div className="block" ref={searchRef}>
                         <form onSubmit={handleSearchSubmit} className="relative group mt-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
-                            
+
                             <input
                                 id="navbar-search"
                                 name="q"
                                 type="search"
                                 autoComplete="off"
-                                placeholder="search"
+                                placeholder="Search events, communities..."
                                 value={searchQuery}
                                 onChange={handleSearchChange}
                                 onFocus={handleSearchFocus}
-                                className={`w-28 sm:w-48 lg:w-52 pl-10 pr-10 py-2 rounded-xl text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 focus:shadow-lg ${isDark
-                                    ? 'bg-black/60 border border-gray-700/50 text-white placeholder-gray-400 focus:bg-black/80'
-                                    : 'bg-[#F8F9FB] border border-gray-200/50 text-gray-900 placeholder-gray-500 focus:bg-white'
+                                className={`w-32 sm:w-56 lg:w-64 pl-10 pr-10 py-2 rounded-full text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 ${isDark
+                                    ? 'bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:bg-white/10'
+                                    : 'bg-gray-100 border border-gray-200 text-gray-900 placeholder-gray-500 focus:bg-white'
                                     }`}
                             />
-                            
+
                             {/* Right side icons container */}
                             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                                 {searchQuery && !isSearching && (
@@ -819,16 +845,15 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                                         : 'border-gray-100 hover:bg-gray-50'
                                                         }`}
                                                 >
-                                                    <div className={`w-10 h-10 rounded-lg shrink-0 mr-3 flex items-center justify-center text-xs font-bold ${
-                                                        event.resultType === 'competition'
-                                                            ? 'bg-orange-100 text-orange-600'
-                                                            : event.category === 'cultural'
-                                                                ? 'bg-purple-100 text-purple-600'
-                                                                : event.category === 'tech' || event.type === 'technical'
-                                                                    ? 'bg-blue-100 text-blue-600'
-                                                                    : event.category === 'sports'
-                                                                        ? 'bg-green-100 text-green-600'
-                                                                        : 'bg-gray-100 text-gray-600'
+                                                    <div className={`w-10 h-10 rounded-lg shrink-0 mr-3 flex items-center justify-center text-xs font-bold ${event.resultType === 'competition'
+                                                        ? 'bg-orange-100 text-orange-600'
+                                                        : event.category === 'cultural'
+                                                            ? 'bg-purple-100 text-purple-600'
+                                                            : event.category === 'tech' || event.type === 'technical'
+                                                                ? 'bg-blue-100 text-blue-600'
+                                                                : event.category === 'sports'
+                                                                    ? 'bg-green-100 text-green-600'
+                                                                    : 'bg-gray-100 text-gray-600'
                                                         }`}>
                                                         {event.resultType === 'competition' ? 'C' : (event.title ? event.title.charAt(0) : 'F')}
                                                     </div>
@@ -892,17 +917,19 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                 if (opening) refreshNotifications();
                                 setIsNotificationOpen(opening);
                             }}
-                            className={`relative p-2 lg:p-3 rounded-xl transition-all duration-200 hover:shadow-md ${location.pathname === '/notifications' || location.pathname === '/notification-panel'
+                            className={`relative p-2 lg:p-2.5 rounded-full transition-all duration-200 cursor-pointer active:scale-95 ${location.pathname === '/notifications' || location.pathname === '/notification-panel'
                                 ? 'text-[#007BFF] bg-[#007BFF]/10 shadow-md'
                                 : isDark
-                                    ? 'text-gray-300 hover:text-[#007BFF] hover:bg-gray-800/60'
-                                    : 'text-gray-600 hover:text-[#007BFF] hover:bg-[#007BFF]/5'
-                                } ${isNotificationOpen ? (isDark ? 'bg-gray-800/60 text-[#007BFF]' : 'bg-[#007BFF]/5 text-[#007BFF]') : ''}`}>
+                                    ? 'text-gray-300 hover:text-[#007BFF] hover:bg-white/10'
+                                    : 'text-gray-800 hover:text-[#007BFF] hover:bg-black/5'
+                                } ${isNotificationOpen ? (isDark ? 'bg-white/10 text-[#007BFF]' : 'bg-[#007BFF]/10 text-[#007BFF]') : ''}`}>
                             <Bell className="w-4 lg:w-5 h-4 lg:h-5" />
                             {unreadCount > 0 && (
-                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#00C9A7] rounded-full border-2 border-white flex items-center justify-center">
-                                    <span className="text-xs font-bold text-white">
-                                        {unreadCount}
+                                <div
+                                    className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-[#090a0e] flex items-center justify-center shadow-xs"
+                                >
+                                    <span className="text-[9px] font-bold text-white">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
                                     </span>
                                 </div>
                             )}
@@ -1037,61 +1064,156 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                         )}
                     </div>
 
-                    {/* User Profile Avatar */}
-                    <div className="relative">
+                    {/* User Profile Avatar & Dropdown */}
+                    <div className="relative" ref={profileDropdownRef}>
                         <button
                             type="button"
-                            aria-label="Open profile"
-                            onClick={() => {
-                                if (onOpenProfile) onOpenProfile();
-                                else setIsProfileOpen(true);
-                            }}
-                            className={`w-8 lg:w-10 h-8 lg:h-10 rounded-xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 ${isAuthenticated
-                                ? 'bg-linear-to-br from-[#007BFF] to-[#00C9A7]'
-                                : isDark
-                                    ? 'bg-gray-700 hover:bg-gray-600'
-                                    : 'bg-gray-200 hover:bg-gray-300'
-                                }`}
+                            aria-label="Open profile menu"
+                            onClick={() => setIsProfileDropdownOpen(prev => !prev)}
+                            className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-[#4169E1] text-white flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer active:scale-95"
                         >
                             {isAuthenticated && user?.name ? (
                                 <span className="text-white font-bold text-xs lg:text-sm">
                                     {user.name.charAt(0).toUpperCase()}
                                 </span>
                             ) : (
-                                <User className={`w-4 lg:w-5 h-4 lg:h-5 ${isDark ? 'text-gray-300' : 'text-gray-600'
-                                    }`} />
+                                <User className="w-4 lg:w-5 h-4 lg:h-5 text-white" />
                             )}
                         </button>
+
+                        {/* Profile Dropdown Card - anchored floating card under Avatar */}
+                        {isProfileDropdownOpen && (
+                            <div className={`absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl shadow-2xl border backdrop-blur-md z-50 overflow-hidden ${isDark
+                                ? 'bg-[#161718] border-gray-800 text-white'
+                                : 'bg-white border-gray-200 text-gray-900'
+                                }`}>
+                                {/* Header with Profile title & Close button */}
+                                <div className="flex items-center justify-between px-5 pt-4 pb-2">
+                                    <h2 className={`text-xl font-medium font-inter ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        Profile
+                                    </h2>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsProfileDropdownOpen(false)}
+                                        className={`p-1 rounded-lg transition-colors cursor-pointer ${isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}
+                                        aria-label="Close profile"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* User Profile Section */}
+                                <div className="px-5 py-3">
+                                    <div className="flex items-center gap-3.5">
+                                        <ProfileAvatarUpload
+                                            isDark={isDark}
+                                            sizeClass="w-14 h-14"
+                                            initialClass="text-2xl"
+                                            guestIconClass="w-7 h-7"
+                                            cameraBtnClass="w-5 h-5"
+                                            className="items-start!"
+                                        />
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className={`text-base font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {isAuthenticated && user?.name ? user.name : 'guest'}
+                                            </h3>
+                                            <p className={`text-xs font-medium truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                {isAuthenticated && user?.email ? user.email : 'student'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Menu Items matching original Profile Sidebar style */}
+                                <div className="px-5 py-2 space-y-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            navigate('/edit-profile');
+                                            setIsProfileDropdownOpen(false);
+                                        }}
+                                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl shadow-sm transition-all duration-200 group cursor-pointer ${isDark
+                                            ? 'border border-gray-800/80 bg-[#111213] hover:bg-gray-800'
+                                            : 'border border-gray-100 bg-gray-50/80 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'}`}>
+                                                <User className="w-4 h-4 text-[#0ECCEE]" />
+                                            </div>
+                                            <span className={`font-medium text-sm block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                Edit profile
+                                            </span>
+                                        </div>
+                                        <ChevronRight className={`w-4 h-4 shrink-0 transition-colors ${isDark ? 'text-gray-500 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            navigate('/help-center');
+                                            setIsProfileDropdownOpen(false);
+                                        }}
+                                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl shadow-sm transition-all duration-200 group cursor-pointer ${isDark
+                                            ? 'border border-gray-800/80 bg-[#111213] hover:bg-gray-800'
+                                            : 'border border-gray-100 bg-gray-50/80 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center ${isDark ? 'bg-[#0ECCEE]/15' : 'bg-[#0ECCEE]/10'}`}>
+                                                <HelpCircle className="w-4 h-4 text-[#0ECCEE]" />
+                                            </div>
+                                            <span className={`font-medium text-sm block ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                Help Center
+                                            </span>
+                                        </div>
+                                        <ChevronRight className={`w-4 h-4 shrink-0 transition-colors ${isDark ? 'text-gray-500 group-hover:text-gray-300' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                                    </button>
+                                </div>
+
+                                {/* Bottom Auth Action */}
+                                <div className="px-5 pt-2 pb-4">
+                                    {isAuthenticated ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (logout) logout();
+                                                setIsProfileDropdownOpen(false);
+                                            }}
+                                            className={`w-full flex items-center justify-center gap-2 p-3.5 rounded-2xl shadow-sm transition-all duration-200 cursor-pointer group ${isDark
+                                                ? 'border border-gray-800/80 bg-[#111213] hover:bg-gray-800'
+                                                : 'border border-gray-100 bg-gray-50/80 hover:bg-gray-100'
+                                                }`}
+                                        >
+                                            <span className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                Log Out
+                                            </span>
+                                            <LogOut className={`w-4 h-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`} />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (onOpenProfile) onOpenProfile();
+                                                setIsProfileDropdownOpen(false);
+                                            }}
+                                            className="w-full flex items-center justify-center gap-2 p-3.5 rounded-xl transition-all duration-200 cursor-pointer bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 active:scale-[0.98]"
+                                        >
+                                            <GoogleIcon className="w-5 h-5" />
+                                            <span className="font-medium text-sm text-black font-medium">
+                                                Continue with Google
+                                            </span>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
-
-            {/* Mobile Navigation Menu */}
-            {isMobileMenuOpen && (
-                <div className={`lg:hidden mt-4 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                    <nav className="flex flex-col space-y-2">
-                        {NAV_ITEMS.map((item) => {
-                            const isActive = isNavItemActive(item, location.pathname);
-                            return (
-                                <NavItem
-                                    key={item.id}
-                                    item={item}
-                                    isActive={isActive}
-                                    isDark={isDark}
-                                    layout="inline"
-                                    onClick={() => {
-                                        handleNavigation(item.path);
-                                        setIsMobileMenuOpen(false);
-                                    }}
-                                    className="w-full justify-start px-4"
-                                />
-                            );
-                        })}
-                    </nav>
-                </div>
-            )}
         </header>
     );
 };
+
 
 export default Navbar;

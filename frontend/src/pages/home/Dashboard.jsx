@@ -35,6 +35,7 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
+import ReviewsSection from '../../components/ReviewsSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { HOME_FAQ } from '../../constants/faqs';
 import { mapEventShow } from '../../constants/eventsPage';
@@ -818,7 +819,7 @@ const Dashboard = () => {
                 subtitle: fest?.collegeName || '',
                 description: fest?.description || '',
                 status: fest?.status || 'upcoming',
-                date: fest?.festDate || 'Date TBA',
+                date: fest?.festDate || fest?.date || fest?.dateTime,
                 location: fest?.venue || 'Venue TBA',
                 category: type === 'cultural' ? 'Cultural Fest' :
                           type === 'technical' ? 'Tech Fest' :
@@ -828,8 +829,9 @@ const Dashboard = () => {
                 participants: fest?.estimatedParticipants || '',
                 duration: fest?.duration || '',
                 venue: fest?.venue || 'Venue TBA',
-                dateTime: fest?.festDate || 'Date TBA',
-                ticketPrice: fest?.ticketPrice || 'Free',
+                dateTime: fest?.festDate || fest?.date || fest?.dateTime,
+                ticketPrice: fest?.ticketPrice || fest?.price || fest?.registrationFee || fest?.feeAmount,
+
                 priority: fest?.priority || 999,
                 homePriority: fest?.homePriority || 999,
                 homeSection: fest?.homeSection || null,
@@ -1376,6 +1378,7 @@ const Dashboard = () => {
                 {heroEvents.length > 0 && (
                     <HeroBanner
                         events={heroEvents}
+                        isHome={true}
                         onEventClick={(id) => {
                             const slide = heroEvents.find((e) => e.id === id);
                             if (!slide) return;
@@ -1400,8 +1403,11 @@ const Dashboard = () => {
                             else navigateToFestDetail(slide);
                         }}
                         isDark={isDark}
+                        isFavorite={(id) => isFavorite(id)}
+                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
                     />
                 )}
+
 
                 <AnnouncementBanner announcement={publicConfig.announcement} />
 
@@ -1513,11 +1519,7 @@ const Dashboard = () => {
                 </div>
             </main>
 
-            <FaqSection items={HOME_FAQ} />
-
-            <div className="pb-20 md:pb-0">
-
-            </div>
+            <ReviewsSection reviews={publicConfig?.reviews || publicConfig?.testimonials} />
             </div>
 
 
