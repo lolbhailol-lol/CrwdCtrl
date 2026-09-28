@@ -46,6 +46,8 @@ import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../compone
 import { getExternalBrowserTargetUrl } from '../../../utils/openInExternalBrowser';
 
 const API = API_BASE_URL;
+const DIRT_DRAG_EVENT_ID = '6a722ada2a151369a4a2ff03';
+const DIRT_DRAG_PAYMENT_PHONE = '+919823317125';
 
 function getDiscordInviteFromEvent(event) {
     const fromMeeting = (Array.isArray(event?.meetingPoints) ? event.meetingPoints : [])
@@ -364,6 +366,7 @@ export default function EventRegistrationPage() {
         ? Number(couponInfo.amountAfterDiscount)
         : breakdown.totalAmount;
     const title = event?.displayName || event?.title || 'Event';
+    const isDirtDrag = String(event?._id || event?.id || eventId) === DIRT_DRAG_EVENT_ID;
     const driveOnlyTier = useMemo(
         () => packages.find((t) => isDriveOnlyTier(t)) || null,
         [packages],
@@ -465,7 +468,7 @@ export default function EventRegistrationPage() {
             });
             steps.push({
                 title: 'Select classes',
-                description: 'Pick one or more competition classes — ₹10,000 each; total adds up.',
+                description: 'Pick one or more competition classes for your entry.',
                 packageSelect: true,
                 multiSelect: true,
                 fields: [],
@@ -1638,6 +1641,21 @@ export default function EventRegistrationPage() {
                             ? 'Your registration is pending organizer approval. You can track status in My Bookings.'
                             : "Download your ticket or view all bookings whenever you're ready."}
                     </p>
+                    {isDirtDrag && (
+                        <div className={`mb-6 rounded-2xl border px-4 py-4 text-left ${
+                            isDark ? 'border-[#0ECCEE]/30 bg-[#0ECCEE]/10' : 'border-cyan-200 bg-cyan-50'
+                        }`}>
+                            <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                Please contact the number below for payment
+                            </p>
+                            <a
+                                href={`tel:${DIRT_DRAG_PAYMENT_PHONE}`}
+                                className="mt-1 inline-block text-lg font-bold text-[#0ECCEE]"
+                            >
+                                {DIRT_DRAG_PAYMENT_PHONE}
+                            </a>
+                        </div>
+                    )}
                     <div className="flex flex-col gap-3 animate-step-enter">
                         {registrationId && (
                             <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 active:scale-[0.98] transition-all duration-200">
@@ -1785,7 +1803,9 @@ export default function EventRegistrationPage() {
                         <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {current.multiSelect || multiClassFlow
-                                    ? 'Select one or more classes. Fee is ₹10,000 per class — total adds up at checkout.'
+                                    ? (isDirtDrag
+                                        ? 'Select one or more competition classes for your entry.'
+                                        : 'Select one or more classes. The total is calculated from your selections.')
                                     : skippingDrive
                                         ? 'Select a Trackday package.'
                                         : 'Select your Trackday package. Independence Day Drive is included free.'}
