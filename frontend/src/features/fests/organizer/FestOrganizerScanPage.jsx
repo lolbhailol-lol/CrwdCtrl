@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
 import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
@@ -27,12 +27,39 @@ function normalizeFestRow(p) {
 
 function FestOrganizerScanPageContent() {
     const { festId } = useParams();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const competitionId = searchParams.get('competitionId') || '';
     const proShow = searchParams.get('proShow') === '1' || searchParams.get('proShow') === 'true';
     const api = getApiBaseUrl();
     const { toast } = useDialog();
     const [rosterKey, setRosterKey] = useState(0);
+    const [competitions, setCompetitions] = useState([]);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchFestOrganizerParticipants(festId, { status: 'approved', page: 1, limit: 10 })
+            .then((data) => {
+                if (!cancelled) setCompetitions(Array.isArray(data?.competitions) ? data.competitions : []);
+            })
+            .catch((error) => {
+                if (!cancelled) toast(error?.message || 'Could not load competitions');
+            });
+        return () => { cancelled = true; };
+    }, [festId, toast]);
+
+    const selectedCompetition = useMemo(
+        () => competitions.find((item) => String(item.id) === String(competitionId)) || null,
+        [competitions, competitionId],
+    );
+
+    const selectCompetition = (nextId) => {
+        const next = new URLSearchParams(searchParams);
+        next.delete('proShow');
+        if (nextId) next.set('competitionId', nextId);
+        else next.delete('competitionId');
+        setSearchParams(next, { replace: true });
+        setRosterKey((key) => key + 1);
+    };
 
     const statsQs = proShow
         ? '?proShow=1'
@@ -90,7 +117,32 @@ function FestOrganizerScanPageContent() {
                 <p className="text-sm text-gray-500 mt-1">{modeLabel}</p>
             </div>
 
+            {!proShow && (
+                <div className="rounded-2xl border border-white/10 bg-[#161718] p-4">
+                    <label htmlFor="scanner-competition" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                        Competition scanner
+                    </label>
+                    <select
+                        id="scanner-competition"
+                        value={competitionId}
+                        onChange={(event) => selectCompetition(event.target.value)}
+                        className="w-full min-h-[48px] rounded-xl border border-white/10 bg-[#111213] px-3 text-sm font-semibold text-white focus:border-[#0ECCEE] focus:outline-none"
+                    >
+                        <option value="">All competitions</option>
+                        {competitions.map((competition) => (
+                            <option key={competition.id} value={competition.id}>{competition.name}</option>
+                        ))}
+                    </select>
+                    <p className="mt-2 text-xs text-gray-500">
+                        {selectedCompetition
+                            ? `${selectedCompetition.name}: only this competition's approved tickets can check in.`
+                            : 'Choose a competition for room-wise scanning, or keep all competitions for the main gate.'}
+                    </p>
+                </div>
+            )}
+
             <CheckinScannerPage
+                key={`scanner-${proShow ? 'pro-show' : competitionId || 'all'}`}
                 embedded
                 showStats
                 showSheetStatus={false}
@@ -109,6 +161,7 @@ function FestOrganizerScanPageContent() {
             />
 
             <OrganizerGateCheckinPanel
+                key={`roster-${proShow ? 'pro-show' : competitionId || 'all'}`}
                 listRoster={listRoster}
                 lookup={lookup}
                 manualCheckin={manualCheckin}
@@ -118,6 +171,13 @@ function FestOrganizerScanPageContent() {
                 searchPlaceholder="Name, phone, email, or registration ID"
                 outsideStatus="not_in"
                 insideStatus="checked_in"
+                pollMs={10000}
+                labels={{
+                    title: selectedCompetition ? `${selectedCompetition.name} live roster` : 'Live fest roster',
+                    subtitle: 'Approved entries update automatically · tap Check in for participants without a QR',
+                    outside: 'Still outside',
+                    inside: 'Checked in',
+                }}
             />
         </div>
     );

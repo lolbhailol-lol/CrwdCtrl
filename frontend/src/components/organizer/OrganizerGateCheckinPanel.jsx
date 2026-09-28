@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader, Phone, RefreshCw, Search, UserCheck, Users } from 'lucide-react';
 
-const POLL_MS = 30000;
+const DEFAULT_POLL_MS = 30000;
 
 function formatTime(value) {
   if (!value) return '';
@@ -33,6 +33,7 @@ export default function OrganizerGateCheckinPanel({
   outsideStatus = 'not_in',
   insideStatus = 'checked_in',
   pageSize = 30,
+  pollMs = DEFAULT_POLL_MS,
   labels = {},
 }) {
   const L = {
@@ -145,9 +146,9 @@ export default function OrganizerGateCheckinPanel({
     if (tab === 'search' && activeSearch) return undefined;
     const poll = setInterval(() => {
       load(stateRef.current.pagination.page || 1);
-    }, POLL_MS);
+    }, pollMs);
     return () => clearInterval(poll);
-  }, [tab, activeSearch, load]);
+  }, [tab, activeSearch, load, pollMs]);
 
   const runSearch = async (e) => {
     e?.preventDefault();

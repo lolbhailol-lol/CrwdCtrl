@@ -155,6 +155,15 @@ function SimpleOrganizerDashboard({ fest, stats, competitions, festId, navigate,
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                        {pluginId === 'kshitij' ? (
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/fest-organizer/fests/${festId}/scan`)}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/15 text-sm font-semibold text-[#0ECCEE] hover:bg-[#0ECCEE]/25"
+                            >
+                                <ScanLine size={14} /> Open scanner
+                            </button>
+                        ) : null}
                         <a
                             href={publicUrl}
                             target="_blank"
@@ -282,6 +291,15 @@ function SimpleOrganizerDashboard({ fest, stats, competitions, festId, navigate,
                         const count = Number(competition.total) || Number(competition.participants) || 0;
                         return (
                             <div key={competition.id} className="flex items-center gap-3 px-4 sm:px-5 py-3.5">
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/fest-organizer/fests/${festId}/scan?competitionId=${competition.id}`)}
+                                    className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-400/25 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/10"
+                                    title={`Open scanner for ${competition.name}`}
+                                >
+                                    <ScanLine size={12} />
+                                    Scan
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => navigate(`/fest-organizer/fests/${festId}/competitions/${competition.id}`)}
