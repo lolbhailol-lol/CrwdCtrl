@@ -483,7 +483,11 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
     normalizeTeamMember(m, personFields),
   );
   const person = members[personIndex] || emptyTeamMember(personFields);
-  const label = chosen === 1 ? 'Your details' : `Person ${personIndex + 1}`;
+  const label = chosen === 1
+    ? 'Your details'
+    : personIndex === 0
+      ? 'Team leader'
+      : `Team member ${personIndex + 1}`;
 
   const setField = (key, value) => {
     const next = [...members];
@@ -521,7 +525,11 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
           {label}
         </p>
         <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          {personIndex === 0 ? 'Your information' : `Team member ${personIndex + 1}`}
+          {chosen === 1
+            ? 'Your information'
+            : personIndex === 0
+              ? 'Team leader details'
+              : `Team member ${personIndex + 1} details`}
         </p>
         <p className={`text-[10px] mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
           Fields marked <span className="text-red-400">*</span> are compulsory

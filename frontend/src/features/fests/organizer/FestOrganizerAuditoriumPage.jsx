@@ -65,7 +65,7 @@ export default function FestOrganizerAuditoriumPage() {
     const [seatDraft, setSeatDraft] = useState([]);
     const [inviteForm, setInviteForm] = useState({ categoryId: '', maxUses: 3, code: '', note: '' });
     const [deskForm, setDeskForm] = useState({
-        categoryId: '', name: '', phone: '', email: '', college: '', misId: '', ticketPhotoUrl: '', idCardPhotoUrl: '', note: '',
+        categoryId: '', name: '', phone: '', email: '', college: '', ticketPhotoUrl: '', idCardPhotoUrl: '', note: '',
     });
     const [deskBusy, setDeskBusy] = useState(false);
     const [issuedTicket, setIssuedTicket] = useState(null);
@@ -574,12 +574,6 @@ export default function FestOrganizerAuditoriumPage() {
                                 className="px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
                             />
                         </div>
-                        <input
-                            value={deskForm.misId || ''}
-                            onChange={(e) => setDeskForm((f) => ({ ...f, misId: e.target.value }))}
-                            placeholder="MIS (if year seat)"
-                            className="w-full px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
-                        />
                         <label className="block">
                             <span className="text-[11px] text-gray-500">Face photo</span>
                             <input
@@ -674,7 +668,6 @@ export default function FestOrganizerAuditoriumPage() {
                                         <p className="text-sm text-white truncate">{t.fullName}</p>
                                         <p className="text-[10px] text-gray-500 truncate">
                                             {t.categoryLabel} · {t.phone}
-                                            {t.misId ? ` · ${t.misId}` : ''}
                                         </p>
                                     </div>
                                     <div className="flex flex-col items-end gap-0.5 shrink-0">
@@ -773,7 +766,7 @@ export default function FestOrganizerAuditoriumPage() {
                         <ul className="text-[11px] text-gray-500 space-y-1 pt-1 border-t border-white/8">
                             <li>Gate: match face ↔ ID ↔ claimed year</li>
                             <li>Deactivate leaked invite links ASAP</li>
-                            <li>One Google account + one MIS per seat</li>
+                            <li>One verified college email + one Google account per seat</li>
                         </ul>
                     </div>
 

@@ -26,14 +26,14 @@ test('directory emails normalize and hash without retaining plaintext', () => {
   assert.doesNotMatch(directoryEmailHash('student@coep.ac.in'), /student|coep/i);
 });
 
-test('eligibility token retains the bound user, competition and year', () => {
+test('eligibility token binds the verified email, competition and year without Google login', () => {
   const token = signEligibilityToken({
-    userId: 'user-1', competitionId: 'competition-1', email: 'student@coep.ac.in',
+    competitionId: 'competition-1', email: 'student@coep.ac.in',
     emailHash: directoryEmailHash('student@coep.ac.in'), categoryId: 'second_year',
   });
   const decoded = verifyEligibilityToken(token);
   assert.equal(decoded.purpose, 'auditorium-directory');
-  assert.equal(decoded.userId, 'user-1');
+  assert.equal(decoded.userId, undefined);
   assert.equal(decoded.competitionId, 'competition-1');
   assert.equal(decoded.categoryId, 'second_year');
 });

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const { getJwtSecret } = require('../config/jwtSecret');
@@ -50,6 +51,36 @@ function registrationRateLimitMax(req) {
   return isDev ? 300 : Number(process.env.REGISTRATION_IP_RATE_LIMIT_MAX) || 300;
 }
 
+function stableRequestHash(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest('hex').slice(0, 32);
+}
+
+/** Auditorium OTP/action keys stay per student even when 1000 phones share campus Wi-Fi. */
+function auditoriumOtpKey(req) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const challengeId = String(req.body?.challengeId || '').trim();
+  // Verification is always keyed by its challenge so changing the submitted
+  // email cannot reset the six-digit-code attempt budget.
+  const identity = challengeId || email;
+  return identity
+    ? `auditorium-otp:${stableRequestHash(identity)}`
+    : `auditorium-otp-ip:${ipKeyGenerator(req.ip)}`;
+}
+
+function auditoriumActionKey(req) {
+  const identity = req.body?.eligibilityToken
+    || req.body?.inviteCode
+    || req.body?.code
+    || req.body?.email;
+  return identity
+    ? `auditorium-action:${stableRequestHash(identity)}`
+    : `auditorium-action-ip:${ipKeyGenerator(req.ip)}`;
+}
+
+function isAuditoriumRushRequest(req) {
+  return String(req?.path || '').startsWith('/mindspark/auditorium');
+}
+
 /**
  * General API rate limit.
  * SPA home loads fire many parallel GETs; 300/15m was too low and caused site-wide 429s.
@@ -68,6 +99,10 @@ const apiLimiter = rateLimit({
     // Do not also charge them to the shared venue-IP bucket during a fest rush.
     if (req.method === 'POST' && /^\/payment\/(order|verify|quote|coupon-validate)$/.test(path)) return true;
     if (req.method === 'POST' && /^\/registrations\/(fests|competitions)\/[^/]+\/(register|custom|pay-and-register)$/.test(path)) return true;
+    // Auditorium has its own authenticated, per-user registration limiter.
+    // Skip the shared-IP limiter for every auditorium request so a campus NAT
+    // cannot block thousands of students completing OTP + photo registration.
+    if (isAuditoriumRushRequest(req)) return true;
     // Bundle routes use token/user-aware limits below; venue Wi-Fi must not share one bucket.
     if (path.startsWith('/mindspark/bundle/')) return true;
     // Campus Hunt has route-specific identity/team/admin limiters. A shared college
@@ -85,8 +120,6 @@ const apiLimiter = rateLimit({
       if (/^\/fests\/(all|upcoming|search)$/.test(path)) return true;
       if (/^\/fests\/[^/]+\/public$/.test(path)) return true;
       if (/^\/fests\/competitions\/[^/]+\/public$/.test(path)) return true;
-      // Auditorium ticket brochure + seat meta — venue WiFi loads this together
-      if (path.startsWith('/mindspark/auditorium')) return true;
       // Stall form meta — many phones load this at once on shared WiFi
       if (/^\/fests\/[^/]+\/stall$/.test(path)) return true;
       // Ticket QR fetch — the whole gate queue loads this at once from one venue IP,
@@ -197,6 +230,35 @@ const registrationLimiter = rateLimit({
   message: { success: false, message: 'Too many registration requests, please try again later.' },
 });
 
+const auditoriumOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 100 : Number(process.env.AUDITORIUM_OTP_RATE_LIMIT_MAX) || 8,
+  keyGenerator: auditoriumOtpKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many code attempts for this email. Please wait and try again.' },
+});
+
+const auditoriumActionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : Number(process.env.AUDITORIUM_ACTION_RATE_LIMIT_MAX) || 30,
+  keyGenerator: auditoriumActionKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many auditorium requests. Please wait and try again.' },
+});
+
+const paymentQuoteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: (req) => (bearerUserId(req)
+    ? (isDev ? 1000 : Number(process.env.PAYMENT_QUOTE_RATE_LIMIT_MAX) || 240)
+    : (isDev ? 8000 : Number(process.env.PAYMENT_QUOTE_IP_RATE_LIMIT_MAX) || 5000)),
+  keyGenerator: paymentIdentityKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many price requests. Please wait a moment and try again.' },
+});
+
 const bundleQuoteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: isDev ? 3000 : Number(process.env.BUNDLE_QUOTE_RATE_LIMIT_MAX) || 1200,
@@ -289,14 +351,18 @@ const campusHuntAdminLimiter = rateLimit({
 });
 
 module.exports = {
+  isAuditoriumRushRequest,
   apiLimiter,
   authLimiter,
   campusHuntLoginLimiter,
   campusHuntOfflineSyncLimiter,
   adminAuthLimiter,
   paymentLimiter,
+  paymentQuoteLimiter,
   competitionRegisterLimiter,
   registrationLimiter,
+  auditoriumOtpLimiter,
+  auditoriumActionLimiter,
   bundleQuoteLimiter,
   bundlePaymentLimiter,
   scannerCheckinLimiter,

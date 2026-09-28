@@ -3,17 +3,26 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/mindsparkAuditoriumController');
 const uploadCtrl = require('../controllers/uploadController');
-const { authenticateToken } = require('../middleware/authmiddleware');
-const { registrationLimiter } = require('../middleware/rateLimiter');
+const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
+const {
+  registrationLimiter,
+  auditoriumOtpLimiter,
+  auditoriumActionLimiter,
+} = require('../middleware/rateLimiter');
 
 router.get('/meta', ctrl.getPublicMeta);
 
-/** Login required — Google session fills identity; blocks anonymous seat farming */
-router.post('/request-otp', authenticateToken, registrationLimiter, ctrl.requestDirectoryOtp);
-router.post('/verify-otp', authenticateToken, registrationLimiter, ctrl.verifyDirectoryOtp);
-router.post('/register', authenticateToken, registrationLimiter, ctrl.publicRegister);
+/** College-email OTP is the public identity check; Google login is optional. */
+router.post('/request-otp', auditoriumOtpLimiter, ctrl.requestDirectoryOtp);
+router.post('/verify-otp', auditoriumOtpLimiter, ctrl.verifyDirectoryOtp);
+router.post('/register', optionalAuthenticateToken, auditoriumActionLimiter, ctrl.publicRegister);
 router.get('/my-ticket', authenticateToken, ctrl.getMyTicket);
-router.post('/upload-signature', authenticateToken, registrationLimiter, uploadCtrl.createAuditoriumUploadSignature);
+router.post(
+  '/upload-signature',
+  auditoriumActionLimiter,
+  ctrl.authorizePublicUpload,
+  uploadCtrl.createAuditoriumUploadSignature,
+);
 
 router.post(
   '/upload-photo',

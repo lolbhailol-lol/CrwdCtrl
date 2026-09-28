@@ -63,7 +63,6 @@ function defaultAuditoriumConfig() {
     registrationOpen: true,
     requireTicketPhoto: true,
     requireIdAtGate: true,
-    enforceMisYear: true,
     requireDirectoryOtp: false,
     categories: DEFAULT_AUDITORIUM_CATEGORIES.map((c) => ({ ...c })),
   };
@@ -77,7 +76,6 @@ function normalizeAuditoriumConfig(raw = {}) {
     registrationOpen: Boolean(raw.registrationOpen),
     requireTicketPhoto: raw.requireTicketPhoto !== false,
     requireIdAtGate: raw.requireIdAtGate !== false,
-    enforceMisYear: raw.enforceMisYear !== false,
     requireDirectoryOtp: raw.requireDirectoryOtp === true,
     categories,
   };

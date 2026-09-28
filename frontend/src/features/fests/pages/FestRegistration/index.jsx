@@ -6,6 +6,7 @@ import useFestRegistration from './useFestRegistration';
 import FestRegistrationForm from './FestRegistrationForm';
 import PaymentStep, { CompletingPaymentStep } from './PaymentStep';
 import SuccessStep from './SuccessStep';
+import { isAarohanFest } from '../../aarohan';
 
 export default function FestRegistration() {
   const r = useFestRegistration();
@@ -62,7 +63,7 @@ export default function FestRegistration() {
   } = r;
 
   const skipDemoLoad = Boolean(
-    location?.state?.skipDemoLoad || fest || location?.state?.prefetch,
+    location?.state?.skipDemoLoad || fest || location?.state?.prefetch || isAarohanFest(festId),
   );
   const [holdLoader, setHoldLoader] = useState(() => !skipDemoLoad);
   useEffect(() => {

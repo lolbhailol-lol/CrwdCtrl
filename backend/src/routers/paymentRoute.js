@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, optionalAuthenticateToken } = require('../middleware/authmiddleware');
+const { paymentQuoteLimiter } = require('../middleware/rateLimiter');
 const { createOrder, getPaymentQuote, verifyPayment, createTrekOrder, verifyTrekPayment, createSportsOrder, verifySportsPayment, validateCoupon } = require('../controllers/paymentController');
 
 // Quote is display-only pricing (coupon preview); auth optional so fee/coupon UI can render before login.
-router.post('/quote', optionalAuthenticateToken, getPaymentQuote);
+router.post('/quote', optionalAuthenticateToken, paymentQuoteLimiter, getPaymentQuote);
 router.post('/order', authenticateToken, createOrder);
 router.post('/verify', authenticateToken, verifyPayment);
-router.post('/coupon-validate', optionalAuthenticateToken, validateCoupon);
+router.post('/coupon-validate', optionalAuthenticateToken, paymentQuoteLimiter, validateCoupon);
 router.post('/trek-order', optionalAuthenticateToken, createTrekOrder); // public — enforces trek.registration.requireLogin inside
 // Guest-friendly verify: JWT bound to order.userId when present, else customerEmail must match.
 router.post('/trek-verify', optionalAuthenticateToken, verifyTrekPayment);

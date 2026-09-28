@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Camera, CheckCircle, Loader, Ticket, ArrowLeft, Sparkles, IdCard, Image as ImageIcon } from 'lucide-react';
-import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
-import { authenticatedFetchJSON, userFetchJSONStrict } from '../../../services/api/auth.api';
-import { getBearerAuthHeaders } from '../../../utils/authToken';
-import { useAuth } from '../../../context/AuthContext';
+import { publicFetchJSON } from '../../../services/api/client';
 import { useDialog } from '../../../context/DialogContext';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
-import CrwdCtrlLogin from '../../../pages/auth/login';
 import AuditoriumTicketPass, { ensureAuditoriumFonts } from './AuditoriumTicketPass';
 
 const MIN_PHOTO_PX = 160;
@@ -40,55 +36,42 @@ function clearDraft() {
   }
 }
 
-async function uploadTicketPhoto(file, token) {
-  if (!token) throw new Error('Sign in required to upload');
-  try {
-    const signed = await authenticatedFetchJSON(resolveUrl('/mindspark/auditorium/upload-signature'), {
-      method: 'POST',
-    });
+async function uploadTicketPhoto(file, { eligibilityToken, inviteCode, categoryId }) {
+  if (!eligibilityToken && !inviteCode) throw new Error('Verify your college email before uploading');
+  const signed = await publicFetchJSON('/mindspark/auditorium/upload-signature', {
+    method: 'POST',
+    body: JSON.stringify({ eligibilityToken, inviteCode, categoryId }),
+  });
+  const endpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(signed.cloudName)}/image/upload`;
+  let lastError = null;
+
+  // Upload directly from the phone so a photo rush never fills backend memory.
+  // Cloudinary can briefly throttle a burst; retry there instead of proxying the
+  // same files through the single API instance.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('api_key', signed.apiKey);
     fd.append('timestamp', String(signed.timestamp));
     fd.append('folder', signed.folder);
     fd.append('signature', signed.signature);
-    const direct = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(signed.cloudName)}/image/upload`, {
-      method: 'POST',
-      body: fd,
-    });
-    const directData = await direct.json().catch(() => ({}));
-    if (!direct.ok) throw new Error(directData.error?.message || 'Direct photo upload failed');
-    if (directData.secure_url) return directData.secure_url;
-  } catch {
-    // Keep the proxied upload as a compatibility fallback during deployment or
-    // if a device/network blocks direct Cloudinary requests.
+    try {
+      const direct = await fetch(endpoint, { method: 'POST', body: fd });
+      const directData = await direct.json().catch(() => ({}));
+      if (direct.ok && directData.secure_url) return directData.secure_url;
+      const message = directData.error?.message || `Photo upload failed (${direct.status})`;
+      lastError = new Error(message);
+      const retryable = direct.status === 420 || direct.status === 429 || direct.status >= 500;
+      if (!retryable) throw lastError;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < 3) {
+      const delay = (500 * (2 ** attempt)) + Math.floor(Math.random() * 300);
+      await new Promise((resolve) => window.setTimeout(resolve, delay));
+    }
   }
-
-  const fd = new FormData();
-  fd.append('image', file);
-  fd.append('folder', 'crwdctrl/auditorium-tickets');
-  // Do NOT set Content-Type — browser must add multipart boundary.
-  // getBearerAuthHeaders() forces application/json and breaks FormData uploads.
-  const auth = getBearerAuthHeaders(token);
-  const res = await fetch(resolveUrl('/mindspark/auditorium/upload-photo'), {
-    method: 'POST',
-    headers: auth.Authorization ? { Authorization: auth.Authorization } : {},
-    body: fd,
-    credentials: 'include',
-  });
-  const raw = await res.text();
-  let data = {};
-  try {
-    data = raw ? JSON.parse(raw) : {};
-  } catch {
-    throw new Error(
-      res.ok
-        ? 'Upload returned a bad response'
-        : (raw.slice(0, 120) || `Upload failed (${res.status})`),
-    );
-  }
-  if (!res.ok) throw new Error(data.error || data.message || 'Photo upload failed');
-  return data.url || data.secure_url || data.data?.url || '';
+  throw lastError || new Error('Photo upload failed. Please try again.');
 }
 
 async function optimizeUploadImage(file) {
@@ -310,8 +293,6 @@ export default function MindSparkAuditoriumPage() {
   const inviteCode = searchParams.get('code') || '';
   const navigate = useNavigate();
   const { toast } = useDialog();
-  const { isAuthenticated, token, user, isLoading: authLoading } = useAuth();
-  const [showLogin, setShowLogin] = useState(false);
   const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const draftBoot = useMemo(() => readDraft(), []);
@@ -326,7 +307,6 @@ export default function MindSparkAuditoriumPage() {
     name: draftBoot?.form?.name || '',
     phone: draftBoot?.form?.phone || '',
     email: draftBoot?.form?.email || '',
-    misId: draftBoot?.form?.misId || '',
     honorConfirmed: Boolean(draftBoot?.form?.honorConfirmed),
   }));
   const [photoUrl, setPhotoUrl] = useState(() => String(draftBoot?.photoUrl || ''));
@@ -337,10 +317,8 @@ export default function MindSparkAuditoriumPage() {
   const [uploadingKind, setUploadingKind] = useState(null); // 'id' | 'face' | null
   const [ticket, setTicket] = useState(null);
   const [issuedFresh, setIssuedFresh] = useState(false);
-  const draftOwnerRef = useRef(String(draftBoot?.ownerKey || ''));
   const faceUploadRef = useRef(0);
   const idUploadRef = useRef(0);
-  const bootedAuthRef = useRef(Boolean(draftBoot?.step > 1 || draftBoot?.categoryId));
   const draftSnapshotRef = useRef({
     step: Math.min(5, Math.max(1, Number(draftBoot?.step) || 1)),
     categoryId: String(draftBoot?.categoryId || ''),
@@ -351,7 +329,6 @@ export default function MindSparkAuditoriumPage() {
       name: draftBoot?.form?.name || '',
       phone: draftBoot?.form?.phone || '',
       email: draftBoot?.form?.email || '',
-      misId: draftBoot?.form?.misId || '',
       honorConfirmed: Boolean(draftBoot?.form?.honorConfirmed),
     },
     photoUrl: String(draftBoot?.photoUrl || ''),
@@ -366,14 +343,13 @@ export default function MindSparkAuditoriumPage() {
     const next = {
       ...draftSnapshotRef.current,
       ...override,
-      ownerKey: draftOwnerRef.current,
       form: { ...draftSnapshotRef.current.form, ...(override.form || {}) },
     };
     draftSnapshotRef.current = next;
     writeDraft(next);
   }, []);
 
-  // Keep step/form across camera open/close (mobile often remounts / auth-flickers)
+  // Keep step/form across camera open/close (mobile browsers often remount).
   useEffect(() => {
     if (ticket) {
       clearDraft();
@@ -394,7 +370,7 @@ export default function MindSparkAuditoriumPage() {
     if (idCardPreview) URL.revokeObjectURL(idCardPreview);
   }, [idCardPreview]);
 
-  // After camera/gallery returns, restore draft if React remounted or auth flickered
+  // After camera/gallery returns, restore the in-progress draft if React remounted.
   useEffect(() => {
     const restore = () => {
       const d = readDraft();
@@ -411,13 +387,11 @@ export default function MindSparkAuditoriumPage() {
           name: f.name || d.form.name || '',
           phone: f.phone || d.form.phone || '',
           email: f.email || d.form.email || '',
-          misId: f.misId || d.form.misId || '',
           honorConfirmed: f.honorConfirmed || Boolean(d.form.honorConfirmed),
         }));
       }
       if (d.photoUrl) setPhotoUrl((u) => u || String(d.photoUrl));
       if (d.idCardUrl) setIdCardUrl((u) => u || String(d.idCardUrl));
-      if (restoredStep > 1 || d.categoryId) bootedAuthRef.current = true;
     };
     const onVis = () => {
       if (document.visibilityState === 'visible') restore();
@@ -450,64 +424,6 @@ export default function MindSparkAuditoriumPage() {
 
   useEffect(() => { loadMeta(); }, [inviteCode, loadMeta]);
 
-  useEffect(() => {
-    if (!user) return;
-    const ownerKey = String(user.uid || user._id || user.id || user.email || '').toLowerCase();
-    const savedOwner = String(readDraft()?.ownerKey || '').toLowerCase();
-    const ownerChanged = Boolean(savedOwner && ownerKey && savedOwner !== ownerKey);
-    if (ownerChanged) {
-      clearDraft();
-      setStep(1);
-      setCategoryId('');
-      setDirectoryEmail('');
-      setOtpChallengeId('');
-      setEligibilityToken('');
-      setPhotoUrl('');
-      setPhotoPreview('');
-      setIdCardUrl('');
-      setIdCardPreview('');
-      draftSnapshotRef.current = {
-        step: 1, categoryId: '', directoryEmail: '', otpChallengeId: '', eligibilityToken: '', form: {}, photoUrl: '', idCardUrl: '',
-      };
-    } else if (!savedOwner && (photoUrl || idCardUrl)) {
-      // Legacy drafts were not account-scoped. Never restore their photos into a login.
-      setPhotoUrl('');
-      setPhotoPreview('');
-      setIdCardUrl('');
-      setIdCardPreview('');
-      flushDraft({ photoUrl: '', idCardUrl: '' });
-    }
-    draftOwnerRef.current = ownerKey;
-    setForm((f) => ({
-      ...(ownerChanged ? {} : f),
-      name: ownerChanged ? (user.name || user.displayName || '') : (f.name || user.name || user.displayName || ''),
-      email: ownerChanged ? (user.email || '') : (f.email || user.email || ''),
-      phone: ownerChanged ? (user.phoneNumber || user.phone || '') : (f.phone || user.phoneNumber || user.phone || ''),
-      misId: ownerChanged ? '' : (f.misId || ''),
-      honorConfirmed: ownerChanged ? false : Boolean(f.honorConfirmed),
-    }));
-  }, [user, photoUrl, idCardUrl, flushDraft]);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (isAuthenticated) {
-      bootedAuthRef.current = true;
-      setShowLogin(false);
-    }
-  }, [authLoading, isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !token) return;
-    authenticatedFetchJSON(resolveUrl('/mindspark/auditorium/my-ticket'))
-      .then((res) => {
-        if (res?.ticket) {
-          setTicket(res.ticket);
-          setIssuedFresh(false);
-        }
-      })
-      .catch(() => {});
-  }, [isAuthenticated, token]);
-
   const categories = useMemo(() => {
     const list = [...(meta?.categories || [])];
     if (meta?.inviteCategory) {
@@ -526,7 +442,7 @@ export default function MindSparkAuditoriumPage() {
     }
     setOtpBusy(true);
     try {
-      const res = await userFetchJSONStrict('/mindspark/auditorium/request-otp', {
+      const res = await publicFetchJSON('/mindspark/auditorium/request-otp', {
         method: 'POST',
         body: JSON.stringify({ email: directoryEmail.trim() }),
       });
@@ -548,7 +464,7 @@ export default function MindSparkAuditoriumPage() {
     }
     setOtpBusy(true);
     try {
-      const res = await userFetchJSONStrict('/mindspark/auditorium/verify-otp', {
+      const res = await publicFetchJSON('/mindspark/auditorium/verify-otp', {
         method: 'POST',
         body: JSON.stringify({ challengeId: otpChallengeId, email: directoryEmail.trim(), code: otpCode.trim() }),
       });
@@ -574,9 +490,9 @@ export default function MindSparkAuditoriumPage() {
 
   const onFacePhoto = async (file) => {
     if (!file) return;
-    if (!token) {
-      setShowLogin(true);
-      toast('Sign in to upload');
+    if (!eligibilityToken && !inviteCode) {
+      toast('Verify your college email before uploading');
+      setStep(1);
       return;
     }
     const uploadId = faceUploadRef.current + 1;
@@ -589,7 +505,7 @@ export default function MindSparkAuditoriumPage() {
       const preview = URL.createObjectURL(file);
       setPhotoPreview(preview);
       const uploadFile = await optimizeUploadImage(file);
-      const url = await uploadTicketPhoto(uploadFile, token);
+      const url = await uploadTicketPhoto(uploadFile, { eligibilityToken, inviteCode, categoryId });
       if (faceUploadRef.current !== uploadId) return;
       if (!url) throw new Error('Upload failed');
       if (idCardUrl && cloudinaryPathKey(url) === cloudinaryPathKey(idCardUrl)) {
@@ -612,9 +528,9 @@ export default function MindSparkAuditoriumPage() {
 
   const onIdCardPhoto = async (file) => {
     if (!file) return;
-    if (!token) {
-      setShowLogin(true);
-      toast('Sign in to upload');
+    if (!eligibilityToken && !inviteCode) {
+      toast('Verify your college email before uploading');
+      setStep(1);
       return;
     }
     const uploadId = idUploadRef.current + 1;
@@ -627,7 +543,7 @@ export default function MindSparkAuditoriumPage() {
       const preview = URL.createObjectURL(file);
       setIdCardPreview(preview);
       const uploadFile = await optimizeUploadImage(file);
-      const url = await uploadTicketPhoto(uploadFile, token);
+      const url = await uploadTicketPhoto(uploadFile, { eligibilityToken, inviteCode, categoryId });
       if (idUploadRef.current !== uploadId) return;
       if (!url) throw new Error('Upload failed');
       if (photoUrl && cloudinaryPathKey(url) === cloudinaryPathKey(photoUrl)) {
@@ -649,11 +565,6 @@ export default function MindSparkAuditoriumPage() {
   };
 
   const submit = async () => {
-    if (!isAuthenticated || !token) {
-      setShowLogin(true);
-      toast('Sign in with Google to continue');
-      return;
-    }
     if (photoUrl && idCardUrl && cloudinaryPathKey(photoUrl) === cloudinaryPathKey(idCardUrl)) {
       toast('Face photo and college ID must be different pictures');
       return;
@@ -667,13 +578,12 @@ export default function MindSparkAuditoriumPage() {
         phone: form.phone,
         email: form.email,
         college: COEP_COLLEGE,
-        misId: form.misId,
         ticketPhotoUrl: photoUrl,
         idCardPhotoUrl: idCardUrl,
         honorConfirmed: form.honorConfirmed,
         eligibilityToken: eligibilityToken || undefined,
       };
-      const res = await userFetchJSONStrict('/mindspark/auditorium/register', {
+      const res = await publicFetchJSON('/mindspark/auditorium/register', {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -685,8 +595,6 @@ export default function MindSparkAuditoriumPage() {
         setTicket(e.data?.ticket || e.ticket);
         setIssuedFresh(false);
         toast('You already have a ticket');
-      } else if (e.code === 'MIS_YEAR_MISMATCH') {
-        toast(e.message || 'MIS batch doesn’t match the selected year. Check the MIS number or choose the correct year.');
       } else if (e.code === 'SAME_PHOTO') {
         toast(e.message || 'Face photo and college ID must be different pictures');
       } else if (e.code === 'EMAIL_VERIFICATION_REQUIRED') {
@@ -695,9 +603,6 @@ export default function MindSparkAuditoriumPage() {
         setOtpCode('');
         setStep(1);
         toast(e.message || 'Verify your college email again');
-      } else if (e.status === 401 || e.code === 'LOGIN_REQUIRED' || e.code === 'AUTH_401' || e.code === 'NO_AUTH_TOKEN') {
-        setShowLogin(true);
-        toast('Sign in with Google to continue');
       } else {
         toast(e.message || 'Registration failed');
       }
@@ -706,66 +611,8 @@ export default function MindSparkAuditoriumPage() {
     }
   };
 
-  const hasFormProgress = step > 1 || Boolean(categoryId) || Boolean(photoUrl) || Boolean(idCardUrl);
-  const holdSession = bootedAuthRef.current || hasFormProgress || Boolean(readDraft()?.step > 1);
-
-  if ((authLoading || (loading && !meta)) && !holdSession) {
+  if (loading && !meta) {
     return <InlinePageLoader label="Loading auditorium…" />;
-  }
-
-  if (!isAuthenticated && !holdSession) {
-    return (
-      <StageShell>
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 text-sm text-white/45 hover:text-white/80 transition"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-
-        <header className="mt-8 space-y-3 text-center">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-[#0ECCEE] font-semibold">MindSpark</p>
-          <h1
-            className="text-[2.5rem] leading-none text-white"
-            style={{ fontFamily: '"Bebas Neue", Impact, sans-serif', letterSpacing: '0.06em' }}
-          >
-            AUDITORIUM PASS
-          </h1>
-          <p className="text-sm text-white/45 max-w-xs mx-auto">
-            Sign in with Google once — we fill your name &amp; email. Already signed in on this device? You’re good.
-          </p>
-        </header>
-
-        <div className="mt-8 space-y-3">
-          <button
-            type="button"
-            onClick={() => setShowLogin(true)}
-            className="w-full inline-flex items-center justify-center gap-3 rounded-2xl bg-white text-gray-900 font-semibold py-3.5 text-sm shadow-lg active:scale-[0.98] transition"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            Continue with Google
-          </button>
-          <p className="text-center text-[11px] text-white/35">
-            Required so each person gets one ticket · details auto-fill after sign-in
-          </p>
-        </div>
-
-        {showLogin ? (
-          <CrwdCtrlLogin
-            googleOnly
-            title="Sign in for your pass"
-            subtitle="Google once — stay signed in on this device"
-            onClose={() => setShowLogin(false)}
-          />
-        ) : null}
-      </StageShell>
-    );
   }
 
   if (ticket) {
@@ -799,7 +646,7 @@ export default function MindSparkAuditoriumPage() {
             >
               YOU&apos;RE ON THE LIST
             </h1>
-            <p className="text-sm text-white/45">Screenshot this · check email · open from Bookings anytime</p>
+            <p className="text-sm text-white/45">Screenshot this pass and keep the email confirmation for entry</p>
             <p className="text-[11px] text-amber-200/80 max-w-sm mx-auto leading-relaxed">
               Note: If your college ID and face don’t match at the gate, entry may be restricted.
             </p>
@@ -808,18 +655,9 @@ export default function MindSparkAuditoriumPage() {
           <AuditoriumTicketPass ticket={ticket} />
 
           <div className="flex flex-col gap-2.5">
-            <Link
-              to={`/qr-ticket/${ticket.id || ticket.registrationId}?auditorium=1`}
-              className="block text-center rounded-2xl bg-[#0ECCEE] text-black font-bold py-3.5 text-sm shadow-[0_12px_40px_-16px_rgba(14,204,238,0.8)] active:scale-[0.98] transition"
-            >
-              Full-screen gate pass
-            </Link>
-            <Link
-              to="/booking"
-              className="block text-center rounded-2xl border border-white/12 bg-white/3 text-white font-medium py-3.5 text-sm hover:border-white/25 transition"
-            >
-              View in My Bookings
-            </Link>
+            <div className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/8 px-4 py-3 text-center text-xs text-[#9CEEF8]">
+              Your QR is shown on the pass above. Save a screenshot before leaving this page.
+            </div>
             <Link
               to={`/fest/${MINDSPARK_FEST}`}
               className="block text-center text-sm text-white/40 py-1 hover:text-white/70 transition"
@@ -856,11 +694,6 @@ export default function MindSparkAuditoriumPage() {
           <span className="inline-flex items-center gap-1 rounded-full border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0ECCEE]">
             <Sparkles size={10} /> MindSpark
           </span>
-          {user?.email ? (
-            <span className="text-[11px] text-white/40 truncate max-w-[200px]">
-              Signed in · {user.email}
-            </span>
-          ) : null}
           {meta?.totalLeft != null && regOpen ? (
             <span className="text-[11px] text-white/35 tabular-nums">{meta.totalLeft} seats left</span>
           ) : null}
@@ -1050,26 +883,16 @@ export default function MindSparkAuditoriumPage() {
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               placeholder="Email (ticket delivery)"
               type="email"
-              readOnly={directoryRequired || Boolean(user?.email)}
-              className={`${fieldClass}${directoryRequired || user?.email ? ' opacity-80' : ''}`}
+              readOnly={directoryRequired}
+              className={`${fieldClass}${directoryRequired ? ' opacity-80' : ''}`}
               autoComplete="email"
             />
             {directoryRequired ? (
               <p className="text-[10px] text-emerald-300/70 -mt-1 px-1">Verified college directory email</p>
-            ) : user?.email ? (
-              <p className="text-[10px] text-white/35 -mt-1 px-1">
-                Using your Google account email
-              </p>
             ) : null}
             <p className="text-[11px] text-white/40 px-1">
               College locked to <span className="text-white/70 font-medium">COEP</span> — MindSpark auditorium is for COEP students only
             </p>
-            <input
-              value={form.misId}
-              onChange={(e) => setForm((f) => ({ ...f, misId: e.target.value }))}
-              placeholder="MIS number"
-              className={fieldClass}
-            />
             <div className="flex gap-2 pt-1">
               <button
                 type="button"
@@ -1087,11 +910,6 @@ export default function MindSparkAuditoriumPage() {
                   }
                   if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
                     toast('Valid email required for your ticket');
-                    return;
-                  }
-                  const mis = form.misId.replace(/[^a-zA-Z0-9]/g, '');
-                  if (mis.length < 5) {
-                    toast('Enter your MIS number (min 5 characters)');
                     return;
                   }
                   setStep(3);
@@ -1258,16 +1076,6 @@ export default function MindSparkAuditoriumPage() {
         ) : null}
       </div>
 
-      {(!isAuthenticated || showLogin) ? (
-        <CrwdCtrlLogin
-          googleOnly
-          title="Sign in to continue"
-          subtitle="Session paused — sign in again. Your progress is saved."
-          onClose={() => {
-            if (isAuthenticated) setShowLogin(false);
-          }}
-        />
-      ) : null}
     </StageShell>
   );
 }
