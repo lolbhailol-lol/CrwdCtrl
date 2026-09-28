@@ -13,11 +13,16 @@ import { aarohanPlugin } from './aarohanPlugin';
  * Generic pages should use this instead of isMindSparkFest() for behavior.
  */
 export function getFestPlugin(festOrId, festMeta = null) {
-  if (isMindSparkFest(festOrId, festMeta)) return mindsparkPlugin;
-  if (isTechfestFest(festOrId, festMeta)) return techfestPlugin;
-  if (isKshitijFest(festOrId, festMeta)) return kshitijPlugin;
-  if (isAarohanFest(festOrId, festMeta)) return aarohanPlugin;
-  return defaultFestPlugin;
+  const namedPlugin = isMindSparkFest(festOrId, festMeta)
+    ? mindsparkPlugin
+    : isTechfestFest(festOrId, festMeta)
+      ? techfestPlugin
+      : isKshitijFest(festOrId, festMeta)
+        ? kshitijPlugin
+        : isAarohanFest(festOrId, festMeta)
+          ? aarohanPlugin
+          : null;
+  return namedPlugin ? { ...defaultFestPlugin, ...namedPlugin } : defaultFestPlugin;
 }
 
 /** First matching named plugin among candidates (fest, competition.fest, ids). */

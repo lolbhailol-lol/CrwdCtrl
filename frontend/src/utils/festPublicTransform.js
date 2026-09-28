@@ -162,11 +162,19 @@ export function groupCompetitionsByType(competitions, festData) {
   const plugin = getFestPlugin(festData);
   const grouped = {};
   competitions.forEach((comp) => {
-    const category = plugin.competitionGroupKey(comp);
+    const category = typeof plugin.competitionGroupKey === 'function'
+      ? plugin.competitionGroupKey(comp)
+      : defaultCompetitionGroupKey(comp);
     if (!grouped[category]) grouped[category] = [];
     grouped[category].push(transformCompetitionItem(comp, festData));
   });
-  return plugin.sortCompetitionGroups(grouped);
+  return typeof plugin.sortCompetitionGroups === 'function'
+    ? plugin.sortCompetitionGroups(grouped)
+    : grouped;
+}
+
+function defaultCompetitionGroupKey(comp) {
+  return comp?.competitionType?.toUpperCase() || 'OTHER';
 }
 
 /** True when transformed fest data already has competition cards to paint. */
