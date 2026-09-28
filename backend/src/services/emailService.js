@@ -491,6 +491,19 @@ const sendEmail = async (mailOptions) => {
     });
 };
 
+/** OTP delivery bypasses the legacy 1-email/sec campaign queue. */
+const sendAuditoriumOtpEmail = async (email, code) => {
+    const mail = {
+        from: getDefaultFrom(),
+        to: email,
+        subject: `${code} is your MindSpark auditorium verification code`,
+        text: `Your MindSpark auditorium verification code is ${code}. It expires in 5 minutes. Do not share this code.`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px;color:#111827"><p style="color:#0891b2;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase">MindSpark auditorium</p><h1 style="font-size:34px;letter-spacing:.16em;margin:16px 0">${code}</h1><p style="font-size:15px;line-height:1.6">Enter this code to verify your college email. It expires in 5 minutes.</p><p style="font-size:12px;color:#6b7280">Do not share this code. CrwdCtrl will never ask for it by phone or message.</p></div>`,
+    };
+    if (process.env.RESEND_API_KEY && resendInstance) return sendWithResend(mail);
+    return sendEmail(mail);
+};
+
 // ✅ NEW: BROADCAST FUNCTION
 const sendEventBroadcast = async (userList, eventDetails) => {
     console.log(`📢 Starting broadcast for event: ${eventDetails.name}`);
@@ -1998,6 +2011,7 @@ module.exports = {
     sendTrekParticipantEmails,
     sendFestParticipantEmails,
     sendAdminCampaignEmails,
+    sendAuditoriumOtpEmail,
     previewAdminCampaignEmailHTML,
     previewLoginEmailHTML: generateLoginConfirmationEmailHTML,
     previewWelcomeEmailHTML: generateWelcomeEmailHTML,

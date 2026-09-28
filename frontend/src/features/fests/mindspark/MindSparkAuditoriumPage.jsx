@@ -317,6 +317,11 @@ export default function MindSparkAuditoriumPage() {
   const draftBoot = useMemo(() => readDraft(), []);
   const [step, setStep] = useState(() => Math.min(5, Math.max(1, Number(draftBoot?.step) || 1)));
   const [categoryId, setCategoryId] = useState(() => String(draftBoot?.categoryId || ''));
+  const [directoryEmail, setDirectoryEmail] = useState(() => String(draftBoot?.directoryEmail || ''));
+  const [otpCode, setOtpCode] = useState('');
+  const [otpChallengeId, setOtpChallengeId] = useState(() => String(draftBoot?.otpChallengeId || ''));
+  const [eligibilityToken, setEligibilityToken] = useState(() => String(draftBoot?.eligibilityToken || ''));
+  const [otpBusy, setOtpBusy] = useState(false);
   const [form, setForm] = useState(() => ({
     name: draftBoot?.form?.name || '',
     phone: draftBoot?.form?.phone || '',
@@ -339,6 +344,9 @@ export default function MindSparkAuditoriumPage() {
   const draftSnapshotRef = useRef({
     step: Math.min(5, Math.max(1, Number(draftBoot?.step) || 1)),
     categoryId: String(draftBoot?.categoryId || ''),
+    directoryEmail: String(draftBoot?.directoryEmail || ''),
+    otpChallengeId: String(draftBoot?.otpChallengeId || ''),
+    eligibilityToken: String(draftBoot?.eligibilityToken || ''),
     form: {
       name: draftBoot?.form?.name || '',
       phone: draftBoot?.form?.phone || '',
@@ -372,11 +380,11 @@ export default function MindSparkAuditoriumPage() {
       return;
     }
     const timer = window.setTimeout(
-      () => flushDraft({ step, categoryId, form, photoUrl, idCardUrl }),
+      () => flushDraft({ step, categoryId, directoryEmail, otpChallengeId, eligibilityToken, form, photoUrl, idCardUrl }),
       180,
     );
     return () => window.clearTimeout(timer);
-  }, [step, categoryId, form, photoUrl, idCardUrl, ticket, flushDraft]);
+  }, [step, categoryId, directoryEmail, otpChallengeId, eligibilityToken, form, photoUrl, idCardUrl, ticket, flushDraft]);
 
   useEffect(() => () => {
     if (photoPreview) URL.revokeObjectURL(photoPreview);
@@ -395,6 +403,9 @@ export default function MindSparkAuditoriumPage() {
       // Only jump forward when we lost state (landed on step 1 after camera remount)
       setStep((s) => (s <= 1 && restoredStep > 1 ? restoredStep : s));
       if (d.categoryId) setCategoryId((c) => c || String(d.categoryId));
+      if (d.directoryEmail) setDirectoryEmail((value) => value || String(d.directoryEmail));
+      if (d.otpChallengeId) setOtpChallengeId((value) => value || String(d.otpChallengeId));
+      if (d.eligibilityToken) setEligibilityToken((value) => value || String(d.eligibilityToken));
       if (d.form) {
         setForm((f) => ({
           name: f.name || d.form.name || '',
@@ -448,11 +459,16 @@ export default function MindSparkAuditoriumPage() {
       clearDraft();
       setStep(1);
       setCategoryId('');
+      setDirectoryEmail('');
+      setOtpChallengeId('');
+      setEligibilityToken('');
       setPhotoUrl('');
       setPhotoPreview('');
       setIdCardUrl('');
       setIdCardPreview('');
-      draftSnapshotRef.current = { step: 1, categoryId: '', form: {}, photoUrl: '', idCardUrl: '' };
+      draftSnapshotRef.current = {
+        step: 1, categoryId: '', directoryEmail: '', otpChallengeId: '', eligibilityToken: '', form: {}, photoUrl: '', idCardUrl: '',
+      };
     } else if (!savedOwner && (photoUrl || idCardUrl)) {
       // Legacy drafts were not account-scoped. Never restore their photos into a login.
       setPhotoUrl('');
@@ -501,6 +517,60 @@ export default function MindSparkAuditoriumPage() {
   }, [meta]);
 
   const selected = categories.find((c) => c.id === categoryId);
+  const directoryRequired = Boolean(meta?.requireDirectoryOtp) && !meta?.inviteCategory;
+
+  const requestOtp = async () => {
+    if (!directoryEmail.trim()) {
+      toast('Enter your college email');
+      return;
+    }
+    setOtpBusy(true);
+    try {
+      const res = await userFetchJSONStrict('/mindspark/auditorium/request-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: directoryEmail.trim() }),
+      });
+      setOtpChallengeId(res.challengeId || '');
+      setOtpCode('');
+      setEligibilityToken('');
+      toast(res.message || 'If eligible, a code was sent');
+    } catch (e) {
+      toast(e.message || 'Could not send code');
+    } finally {
+      setOtpBusy(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!otpChallengeId || !/^\d{6}$/.test(otpCode.trim())) {
+      toast('Enter the six-digit code');
+      return;
+    }
+    setOtpBusy(true);
+    try {
+      const res = await userFetchJSONStrict('/mindspark/auditorium/verify-otp', {
+        method: 'POST',
+        body: JSON.stringify({ challengeId: otpChallengeId, email: directoryEmail.trim(), code: otpCode.trim() }),
+      });
+      setEligibilityToken(res.eligibilityToken);
+      setCategoryId(res.categoryId);
+      setForm((value) => ({ ...value, email: res.email }));
+      flushDraft({
+        step: 2,
+        categoryId: res.categoryId,
+        directoryEmail: res.email,
+        otpChallengeId,
+        eligibilityToken: res.eligibilityToken,
+        form: { ...form, email: res.email },
+      });
+      setStep(2);
+      toast('College email verified');
+    } catch (e) {
+      toast(e.message || 'Code verification failed');
+    } finally {
+      setOtpBusy(false);
+    }
+  };
 
   const onFacePhoto = async (file) => {
     if (!file) return;
@@ -601,6 +671,7 @@ export default function MindSparkAuditoriumPage() {
         ticketPhotoUrl: photoUrl,
         idCardPhotoUrl: idCardUrl,
         honorConfirmed: form.honorConfirmed,
+        eligibilityToken: eligibilityToken || undefined,
       };
       const res = await userFetchJSONStrict('/mindspark/auditorium/register', {
         method: 'POST',
@@ -618,6 +689,12 @@ export default function MindSparkAuditoriumPage() {
         toast(e.message || 'MIS batch doesn’t match the selected year. Check the MIS number or choose the correct year.');
       } else if (e.code === 'SAME_PHOTO') {
         toast(e.message || 'Face photo and college ID must be different pictures');
+      } else if (e.code === 'EMAIL_VERIFICATION_REQUIRED') {
+        setEligibilityToken('');
+        setOtpChallengeId('');
+        setOtpCode('');
+        setStep(1);
+        toast(e.message || 'Verify your college email again');
       } else if (e.status === 401 || e.code === 'LOGIN_REQUIRED' || e.code === 'AUTH_401' || e.code === 'NO_AUTH_TOKEN') {
         setShowLogin(true);
         toast('Sign in with Google to continue');
@@ -756,7 +833,7 @@ export default function MindSparkAuditoriumPage() {
   }
 
   const regOpen = Boolean(meta?.registrationOpen) || Boolean(meta?.inviteCategory);
-  const steps = ['Year', 'Details', 'ID card', 'Face', 'Confirm'];
+  const steps = [directoryRequired ? 'Verify' : 'Year', 'Details', 'ID card', 'Face', 'Confirm'];
 
   return (
     <StageShell>
@@ -840,8 +917,60 @@ export default function MindSparkAuditoriumPage() {
       <div className="mt-6 space-y-4">
         {step === 1 ? (
           <div className="space-y-2.5">
-            <p className="text-sm text-white/60">Choose your category</p>
-            {categories.map((c, idx) => {
+            {directoryRequired ? (
+              <>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-white">Verify your college email</p>
+                  <p className="text-[11px] leading-relaxed text-white/40">
+                    Use the exact email shared by your college. Your year is selected automatically.
+                  </p>
+                </div>
+                <input
+                  value={directoryEmail}
+                  onChange={(e) => {
+                    setDirectoryEmail(e.target.value);
+                    setOtpChallengeId('');
+                    setEligibilityToken('');
+                    setOtpCode('');
+                  }}
+                  placeholder="College email"
+                  type="email"
+                  autoComplete="email"
+                  className={fieldClass}
+                />
+                <button
+                  type="button"
+                  disabled={otpBusy || !regOpen}
+                  onClick={requestOtp}
+                  className="w-full py-3 rounded-2xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-40"
+                >
+                  {otpBusy ? 'Please wait…' : otpChallengeId ? 'Send code again' : 'Send OTP'}
+                </button>
+                {otpChallengeId ? (
+                  <div className="space-y-2 pt-2">
+                    <input
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="6-digit OTP"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      className={`${fieldClass} text-center tracking-[0.35em] text-lg`}
+                    />
+                    <button
+                      type="button"
+                      disabled={otpBusy || otpCode.length !== 6}
+                      onClick={verifyOtp}
+                      className="w-full py-3 rounded-2xl border border-[#0ECCEE]/50 bg-[#0ECCEE]/10 text-[#7DE8F7] text-sm font-bold disabled:opacity-40"
+                    >
+                      {otpBusy ? 'Checking…' : 'Verify and continue'}
+                    </button>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-white/60">Choose your category</p>
+                {categories.map((c, idx) => {
               const full = Boolean(c.full) || (c.left != null && c.left <= 0);
               const seats = Number(c.seats) || 0;
               const left = c.left != null ? Number(c.left) : null;
@@ -887,10 +1016,12 @@ export default function MindSparkAuditoriumPage() {
                   ) : null}
                 </button>
               );
-            })}
-            {!categories.length ? (
-              <p className="text-sm text-white/35 text-center py-10">No public seats configured yet</p>
-            ) : null}
+                })}
+                {!categories.length ? (
+                  <p className="text-sm text-white/35 text-center py-10">No public seats configured yet</p>
+                ) : null}
+              </>
+            )}
           </div>
         ) : null}
 
@@ -919,11 +1050,13 @@ export default function MindSparkAuditoriumPage() {
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               placeholder="Email (ticket delivery)"
               type="email"
-              readOnly={Boolean(user?.email)}
-              className={`${fieldClass}${user?.email ? ' opacity-80' : ''}`}
+              readOnly={directoryRequired || Boolean(user?.email)}
+              className={`${fieldClass}${directoryRequired || user?.email ? ' opacity-80' : ''}`}
               autoComplete="email"
             />
-            {user?.email ? (
+            {directoryRequired ? (
+              <p className="text-[10px] text-emerald-300/70 -mt-1 px-1">Verified college directory email</p>
+            ) : user?.email ? (
               <p className="text-[10px] text-white/35 -mt-1 px-1">
                 Using your Google account email
               </p>

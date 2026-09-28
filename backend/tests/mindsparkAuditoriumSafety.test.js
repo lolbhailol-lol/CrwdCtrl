@@ -30,11 +30,17 @@ test('auditorium quota counts only issued free or paid tickets', () => {
 
 test('auditorium config normalization keeps safe defaults and seat categories', () => {
   const defaults = defaultAuditoriumConfig();
+  assert.equal(defaults.requireDirectoryOtp, false);
   const config = normalizeAuditoriumConfig({ enabled: true, categories: defaults.categories });
   assert.equal(config.enabled, true);
   assert.ok(config.categories.length >= 1);
   assert.ok(config.categories.every((category) => Number(category.seats) >= 0));
   assert.ok(config.categories.every((category) => category.enabled === true));
+});
+
+test('auditorium config preserves directory OTP switch', () => {
+  const config = normalizeAuditoriumConfig({ requireDirectoryOtp: true });
+  assert.equal(config.requireDirectoryOtp, true);
 });
 
 test('auditorium config preserves independent category switches', () => {

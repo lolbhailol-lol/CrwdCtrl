@@ -110,6 +110,10 @@ const fileUpload = multer({
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'text/plain',
+      'text/csv',
+      'application/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ];
     if (allowedTypes.includes(String(file.mimetype || '').toLowerCase()) || isAllowedImageFile(file)) {
       cb(null, true);

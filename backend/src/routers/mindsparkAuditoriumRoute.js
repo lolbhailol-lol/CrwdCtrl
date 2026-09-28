@@ -9,6 +9,8 @@ const { registrationLimiter } = require('../middleware/rateLimiter');
 router.get('/meta', ctrl.getPublicMeta);
 
 /** Login required — Google session fills identity; blocks anonymous seat farming */
+router.post('/request-otp', authenticateToken, registrationLimiter, ctrl.requestDirectoryOtp);
+router.post('/verify-otp', authenticateToken, registrationLimiter, ctrl.verifyDirectoryOtp);
 router.post('/register', authenticateToken, registrationLimiter, ctrl.publicRegister);
 router.get('/my-ticket', authenticateToken, ctrl.getMyTicket);
 router.post('/upload-signature', authenticateToken, registrationLimiter, uploadCtrl.createAuditoriumUploadSignature);

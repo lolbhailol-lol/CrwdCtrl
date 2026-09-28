@@ -46,6 +46,14 @@ router.patch('/fests/:festId/access/:accountId', authenticateFestOrganizer, requ
 router.delete('/fests/:festId/access/:accountId', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.revokeAccessMember);
 router.get('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.getOrganizerOps);
 router.patch('/fests/:festId/auditorium', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.updateOrganizerConfig);
+router.post(
+    '/fests/:festId/auditorium/directory/:categoryId',
+    authenticateFestOrganizer,
+    requireFestAccess,
+    uploadCtrl.uploadFileMiddleware,
+    uploadCtrl.multerErrorHandler,
+    auditoriumCtrl.importStudentDirectory,
+);
 router.get('/fests/:festId/auditorium/roster', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.listRoster);
 router.delete('/fests/:festId/auditorium/roster/:registrationId', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deleteTicket);
 router.get('/fests/:festId/auditorium/lookup', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.lookupByPhone);

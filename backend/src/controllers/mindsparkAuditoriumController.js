@@ -7,6 +7,8 @@ const Registration = require('../model/registration_model');
 const User = require('../model/usermodel');
 const Invite = require('../model/mindspark_auditorium_invite_model');
 const TicketClaim = require('../model/mindspark_auditorium_ticket_claim_model');
+const AuditoriumStudent = require('../model/mindspark_auditorium_student_model');
+const AuditoriumOtp = require('../model/mindspark_auditorium_otp_model');
 const {
   MINDSPARK_FEST_ID,
   AUDITORIUM_COMPETITION_NAME,
@@ -33,6 +35,16 @@ const {
   validEmail,
 } = require('../utils/competitionDuplicateGuard');
 const { sendCompetitionRegistrationEmailForRecord } = require('../services/emailService');
+const { sendAuditoriumOtpEmail } = require('../services/emailService');
+const {
+  DIRECTORY_YEARS,
+  normalizeDirectoryEmail,
+  directoryEmailHash,
+  otpCodeHash,
+  signEligibilityToken,
+  verifyEligibilityToken,
+  extractDirectoryEmails,
+} = require('../utils/auditoriumDirectory');
 
 const FRONTEND = () => String(
   process.env.PRODUCTION_FRONTEND_URL
@@ -147,7 +159,7 @@ function formatTicket(reg, competition) {
     categoryId: r.auditorium_category_id || '',
     categoryLabel: r.auditorium_category_label || '',
     fullName: user?.name || r.full_name || r.name || '',
-    email: user?.email || r.email || '',
+    email: r.email || user?.email || '',
     phone: user?.phoneNumber || user?.phone || r.phone || r.contact_no || '',
     college: r.college || '',
     misId: r.mis_id || r.mis || '',
@@ -244,6 +256,7 @@ function publicMetaPayload(competition, stats, inviteCategory = null) {
     showPublicTicketBox: cfg.showPublicTicketBox,
     registrationOpen: cfg.registrationOpen,
     requireTicketPhoto: cfg.requireTicketPhoto,
+    requireDirectoryOtp: cfg.requireDirectoryOtp,
     registerUrl: '/mindspark/auditorium',
     totalLeft: stats.totalLeft,
     totalSeats: stats.totalSeats,
@@ -296,6 +309,96 @@ exports.getPublicMeta = async (req, res) => {
   } catch (error) {
     console.error('[auditorium.getPublicMeta]', error);
     return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+/** POST /mindspark/auditorium/request-otp */
+exports.requestDirectoryOtp = async (req, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.id || req.user?._id;
+    const email = normalizeDirectoryEmail(req.body?.email);
+    if (!userId || !email) return res.status(400).json({ success: false, message: 'Enter a valid college email' });
+    const competition = await ensureAuditoriumCompetition(MINDSPARK_FEST_ID);
+    const cfg = normalizeAuditoriumConfig(competition.auditorium || {});
+    if (!cfg.requireDirectoryOtp) return res.status(400).json({ success: false, message: 'Directory verification is not enabled' });
+    if (!cfg.registrationOpen) return res.status(403).json({ success: false, message: 'Registration is not open yet' });
+
+    const emailHash = directoryEmailHash(email);
+    const student = await AuditoriumStudent.findOne({ competitionId: competition._id, emailHash }).lean();
+    const generic = { success: true, message: 'If this email is eligible, a code has been sent.' };
+    if (!student) return res.json({ ...generic, challengeId: crypto.randomBytes(12).toString('hex') });
+    const category = sanitizeCategories(cfg.categories).find((item) => item.id === student.categoryId);
+    if (!category || category.enabled === false) {
+      return res.status(403).json({ success: false, code: 'CATEGORY_CLOSED', message: 'Passes for this year are currently closed' });
+    }
+
+    const recent = await AuditoriumOtp.findOne({ competitionId: competition._id, userId })
+      .sort({ lastSentAt: -1 }).lean();
+    if (recent?.lastSentAt && Date.now() - new Date(recent.lastSentAt).getTime() < 60_000) {
+      return res.status(429).json({ success: false, message: 'Please wait one minute before requesting another code' });
+    }
+    const challenge = new AuditoriumOtp({
+      competitionId: competition._id,
+      userId,
+      emailHash,
+      categoryId: student.categoryId,
+      codeHash: 'pending',
+      expiresAt: new Date(Date.now() + 5 * 60_000),
+      attempts: 0,
+      lastSentAt: new Date(),
+    });
+    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    challenge.codeHash = otpCodeHash(challenge._id, emailHash, code);
+    await challenge.save();
+    try {
+      await sendAuditoriumOtpEmail(email, code);
+    } catch (error) {
+      await AuditoriumOtp.deleteOne({ _id: challenge._id }).catch(() => {});
+      throw error;
+    }
+    return res.json({ ...generic, challengeId: String(challenge._id) });
+  } catch (error) {
+    console.error('[auditorium.requestDirectoryOtp]', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || 'Could not send code' });
+  }
+};
+
+/** POST /mindspark/auditorium/verify-otp */
+exports.verifyDirectoryOtp = async (req, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.id || req.user?._id;
+    const challengeId = String(req.body?.challengeId || '');
+    const email = normalizeDirectoryEmail(req.body?.email);
+    const code = String(req.body?.code || '').trim();
+    if (!userId || !mongoose.Types.ObjectId.isValid(challengeId) || !email || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ success: false, message: 'Enter the six-digit code' });
+    }
+    const challenge = await AuditoriumOtp.findOne({ _id: challengeId, userId }).select('+codeHash');
+    if (!challenge || challenge.verifiedAt || challenge.expiresAt <= new Date() || challenge.attempts >= 5) {
+      return res.status(400).json({ success: false, message: 'Code is invalid or expired' });
+    }
+    challenge.attempts += 1;
+    const expected = otpCodeHash(challenge._id, challenge.emailHash, code);
+    const match = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(challenge.codeHash));
+    if (!match) {
+      await challenge.save();
+      return res.status(400).json({ success: false, message: 'Incorrect code' });
+    }
+    if (challenge.emailHash !== directoryEmailHash(email)) {
+      await challenge.save();
+      return res.status(400).json({ success: false, message: 'Code does not match this email' });
+    }
+    challenge.verifiedAt = new Date();
+    await challenge.save();
+    const competition = await ensureAuditoriumCompetition(MINDSPARK_FEST_ID);
+    const eligibilityToken = signEligibilityToken({
+      competitionId: String(competition._id), userId: String(userId), email,
+      emailHash: challenge.emailHash, categoryId: challenge.categoryId,
+    });
+    return res.json({ success: true, eligibilityToken, email, categoryId: challenge.categoryId });
+  } catch (error) {
+    console.error('[auditorium.verifyDirectoryOtp]', error);
+    return res.status(400).json({ success: false, message: 'Code is invalid or expired' });
   }
 };
 
@@ -737,14 +840,48 @@ exports.publicRegister = async (req, res) => {
     }
     const competition = await ensureAuditoriumCompetition(MINDSPARK_FEST_ID);
     const body = req.body || {};
+    const cfg = normalizeAuditoriumConfig(competition.auditorium || {});
+    const inviteCode = body.inviteCode || body.code;
+    const suppliedInvite = inviteCode ? await findInvite(competition._id, inviteCode) : null;
+    const isInvite = Boolean(
+      suppliedInvite?.active
+      && suppliedInvite.usedCount < suppliedInvite.maxUses
+      && suppliedInvite.categoryId === String(body.categoryId || ''),
+    );
+    let verifiedDirectoryEmail = '';
+    if (cfg.requireDirectoryOtp && !isInvite) {
+      try {
+        const eligibility = verifyEligibilityToken(body.eligibilityToken);
+        const tokenEmail = normalizeDirectoryEmail(eligibility.email);
+        const validBinding = String(eligibility.competitionId) === String(competition._id)
+          && String(eligibility.userId) === String(userId)
+          && eligibility.categoryId === body.categoryId
+          && tokenEmail
+          && eligibility.emailHash === directoryEmailHash(tokenEmail);
+        if (!validBinding) throw new Error('Verification does not match this registration');
+        const stillEligible = await AuditoriumStudent.exists({
+          competitionId: competition._id,
+          emailHash: eligibility.emailHash,
+          categoryId: eligibility.categoryId,
+        });
+        if (!stillEligible) throw new Error('Email is no longer in the student directory');
+        verifiedDirectoryEmail = tokenEmail;
+      } catch {
+        return res.status(403).json({
+          success: false,
+          code: 'EMAIL_VERIFICATION_REQUIRED',
+          message: 'Verify your college email again before registering',
+        });
+      }
+    }
     const me = await User.findById(userId).select('name email phone phoneNumber').lean();
     const ticket = await createAuditoriumTicket({
       competition,
       categoryId: body.categoryId,
-      inviteCode: body.inviteCode || body.code,
-      channelHint: body.inviteCode || body.code ? 'invite' : 'public',
+      inviteCode,
+      channelHint: isInvite ? 'invite' : 'public',
       name: body.name || body.fullName || me?.name,
-      email: (me?.email && !/@crwdctrl\.local$/i.test(String(me.email))
+      email: verifiedDirectoryEmail || (me?.email && !/@crwdctrl\.local$/i.test(String(me.email))
         ? String(me.email).toLowerCase()
         : body.email),
       phone: body.phone || me?.phoneNumber || me?.phone,
@@ -842,6 +979,12 @@ exports.getOrganizerOps = async (req, res) => {
     const competition = await ensureAuditoriumCompetition(req.festId);
     const stats = await buildCategoryStats(competition);
     const cfg = normalizeAuditoriumConfig(competition.auditorium || {});
+    const directoryRows = await AuditoriumStudent.aggregate([
+      { $match: { competitionId: competition._id } },
+      { $group: { _id: '$categoryId', count: { $sum: 1 } } },
+    ]);
+    const directoryByCategory = Object.fromEntries(directoryRows.map((row) => [row._id, row.count]));
+    const directoryTotal = directoryRows.reduce((sum, row) => sum + row.count, 0);
     const invites = await Invite.find({ competitionId: competition._id })
       .sort({ createdAt: -1 })
       .limit(100)
@@ -915,6 +1058,7 @@ exports.getOrganizerOps = async (req, res) => {
         competitionId: String(competition._id),
         name: competition.name,
         config: cfg,
+        directory: { total: directoryTotal, byCategory: directoryByCategory },
         stats: {
           ...stats,
           checkedIn: checkedInCount,
@@ -944,6 +1088,7 @@ exports.getOrganizerOps = async (req, res) => {
         publicRegisterUrl: '/mindspark/auditorium',
         risks: [
           ...(cfg.registrationOpen ? [] : ['Registration is closed']),
+          ...(cfg.requireDirectoryOtp && directoryTotal === 0 ? ['Directory OTP is on but no student emails are uploaded'] : []),
           ...((stats.categories || []).filter((c) => c.full).map((c) => `${c.label} is full`)),
           ...(missingIdCount > 0 ? [`${missingIdCount} tickets missing college ID`] : []),
           ...(activeInvites > 8 ? [`${activeInvites} active invite codes — review leaks`] : []),
@@ -979,6 +1124,15 @@ exports.updateOrganizerConfig = async (req, res) => {
     }
     if (typeof body.enforceMisYear === 'boolean') {
       current.enforceMisYear = body.enforceMisYear;
+    }
+    if (typeof body.requireDirectoryOtp === 'boolean') {
+      if (body.requireDirectoryOtp) {
+        const directoryCount = await AuditoriumStudent.countDocuments({ competitionId: competition._id });
+        if (!directoryCount) {
+          return res.status(400).json({ success: false, message: 'Upload at least one student directory before enabling email OTP' });
+        }
+      }
+      current.requireDirectoryOtp = body.requireDirectoryOtp;
     }
     if (Array.isArray(body.categories)) {
       const stats = await buildCategoryStats(competition);
@@ -1018,6 +1172,58 @@ exports.updateOrganizerConfig = async (req, res) => {
   } catch (error) {
     console.error('[auditorium.updateOrganizerConfig]', error);
     return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+/** Organizer: replace one year's student email directory from CSV/XLSX. */
+exports.importStudentDirectory = async (req, res) => {
+  try {
+    if (!isMindSparkFestId(req.festId)) {
+      return res.status(400).json({ success: false, message: 'Auditorium is MindSpark-only' });
+    }
+    const categoryId = String(req.params.categoryId || '').trim();
+    if (!DIRECTORY_YEARS.has(categoryId)) {
+      return res.status(400).json({ success: false, message: 'Choose a valid student year' });
+    }
+    if (!req.file?.buffer) {
+      return res.status(400).json({ success: false, message: 'Choose a CSV or XLSX file' });
+    }
+    const filename = String(req.file.originalname || '');
+    if (!/\.(csv|xlsx)$/i.test(filename)) {
+      return res.status(400).json({ success: false, message: 'Only CSV and XLSX files are supported' });
+    }
+    const emails = await extractDirectoryEmails(req.file.buffer, filename);
+    if (!emails.length) {
+      return res.status(400).json({ success: false, message: 'No valid email addresses were found in the file' });
+    }
+    if (emails.length > 25_000) {
+      return res.status(400).json({ success: false, message: 'A directory can contain at most 25,000 emails' });
+    }
+
+    const competition = await ensureAuditoriumCompetition(req.festId);
+    const batchId = crypto.randomUUID();
+    await AuditoriumStudent.bulkWrite(emails.map((email) => ({
+      updateOne: {
+        filter: { competitionId: competition._id, emailHash: directoryEmailHash(email) },
+        update: { $set: { categoryId, batchId } },
+        upsert: true,
+      },
+    })), { ordered: false });
+    await AuditoriumStudent.deleteMany({ competitionId: competition._id, categoryId, batchId: { $ne: batchId } });
+
+    const rows = await AuditoriumStudent.aggregate([
+      { $match: { competitionId: competition._id } },
+      { $group: { _id: '$categoryId', count: { $sum: 1 } } },
+    ]);
+    const byCategory = Object.fromEntries(rows.map((row) => [row._id, row.count]));
+    return res.json({
+      success: true,
+      imported: emails.length,
+      directory: { total: rows.reduce((sum, row) => sum + row.count, 0), byCategory },
+    });
+  } catch (error) {
+    console.error('[auditorium.importStudentDirectory]', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || 'Directory upload failed' });
   }
 };
 

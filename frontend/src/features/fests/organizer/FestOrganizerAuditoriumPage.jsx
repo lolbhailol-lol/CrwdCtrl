@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft, RefreshCw, Ticket, QrCode, ToggleLeft, ToggleRight,
     Loader, Plus, Ban, Copy, Users, ScanLine, AlertTriangle, UserCheck,
-    IdCard, CalendarDays, ShieldAlert, Trash2,
+    IdCard, CalendarDays, ShieldAlert, Trash2, Upload, MailCheck,
 } from 'lucide-react';
 import {
     fetchFestOrganizerAuditorium,
@@ -12,6 +12,7 @@ import {
     deactivateFestOrganizerAuditoriumInvite,
     issueFestOrganizerAuditoriumDesk,
     uploadFestOrganizerImage,
+    uploadFestOrganizerAuditoriumDirectory,
     deleteFestOrganizerAuditoriumTicket,
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
@@ -70,6 +71,8 @@ export default function FestOrganizerAuditoriumPage() {
     const [issuedTicket, setIssuedTicket] = useState(null);
     const [rosterFilter, setRosterFilter] = useState('all');
     const [deletingTicket, setDeletingTicket] = useState('');
+    const [directoryYear, setDirectoryYear] = useState('first_year');
+    const [directoryBusy, setDirectoryBusy] = useState(false);
 
     const deleteTicket = async (ticket) => {
         if (!ticket?.id || !window.confirm(`Delete the Auditorium pass for ${ticket.fullName || 'this participant'}?`)) return;
@@ -117,6 +120,7 @@ export default function FestOrganizerAuditoriumPage() {
     const invites = data?.invites || [];
     const recent = data?.recent || [];
     const risks = data?.risks || [];
+    const directory = data?.directory || { total: 0, byCategory: {} };
 
     const inviteCategories = useMemo(
         () => (config.categories || []).filter((c) => c.channel === 'invite' || c.channel === 'desk'),
@@ -165,6 +169,22 @@ export default function FestOrganizerAuditoriumPage() {
 
     const saveSeats = async () => {
         await patchConfig({ categories: seatDraft });
+    };
+
+    const uploadDirectory = async (file) => {
+        if (!file) return;
+        setDirectoryBusy(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await uploadFestOrganizerAuditoriumDirectory(festId, directoryYear, formData);
+            setData((current) => ({ ...current, directory: res.directory || current.directory }));
+            toast(`${res.imported || 0} student emails imported`);
+        } catch (e) {
+            toast(e.message || 'Directory upload failed');
+        } finally {
+            setDirectoryBusy(false);
+        }
     };
 
     const createInvite = async () => {
@@ -283,6 +303,12 @@ export default function FestOrganizerAuditoriumPage() {
                                 patchConfig({ registrationOpen: !config.registrationOpen });
                             }}
                         />
+                        <Toggle
+                            on={Boolean(config.requireDirectoryOtp)}
+                            label="Require college email OTP"
+                            hint="Checks uploaded year-wise directories before public registration"
+                            onClick={() => patchConfig({ requireDirectoryOtp: !config.requireDirectoryOtp })}
+                        />
                         {['first_year', 'second_year'].map((categoryId) => {
                             const category = seatDraft.find((item) => item.id === categoryId);
                             if (!category) return null;
@@ -301,6 +327,61 @@ export default function FestOrganizerAuditoriumPage() {
                                 />
                             );
                         })}
+                    </section>
+
+                    <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                                    <MailCheck size={17} className="text-[#0ECCEE]" /> Student email directory
+                                </h2>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                    Upload CSV/XLSX files. Emails are stored as protected hashes and the selected year is assigned automatically.
+                                </p>
+                            </div>
+                            <span className="text-xs font-semibold text-[#7DE8F7] tabular-nums">{directory.total || 0} emails</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {[
+                                ['first_year', 'First'], ['second_year', 'Second'],
+                                ['third_year', 'Third'], ['fourth_year', 'Fourth'],
+                            ].map(([id, label]) => (
+                                <div key={id} className="rounded-xl border border-white/8 bg-white/3 px-3 py-2">
+                                    <p className="text-sm font-semibold text-white tabular-nums">{directory.byCategory?.[id] || 0}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-gray-500">{label} year</p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="grid sm:grid-cols-[1fr_1fr] gap-2">
+                            <select
+                                value={directoryYear}
+                                onChange={(e) => setDirectoryYear(e.target.value)}
+                                className="w-full rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5 text-sm text-white"
+                            >
+                                <option value="first_year">First year</option>
+                                <option value="second_year">Second year</option>
+                                <option value="third_year">Third year</option>
+                                <option value="fourth_year">Fourth year</option>
+                            </select>
+                            <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-3 py-2.5 text-sm font-bold text-black ${directoryBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+                                {directoryBusy ? <Loader size={16} className="animate-spin" /> : <Upload size={16} />}
+                                {directoryBusy ? 'Uploading…' : 'Upload / replace list'}
+                                <input
+                                    type="file"
+                                    accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                    className="hidden"
+                                    disabled={directoryBusy}
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        e.target.value = '';
+                                        uploadDirectory(file);
+                                    }}
+                                />
+                            </label>
+                        </div>
+                        <p className="text-[10px] text-gray-600">
+                            Uploading a year again replaces that year’s previous list. The email can be in any column.
+                        </p>
                     </section>
 
                     <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">

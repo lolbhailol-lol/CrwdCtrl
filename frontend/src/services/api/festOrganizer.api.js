@@ -662,6 +662,14 @@ export async function updateFestOrganizerAuditorium(festId, body) {
     });
 }
 
+export async function uploadFestOrganizerAuditoriumDirectory(festId, categoryId, formData) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/directory/${encodeURIComponent(categoryId)}`, {
+        method: 'POST',
+        body: formData,
+        timeout: 90000,
+    });
+}
+
 export async function fetchFestOrganizerAuditoriumRoster(festId, params = {}) {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

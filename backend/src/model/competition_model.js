@@ -369,6 +369,7 @@ const competitionSchema = new mongoose.Schema(
     requireTicketPhoto: { type: Boolean, default: true },
     requireIdAtGate: { type: Boolean, default: true },
     enforceMisYear: { type: Boolean, default: true },
+    requireDirectoryOtp: { type: Boolean, default: false },
     categories: [{
       id: { type: String, trim: true },
       label: { type: String, trim: true },
