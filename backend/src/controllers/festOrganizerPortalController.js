@@ -1235,9 +1235,12 @@ exports.getDashboard = async (req, res) => {
             razorpayPaidRevenue = locked.razorpayPaidRevenue;
             cashfreeLockGross = locked.cashfreeGross;
             cashfreeLockRevenue = locked.cashfreeRevenue;
-            const counted = Math.round(competitionStats.reduce((sum, row) => sum + (Number(row.revenue) || 0), 0) * 100) / 100;
-            earlierClearGross = Math.max(0, Math.round((grossCollected - counted) * 100) / 100);
-            earlierClearRevenue = Math.max(0, Math.round((revenue - counted) * 100) / 100);
+            for (const row of competitionStats) {
+                row.grossCollected = Number(row.revenue) || 0;
+            }
+            scaleCompetitionSettlementToTotals(competitionStats, { grossCollected, revenue });
+            earlierClearGross = 0;
+            earlierClearRevenue = 0;
             rememberMindSparkMoney(festId, {
                 grossCollected,
                 revenue,
