@@ -12,11 +12,32 @@ function placeLabel(rank) {
   return `${rank === 1 ? '1st' : rank === 2 ? '2nd' : '3rd'} Place`;
 }
 
+/** Title-style ranks ("Winner", "Runner-up", "2nd Runner up"). Order matters: ordinal runner-ups first. */
+const TITLE_RANKS = [
+  [/^(?:1st|first)\s*runner[\s-]*up$/i, 2],
+  [/^(?:2nd|second)\s*runner[\s-]*up$/i, 3],
+  [/^runner[\s-]*up$/i, 2],
+  [/^(?:winner|champion)s?$/i, 1],
+];
+
+const SPECIAL_TITLES = /^(?:mvp|best\s+\w+(?:\s+\w+)?|most\s+valuable\s+player)$/i;
+
+function titleLabel(rank) {
+  return rank === 1 ? 'Winner' : rank === 2 ? 'Runner-up' : '2nd Runner-up';
+}
+
+function titleCase(text) {
+  return String(text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function normalizeAmount(raw) {
   let amount = String(raw || '').trim();
   if (!amount) return '';
-  // Drop trailing rank notes like "(1st)" already stripped elsewhere
-  amount = amount.replace(/\s*\/-\s*$/i, '').trim();
+  // Drop trailing "/-" or a dangling "/" left over from pasted prize sheets
+  amount = amount.replace(/\s*\/\s*-?\s*$/i, '').trim();
   amount = amount.replace(/^(?:rs\.?|inr)\s*/i, '').trim();
   // Keep existing currency symbol; otherwise add ₹ for numeric amounts
   if (/^[₹]/.test(amount)) return amount;
@@ -51,6 +72,22 @@ export function parsePrizePlace(line) {
     .replace(/^[\s]*(?:🥇|🥈|🥉|🏆|🎖️|🏅|•|●|◦|▪|–|-|\*)+\s*/u, '')
     .trim();
   if (!text) return null;
+
+  // Format: "Winner: ₹14,000" / "Runner-up (Female): ₹10,000" / "MVP: 5,000"
+  const titled = text.match(/^([a-z0-9][a-z0-9\s-]*?)\s*(?:\(([^)]+)\))?\s*(?::|\s[–-]\s)\s*(.+)$/i);
+  if (titled) {
+    const title = titled[1].trim();
+    const group = titled[2] ? titleCase(titled[2]) : '';
+    const amount = normalizeAmount(titled[3]);
+    const match = TITLE_RANKS.find(([re]) => re.test(title));
+    if (match) {
+      return { kind: 'place', rank: match[1], amount, label: titleLabel(match[1]), group };
+    }
+    if (SPECIAL_TITLES.test(title)) {
+      const label = /^mvp$/i.test(title) ? 'MVP' : titleCase(title);
+      return { kind: 'special', amount, label: group ? `${label} (${group})` : label };
+    }
+  }
 
   // Format: "35,000/- (1st)" or "14,000/- (1st male & female)"
   const trailingRank = text.match(
@@ -149,13 +186,26 @@ export function parsePrizePool(text) {
     }
   }
 
-  const places = [];
-  const seen = new Set();
-  for (const p of parsed.filter((x) => x.kind === 'place').sort((a, b) => a.rank - b.rank)) {
-    if (seen.has(p.rank)) continue;
-    seen.add(p.rank);
-    places.push(p);
-  }
+  const uniqueByRank = (list) => {
+    const out = [];
+    const seen = new Set();
+    for (const p of [...list].sort((a, b) => a.rank - b.rank)) {
+      if (seen.has(p.rank)) continue;
+      seen.add(p.rank);
+      out.push(p);
+    }
+    return out;
+  };
+
+  const placeItems = parsed.filter((x) => x.kind === 'place');
+  const groupNames = [...new Set(placeItems.map((p) => p.group || ''))];
+  const groups = groupNames.length > 1
+    ? groupNames.map((name) => ({
+      name,
+      places: uniqueByRank(placeItems.filter((p) => (p.group || '') === name)),
+    }))
+    : [];
+  const places = groups.length ? groups[0].places : uniqueByRank(placeItems);
 
   // Keep non-place notes only; drop lines that merely restate 1st/2nd/3rd when podium exists
   const others = parsed.filter((p) => {
@@ -172,6 +222,8 @@ export function parsePrizePool(text) {
 
   return {
     places,
+    groups,
+    specials: parsed.filter((p) => p.kind === 'special'),
     total: parsed.find((p) => p.kind === 'total') || null,
     others,
     hasPodium: places.length >= 1,
@@ -219,6 +271,24 @@ export function ClassicTrophySvg({ size = 36 }) {
   );
 }
 
+function amountValue(amount) {
+  const text = String(amount || '').replace(/\s/g, '');
+  const match = text.match(/^₹?([\d,]+)$/);
+  return match ? Number(match[1].replace(/,/g, '')) : null;
+}
+
+/** Sum of every prize when all amounts are plain rupee figures; null otherwise. */
+function sumPrizes(items) {
+  if (!items.length) return null;
+  let sum = 0;
+  for (const item of items) {
+    const value = amountValue(item.amount);
+    if (value == null) return null;
+    sum += value;
+  }
+  return sum;
+}
+
 function buildPodiumOrder(places) {
   const p1 = places.find((p) => p.rank === 1);
   const p2 = places.find((p) => p.rank === 2);
@@ -240,7 +310,10 @@ export default function PrizePoolPodium({
   /** Techfest: single box with "Prize Pool" + amount inside. MindSpark: podium / amount only. */
   showTitle = false,
 }) {
-  const { places, total, others, hasPodium } = useMemo(() => parsePrizePool(prizeText), [prizeText]);
+  const { places, groups, specials, total, others, hasPodium } = useMemo(
+    () => parsePrizePool(prizeText),
+    [prizeText],
+  );
 
   const trimmed = String(prizeText || '').trim();
   if (!trimmed || /^(tbd|tba|n\/a|na|-)$/i.test(trimmed)) {
@@ -248,8 +321,52 @@ export default function PrizePoolPodium({
   }
 
   const sectionCard = isDark ? 'bg-[#111213]' : 'bg-white border border-gray-100 shadow-md';
-  const podiumOrder = buildPodiumOrder(places);
   const amountClass = isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]';
+
+  const renderPodium = (list) => (
+    <div
+      className={`grid gap-2.5 items-end ${
+        list.length >= 3
+          ? 'grid-cols-3'
+          : list.length === 2
+            ? 'grid-cols-2'
+            : 'grid-cols-1 max-w-[11rem] mx-auto'
+      }`}
+    >
+      {buildPodiumOrder(list).map((place) => {
+        const isGold = place.rank === 1;
+        return (
+          <div
+            key={place.rank}
+            className={`rounded-2xl px-2 text-center border ${
+              isGold ? 'py-4' : 'py-3'
+            } ${
+              isDark
+                ? isGold
+                  ? 'bg-[#2A2410] border-[#B8860B]/40'
+                  : 'bg-[#1D1E20] border-white/5'
+                : isGold
+                  ? 'bg-amber-50 border-amber-200'
+                  : 'bg-gray-50 border-gray-100'
+            }`}
+          >
+            <div className="flex justify-center mb-1.5">
+              <ClassicMedalSvg
+                rank={place.rank}
+                size={isGold ? (compact ? 42 : 48) : (compact ? 32 : 36)}
+              />
+            </div>
+            <p className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {place.label}
+            </p>
+            <p className={`font-bold mt-0.5 tabular-nums ${isGold ? 'text-base' : 'text-sm'} ${amountClass}`}>
+              {place.amount}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   const resolveAmount = () =>
     total?.amount
@@ -257,7 +374,7 @@ export default function PrizePoolPodium({
     || trimmed.replace(/^(?:rs\.?|inr)\s*/i, '₹').replace(/^₹\s*/, '₹');
 
   // One cash prize: a full-width bar in the same card style as the rest of the page.
-  if (!showTitle && hasPodium && places.length === 1) {
+  if (!showTitle && hasPodium && places.length === 1 && !groups.length && !specials.length) {
     const place = places[0];
     const amount = String(place.amount || '').replace(/\s*\/-\s*$/g, '').trim();
     return (
@@ -319,48 +436,53 @@ export default function PrizePoolPodium({
     >
       {hasPodium ? (
         <>
-          <div
-            className={`grid gap-2.5 items-end ${
-              places.length >= 3
-                ? 'grid-cols-3'
-                : places.length === 2
-                  ? 'grid-cols-2'
-                  : 'grid-cols-1 max-w-[11rem] mx-auto'
-            }`}
-          >
-            {podiumOrder.map((place) => {
-              const isGold = place.rank === 1;
-              return (
+          {(() => {
+            const prizeItems = [...(groups.length ? groups.flatMap((g) => g.places) : places), ...specials];
+            const sum = prizeItems.length > 1 ? sumPrizes(prizeItems) : null;
+            return (
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{title}</p>
+                {sum ? (
+                  <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Total <span className={`tabular-nums ${amountClass}`}>₹{sum.toLocaleString('en-IN')}</span>
+                  </p>
+                ) : null}
+              </div>
+            );
+          })()}
+          {groups.length ? (
+            <div className="space-y-4">
+              {groups.map((group) => (
+                <div key={group.name || 'open'}>
+                  {group.name ? (
+                    <p className={`mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {group.name}
+                    </p>
+                  ) : null}
+                  {renderPodium(group.places)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            renderPodium(places)
+          )}
+
+          {specials.length ? (
+            <div className="mt-3 space-y-2">
+              {specials.map((item, idx) => (
                 <div
-                  key={place.rank}
-                  className={`rounded-2xl px-2 text-center border ${
-                    isGold ? 'py-4' : 'py-3'
-                  } ${
-                    isDark
-                      ? isGold
-                        ? 'bg-[#2A2410] border-[#B8860B]/40'
-                        : 'bg-[#1D1E20] border-white/5'
-                      : isGold
-                        ? 'bg-amber-50 border-amber-200'
-                        : 'bg-gray-50 border-gray-100'
+                  key={`${item.label}-${idx}`}
+                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 ${
+                    isDark ? 'bg-[#1D1E20] border-white/5' : 'bg-gray-50 border-gray-100'
                   }`}
                 >
-                  <div className="flex justify-center mb-1.5">
-                    <ClassicMedalSvg
-                      rank={place.rank}
-                      size={isGold ? (compact ? 42 : 48) : (compact ? 32 : 36)}
-                    />
-                  </div>
-                  <p className={`text-[11px] font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {place.label}
-                  </p>
-                  <p className={`font-bold mt-0.5 tabular-nums ${isGold ? 'text-base' : 'text-sm'} ${amountClass}`}>
-                    {place.amount}
-                  </p>
+                  <ClassicTrophySvg size={compact ? 26 : 30} />
+                  <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{item.label}</p>
+                  <p className={`ml-auto font-bold tabular-nums ${amountClass}`}>{item.amount}</p>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : null}
 
           {(() => {
             const notes = others.filter((item) => {

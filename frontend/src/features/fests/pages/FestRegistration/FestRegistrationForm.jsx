@@ -400,7 +400,7 @@ export default function FestRegistrationForm({
                       ) : null}
                     </div>
                     <p className={`text-[11px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                      Secure checkout via Cashfree
+                      Secure online checkout
                     </p>
                   </div>
 

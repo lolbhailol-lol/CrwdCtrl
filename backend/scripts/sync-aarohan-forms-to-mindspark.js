@@ -31,7 +31,7 @@ async function main() {
   const rows = await competitions.find({ fest: fest._id }).sort({ name: 1 }).toArray();
   for (const competition of rows) {
     const patch = {
-      registrationType: 'custom',
+      registrationType: 'fest',
       'registration.mode': 'internal_form',
       'registration.formType': 'SINGLE_STEP',
       'registration.formSchema': [],
