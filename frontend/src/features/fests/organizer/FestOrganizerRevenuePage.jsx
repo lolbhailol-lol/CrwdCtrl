@@ -63,6 +63,8 @@ export default function FestOrganizerRevenuePage() {
     const { stats, competitions = [], fest } = data || {};
     const payments = stats?.payments || {};
     const mindSparkMode = getFestPlugin(festId, fest).id === 'mindspark';
+    const inr = (amount) => Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    const lockAndFees = Number(stats?.earlierClearRevenue) || 0;
 
     const ranked = useMemo(() => {
         return [...competitions]
@@ -119,7 +121,7 @@ export default function FestOrganizerRevenuePage() {
                 </p>
                 {mindSparkMode && Number(stats.cashfreeLockRevenue) > 0 ? (
                     <p className="text-[11px] text-gray-400 mt-2">
-                        {`Cashfree locked ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay after gateway fee ₹${(Number(stats.razorpayPaidRevenue || 0) + Number(stats.additionalDeduction || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}${Number(stats.additionalDeduction) > 0 ? ` − ₹${Number(stats.additionalDeduction).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : ''}`}
+                        {`Cashfree locked ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay ₹${Number(stats.razorpayPaidRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
                     </p>
                 ) : null}
                 <p className="text-[11px] text-gray-400 mt-1">
@@ -242,32 +244,38 @@ export default function FestOrganizerRevenuePage() {
                         <div className="rounded-xl border border-white/8 bg-[#121314] px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wide text-gray-500">Overall collected</p>
                             <p className="text-base font-bold tabular-nums text-white mt-1">
-                                ₹{Number(stats.grossCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                ₹{inr(stats.grossCollected)}
                             </p>
                         </div>
                         <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5">
                             <p className="text-[10px] uppercase tracking-wide text-emerald-200/70">After fees</p>
                             <p className="text-base font-bold tabular-nums text-emerald-300 mt-1">
-                                ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                ₹{inr(stats.revenue)}
                             </p>
                         </div>
                     </div>
                 ) : null}
                 {ranked.length ? (
                     <div className="space-y-2">
-                        {Math.abs(Number(stats?.earlierClearRevenue) || 0) >= 0.5 ? (
+                        {mindSparkMode ? (
+                            <div className="rounded-xl border border-white/8 bg-[#121314] px-3.5 py-3 space-y-2">
+                                <p className="text-[11px] text-gray-500">
+                                    Add each event total to this line. That equals After fees.
+                                </p>
+                                {Math.abs(lockAndFees) >= 0.5 ? (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-sm text-white">Cashfree lock and gateway fee</p>
+                                        <p className="text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
+                                            {lockAndFees < 0 ? '−' : ''}₹{inr(Math.abs(lockAndFees))}
+                                        </p>
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : Math.abs(Number(stats?.earlierClearRevenue) || 0) >= 0.5 ? (
                             <div className="rounded-xl border border-white/8 bg-[#121314] px-3.5 py-3">
-                                <p className="text-sm text-white font-medium">
-                                    {Number(stats.earlierClearRevenue) > 0 ? 'Cashfree cleared earlier' : 'Fees and ₹5,000'}
-                                </p>
-                                <p className="text-[11px] text-gray-500 mt-0.5">
-                                    {Number(stats.earlierClearRevenue) > 0
-                                        ? 'Merchant clear already recorded. Each competition below is the amount paid on that event.'
-                                        : 'Each competition below is the amount paid on that event. This line brings the list to the fest total.'}
-                                </p>
+                                <p className="text-sm text-white font-medium">Cashfree cleared earlier</p>
                                 <p className="text-sm font-semibold tabular-nums text-emerald-300 mt-2">
-                                    {Number(stats.earlierClearRevenue) < 0 ? '−' : ''}
-                                    ₹{Math.abs(Number(stats.earlierClearRevenue)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                    ₹{inr(stats.earlierClearRevenue)}
                                 </p>
                             </div>
                         ) : null}
