@@ -119,7 +119,7 @@ export default function FestOrganizerRevenuePage() {
                 </p>
                 {mindSparkMode && Number(stats.cashfreeLockRevenue) > 0 ? (
                     <p className="text-[11px] text-gray-400 mt-2">
-                        {`Cashfree locked ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay after gateway fee ₹${Number(stats.razorpayPaidRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+                        {`Cashfree locked ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay after gateway fee ₹${(Number(stats.razorpayPaidRevenue || 0) + Number(stats.additionalDeduction || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}${Number(stats.additionalDeduction) > 0 ? ` − ₹${Number(stats.additionalDeduction).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : ''}`}
                     </p>
                 ) : null}
                 <p className="text-[11px] text-gray-400 mt-1">
@@ -237,16 +237,37 @@ export default function FestOrganizerRevenuePage() {
                         Hub <ArrowRight size={12} />
                     </button>
                 </div>
+                {mindSparkMode ? (
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-xl border border-white/8 bg-[#121314] px-3 py-2.5">
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500">Overall collected</p>
+                            <p className="text-base font-bold tabular-nums text-white mt-1">
+                                ₹{Number(stats.grossCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5">
+                            <p className="text-[10px] uppercase tracking-wide text-emerald-200/70">After fees</p>
+                            <p className="text-base font-bold tabular-nums text-emerald-300 mt-1">
+                                ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </p>
+                        </div>
+                    </div>
+                ) : null}
                 {ranked.length ? (
                     <div className="space-y-2">
-                        {Number(stats?.earlierClearRevenue) > 0 ? (
+                        {Math.abs(Number(stats?.earlierClearRevenue) || 0) >= 0.5 ? (
                             <div className="rounded-xl border border-white/8 bg-[#121314] px-3.5 py-3">
-                                <p className="text-sm text-white font-medium">Cashfree cleared earlier</p>
+                                <p className="text-sm text-white font-medium">
+                                    {Number(stats.earlierClearRevenue) > 0 ? 'Cashfree cleared earlier' : 'Fees and ₹5,000'}
+                                </p>
                                 <p className="text-[11px] text-gray-500 mt-0.5">
-                                    Merchant clear already recorded. New payments, including bundles, are added on each competition below.
+                                    {Number(stats.earlierClearRevenue) > 0
+                                        ? 'Merchant clear already recorded. Each competition below is the amount paid on that event.'
+                                        : 'Each competition below is the amount paid on that event. This line brings the list to the fest total.'}
                                 </p>
                                 <p className="text-sm font-semibold tabular-nums text-emerald-300 mt-2">
-                                    ₹{Number(stats.earlierClearRevenue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                    {Number(stats.earlierClearRevenue) < 0 ? '−' : ''}
+                                    ₹{Math.abs(Number(stats.earlierClearRevenue)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                 </p>
                             </div>
                         ) : null}
@@ -279,9 +300,12 @@ export default function FestOrganizerRevenuePage() {
                                                 : ''}
                                         </p>
                                     </div>
-                                    <p className="text-sm font-semibold tabular-nums text-emerald-300 shrink-0">
-                                        ₹{rev.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                                    </p>
+                                    <div className="shrink-0 text-right">
+                                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Total</p>
+                                        <p className="text-sm font-semibold tabular-nums text-emerald-300">
+                                            ₹{rev.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                        </p>
+                                    </div>
                                 </button>
                             );
                         })}

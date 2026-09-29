@@ -1238,9 +1238,10 @@ exports.getDashboard = async (req, res) => {
             for (const row of competitionStats) {
                 row.grossCollected = Number(row.revenue) || 0;
             }
-            scaleCompetitionSettlementToTotals(competitionStats, { grossCollected, revenue });
-            earlierClearGross = 0;
-            earlierClearRevenue = 0;
+            const countedGross = Math.round(competitionStats.reduce((sum, row) => sum + (Number(row.grossCollected) || 0), 0) * 100) / 100;
+            const countedRevenue = Math.round(competitionStats.reduce((sum, row) => sum + (Number(row.revenue) || 0), 0) * 100) / 100;
+            earlierClearGross = Math.round((grossCollected - countedGross) * 100) / 100;
+            earlierClearRevenue = Math.round((revenue - countedRevenue) * 100) / 100;
             rememberMindSparkMoney(festId, {
                 grossCollected,
                 revenue,
