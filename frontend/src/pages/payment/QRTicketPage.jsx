@@ -336,6 +336,8 @@ export default function QRTicketPage() {
       ...ticket,
       fullName: ticket.userName || ticket.fullName,
       categoryLabel: ticket.auditoriumCategory || ticket.categoryLabel,
+      categoryId: ticket.auditoriumCategoryId || ticket.categoryId,
+      auditoriumDistributionDay: ticket.auditoriumDistributionDay,
       qrCodeData: ticket.qrHash || ticket.qrCodeData,
       idCardPhotoUrl: ticket.idCardPhotoUrl,
       id: ticket.registrationId || registrationId,

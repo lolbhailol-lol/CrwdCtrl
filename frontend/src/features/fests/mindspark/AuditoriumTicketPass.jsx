@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { IdCard } from 'lucide-react';
 import LocalQRCode from '../../../components/LocalQRCode';
+import { cultNightDayForCategory } from './cultNightPassDays';
 
 /**
  * Concert-pass style auditorium ticket — face on front, ID available for gate.
@@ -26,6 +27,9 @@ export default function AuditoriumTicketPass({
         type: 'crwdctrl-checkin',
       }
     : null;
+  const distribution = ticket?.auditoriumDistributionDay
+    || cultNightDayForCategory(ticket?.categoryId || ticket?.auditoriumCategoryId)?.dayLabel
+    || '';
   const checkedIn = Boolean(ticket?.checkedIn);
 
   return (
@@ -122,6 +126,9 @@ export default function AuditoriumTicketPass({
               <p className="mt-2 inline-flex self-start rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 px-2 py-1 text-[11px] font-semibold text-[#7DE8F7]">
                 {category}
               </p>
+            ) : null}
+            {distribution ? (
+              <p className="mt-2 text-[11px] font-medium text-amber-200">Collect {distribution}</p>
             ) : null}
             {college ? (
               <p className="mt-2 text-[11px] text-white/40 line-clamp-2">{college}</p>

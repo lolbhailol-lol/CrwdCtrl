@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     ArrowLeft, RefreshCw, Ticket, QrCode, ToggleLeft, ToggleRight,
     Loader, Plus, Ban, Copy, Users, ScanLine, AlertTriangle, UserCheck,
-    IdCard, CalendarDays, ShieldAlert, Trash2, Upload, MailCheck,
+    IdCard, CalendarDays, ShieldAlert, Trash2, Check,
 } from 'lucide-react';
 import {
     fetchFestOrganizerAuditorium,
@@ -12,13 +12,15 @@ import {
     deactivateFestOrganizerAuditoriumInvite,
     issueFestOrganizerAuditoriumDesk,
     uploadFestOrganizerImage,
-    uploadFestOrganizerAuditoriumDirectory,
+    fetchFestOrganizerAuditoriumRoster,
+    reviewFestOrganizerAuditoriumPass,
     deleteFestOrganizerAuditoriumTicket,
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import { getFestPlugin } from '../plugins/registry';
 import LocalQRCode from '../../../components/LocalQRCode';
+import { CULT_NIGHT_PASS_DAYS, CULT_NIGHT_YEARS } from '../mindspark/cultNightPassDays';
 
 function Toggle({ on, onClick, label, hint }) {
     return (
@@ -37,6 +39,8 @@ function Toggle({ on, onClick, label, hint }) {
         </button>
     );
 }
+
+const PUBLIC_YEARS = CULT_NIGHT_YEARS;
 
 function StatPill({ label, value, tone = 'default' }) {
     const tones = {
@@ -71,8 +75,13 @@ export default function FestOrganizerAuditoriumPage() {
     const [issuedTicket, setIssuedTicket] = useState(null);
     const [rosterFilter, setRosterFilter] = useState('all');
     const [deletingTicket, setDeletingTicket] = useState('');
-    const [directoryYear, setDirectoryYear] = useState('first_year');
-    const [directoryBusy, setDirectoryBusy] = useState(false);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const requestYear = PUBLIC_YEARS.some((year) => year.id === searchParams.get('year'))
+        ? searchParams.get('year')
+        : 'first_year';
+    const [requests, setRequests] = useState([]);
+    const [reviewingId, setReviewingId] = useState('');
+    const [photoPreview, setPhotoPreview] = useState(null);
 
     const deleteTicket = async (ticket) => {
         if (!ticket?.id || !window.confirm(`Delete the Auditorium pass for ${ticket.fullName || 'this participant'}?`)) return;
@@ -115,17 +124,42 @@ export default function FestOrganizerAuditoriumPage() {
 
     useEffect(() => { load(); }, [load]);
 
+    const loadRequests = useCallback(async () => {
+        try {
+            const res = await fetchFestOrganizerAuditoriumRoster(festId, {
+                status: 'pending',
+                limit: 500,
+            });
+            setRequests(res?.tickets || []);
+        } catch {
+            setRequests([]);
+        }
+    }, [festId]);
+
+    useEffect(() => { loadRequests(); }, [loadRequests]);
+
     const config = data?.config || {};
     const stats = data?.stats || {};
     const invites = data?.invites || [];
     const recent = data?.recent || [];
     const risks = data?.risks || [];
-    const directory = data?.directory || { total: 0, byCategory: {} };
 
     const inviteCategories = useMemo(
         () => (config.categories || []).filter((c) => c.channel === 'invite' || c.channel === 'desk'),
         [config.categories],
     );
+
+    const requestsByYear = useMemo(() => {
+        const grouped = Object.fromEntries(PUBLIC_YEARS.map((year) => [year.id, []]));
+        requests.forEach((ticket) => {
+            const id = String(ticket.categoryId || '');
+            if (!grouped[id]) grouped[id] = [];
+            grouped[id].push(ticket);
+        });
+        return grouped;
+    }, [requests]);
+    const yearRequests = requestsByYear[requestYear] || [];
+    const selectedYear = PUBLIC_YEARS.find((year) => year.id === requestYear) || PUBLIC_YEARS[0];
 
     const filteredRecent = useMemo(() => {
         if (rosterFilter === 'all') return recent;
@@ -171,19 +205,17 @@ export default function FestOrganizerAuditoriumPage() {
         await patchConfig({ categories: seatDraft });
     };
 
-    const uploadDirectory = async (file) => {
-        if (!file) return;
-        setDirectoryBusy(true);
+    const reviewRequest = async (ticket, decision) => {
+        setReviewingId(ticket.id);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const res = await uploadFestOrganizerAuditoriumDirectory(festId, directoryYear, formData);
-            setData((current) => ({ ...current, directory: res.directory || current.directory }));
-            toast(`${res.imported || 0} student emails imported`);
+            await reviewFestOrganizerAuditoriumPass(festId, ticket.id, decision);
+            setRequests((current) => current.filter((item) => item.id !== ticket.id));
+            toast(decision === 'approve' ? 'Pass approved and emailed' : 'Request declined');
+            await load();
         } catch (e) {
-            toast(e.message || 'Directory upload failed');
+            toast(e.message || 'Could not update request');
         } finally {
-            setDirectoryBusy(false);
+            setReviewingId('');
         }
     };
 
@@ -248,7 +280,7 @@ export default function FestOrganizerAuditoriumPage() {
                 >
                     <ArrowLeft size={16} /> Dashboard
                 </button>
-                <button type="button" onClick={load} className="p-2 rounded-xl border border-white/10 text-gray-300">
+                <button type="button" onClick={() => { load(); loadRequests(); }} className="p-2 rounded-xl border border-white/10 text-gray-300">
                     <RefreshCw size={16} />
                 </button>
             </div>
@@ -264,7 +296,7 @@ export default function FestOrganizerAuditoriumPage() {
                                     <Ticket size={22} className="text-[#0ECCEE]" /> Auditorium ops
                                 </h1>
                                 <p className="text-sm text-gray-400 mt-1">
-                                    Seats · invites · desk · gate — live fill {fillPct}%
+                                    Students request a year pass. Approve it here and the same pass is emailed.
                                 </p>
                             </div>
                             <div className="text-right">
@@ -297,31 +329,28 @@ export default function FestOrganizerAuditoriumPage() {
                         <Toggle
                             on={Boolean(config.registrationOpen)}
                             label="Registration open"
-                            hint="Students can claim year seats when on"
+                            hint="Students can request a year pass when on"
                             onClick={() => {
                                 if (config.registrationOpen && !window.confirm('Close auditorium registration?')) return;
                                 patchConfig({ registrationOpen: !config.registrationOpen });
                             }}
                         />
-                        <Toggle
-                            on={Boolean(config.requireDirectoryOtp)}
-                            label="Require college email OTP"
-                            hint="Checks uploaded year-wise directories before public registration"
-                            onClick={() => patchConfig({ requireDirectoryOtp: !config.requireDirectoryOtp })}
-                        />
-                        {['first_year', 'second_year', 'third_year', 'fourth_year'].map((categoryId) => {
-                            const category = seatDraft.find((item) => item.id === categoryId);
+                        {PUBLIC_YEARS.map((year) => {
+                            const category = seatDraft.find((item) => item.id === year.id);
                             if (!category) return null;
                             const isOpen = category.enabled !== false;
+                            const waiting = (requestsByYear[year.id] || []).length;
                             return (
                                 <Toggle
-                                    key={categoryId}
+                                    key={year.id}
                                     on={isOpen}
-                                    label={`${category.label} passes`}
-                                    hint={isOpen ? 'Students in this year can claim auditorium passes' : 'Claims for this year are paused'}
+                                    label={`${category.label} requests`}
+                                    hint={isOpen
+                                        ? `Open · ${waiting} waiting`
+                                        : 'Requests for this year are paused'}
                                     onClick={() => patchConfig({
                                         categories: seatDraft.map((item) => (
-                                            item.id === categoryId ? { ...item, enabled: !isOpen } : item
+                                            item.id === year.id ? { ...item, enabled: !isOpen } : item
                                         )),
                                     })}
                                 />
@@ -329,61 +358,108 @@ export default function FestOrganizerAuditoriumPage() {
                         })}
                     </section>
 
-                    <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                                    <MailCheck size={17} className="text-[#0ECCEE]" /> Student email directory
-                                </h2>
-                                <p className="text-[11px] text-gray-500 mt-1">
-                                    Upload JSON, CSV or XLSX files. Emails are stored as protected hashes and the selected category is assigned automatically.
-                                </p>
-                            </div>
-                            <span className="text-xs font-semibold text-[#7DE8F7] tabular-nums">{directory.total || 0} emails</span>
+                    <section className="rounded-2xl border border-amber-400/25 bg-[#161718] p-4 space-y-3">
+                        <div>
+                            <h2 className="text-sm font-semibold text-white">Cult Night pass distribution</h2>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                                30 Sep is first year, second year, and MBA. 1 Oct is third year, fourth year, and M.Tech. Match the face to the ID, then approve.
+                            </p>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                            {[
-                                ['first_year', 'First'], ['second_year', 'Second'],
-                                ['third_year', 'Third'], ['fourth_year', 'Fourth'], ['mtech', 'M.Tech'], ['mba', 'MBA'],
-                            ].map(([id, label]) => (
-                                <div key={id} className="rounded-xl border border-white/8 bg-white/3 px-3 py-2">
-                                    <p className="text-sm font-semibold text-white tabular-nums">{directory.byCategory?.[id] || 0}</p>
-                                    <p className="text-[10px] uppercase tracking-wide text-gray-500">{['mtech', 'mba'].includes(id) ? label : `${label} year`}</p>
+                        <div className="space-y-3">
+                            {CULT_NIGHT_PASS_DAYS.map((day) => (
+                                <div key={day.id} className="space-y-2">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#0ECCEE]">{day.label}</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {day.years.map((year) => {
+                                            const count = (requestsByYear[year.id] || []).length;
+                                            const active = year.id === requestYear;
+                                            return (
+                                                <button
+                                                    key={year.id}
+                                                    type="button"
+                                                    onClick={() => setSearchParams({ year: year.id }, { replace: true })}
+                                                    className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                                                        active
+                                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
+                                                            : 'border-white/10 bg-white/3 hover:border-white/20'
+                                                    }`}
+                                                >
+                                                    <p className={`text-lg font-bold tabular-nums leading-none ${count ? 'text-amber-200' : 'text-white'}`}>
+                                                        {count}
+                                                    </p>
+                                                    <p className="text-[11px] text-gray-400 mt-1">{year.label}</p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             ))}
                         </div>
-                        <div className="grid sm:grid-cols-[1fr_1fr] gap-2">
-                            <select
-                                value={directoryYear}
-                                onChange={(e) => setDirectoryYear(e.target.value)}
-                                className="w-full rounded-xl border border-white/10 bg-[#121314] px-3 py-2.5 text-sm text-white"
-                            >
-                                <option value="first_year">First year</option>
-                                <option value="second_year">Second year</option>
-                                <option value="third_year">Third year</option>
-                                <option value="fourth_year">Fourth year</option>
-                                <option value="mtech">M.Tech</option>
-                                <option value="mba">MBA</option>
-                            </select>
-                            <label className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0ECCEE] px-3 py-2.5 text-sm font-bold text-black ${directoryBusy ? 'opacity-50 pointer-events-none' : ''}`}>
-                                {directoryBusy ? <Loader size={16} className="animate-spin" /> : <Upload size={16} />}
-                                {directoryBusy ? 'Uploading…' : 'Upload / replace list'}
-                                <input
-                                    type="file"
-                                    accept=".json,.csv,.xlsx,application/json,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                    className="hidden"
-                                    disabled={directoryBusy}
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        e.target.value = '';
-                                        uploadDirectory(file);
-                                    }}
-                                />
-                            </label>
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                            <p className="text-sm font-semibold text-white">{selectedYear.label}</p>
+                            <span className="text-[11px] text-amber-200">
+                                {selectedYear.dayLabel} · {yearRequests.length} waiting
+                            </span>
                         </div>
-                        <p className="text-[10px] text-gray-600">
-                            Uploading a category again replaces that category’s previous list. The email can be in any column.
-                        </p>
+                        <div className="space-y-3">
+                            {yearRequests.map((ticket) => (
+                                <div key={ticket.id} className="rounded-xl border border-white/8 bg-black/20 p-3 space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => ticket.ticketPhotoUrl && setPhotoPreview({ url: ticket.ticketPhotoUrl, label: 'Face' })}
+                                            className="text-left"
+                                        >
+                                            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Face</p>
+                                            {ticket.ticketPhotoUrl ? (
+                                                <img src={ticket.ticketPhotoUrl} alt="" className="h-36 w-full rounded-lg object-cover" />
+                                            ) : (
+                                                <div className="h-36 rounded-lg bg-white/10" />
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => ticket.idCardPhotoUrl && setPhotoPreview({ url: ticket.idCardPhotoUrl, label: 'ID card' })}
+                                            className="text-left"
+                                        >
+                                            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">ID card</p>
+                                            {ticket.idCardPhotoUrl ? (
+                                                <img src={ticket.idCardPhotoUrl} alt="ID card" className="h-36 w-full rounded-lg object-cover" />
+                                            ) : (
+                                                <div className="h-36 rounded-lg bg-white/10" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium text-white">{ticket.fullName}</p>
+                                        <p className="text-[11px] text-gray-400 truncate">{ticket.email}</p>
+                                        <p className="text-[11px] text-gray-500">{ticket.phone}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={reviewingId === ticket.id}
+                                            onClick={() => reviewRequest(ticket, 'approve')}
+                                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-400 px-3 py-2.5 text-sm font-bold text-black disabled:opacity-50"
+                                        >
+                                            {reviewingId === ticket.id ? <Loader size={14} className="animate-spin" /> : <Check size={14} />}
+                                            Approve
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={reviewingId === ticket.id}
+                                            onClick={() => reviewRequest(ticket, 'reject')}
+                                            className="rounded-xl border border-white/10 px-3 py-2.5 text-sm text-rose-200 disabled:opacity-50"
+                                        >
+                                            Decline
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {!yearRequests.length ? (
+                                <p className="text-xs text-gray-600 text-center py-4">No requests in {selectedYear.label}</p>
+                            ) : null}
+                        </div>
                     </section>
 
                     <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
@@ -766,7 +842,7 @@ export default function FestOrganizerAuditoriumPage() {
                         <ul className="text-[11px] text-gray-500 space-y-1 pt-1 border-t border-white/8">
                             <li>Gate: match face ↔ ID ↔ claimed year</li>
                             <li>Deactivate leaked invite links ASAP</li>
-                            <li>One verified college email + one Google account per seat</li>
+                            <li>Approve only when the face matches the ID and the year</li>
                         </ul>
                     </div>
 
@@ -787,6 +863,17 @@ export default function FestOrganizerAuditoriumPage() {
                     </div>
                 </aside>
             </div>
+            {photoPreview ? (
+                <button
+                    type="button"
+                    onClick={() => setPhotoPreview(null)}
+                    className="fixed inset-0 z-50 bg-black/80 p-4 flex flex-col items-center justify-center gap-3"
+                >
+                    <p className="text-xs uppercase tracking-wide text-white/70">{photoPreview.label}</p>
+                    <img src={photoPreview.url} alt="" className="max-h-[80vh] max-w-full rounded-2xl object-contain" />
+                    <span className="text-xs text-white/50">Tap to close</span>
+                </button>
+            ) : null}
         </div>
     );
 }

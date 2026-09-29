@@ -18,6 +18,7 @@ const {
   sumSeats,
   sanitizeCategories,
   cloudinaryPathKey,
+  cultNightDistributionLabel,
 } = require('../modules/fest/plugins/mindsparkAuditorium');
 const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 const {
@@ -403,6 +404,11 @@ exports.authorizePublicUpload = async (req, res, next) => {
       }
     }
 
+    const collegeEmail = String(body.email || '').trim().toLowerCase();
+    if (/@coeptech\.ac\.in$/.test(collegeEmail)) {
+      return next();
+    }
+
     const eligibility = verifyEligibilityToken(body.eligibilityToken);
     const email = normalizeDirectoryEmail(eligibility.email);
     const validBinding = String(eligibility.competitionId) === String(competition._id)
@@ -421,7 +427,7 @@ exports.authorizePublicUpload = async (req, res, next) => {
     return res.status(403).json({
       success: false,
       code: 'EMAIL_VERIFICATION_REQUIRED',
-      message: 'Verify your college email before uploading photos',
+      message: 'Only @coeptech.ac.in addresses are allowed.',
     });
   }
 };
@@ -624,6 +630,15 @@ async function createAuditoriumTicket({
     throw err;
   }
 
+  if (category.channel === 'public' && channelHint === 'public') {
+    const collegeEmail = String(normalizedEmail || '').toLowerCase();
+    if (!/@coeptech\.ac\.in$/.test(collegeEmail)) {
+      const err = new Error('Only @coeptech.ac.in addresses are allowed.');
+      err.status = 400;
+      throw err;
+    }
+  }
+
   const duplicate = await findApprovedCompetitionDuplicate({
     festId: competition.fest,
     competitionId: competition._id,
@@ -704,17 +719,18 @@ async function createAuditoriumTicket({
       team_size: 1,
     };
 
+    const awaitingReview = channelHint === 'public';
     registration = await Registration.create({
       fest: competition.fest,
       user: user._id,
       competitionId: competition._id,
       responses,
-      status: 'approved',
+      status: awaitingReview ? 'pending' : 'approved',
       paymentStatus: 'free',
       amountPaid: 0,
       ticketPhotoUrl: photo,
       idCardPhotoUrl: idCard,
-      qrCodeData: crypto.randomBytes(16).toString('hex'),
+      ...(awaitingReview ? {} : { qrCodeData: crypto.randomBytes(16).toString('hex') }),
     });
 
     await TicketClaim.updateMany(
@@ -747,6 +763,7 @@ async function createAuditoriumTicket({
     await registration.populate('user', 'name email phone phoneNumber');
 
     setImmediate(async () => {
+      if (registration.status !== 'approved') return;
       try {
         const userDoc = registration.user && typeof registration.user === 'object'
           ? registration.user
@@ -777,6 +794,9 @@ async function createAuditoriumTicket({
             ticketPhotoUrl: photo,
             details: [
               { label: 'Category', value: category.label },
+              ...(cultNightDistributionLabel(category.id)
+                ? [{ label: 'Pass distribution', value: cultNightDistributionLabel(category.id) }]
+                : []),
               ...(college ? [{ label: 'College', value: college }] : []),
               { label: 'Entry', value: 'Free' },
             ],
@@ -801,7 +821,6 @@ exports.publicRegister = async (req, res) => {
     const userId = req.user?.userId || req.user?.id || req.user?._id || null;
     const competition = await ensureAuditoriumCompetition(MINDSPARK_FEST_ID);
     const body = req.body || {};
-    const cfg = normalizeAuditoriumConfig(competition.auditorium || {});
     const inviteCode = body.inviteCode || body.code;
     const suppliedInvite = inviteCode ? await findInvite(competition._id, inviteCode) : null;
     const isInvite = Boolean(
@@ -809,31 +828,6 @@ exports.publicRegister = async (req, res) => {
       && suppliedInvite.usedCount < suppliedInvite.maxUses
       && suppliedInvite.categoryId === String(body.categoryId || ''),
     );
-    let verifiedDirectoryEmail = '';
-    if (cfg.requireDirectoryOtp && !isInvite) {
-      try {
-        const eligibility = verifyEligibilityToken(body.eligibilityToken);
-        const tokenEmail = normalizeDirectoryEmail(eligibility.email);
-        const validBinding = String(eligibility.competitionId) === String(competition._id)
-          && eligibility.categoryId === body.categoryId
-          && tokenEmail
-          && eligibility.emailHash === directoryEmailHash(tokenEmail);
-        if (!validBinding) throw new Error('Verification does not match this registration');
-        const stillEligible = await AuditoriumStudent.exists({
-          competitionId: competition._id,
-          emailHash: eligibility.emailHash,
-          categoryId: eligibility.categoryId,
-        });
-        if (!stillEligible) throw new Error('Email is no longer in the student directory');
-        verifiedDirectoryEmail = tokenEmail;
-      } catch {
-        return res.status(403).json({
-          success: false,
-          code: 'EMAIL_VERIFICATION_REQUIRED',
-          message: 'Verify your college email again before registering',
-        });
-      }
-    }
     const me = userId
       ? await User.findById(userId).select('name email phone phoneNumber').lean()
       : null;
@@ -843,9 +837,9 @@ exports.publicRegister = async (req, res) => {
       inviteCode,
       channelHint: isInvite ? 'invite' : 'public',
       name: body.name || body.fullName || me?.name,
-      email: verifiedDirectoryEmail || (me?.email && !/@crwdctrl\.local$/i.test(String(me.email))
+      email: body.email || (me?.email && !/@crwdctrl\.local$/i.test(String(me.email))
         ? String(me.email).toLowerCase()
-        : body.email),
+        : ''),
       phone: body.phone || me?.phoneNumber || me?.phone,
       college: body.college,
       ticketPhotoUrl: body.ticketPhotoUrl || body.ticket_photo,
@@ -1049,7 +1043,6 @@ exports.getOrganizerOps = async (req, res) => {
         publicRegisterUrl: '/mindspark/auditorium',
         risks: [
           ...(cfg.registrationOpen ? [] : ['Registration is closed']),
-          ...(cfg.requireDirectoryOtp && directoryTotal === 0 ? ['Directory OTP is on but no student emails are uploaded'] : []),
           ...((stats.categories || []).filter((c) => c.full).map((c) => `${c.label} is full`)),
           ...(missingIdCount > 0 ? [`${missingIdCount} tickets missing college ID`] : []),
           ...(activeInvites > 8 ? [`${activeInvites} active invite codes — review leaks`] : []),
@@ -1288,6 +1281,80 @@ exports.deskIssue = async (req, res) => {
   }
 };
 
+async function emailAuditoriumPass({ registration, competition, fullName, email, categoryLabel, college, photo }) {
+  const formEmail = String(email || '').trim().toLowerCase();
+  if (!formEmail || !validEmail(formEmail)) return;
+  const FestOrganizer = require('../model/fest_organizer_model');
+  const festDoc = await FestOrganizer.findById(competition.fest)
+    .select('festName venue coverImage registration')
+    .lean();
+  await sendCompetitionRegistrationEmailForRecord({
+    user: { name: fullName || 'Guest', email: formEmail },
+    fest: festDoc || { _id: competition.fest, festName: 'MindSpark', venue: 'COEP Auditorium' },
+    competition,
+    registration,
+    extras: {
+      ticketLink: `/qr-ticket/${registration._id}?auditorium=1`,
+      ticketPhotoUrl: photo || ticketPhotoFrom(registration),
+      details: [
+        { label: 'Category', value: categoryLabel || '' },
+        ...(cultNightDistributionLabel(registration.responses?.auditorium_category_id)
+          ? [{ label: 'Pass distribution', value: cultNightDistributionLabel(registration.responses?.auditorium_category_id) }]
+          : []),
+        ...(college ? [{ label: 'College', value: college }] : []),
+        { label: 'Entry', value: 'Free' },
+      ],
+    },
+  });
+}
+
+/** Organizer approves a public year request and emails the existing pass. */
+exports.reviewPass = async (req, res) => {
+  try {
+    const competition = await ensureAuditoriumCompetition(req.festId);
+    const decision = req.body?.decision === 'reject' ? 'reject' : 'approve';
+    const registration = await Registration.findOne({
+      _id: req.params.registrationId,
+      fest: req.festId,
+      competitionId: competition._id,
+      status: 'pending',
+    }).populate('user', 'name email phone phoneNumber');
+    if (!registration) {
+      return res.status(404).json({ success: false, message: 'Pass request not found' });
+    }
+
+    if (decision === 'reject') {
+      registration.status = 'rejected';
+      await registration.save();
+      await TicketClaim.deleteMany({ registrationId: registration._id });
+      await syncCategoryCounter(competition._id, registration.responses?.auditorium_category_id);
+      return res.json({ success: true, ticket: formatTicket(registration, competition) });
+    }
+
+    if (!registration.qrCodeData) {
+      registration.qrCodeData = crypto.randomBytes(16).toString('hex');
+    }
+    registration.status = 'approved';
+    await registration.save();
+    const ticket = formatTicket(registration, competition);
+    setImmediate(() => {
+      emailAuditoriumPass({
+        registration,
+        competition,
+        fullName: ticket.fullName,
+        email: ticket.email,
+        categoryLabel: ticket.categoryLabel,
+        college: ticket.college,
+        photo: ticket.ticketPhotoUrl,
+      }).catch((error) => console.warn('[auditorium.approve.email]', error.message));
+    });
+    return res.json({ success: true, ticket });
+  } catch (error) {
+    console.error('[auditorium.reviewPass]', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
 exports.listRoster = async (req, res) => {
   try {
     const competition = await ensureAuditoriumCompetition(req.festId);
@@ -1298,6 +1365,8 @@ exports.listRoster = async (req, res) => {
       status: { $in: ['approved', 'pending', 'rejected'] },
     };
     if (categoryId) filter['responses.auditorium_category_id'] = categoryId;
+    const status = String(req.query.status || '').trim();
+    if (['pending', 'approved', 'rejected'].includes(status)) filter.status = status;
     const rows = await Registration.find(filter)
       .populate('user', 'name email phone phoneNumber')
       .sort({ createdAt: -1 })

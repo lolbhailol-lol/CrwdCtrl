@@ -8,6 +8,7 @@ const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 const { captureFlowEvent } = require('../config/sentry');
 const MindSparkBundle = require('../model/mindspark_bundle_model');
 const { getFestPlugin } = require('../modules/fest/plugins');
+const { cultNightDistributionLabel } = require('../modules/fest/plugins/mindsparkAuditorium');
 
 // ===== GET: Generate QR code for a registration =====
 const generateQR = async (req, res) => {
@@ -55,6 +56,9 @@ const generateQR = async (req, res) => {
     const auditoriumCategory = String(
       responses.auditorium_category_label || '',
     ).trim();
+    const auditoriumCategoryId = String(
+      responses.auditorium_category_id || '',
+    ).trim();
     const stallBrand = String(registration.fest?.stallBrand || '').trim();
     const festWhatsApp = String(registration.fest?.registration?.whatsappCommunityLink || '').trim();
     const whatsappGroupLink = String(
@@ -95,6 +99,8 @@ const generateQR = async (req, res) => {
         ticketPhotoUrl: ticketPhotoUrl || null,
         idCardPhotoUrl: idCardPhotoUrl || null,
         auditoriumCategory: auditoriumCategory || null,
+        auditoriumCategoryId: auditoriumCategoryId || null,
+        auditoriumDistributionDay: cultNightDistributionLabel(auditoriumCategoryId) || null,
         college: responses.college || null,
         stallBrand: stallBrand || null,
         stallDiscountPercent: stallBrand

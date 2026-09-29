@@ -55,6 +55,7 @@ router.post(
     auditoriumCtrl.importStudentDirectory,
 );
 router.get('/fests/:festId/auditorium/roster', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.listRoster);
+router.post('/fests/:festId/auditorium/roster/:registrationId/review', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.reviewPass);
 router.delete('/fests/:festId/auditorium/roster/:registrationId', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deleteTicket);
 router.get('/fests/:festId/auditorium/lookup', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.lookupByPhone);
 router.post('/fests/:festId/auditorium/invites', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.createInvite);

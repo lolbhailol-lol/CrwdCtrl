@@ -729,6 +729,13 @@ export async function fetchFestOrganizerAuditoriumRoster(festId, params = {}) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/roster${q ? `?${q}` : ''}`);
 }
 
+export async function reviewFestOrganizerAuditoriumPass(festId, registrationId, decision) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/roster/${registrationId}/review`, {
+        method: 'POST',
+        body: { decision },
+    });
+}
+
 export async function deleteFestOrganizerAuditoriumTicket(festId, registrationId) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/roster/${registrationId}`, {
         method: 'DELETE',

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, CheckCircle, Loader, Ticket, ArrowLeft, Sparkles, IdCard, Image as ImageIcon } from 'lucide-react';
+import { Camera, CheckCircle, Loader, Ticket, ArrowLeft, Sparkles, IdCard, Image as ImageIcon, ChevronUp, ChevronDown, ZoomIn } from 'lucide-react';
 import { publicFetchJSON } from '../../../services/api/client';
 import { useDialog } from '../../../context/DialogContext';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import AuditoriumTicketPass, { ensureAuditoriumFonts } from './AuditoriumTicketPass';
+import { CULT_NIGHT_PASS_DAYS, cultNightDayForCategory } from './cultNightPassDays';
 
 const MIN_PHOTO_PX = 160;
 const MINDSPARK_FEST = '6a7f1010ed26d983b34e55c2';
@@ -36,11 +37,14 @@ function clearDraft() {
   }
 }
 
-async function uploadTicketPhoto(file, { eligibilityToken, inviteCode, categoryId }) {
-  if (!eligibilityToken && !inviteCode) throw new Error('Verify your college email before uploading');
+async function uploadTicketPhoto(file, { eligibilityToken, inviteCode, categoryId, email }) {
+  const collegeEmail = String(email || '').trim();
+  if (!eligibilityToken && !inviteCode && !/@coeptech\.ac\.in$/i.test(collegeEmail)) {
+    throw new Error('Only @coeptech.ac.in addresses are allowed.');
+  }
   const signed = await publicFetchJSON('/mindspark/auditorium/upload-signature', {
     method: 'POST',
-    body: JSON.stringify({ eligibilityToken, inviteCode, categoryId }),
+    body: JSON.stringify({ eligibilityToken, inviteCode, categoryId, email: collegeEmail }),
   });
   const endpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(signed.cloudName)}/image/upload`;
   let lastError = null;
@@ -154,6 +158,7 @@ function PhotoSourcePicker({
   busy,
   kind = 'id',
   onPick,
+  onAdjust,
   emptyLabel,
   onBeforeOpen,
 }) {
@@ -195,8 +200,17 @@ function PhotoSourcePicker({
               />
             )}
             <span className="block text-center text-[10px] text-emerald-300/90 font-semibold uppercase tracking-wide">
-              Ready — pick again to change
+              Ready — drag to fix the face, or pick again
             </span>
+            {onAdjust ? (
+              <button
+                type="button"
+                onClick={onAdjust}
+                className="mx-auto block rounded-xl border border-[#0ECCEE]/40 px-3 py-2 text-xs font-semibold text-[#7DE8F7]"
+              >
+                Move photo
+              </button>
+            ) : null}
           </div>
         ) : (
           <>
@@ -243,6 +257,181 @@ function PhotoSourcePicker({
         className="hidden"
         onChange={handleChange}
       />
+    </div>
+  );
+}
+
+const ADJUST_FRAMES = {
+  face: { width: 240, height: 320, outW: 810, outH: 1080, hint: 'Drag up or down until your face sits in the frame.' },
+  id: { width: 300, height: 190, outW: 1200, outH: 760, hint: 'Drag until the photo on your ID is visible.' },
+};
+
+function PhotoAdjustModal({ file, imageUrl, kind = 'face', onCancel, onConfirm }) {
+  const frame = ADJUST_FRAMES[kind] || ADJUST_FRAMES.face;
+  const [imgSrc, setImgSrc] = useState('');
+  const [imgEl, setImgEl] = useState(null);
+  const [zoom, setZoom] = useState(1.15);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [failed, setFailed] = useState(false);
+  const dragRef = useRef(null);
+
+  useEffect(() => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setImgSrc(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setImgSrc(imageUrl || '');
+    return undefined;
+  }, [file, imageUrl]);
+
+  useEffect(() => {
+    if (!imgSrc) return undefined;
+    const image = new Image();
+    if (!file) image.crossOrigin = 'anonymous';
+    image.onload = () => {
+      setFailed(false);
+      setImgEl(image);
+    };
+    image.onerror = () => setFailed(true);
+    image.src = imgSrc;
+    return undefined;
+  }, [imgSrc, file]);
+
+  const baseScale = imgEl
+    ? Math.max(frame.width / imgEl.naturalWidth, frame.height / imgEl.naturalHeight)
+    : 1;
+  const displayScale = baseScale * zoom;
+  const dispW = imgEl ? imgEl.naturalWidth * displayScale : frame.width;
+  const dispH = imgEl ? imgEl.naturalHeight * displayScale : frame.height;
+
+  const clampOffset = useCallback((next) => {
+    const maxX = Math.max(0, (dispW - frame.width) / 2);
+    const maxY = Math.max(0, (dispH - frame.height) / 2);
+    return {
+      x: Math.min(maxX, Math.max(-maxX, next.x)),
+      y: Math.min(maxY, Math.max(-maxY, next.y)),
+    };
+  }, [dispW, dispH, frame.width, frame.height]);
+
+  useEffect(() => {
+    setOffset((prev) => clampOffset(prev));
+  }, [clampOffset]);
+
+  const confirm = async () => {
+    if (!imgEl) {
+      if (file) onConfirm(file);
+      return;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = frame.outW;
+    canvas.height = frame.outH;
+    const ctx = canvas.getContext('2d');
+    const tlx = frame.width / 2 - dispW / 2 + offset.x;
+    const tly = frame.height / 2 - dispH / 2 + offset.y;
+    const sx = (0 - tlx) / displayScale;
+    const sy = (0 - tly) / displayScale;
+    ctx.drawImage(imgEl, sx, sy, frame.width / displayScale, frame.height / displayScale, 0, 0, frame.outW, frame.outH);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    if (!blob) {
+      if (file) onConfirm(file);
+      return;
+    }
+    onConfirm(new File([blob], kind === 'face' ? 'face.jpg' : 'id-card.jpg', { type: 'image/jpeg' }));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-3">
+      <div className="w-full max-w-sm rounded-3xl bg-[#121314] border border-white/10 p-4 space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-white">{kind === 'face' ? 'Fit your face' : 'Fit your ID'}</p>
+          <p className="text-[11px] text-white/45 mt-1">{frame.hint}</p>
+        </div>
+        <div
+          className="relative mx-auto overflow-hidden rounded-2xl bg-black touch-none"
+          style={{ width: frame.width, height: frame.height }}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            dragRef.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+          }}
+          onPointerMove={(e) => {
+            if (!dragRef.current) return;
+            const maxX = Math.max(0, (dispW - frame.width) / 2);
+            const maxY = Math.max(0, (dispH - frame.height) / 2);
+            const x = dragRef.current.ox + (e.clientX - dragRef.current.x);
+            const y = dragRef.current.oy + (e.clientY - dragRef.current.y);
+            setOffset({
+              x: Math.min(maxX, Math.max(-maxX, x)),
+              y: Math.min(maxY, Math.max(-maxY, y)),
+            });
+          }}
+          onPointerUp={() => { dragRef.current = null; }}
+          onPointerCancel={() => { dragRef.current = null; }}
+        >
+          {imgEl ? (
+            <img
+              src={imgSrc}
+              alt=""
+              draggable={false}
+              className="absolute max-w-none"
+              style={{
+                left: '50%',
+                top: '50%',
+                width: dispW,
+                height: dispH,
+                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+              }}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-white/40">
+              {failed ? 'Could not open this photo' : 'Loading…'}
+            </div>
+          )}
+          <div className="pointer-events-none absolute inset-3 rounded-xl border border-dashed border-white/50" />
+        </div>
+        <div className="flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setOffset((prev) => clampOffset({ x: prev.x, y: prev.y - 24 }))}
+            className="inline-flex items-center gap-1 rounded-xl border border-white/10 px-3 py-2 text-xs text-white"
+          >
+            <ChevronUp size={14} /> Up
+          </button>
+          <button
+            type="button"
+            onClick={() => setOffset((prev) => clampOffset({ x: prev.x, y: prev.y + 24 }))}
+            className="inline-flex items-center gap-1 rounded-xl border border-white/10 px-3 py-2 text-xs text-white"
+          >
+            <ChevronDown size={14} /> Down
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <ZoomIn size={16} className="text-white/40 shrink-0" />
+          <input
+            type="range"
+            min="1"
+            max="3"
+            step="0.01"
+            value={zoom}
+            onChange={(e) => setZoom(Number(e.target.value))}
+            className="w-full accent-[#0ECCEE]"
+            aria-label="Zoom"
+          />
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={onCancel} className="flex-1 py-3 rounded-2xl border border-white/12 text-sm text-white/70">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!imgEl && !file}
+            onClick={confirm}
+            className="flex-1 py-3 rounded-2xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-40"
+          >
+            Use this photo
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -319,6 +508,8 @@ export default function MindSparkAuditoriumPage() {
   const [issuedFresh, setIssuedFresh] = useState(false);
   const faceUploadRef = useRef(0);
   const idUploadRef = useRef(0);
+  const sourceFiles = useRef({ face: null, id: null });
+  const [adjust, setAdjust] = useState(null);
   const draftSnapshotRef = useRef({
     step: Math.min(5, Math.max(1, Number(draftBoot?.step) || 1)),
     categoryId: String(draftBoot?.categoryId || ''),
@@ -433,7 +624,7 @@ export default function MindSparkAuditoriumPage() {
   }, [meta]);
 
   const selected = categories.find((c) => c.id === categoryId);
-  const directoryRequired = Boolean(meta?.requireDirectoryOtp) && !meta?.inviteCategory;
+  const directoryRequired = false;
 
   const requestOtp = async () => {
     if (!directoryEmail.trim()) {
@@ -490,9 +681,9 @@ export default function MindSparkAuditoriumPage() {
 
   const onFacePhoto = async (file) => {
     if (!file) return;
-    if (!eligibilityToken && !inviteCode) {
-      toast('Verify your college email before uploading');
-      setStep(1);
+    if (!inviteCode && !/@coeptech\.ac\.in$/i.test(form.email.trim())) {
+      toast('Only @coeptech.ac.in addresses are allowed.');
+      setStep(2);
       return;
     }
     const uploadId = faceUploadRef.current + 1;
@@ -505,7 +696,7 @@ export default function MindSparkAuditoriumPage() {
       const preview = URL.createObjectURL(file);
       setPhotoPreview(preview);
       const uploadFile = await optimizeUploadImage(file);
-      const url = await uploadTicketPhoto(uploadFile, { eligibilityToken, inviteCode, categoryId });
+      const url = await uploadTicketPhoto(uploadFile, { eligibilityToken, inviteCode, categoryId, email: form.email });
       if (faceUploadRef.current !== uploadId) return;
       if (!url) throw new Error('Upload failed');
       if (idCardUrl && cloudinaryPathKey(url) === cloudinaryPathKey(idCardUrl)) {
@@ -528,9 +719,9 @@ export default function MindSparkAuditoriumPage() {
 
   const onIdCardPhoto = async (file) => {
     if (!file) return;
-    if (!eligibilityToken && !inviteCode) {
-      toast('Verify your college email before uploading');
-      setStep(1);
+    if (!inviteCode && !/@coeptech\.ac\.in$/i.test(form.email.trim())) {
+      toast('Only @coeptech.ac.in addresses are allowed.');
+      setStep(2);
       return;
     }
     const uploadId = idUploadRef.current + 1;
@@ -543,7 +734,7 @@ export default function MindSparkAuditoriumPage() {
       const preview = URL.createObjectURL(file);
       setIdCardPreview(preview);
       const uploadFile = await optimizeUploadImage(file);
-      const url = await uploadTicketPhoto(uploadFile, { eligibilityToken, inviteCode, categoryId });
+      const url = await uploadTicketPhoto(uploadFile, { eligibilityToken, inviteCode, categoryId, email: form.email });
       if (idUploadRef.current !== uploadId) return;
       if (!url) throw new Error('Upload failed');
       if (photoUrl && cloudinaryPathKey(url) === cloudinaryPathKey(photoUrl)) {
@@ -611,8 +802,42 @@ export default function MindSparkAuditoriumPage() {
     }
   };
 
+  const startAdjust = (kind, file) => {
+    if (file) sourceFiles.current[kind] = file;
+    const saved = file || sourceFiles.current[kind] || null;
+    const url = kind === 'face' ? (photoPreview || photoUrl) : (idCardPreview || idCardUrl);
+    setAdjust({ kind, file: saved, imageUrl: saved ? '' : url });
+  };
+
   if (loading && !meta) {
     return <InlinePageLoader label="Loading auditorium…" />;
+  }
+
+  if (ticket?.status === 'pending') {
+    return (
+      <StageShell>
+        <div className="space-y-5 pt-6 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1.5 text-amber-200 text-xs font-semibold">
+            Pass requested
+          </div>
+          <h1
+            className="text-3xl text-white leading-none"
+            style={{ fontFamily: '"Bebas Neue", Impact, sans-serif', letterSpacing: '0.06em' }}
+          >
+            WAITING FOR APPROVAL
+          </h1>
+          <p className="text-sm text-white/55 max-w-sm mx-auto leading-relaxed">
+            Organizers will check your ID card and photo. Once they approve, the same pass appears in My Bookings and is emailed to you.
+          </p>
+          <Link
+            to="/booking"
+            className="block w-full py-3 rounded-2xl bg-[#0ECCEE] text-black text-sm font-bold"
+          >
+            Go to My Bookings
+          </Link>
+        </div>
+      </StageShell>
+    );
   }
 
   if (ticket) {
@@ -802,8 +1027,62 @@ export default function MindSparkAuditoriumPage() {
               </>
             ) : (
               <>
-                <p className="text-sm text-white/60">Choose your category</p>
-                {categories.map((c, idx) => {
+                <p className="text-sm text-white/60">Choose your year</p>
+                {CULT_NIGHT_PASS_DAYS.map((day) => {
+                  const dayCategories = day.years
+                    .map((year) => categories.find((item) => item.id === year.id))
+                    .filter(Boolean);
+                  if (!dayCategories.length) return null;
+                  return (
+                    <div key={day.id} className="space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0ECCEE]">
+                        Pass distribution · {day.label}
+                      </p>
+                      {dayCategories.map((c) => {
+                        const full = Boolean(c.full) || (c.left != null && c.left <= 0);
+                        const seats = Number(c.seats) || 0;
+                        const left = c.left != null ? Number(c.left) : null;
+                        const filledPct = seats > 0 && left != null
+                          ? Math.min(100, Math.round(((seats - left) / seats) * 100))
+                          : null;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            disabled={full || !regOpen}
+                            onClick={() => { setCategoryId(c.id); setStep(2); }}
+                            className={`group w-full text-left rounded-2xl border px-4 py-3.5 transition duration-200 ${
+                              full
+                                ? 'border-white/5 bg-white/2 opacity-45'
+                                : 'border-white/10 bg-white/3 hover:border-[#0ECCEE]/45 hover:bg-[#0ECCEE]/05 active:scale-[0.99]'
+                            }`}
+                          >
+                            <div className="flex justify-between gap-3 items-start">
+                              <div>
+                                <p className="text-[15px] font-semibold text-white group-hover:text-[#B8F4FC] transition">
+                                  {c.label}
+                                </p>
+                                <p className="text-[10px] text-amber-200/80 mt-1">Collect on {day.label}</p>
+                              </div>
+                              <p className="text-xs tabular-nums text-white/40 shrink-0">
+                                {full ? 'Full' : left != null ? `${left} left` : ''}
+                              </p>
+                            </div>
+                            {filledPct != null && !full ? (
+                              <div className="mt-3 h-1 rounded-full bg-white/8 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-linear-to-r from-[#0ECCEE] to-amber-300/80"
+                                  style={{ width: `${filledPct}%` }}
+                                />
+                              </div>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                {categories.filter((c) => !cultNightDayForCategory(c.id)).map((c, idx) => {
               const full = Boolean(c.full) || (c.left != null && c.left <= 0);
               const seats = Number(c.seats) || 0;
               const left = c.left != null ? Number(c.left) : null;
@@ -863,6 +1142,11 @@ export default function MindSparkAuditoriumPage() {
             <p className="text-xs uppercase tracking-[0.16em] text-[#0ECCEE]/80">
               {selected?.label || 'Details'}
             </p>
+            {cultNightDayForCategory(categoryId) ? (
+              <p className="text-[11px] text-amber-200/80 -mt-1">
+                Pass distribution · {cultNightDayForCategory(categoryId).dayLabel}
+              </p>
+            ) : null}
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -881,14 +1165,15 @@ export default function MindSparkAuditoriumPage() {
             <input
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="Email (ticket delivery)"
+              placeholder="College email"
               type="email"
-              readOnly={directoryRequired}
-              className={`${fieldClass}${directoryRequired ? ' opacity-80' : ''}`}
+              className={fieldClass}
               autoComplete="email"
             />
-            {directoryRequired ? (
-              <p className="text-[10px] text-emerald-300/70 -mt-1 px-1">Verified college directory email</p>
+            {!inviteCode ? (
+              <p className="text-[11px] text-white/45 -mt-1 px-1">
+                Only addresses ending in @coeptech.ac.in are accepted.
+              </p>
             ) : null}
             <p className="text-[11px] text-white/40 px-1">
               College locked to <span className="text-white/70 font-medium">COEP</span> — MindSpark auditorium is for COEP students only
@@ -908,7 +1193,11 @@ export default function MindSparkAuditoriumPage() {
                     toast('Name and valid phone required');
                     return;
                   }
-                  if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+                  if (!inviteCode && !/@coeptech\.ac\.in$/i.test(form.email.trim())) {
+                    toast('Only @coeptech.ac.in addresses are allowed.');
+                    return;
+                  }
+                  if (inviteCode && (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))) {
                     toast('Valid email required for your ticket');
                     return;
                   }
@@ -943,7 +1232,8 @@ export default function MindSparkAuditoriumPage() {
               busy={busy && uploadingKind === 'id'}
               emptyLabel="Add your COEP ID"
               onBeforeOpen={() => flushDraft({ step: 3, categoryId, form, photoUrl, idCardUrl })}
-              onPick={onIdCardPhoto}
+              onPick={(file) => startAdjust('id', file)}
+              onAdjust={idCardUrl || idCardPreview ? () => startAdjust('id') : undefined}
             />
 
             <div className="flex gap-2">
@@ -987,7 +1277,8 @@ export default function MindSparkAuditoriumPage() {
               busy={busy && uploadingKind === 'face'}
               emptyLabel="Add your face photo"
               onBeforeOpen={() => flushDraft({ step: 4, categoryId, form, photoUrl, idCardUrl })}
-              onPick={onFacePhoto}
+              onPick={(file) => startAdjust('face', file)}
+              onAdjust={photoUrl || photoPreview ? () => startAdjust('face') : undefined}
             />
 
             <div className="flex gap-2">
@@ -1069,12 +1360,27 @@ export default function MindSparkAuditoriumPage() {
                 className="flex-1 py-3 rounded-2xl bg-emerald-400 text-black text-sm font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2 shadow-[0_12px_36px_-14px_rgba(52,211,153,0.7)]"
               >
                 {busy ? <Loader className="animate-spin" size={16} /> : <Ticket size={16} />}
-                Get my pass
+                {inviteCode ? 'Get my pass' : 'Request pass'}
               </button>
             </div>
           </div>
         ) : null}
       </div>
+
+      {adjust ? (
+        <PhotoAdjustModal
+          file={adjust.file}
+          imageUrl={adjust.imageUrl}
+          kind={adjust.kind}
+          onCancel={() => setAdjust(null)}
+          onConfirm={(file) => {
+            const kind = adjust.kind;
+            setAdjust(null);
+            if (kind === 'face') onFacePhoto(file);
+            else onIdCardPhoto(file);
+          }}
+        />
+      ) : null}
 
     </StageShell>
   );

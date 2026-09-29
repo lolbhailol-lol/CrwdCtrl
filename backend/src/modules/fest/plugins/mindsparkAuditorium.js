@@ -129,6 +129,16 @@ function inferYearCategoryFromMis(mis, now = new Date()) {
 
 const YEAR_CATEGORY_IDS = new Set(['first_year', 'second_year', 'third_year', 'fourth_year']);
 
+const CULT_NIGHT_PASS_DAYS = [
+  { id: '30', label: '30 Sep', categoryIds: ['first_year', 'second_year', 'mba'] },
+  { id: '01', label: '1 Oct', categoryIds: ['third_year', 'fourth_year', 'mtech'] },
+];
+
+function cultNightDistributionLabel(categoryId) {
+  const day = CULT_NIGHT_PASS_DAYS.find((item) => item.categoryIds.includes(String(categoryId || '')));
+  return day ? day.label : '';
+}
+
 function cloudinaryPathKey(url) {
   try {
     const u = new URL(String(url || ''));
@@ -144,6 +154,8 @@ module.exports = {
   AUDITORIUM_MODULE,
   DEFAULT_AUDITORIUM_CATEGORIES,
   YEAR_CATEGORY_IDS,
+  CULT_NIGHT_PASS_DAYS,
+  cultNightDistributionLabel,
   sanitizeCategories,
   sumSeats,
   defaultAuditoriumConfig,

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Bell, QrCode, ExternalLink, RefreshCw,
     Trophy, Calendar, MapPin, Building2, ArrowRight, AlertCircle, CheckCircle2, Mic2, Radio,
-    Pencil, Download, ScanLine, Loader,
+    Pencil, Download, ScanLine, Loader, Ticket,
 } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
@@ -11,6 +11,7 @@ import {
     exportFestOrganizerParticipants,
     fetchFestOrganizerParticipants,
     updateFestOrganizerParticipantStatus,
+    fetchFestOrganizerAuditoriumRoster,
 } from '../../../services/api/festOrganizer.api';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
@@ -18,6 +19,7 @@ import { getFestPlugin } from '../plugins/registry';
 import FestOrganizerCompetitionQrModal from './FestOrganizerCompetitionQrModal';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import { useDialog } from '../../../context/DialogContext';
+import { CULT_NIGHT_PASS_DAYS } from '../mindspark/cultNightPassDays';
 
 function formatWhen(d) {
     if (!d) return '';
@@ -347,7 +349,9 @@ export default function FestOrganizerDashboardPage() {
     const [loading, setLoading] = useState(() => !peekFestOrganizerDashboard(festId));
     const [error, setError] = useState('');
     const [qrOpen, setQrOpen] = useState(false);
+    const [auditoriumPending, setAuditoriumPending] = useState([]);
     const staleRetry = useRef(null);
+    const pluginId = getFestPlugin(festId).id;
 
     const load = async ({ quiet = false, attempt = 0 } = {}) => {
         if (!quiet) setLoading(true);
@@ -372,6 +376,19 @@ export default function FestOrganizerDashboardPage() {
         load({ quiet: Boolean(cached) });
         return () => clearTimeout(staleRetry.current);
     }, [festId]);
+
+    useEffect(() => {
+        if (pluginId !== 'mindspark') return undefined;
+        let cancelled = false;
+        fetchFestOrganizerAuditoriumRoster(festId, { status: 'pending', limit: 500 })
+            .then((res) => {
+                if (!cancelled) setAuditoriumPending(res?.tickets || []);
+            })
+            .catch(() => {
+                if (!cancelled) setAuditoriumPending([]);
+            });
+        return () => { cancelled = true; };
+    }, [festId, pluginId]);
 
     const comps = useMemo(
         () => (data?.competitions || []).filter((c) => c.id),
@@ -661,6 +678,51 @@ export default function FestOrganizerDashboardPage() {
                     </button>
                 ))}
             </div>
+
+            {plugin.id === 'mindspark' ? (
+                <section className="rounded-2xl border border-amber-400/20 bg-[#161718] p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <div>
+                            <h2 className="text-sm font-semibold text-white inline-flex items-center gap-2">
+                                <Ticket size={16} className="text-[#0ECCEE]" /> Cult Night passes
+                            </h2>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                                30 Sep: 1st, 2nd, MBA. 1 Oct: 3rd, 4th, M.Tech.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/fest-organizer/fests/${festId}/auditorium`)}
+                            className="text-xs text-[#0ECCEE] inline-flex items-center gap-1"
+                        >
+                            Review <ArrowRight size={12} />
+                        </button>
+                    </div>
+                    <div className="space-y-3">
+                        {CULT_NIGHT_PASS_DAYS.map((day) => (
+                            <div key={day.id} className="space-y-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#0ECCEE]">{day.label}</p>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {day.years.map((year) => {
+                                        const count = auditoriumPending.filter((ticket) => ticket.categoryId === year.id).length;
+                                        return (
+                                            <button
+                                                key={year.id}
+                                                type="button"
+                                                onClick={() => navigate(`/fest-organizer/fests/${festId}/auditorium?year=${year.id}`)}
+                                                className="rounded-xl border border-white/10 bg-white/3 px-3 py-2.5 text-left hover:border-[#0ECCEE]/40"
+                                            >
+                                                <p className={`text-lg font-bold tabular-nums leading-none ${count ? 'text-amber-200' : 'text-white'}`}>{count}</p>
+                                                <p className="text-[11px] text-gray-400 mt-1">{year.label}</p>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            ) : null}
 
             {hideProShow ? (
                 <section className="space-y-3">
