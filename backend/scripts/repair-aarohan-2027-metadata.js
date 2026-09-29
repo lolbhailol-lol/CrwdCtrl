@@ -62,7 +62,7 @@ const FIXES = {
     teamSizeMin: 1,
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
-    feeAmount: 500,
+    feeAmount: 600,
     registrationStatus: 'internal_form',
   },
   'Head Bang': {
@@ -82,7 +82,7 @@ const FIXES = {
     teamSizeMin: 1,
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
-    feeAmount: 500,
+    feeAmount: 600,
     registrationStatus: 'internal_form',
   },
   Dastak: {
@@ -102,7 +102,7 @@ const FIXES = {
     teamSizeMin: 1,
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
-    feeAmount: 500,
+    feeAmount: 600,
     registrationStatus: 'internal_form',
   },
   'Art Maestro': {
@@ -112,7 +112,7 @@ const FIXES = {
     teamSizeMin: 1,
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
-    feeAmount: 500,
+    feeAmount: 600,
     registrationStatus: 'internal_form',
   },
   'Glamour Nova': {
@@ -122,7 +122,7 @@ const FIXES = {
     teamSizeMin: 1,
     teamSizeMax: 1,
     teamSizeLabel: 'Solo',
-    feeAmount: 600,
+    feeAmount: 800,
     registrationStatus: 'internal_form',
   },
   'Box Football': {
@@ -132,7 +132,7 @@ const FIXES = {
     teamSizeMin: 8,
     teamSizeMax: 8,
     teamSizeLabel: 'Team of 8',
-    feeAmount: 1000,
+    feeAmount: 1200,
     registrationStatus: 'not_started',
   },
   'Box Cricket': {
@@ -142,7 +142,7 @@ const FIXES = {
     teamSizeMin: 7,
     teamSizeMax: 7,
     teamSizeLabel: 'Team of 7',
-    feeAmount: 1000,
+    feeAmount: 1200,
     registrationStatus: 'not_started',
   },
   BGMI: {

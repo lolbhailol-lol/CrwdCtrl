@@ -1,0 +1,425 @@
+{
+  "source": "AAROHAN RULEBOOK 2027",
+  "competitions": [
+    {
+      "name": "InSync",
+      "aliases": [],
+      "feeAmount": 2500,
+      "prizePool": "Winner: ₹35,000\nRunner-up: ₹20,000",
+      "teamSizeMin": 6,
+      "teamSizeMax": 20,
+      "teamSizeLabel": "Team of 6-20",
+      "rounds": [
+        {
+          "title": "Offline / Online Elimination Round",
+          "rules": [
+            "Offline elimination follows the Final Round rules.",
+            "50% of the registration fee shall be refunded only upon elimination."
+          ],
+          "onlineRules": [
+            "Submit an unedited video of a previous or recent performance.",
+            "The video must be at most 4 minutes long.",
+            "Send the video to aarohan.competitions2027@gmail.com.",
+            "The registration fee will only be refunded if the team is eliminated."
+          ]
+        },
+        {
+          "title": "Final Round",
+          "rules": [
+            "The performance time limit, measured from empty stage to empty stage, is 8 minutes.",
+            "Teams must have 6-20 members.",
+            "Open flames and live animals are not allowed on stage.",
+            "Maintain decency in costumes and apparel.",
+            "Costumes must be approved before the event.",
+            "Bring the track on a pen drive and keep backups on phone and email.",
+            "Teams must arrange their own props and materials.",
+            "Powder and liquid props are not allowed.",
+            "Exceeding 8 minutes loses all time-criterion points; further penalties are at the judges’ discretion."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Head Bang",
+      "aliases": [],
+      "feeAmount": 2500,
+      "prizePool": "Winner: ₹35,000\nRunner-up: ₹20,000",
+      "teamSizeMin": 4,
+      "teamSizeMax": 16,
+      "teamSizeLabel": "Team of 4-16",
+      "rounds": [
+        {
+          "title": "Offline / Online Elimination Round",
+          "rules": [
+            "Offline elimination follows the Final Round rules.",
+            "50% of the registration fee shall be refunded only upon elimination."
+          ],
+          "onlineRules": [
+            "Submit an unedited video of a previous or recent performance.",
+            "The video must be at most 8 minutes long.",
+            "Send the video to aarohan.competitions2027@gmail.com.",
+            "The registration fee will only be refunded if the band is eliminated."
+          ]
+        },
+        {
+          "title": "Final Round",
+          "rules": [
+            "The performance time limit, measured from empty stage to empty stage, is 15 minutes.",
+            "Bands must have 4-16 members.",
+            "Metal music is prohibited.",
+            "Organizers provide a drum set and sound system.",
+            "Teams must arrange all other instruments.",
+            "Exceeding 15 minutes loses all time-criterion points; further penalties are at the judges’ discretion."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dastak",
+      "aliases": [],
+      "feeAmount": 2500,
+      "prizePool": "Winner: ₹35,000\nRunner-up: ₹20,000",
+      "teamSizeMin": 4,
+      "teamSizeMax": 20,
+      "teamSizeLabel": "Team of 4-20",
+      "rounds": [
+        {
+          "title": "Offline / Online Elimination Round",
+          "rules": [
+            "Offline elimination follows the Final Round rules.",
+            "50% of the registration fee shall be refunded only upon elimination."
+          ],
+          "onlineRules": [
+            "Submit an unedited video of a previous or recent performance.",
+            "The video must be at most 8 minutes long.",
+            "Send the video to aarohan.competitions2027@gmail.com.",
+            "The registration fee will only be refunded if the team is eliminated."
+          ]
+        },
+        {
+          "title": "Final Round",
+          "rules": [
+            "The performance time limit, measured from empty space to empty space, is 20 minutes.",
+            "Teams must have 4-20 members.",
+            "Open flames and live animals are not allowed.",
+            "Teams must arrange their own props and materials.",
+            "Music instruments must be handy; an electrical output will be provided.",
+            "Exceeding 20 minutes loses all time-criterion points; further penalties are at the judges’ discretion."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Inner Flame",
+      "aliases": [],
+      "feeAmount": 600,
+      "prizePool": "Winner: ₹14,000\nRunner-up: ₹10,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Offline / Online Elimination Round",
+          "rules": [
+            "Offline elimination follows the Final Round rules."
+          ],
+          "onlineRules": [
+            "Submit an unedited video of a previous or recent performance.",
+            "The video must be at most 90 seconds long.",
+            "Send the video to aarohan.competitions2027@gmail.com."
+          ]
+        },
+        {
+          "title": "Final Round",
+          "rules": [
+            "The performance time limit, measured from empty stage to empty stage, is 4 minutes.",
+            "Maintain decency in costumes and apparel.",
+            "Bring the soundtrack on a pen drive and keep backups on phone and email.",
+            "Participants must arrange their own props and inform organizers beforehand.",
+            "Powder and liquid props are not allowed.",
+            "Exceeding 4 minutes loses all time-criterion points; further penalties are at the judges’ discretion."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Humming",
+      "aliases": [],
+      "feeAmount": 600,
+      "prizePool": "Winner: ₹14,000\nRunner-up: ₹10,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Offline / Online Elimination Round",
+          "rules": [
+            "Offline elimination follows the Final Round rules."
+          ],
+          "onlineRules": [
+            "Submit an unedited video of a previous or recent performance.",
+            "The video must be at most 90 seconds long.",
+            "Send the video to aarohan.competitions2027@gmail.com."
+          ]
+        },
+        {
+          "title": "Final Round",
+          "rules": [
+            "The performance time limit, measured from empty stage to empty stage, is 3 minutes.",
+            "Maintain decency in costumes and apparel.",
+            "Bring the karaoke track, if needed, on a pen drive and keep backups on phone and email.",
+            "Participants must arrange their own props and inform organizers beforehand.",
+            "Exceeding 3 minutes loses all time-criterion points; further penalties are at the judges’ discretion."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Platform",
+      "aliases": [],
+      "feeAmount": 600,
+      "prizePool": "Winner: ₹14,000\nRunner-up: ₹10,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Final Round",
+          "rules": [
+            "The performance time limit, measured from empty stage to empty stage, is 5 minutes.",
+            "Open flames and live animals are not allowed on stage.",
+            "Maintain decency in costumes and apparel.",
+            "Allowed acts include stand-up comedy, slam poetry, storytelling, shayari, beatboxing, rapping and mono-acting.",
+            "Submit the script for censoring at least 10 days before the event to aarohan.competitions2027@gmail.com with subject “Platform”.",
+            "The act must be in English, Hindi or Marathi.",
+            "Exceeding 5 minutes loses all time-criterion points; further penalties are at the judges’ discretion."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Art Maestro",
+      "aliases": [],
+      "feeAmount": 600,
+      "prizePool": "Winner: ₹14,000\nRunner-up: ₹10,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Final Round",
+          "rules": [
+            "The artwork must be completed within 90 minutes.",
+            "All media are allowed except disruptive, toxic or messy materials such as spray paint, solvents, ink and glitter.",
+            "Organizers provide a 140 gsm A3 cartridge sheet, poster colors, HB/2B/4B pencils, eraser, sharpener and water.",
+            "Participants must bring any additional tools or materials.",
+            "Themes will be announced by the organizing team.",
+            "Exceeding 90 minutes loses all time-criterion points; further penalties are at the judges’ discretion."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Euphony",
+      "aliases": [],
+      "feeAmount": 600,
+      "prizePool": "Winner: ₹14,000\nRunner-up: ₹10,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Final Round",
+          "rules": [
+            "The performance time limit, measured from empty stage to empty stage, is 5 minutes.",
+            "Organizers provide a drum kit and sound system; participants must bring all other instruments and accessories.",
+            "Backing tracks must be submitted for screening at least 5 days before the event.",
+            "Bring the track on a pen drive and email, with a backup on the participant’s phone.",
+            "No fee refund is available under any circumstances.",
+            "Organizer and judge decisions are final and binding."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Glamour Nova",
+      "aliases": [],
+      "feeAmount": 800,
+      "prizePool": "Winner (Male): ₹14,000\nRunner-up (Male): ₹10,000\nWinner (Female): ₹14,000\nRunner-up (Female): ₹10,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Offline Elimination Round",
+          "rules": [
+            "There are two rounds for all participants.",
+            "The performance, including introduction, is limited to 5 minutes.",
+            "Outfit and makeup are not provided for the elimination round.",
+            "Participants must attend MIT-WPU campus at the assigned date and time.",
+            "Costumes must be approved one week before the event.",
+            "Organizers are not responsible for pageant delays.",
+            "Maintain decency in every respect.",
+            "Send costume details to aarohan.competitions2027@gmail.com."
+          ]
+        },
+        {
+          "title": "Final Round",
+          "rules": [
+            "There are two rounds for all participants.",
+            "The performance, including introduction, is limited to 5 minutes.",
+            "Provide body measurements for the outfit.",
+            "Participants must bring their own makeup.",
+            "Participants must attend MIT-WPU campus at the assigned fitting date and time.",
+            "Organizers are not responsible for pageant delays.",
+            "Maintain decency in every respect."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Box Football",
+      "aliases": [],
+      "feeAmount": 1200,
+      "prizePool": "Winner: ₹12,000\nRunner-up: ₹8,000",
+      "teamSizeMin": 8,
+      "teamSizeMax": 8,
+      "teamSizeLabel": "Team of 8",
+      "rounds": [
+        {
+          "title": "Matches",
+          "rules": [
+            "Eight registered players per team: six on the pitch and two substitutes.",
+            "All eight players must be present before their slot; late players cannot join later.",
+            "Each match has two 10-minute halves and a 5-minute break, with no extra time.",
+            "All players must carry valid ID; player swapping is not allowed.",
+            "There is no offside rule. Kick-offs are from halfway; kick-ins and corners are allowed.",
+            "Unlimited rolling substitutions are allowed after the exiting player leaves the playing area.",
+            "Penalty kicks are no-step penalties.",
+            "Slide tackles are prohibited; sliding to control the ball is allowed only when no opponent is nearby.",
+            "Two yellow cards or a direct red card dismisses a player from the match.",
+            "Goalkeepers cannot pick up a deliberate pass from a teammate.",
+            "Drawn matches are decided by a three-penalty shoot-out followed by sudden death.",
+            "Sudden-death takers must differ from the first three takers; red-carded players cannot take penalties.",
+            "Shin pads are advised; organizers are not responsible for injury.",
+            "Direct free kicks are allowed.",
+            "A drop ball restarts play after a temporary stoppage."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Box Cricket",
+      "aliases": [],
+      "feeAmount": 1200,
+      "prizePool": "Winner: ₹12,000\nRunner-up: ₹8,000",
+      "teamSizeMin": 7,
+      "teamSizeMax": 7,
+      "teamSizeLabel": "Team of 7",
+      "rounds": [
+        {
+          "title": "Matches",
+          "rules": [
+            "Seven registered players per team: six players and one substitute.",
+            "Each innings is 6 overs; each bowler may bowl at most 1 over.",
+            "No byes, leg byes or LBW.",
+            "All seven players must be present before their slot; late players cannot join later.",
+            "All players must carry valid ID; player swapping is not allowed.",
+            "Only full-arm bowling is allowed.",
+            "The run-up is limited to 2 steps.",
+            "Intensive sledging is prohibited.",
+            "Touching the top net scores 4; a net-touch catch is not out.",
+            "Runs and overthrows are allowed while the ball remains in the playing area.",
+            "A wide awards 1 run.",
+            "A grounded hit through the batsman’s opposite side scores 4.",
+            "A direct net hit on the batsman’s opposite side scores 6.",
+            "A no-ball gives a free hit."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Solo Smash",
+      "aliases": [
+        "Badminton (Solo)"
+      ],
+      "feeAmount": 300,
+      "prizePool": "Winner (Male): ₹5,000\nRunner-up (Male): ₹3,000\nWinner (Female): ₹5,000\nRunner-up (Female): ₹3,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Elimination Rounds",
+          "rules": [
+            "Bring your own rackets and shuttlecocks.",
+            "Non-marking shoes are compulsory.",
+            "No hooting or shouting is allowed.",
+            "Participants must wear proper sports attire; pajamas and shorts are allowed.",
+            "The first round is played to 11 points and all other rounds are played to 15 points.",
+            "Only 1 minute is allowed for knocking before the match.",
+            "All rounds are elimination rounds."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Shuttle Synergy",
+      "aliases": [
+        "Badminton (Duo)"
+      ],
+      "feeAmount": 500,
+      "prizePool": "Winner (Male): ₹8,000\nRunner-up (Male): ₹5,000\nWinner (Female): ₹8,000\nRunner-up (Female): ₹5,000",
+      "teamSizeMin": 2,
+      "teamSizeMax": 2,
+      "teamSizeLabel": "Duo",
+      "rounds": [
+        {
+          "title": "Elimination Rounds",
+          "rules": [
+            "Bring your own rackets and shuttlecocks.",
+            "Non-marking shoes are compulsory.",
+            "No hooting or shouting is allowed.",
+            "Participants must wear proper sports attire; pajamas and shorts are allowed.",
+            "The first round is played to 11 points and all other rounds are played to 15 points.",
+            "Only 1 minute is allowed for knocking before the match.",
+            "All rounds are elimination rounds."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Velocity Table",
+      "aliases": [
+        "Table Tennis"
+      ],
+      "feeAmount": 250,
+      "prizePool": "Winner: ₹5,000\nRunner-up: ₹3,000",
+      "teamSizeMin": 1,
+      "teamSizeMax": 1,
+      "teamSizeLabel": "Solo",
+      "rounds": [
+        {
+          "title": "Knockout / Elimination Rounds",
+          "rules": [
+            "Organizers provide tables, rackets and balls.",
+            "Wear comfortable sports attire and suitable footwear.",
+            "Report 15 minutes before the allotted match time.",
+            "All matches use a knockout/elimination format.",
+            "Each match is best of 3 games; each game is played to 11 points.",
+            "A game must be won by 2 points; at 10-10 play continues until a two-point lead.",
+            "There is no second serve; a service fault awards the opponent a point.",
+            "Volleying is not allowed; the ball must bounce once on the player’s side.",
+            "First server is decided by toss.",
+            "Service alternates every 2 points and every point at 10-10.",
+            "Players change ends after every game and at 5 points in the deciding game.",
+            "Touching the table with the non-racket hand or racket during play awards the opponent a point.",
+            "Hooting, abuse, deliberate distraction or unsportsmanlike conduct may cause warning, penalty or disqualification.",
+            "The referee or organizing committee decides injury or postponement matters.",
+            "Referee and organizing committee decisions are final and binding."
+          ]
+        }
+      ]
+    }
+  ]
+}
