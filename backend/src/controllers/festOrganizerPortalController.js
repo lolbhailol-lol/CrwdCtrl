@@ -49,7 +49,7 @@ const { countFestDayAttendees, rosterDetails } = require('../utils/festDayHeadco
 const TOKEN_TTL = '7d';
 const MINDSPARK_MONEY_TTL_MS = 20000;
 const DASHBOARD_SNAP_TTL_MS = 20000;
-const DASHBOARD_SNAP_STALE_MS = 5 * 60 * 1000;
+const DASHBOARD_SNAP_STALE_MS = 30 * 60 * 1000;
 const mindsparkMoneyCache = new Map();
 const dashboardSnapCache = new Map();
 const dashboardRefreshInflight = new Set();
@@ -913,7 +913,7 @@ exports.getDashboard = async (req, res) => {
         if (isMindSparkFestId(festId)) {
             const snap = readDashboardSnap(festId);
             if (snap) {
-                res.json(snap.body);
+                res.json(snap.fresh ? snap.body : { ...snap.body, snapshotStale: true });
                 sent = true;
                 if (snap.fresh || dashboardRefreshInflight.has(dashKey)) return;
                 dashboardRefreshInflight.add(dashKey);

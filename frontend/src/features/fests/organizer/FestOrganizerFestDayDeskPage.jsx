@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   fetchFestDayDesk,
+  peekFestDayDesk,
   clearExpiredFestDayDeskEntries,
   deleteFestDayDeskDrafts,
   createFestDayAssistedRegistration,
@@ -536,14 +537,14 @@ export default function FestOrganizerFestDayDeskPage() {
   const organizerSession = getFestOrganizerSession();
   const isDeskRole = organizerSession?.organizer?.portalRole === "desk";
   const canRefund = !isDeskRole;
-  const [competitions, setCompetitions] = useState([]);
-  const [activity, setActivity] = useState([]);
-  const [bundleActivity, setBundleActivity] = useState([]);
+  const [competitions, setCompetitions] = useState(() => peekFestDayDesk(festId)?.competitions || []);
+  const [activity, setActivity] = useState(() => peekFestDayDesk(festId)?.activity || []);
+  const [bundleActivity, setBundleActivity] = useState(() => peekFestDayDesk(festId)?.bundleActivity || []);
   const [query, setQuery] = useState("");
   const [activityQuery, setActivityQuery] = useState("");
   const [selected, setSelected] = useState(null);
   const [deskQrPreview, setDeskQrPreview] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !peekFestDayDesk(festId)?.competitions?.length);
   const [refreshing, setRefreshing] = useState(false);
   const [busyOrder, setBusyOrder] = useState("");
   const [clearingExpired, setClearingExpired] = useState(false);
@@ -552,7 +553,7 @@ export default function FestOrganizerFestDayDeskPage() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [bundleOpen, setBundleOpen] = useState(false);
   const [activityView, setActivityView] = useState("unpaid");
-  const catalogLoadedRef = useRef(false);
+  const catalogLoadedRef = useRef(Boolean(peekFestDayDesk(festId)?.competitions?.length));
   const [lastQr, setLastQr] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem(`desk-last-qr:${festId}`) || "null");

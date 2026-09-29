@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { RefreshCw, Search, ChevronRight, Trophy, UserPlus, QrCode, MessageCircle, Download, Loader } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
+    peekFestOrganizerDashboard,
     updateFestOrganizerCompetitionSlots,
     exportFestOrganizerParticipants,
 } from '../../../services/api/festOrganizer.api';
@@ -39,11 +40,14 @@ export default function FestOrganizerCompetitionsPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
     const { toast } = useDialog();
-    const [rows, setRows] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [rows, setRows] = useState(() => peekFestOrganizerDashboard(festId)?.competitions || []);
+    const [loading, setLoading] = useState(() => !peekFestOrganizerDashboard(festId));
     const [error, setError] = useState('');
-    const [fest, setFest] = useState(null);
-    const [stats, setStats] = useState(null);
+    const [fest, setFest] = useState(() => {
+        const cached = peekFestOrganizerDashboard(festId);
+        return cached?.fest ? { ...cached.fest, _id: cached.fest.id || cached.fest._id || festId } : null;
+    });
+    const [stats, setStats] = useState(() => peekFestOrganizerDashboard(festId)?.stats || null);
     const [activeTab, setActiveTab] = useState('ALL');
     const [query, setQuery] = useState('');
     const [slotsBusyId, setSlotsBusyId] = useState('');
@@ -51,8 +55,8 @@ export default function FestOrganizerCompetitionsPage() {
     const [qrBusyId, setQrBusyId] = useState('');
     const [exportBusyId, setExportBusyId] = useState('');
 
-    const load = async () => {
-        setLoading(true);
+    const load = async ({ quiet = false } = {}) => {
+        if (!quiet) setLoading(true);
         setError('');
         try {
             const data = await fetchFestOrganizerDashboard(festId);
@@ -60,14 +64,14 @@ export default function FestOrganizerCompetitionsPage() {
             setRows(data.competitions || []);
             setStats(data.stats || null);
         } catch (e) {
-            setError(e.message || 'Failed to load competitions');
+            if (!quiet) setError(e.message || 'Failed to load competitions');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        load();
+        load({ quiet: Boolean(peekFestOrganizerDashboard(festId)) });
     }, [festId]);
 
     const toggleShowSlotsPublic = async (competition, next) => {

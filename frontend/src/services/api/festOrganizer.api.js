@@ -178,16 +178,66 @@ export async function fetchFestOrganizerMe() {
     return festOrganizerFetch('/fest-organizer/me');
 }
 
+const viewCache = new Map();
+const viewInflight = new Map();
+
+function viewKey(key) {
+    return `${String(getFestOrganizerToken() || '').slice(-16)}:${key}`;
+}
+
+function readView(rawKey) {
+    const key = viewKey(rawKey);
+    if (viewCache.has(key)) return viewCache.get(key);
+    try {
+        const raw = sessionStorage.getItem(`fo-view:${key}`);
+        if (raw) {
+            const data = JSON.parse(raw);
+            viewCache.set(key, data);
+            return data;
+        }
+    } catch { /* storage unavailable */ }
+    return null;
+}
+
+function rememberView(rawKey, data) {
+    const key = viewKey(rawKey);
+    viewCache.set(key, data);
+    try {
+        sessionStorage.setItem(`fo-view:${key}`, JSON.stringify(data));
+    } catch { /* quota or private mode: memory copy still works */ }
+}
+
+function fetchView(key, path, options) {
+    if (viewInflight.has(key)) return viewInflight.get(key);
+    const run = festOrganizerFetch(path, options)
+        .then((data) => {
+            rememberView(key, data);
+            return data;
+        })
+        .finally(() => viewInflight.delete(key));
+    viewInflight.set(key, run);
+    return run;
+}
+
+/** Last dashboard seen this session, for instant paint before the refresh lands. */
+export function peekFestOrganizerDashboard(festId) {
+    return readView(`dash:${festId}`);
+}
+
 export async function fetchFestOrganizerDashboard(festId) {
-    return festOrganizerFetch(`/fest-organizer/fests/${festId}/dashboard`, { timeout: 45000, retries: 0 });
+    return fetchView(`dash:${festId}`, `/fest-organizer/fests/${festId}/dashboard`, { timeout: 45000, retries: 0 });
+}
+
+export function peekFestDayDesk(festId) {
+    return readView(`desk:${festId}`);
 }
 
 export async function fetchFestDayDesk(festId, params = {}) {
     const qs = new URLSearchParams(params).toString();
-    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk${qs ? `?${qs}` : ''}`, {
-        retries: 0,
-        timeout: 20000,
-    });
+    const path = `/fest-organizer/fests/${festId}/fest-day-desk${qs ? `?${qs}` : ''}`;
+    const options = { retries: 0, timeout: 20000 };
+    if (qs) return festOrganizerFetch(path, options);
+    return fetchView(`desk:${festId}`, path, options);
 }
 
 export async function createFestDayDeskBundle(festId, body) {

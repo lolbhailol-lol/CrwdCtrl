@@ -7,6 +7,13 @@ const session = createPortalSession({
 
 export const getFestOrganizerSession = session.get;
 export const setFestOrganizerSession = session.set;
-export const clearFestOrganizerSession = session.clear;
+export function clearFestOrganizerSession(...args) {
+    try {
+        Object.keys(sessionStorage)
+            .filter((key) => key.startsWith('fo-view:'))
+            .forEach((key) => sessionStorage.removeItem(key));
+    } catch { /* storage unavailable */ }
+    return session.clear(...args);
+}
 export const getFestOrganizerToken = session.token;
 export const isFestOrganizerTokenExpired = session.isExpired;

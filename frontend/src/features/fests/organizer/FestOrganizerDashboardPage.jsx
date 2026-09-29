@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Users, UserCheck, Clock, IndianRupee, Bell, QrCode, ExternalLink, RefreshCw,
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
+    peekFestOrganizerDashboard,
     exportFestOrganizerParticipants,
     fetchFestOrganizerParticipants,
     updateFestOrganizerParticipantStatus,
@@ -342,26 +343,34 @@ function SimpleOrganizerDashboard({ fest, stats, competitions, festId, navigate,
 export default function FestOrganizerDashboardPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
-    const [data, setData] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [data, setData] = useState(() => peekFestOrganizerDashboard(festId));
+    const [loading, setLoading] = useState(() => !peekFestOrganizerDashboard(festId));
     const [error, setError] = useState('');
     const [qrOpen, setQrOpen] = useState(false);
+    const staleRetry = useRef(null);
 
-    const load = async () => {
-        setLoading(true);
+    const load = async ({ quiet = false, attempt = 0 } = {}) => {
+        if (!quiet) setLoading(true);
         setError('');
         try {
             const dash = await fetchFestOrganizerDashboard(festId);
             setData(dash);
+            clearTimeout(staleRetry.current);
+            if (dash?.snapshotStale && attempt < 3) {
+                staleRetry.current = setTimeout(() => load({ quiet: true, attempt: attempt + 1 }), 3000);
+            }
         } catch (e) {
-            setError(e.message || 'Failed to load dashboard');
+            if (!quiet) setError(e.message || 'Failed to load dashboard');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        load();
+        const cached = peekFestOrganizerDashboard(festId);
+        setData(cached);
+        load({ quiet: Boolean(cached) });
+        return () => clearTimeout(staleRetry.current);
     }, [festId]);
 
     const comps = useMemo(

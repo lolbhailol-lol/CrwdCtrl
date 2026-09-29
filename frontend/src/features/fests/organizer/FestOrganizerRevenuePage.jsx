@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowRight, IndianRupee, MessageCircle, Phone, RefreshCw,
@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import {
     fetchFestOrganizerDashboard,
+    peekFestOrganizerDashboard,
     fetchFestOrganizerNotifyContacts,
 } from '../../../services/api/festOrganizer.api';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
@@ -27,29 +28,36 @@ function telLink(phone) {
 export default function FestOrganizerRevenuePage() {
     const { festId } = useParams();
     const navigate = useNavigate();
-    const [data, setData] = useState(null);
+    const [data, setData] = useState(() => peekFestOrganizerDashboard(festId));
     const [unpaid, setUnpaid] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(() => !peekFestOrganizerDashboard(festId));
     const [error, setError] = useState('');
-    const load = async () => {
-        setLoading(true);
+    const staleRetry = useRef(null);
+    const load = async ({ quiet = false, attempt = 0 } = {}) => {
+        if (!quiet) setLoading(true);
         setError('');
+        fetchFestOrganizerNotifyContacts(festId, { audience: 'unpaid', limit: 40 })
+            .then((contacts) => setUnpaid(contacts?.contacts || []))
+            .catch(() => {});
         try {
-            const [dash, contacts] = await Promise.all([
-                fetchFestOrganizerDashboard(festId),
-                fetchFestOrganizerNotifyContacts(festId, { audience: 'unpaid', limit: 40 }).catch(() => null),
-            ]);
+            const dash = await fetchFestOrganizerDashboard(festId);
             setData(dash);
-            setUnpaid(contacts?.contacts || []);
+            clearTimeout(staleRetry.current);
+            if (dash?.snapshotStale && attempt < 3) {
+                staleRetry.current = setTimeout(() => load({ quiet: true, attempt: attempt + 1 }), 3000);
+            }
         } catch (e) {
-            setError(e.message || 'Failed to load revenue');
+            if (!quiet) setError(e.message || 'Failed to load revenue');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        load();
+        const cached = peekFestOrganizerDashboard(festId);
+        setData(cached);
+        load({ quiet: Boolean(cached) });
+        return () => clearTimeout(staleRetry.current);
     }, [festId]);
 
     const { stats, competitions = [], fest } = data || {};
