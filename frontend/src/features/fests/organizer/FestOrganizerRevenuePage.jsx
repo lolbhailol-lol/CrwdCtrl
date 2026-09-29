@@ -119,7 +119,7 @@ export default function FestOrganizerRevenuePage() {
                 </p>
                 {mindSparkMode && Number(stats.cashfreeLockRevenue) > 0 ? (
                     <p className="text-[11px] text-gray-400 mt-2">
-                        {`Cashfree locked ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay after gateway fee ₹${Number(stats.razorpayPaidRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}${Number(stats.additionalDeduction) > 0 ? ` − ₹${Number(stats.additionalDeduction).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : ''}`}
+                        {`Cashfree locked ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay after gateway fee ₹${Number(stats.razorpayPaidRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
                     </p>
                 ) : null}
                 <p className="text-[11px] text-gray-400 mt-1">

@@ -165,14 +165,16 @@ function mindSparkLockedTotals({
   const rzBaseRevenue = round2(Number(override.razorpayPaidRevenue) || 0);
   const cfGross = round2(Math.max(Number(cashfreeGross) || 0, cfLockGross));
   const cfRevenue = round2(Math.max(Number(cashfreeRevenue) || 0, cfLockRevenue));
-  const rzGross = round2(Math.max(Number(razorpayGross) || 0, rzBaseGross));
-  const rzRevenue = rzGross <= rzBaseGross + 0.009
+  const rzLiveGross = round2(Math.max(Number(razorpayGross) || 0, rzBaseGross));
+  const rzLiveRevenue = rzLiveGross <= rzBaseGross + 0.009
     ? rzBaseRevenue
-    : round2(rzGross * (1 - feeRate));
+    : round2(rzLiveGross * (1 - feeRate));
+  const rzGross = round2(Math.max(0, rzLiveGross - additionalDeduction));
+  const rzRevenue = round2(Math.max(0, rzLiveRevenue - additionalDeduction));
   const grossCollected = round2(cfGross + rzGross);
   return {
     grossCollected,
-    revenue: round2(Math.max(0, cfRevenue + rzRevenue - additionalDeduction)),
+    revenue: round2(cfRevenue + rzRevenue),
     additionalDeduction,
     gatewayFees: round2(grossCollected * feeRate),
     razorpayPaidGross: rzGross,

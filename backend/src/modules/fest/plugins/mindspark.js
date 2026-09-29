@@ -28,7 +28,7 @@ const mindsparkPlugin = {
         razorpayPaidGross: 9314,
         razorpayPaidRevenue: 9165,
         gatewayFeeRate: 0.0195,
-        // Taken off the fest total. Live Razorpay keeps adding on top of what remains.
+        // Taken off the Razorpay amount. New Razorpay payments still add on top.
         additionalDeduction: 5000,
     },
 };

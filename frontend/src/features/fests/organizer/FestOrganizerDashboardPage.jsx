@@ -634,12 +634,6 @@ export default function FestOrganizerDashboardPage() {
                                 Razorpay after gateway fee ₹
                                 {Number(stats.razorpayPaidRevenue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                             </p>
-                            {Number(stats.additionalDeduction) > 0 ? (
-                                <p>
-                                    Adjustment −₹
-                                    {Number(stats.additionalDeduction).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                                </p>
-                            ) : null}
                         </div>
                     ) : null}
                     <p className="text-[11px] text-gray-500 mt-1">

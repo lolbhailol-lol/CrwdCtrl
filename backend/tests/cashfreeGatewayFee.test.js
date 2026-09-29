@@ -212,5 +212,6 @@ test('locked Cashfree 435303 stays put while live Razorpay above 9314 increases 
   });
   assert.equal(adjusted.revenue, 440451.98);
   assert.equal(adjusted.cashfreeRevenue, 435303);
-  assert.equal(adjusted.razorpayPaidGross, 10314);
+  assert.equal(adjusted.razorpayPaidGross, 5314);
+  assert.equal(adjusted.razorpayPaidRevenue, 5148.98);
 });
