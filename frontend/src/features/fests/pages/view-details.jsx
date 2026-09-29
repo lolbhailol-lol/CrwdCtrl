@@ -80,6 +80,116 @@ function getPrimaryPhone(contacts = []) {
   return null;
 }
 
+function parseContactPhones(phone) {
+  return String(phone || '')
+    .split(/\s*(?:,|\/)\s*/)
+    .filter(Boolean)
+    .map((entry) => {
+      const nameMatch = entry.match(/\(([^)]+)\)/);
+      return {
+        name: nameMatch ? nameMatch[1].trim() : null,
+        number: entry.replace(/\s*\([^)]*\)/, '').trim(),
+      };
+    })
+    .filter((p) => p.number);
+}
+
+function contactInitials(name) {
+  return String(name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('');
+}
+
+function FestContactCard({ contact, isDark }) {
+  const phones = parseContactPhones(contact.phone);
+  const everyPhoneNamed = phones.length > 0 && phones.every((p) => p.name);
+  const heading = everyPhoneNamed ? null : contact.name;
+  const instagram = String(contact.instagramId || '').replace(/^@/, '').trim();
+
+  return (
+    <div className={`rounded-2xl p-3 sm:p-3.5 border ${isDark ? 'bg-[#161718] border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+      {(heading || contact.role) && (
+        <div className="mb-2.5 px-0.5">
+          {contact.role && (
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'text-[#0ECCEE]' : 'text-[#0060DF]'}`}>
+              {contact.role}
+            </p>
+          )}
+          {heading && (
+            <p className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>{heading}</p>
+          )}
+        </div>
+      )}
+
+      {phones.length > 0 && (
+        <div className="space-y-2">
+          {phones.map((p, pi) => {
+            const label = p.name || (phones.length === 1 ? contact.name : null);
+            return (
+              <a
+                key={pi}
+                href={`tel:${p.number.replace(/[\s-]/g, '')}`}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-colors active:scale-[0.99] ${
+                  isDark ? 'bg-[#1f2021] border-white/5 hover:border-white/15' : 'bg-white border-gray-200 hover:border-[#0060DF]/40'
+                }`}
+              >
+                <span
+                  className={`size-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold ${
+                    isDark ? 'bg-[#0060DF]/20 text-[#7FB2FF]' : 'bg-[#0060DF]/10 text-[#0060DF]'
+                  }`}
+                >
+                  {label ? contactInitials(label) : <Phone size={14} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  {label && (
+                    <span className={`block text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{label}</span>
+                  )}
+                  <span className={`block text-xs tabular-nums ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{p.number}</span>
+                </span>
+                <span className="size-8 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
+                  <Phone size={14} className="text-white" />
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      )}
+
+      {(contact.email || instagram) && (
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {contact.email && (
+            <a
+              href={`mailto:${contact.email}`}
+              className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border ${
+                isDark ? 'bg-[#1f2021] border-white/10 text-gray-200' : 'bg-white border-gray-200 text-gray-700'
+              }`}
+            >
+              <Mail size={13} className="shrink-0 text-emerald-500" />
+              <span className="truncate">{contact.email}</span>
+            </a>
+          )}
+          {instagram && (
+            <a
+              href={`https://instagram.com/${instagram}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border ${
+                isDark ? 'bg-[#1f2021] border-white/10 text-gray-200' : 'bg-white border-gray-200 text-gray-700'
+              }`}
+            >
+              <Instagram size={13} className="shrink-0 text-[#dd2a7b]" />
+              @{instagram}
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatMindSparkTitle(title) {
   const raw = String(title || '').trim();
   if (!raw) return raw;
@@ -1210,75 +1320,7 @@ function EventDetailsPage() {
                     <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
                     <div className="space-y-3">
                       {pageEvent.contacts.map((contact, index) => (
-                        <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-gray-50'} rounded-xl p-3.5 transition-colors duration-300`}>
-                          <div className="mb-2">
-                            <span className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                              {contact.name || 'Contact Person'}
-                            </span>
-                            {contact.role && (
-                              <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} ml-2`}>
-                                - {contact.role}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="space-y-2.5">
-                            {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
-                              const nameMatch = entry.match(/\(([^)]+)\)/);
-                              const name = nameMatch ? nameMatch[1].trim() : null;
-                              const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                              return (
-                                <a
-                                  key={pi}
-                                  href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                  className="flex items-center gap-2.5"
-                                >
-                                  <span className="size-8 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
-                                    <Phone size={14} className="text-white" />
-                                  </span>
-                                  <span className="min-w-0">
-                                    {name ? (
-                                      <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</span>
-                                    ) : null}
-                                    <span className={`block text-sm font-medium tabular-nums ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-                                      {rawNumber}
-                                    </span>
-                                  </span>
-                                </a>
-                              );
-                            })}
-
-                            {contact.email && (
-                              <a
-                                href={`mailto:${contact.email}`}
-                                className="flex items-center gap-2.5"
-                              >
-                                <span className="size-8 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
-                                  <Mail size={14} className="text-white" />
-                                </span>
-                                <span className={`text-sm font-medium truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-                                  {contact.email}
-                                </span>
-                              </a>
-                            )}
-
-                            {contact.instagramId && (
-                              <a
-                                href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2.5"
-                              >
-                                <span className="size-8 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
-                                  <Instagram size={14} className="text-white" />
-                                </span>
-                                <span className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-                                  {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
-                                </span>
-                              </a>
-                            )}
-                          </div>
-                        </div>
+                        <FestContactCard key={index} contact={contact} isDark={isDark} />
                       ))}
                     </div>
                   </div>
@@ -1565,82 +1607,7 @@ function EventDetailsPage() {
             <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
             <div className="space-y-3">
               {pageEvent.contacts.map((contact, index) => (
-                <div
-                  key={index}
-                  className={`rounded-xl p-3 ${isDark ? 'bg-[#1f2021]' : 'bg-gray-100'}`}
-                >
-                  {(contact.name || contact.role) && (
-                    <div className="mb-2">
-                      <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {contact.name || 'Contact Person'}
-                      </span>
-                      {contact.role && (
-                        <span className={`text-xs ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          - {contact.role}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
-                      const nameMatch = entry.match(/\(([^)]+)\)/);
-                      const name = nameMatch ? nameMatch[1].trim() : null;
-                      const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                      return (
-                        <a
-                          key={pi}
-                          href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                          className="flex items-center gap-2.5"
-                        >
-                          <span className="size-9 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
-                            <Phone size={16} className="text-white" />
-                          </span>
-                          <span className="min-w-0">
-                            {name && (
-                              <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                {name}
-                              </span>
-                            )}
-                            <span className={`block text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                              {rawNumber}
-                            </span>
-                          </span>
-                        </a>
-                      );
-                    })}
-
-                    {contact.instagramId && (
-                      <a
-                        href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2.5"
-                      >
-                        <span className="size-9 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
-                          <Instagram size={16} className="text-white" />
-                        </span>
-                        <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                          {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
-                        </span>
-                      </a>
-                    )}
-
-                    {contact.email && (
-                      <a
-                        href={`mailto:${contact.email}`}
-                        className="flex items-center gap-2.5"
-                      >
-                        <span className="size-9 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
-                          <Mail size={16} className="text-white" />
-                        </span>
-                        <span className={`text-sm truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                          {contact.email}
-                        </span>
-                      </a>
-                    )}
-                  </div>
-                </div>
+                <FestContactCard key={index} contact={contact} isDark={isDark} />
               ))}
             </div>
           </section>

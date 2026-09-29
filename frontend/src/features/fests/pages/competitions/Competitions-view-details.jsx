@@ -1552,6 +1552,9 @@ function EventPage() {
             return true; // Not a custom form, so return true (not applicable)
         }
         
+        const personFields = eventData?.registration?.personFields;
+        if (Array.isArray(personFields) && personFields.length > 0) return true;
+
         const formType = eventData?.registration?.formType || 'SINGLE_STEP';
         let hasFormFields = false;
         

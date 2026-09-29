@@ -17,6 +17,17 @@ async function main() {
   const fest = (await fests.findOne({ slug: 'aarohan-2027' })) || (await fests.findOne({ festName: /aarohan\s*2027/i }));
   if (!fest) throw new Error('AAROHAN 2027 not found');
 
+  const mindspark = await fests.findOne({ slug: 'mindspark-2026' }, { projection: { 'registration.formSchema': 1 } });
+  const baseFields = (mindspark?.registration?.formSchema || []).map((f) => ({ ...f }));
+  if (!baseFields.length) throw new Error('MindSpark fest formSchema not found');
+  const baseNames = new Set(baseFields.map((f) => f.fieldName));
+  const legacyFields = (fest.registration?.formSchema || [])
+    .filter((f) => !baseNames.has(f.fieldName))
+    .map((f) => ({ ...f, required: false }));
+  const festSchema = [...baseFields, ...legacyFields];
+  console.log((DRY_RUN ? 'WOULD SET ' : 'SET ') + 'fest formSchema: ' + baseFields.map((f) => f.fieldName).join(', ') + ' + ' + legacyFields.length + ' optional legacy fields');
+  if (!DRY_RUN) await fests.updateOne({ _id: fest._id }, { $set: { 'registration.formSchema': festSchema } });
+
   const rows = await competitions.find({ fest: fest._id }).sort({ name: 1 }).toArray();
   for (const competition of rows) {
     const patch = {

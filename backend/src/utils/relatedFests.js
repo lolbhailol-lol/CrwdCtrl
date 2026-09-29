@@ -100,6 +100,7 @@ async function resolveRelatedFests(fest, { limit = RELATED_FESTS_LIMIT, seedComp
 
   const publicFilter = {
     isApproved: true,
+    hideFromExplore: { $ne: true },
     status: { $in: PUBLIC_RELATED_STATUSES },
   };
 

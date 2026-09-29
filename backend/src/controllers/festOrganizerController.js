@@ -446,7 +446,7 @@ exports.searchFests = async (req, res) => {
     try {
         const { query, festType, location, startDate, endDate } = req.query;
 
-        const filter = { isApproved: true };
+        const filter = { isApproved: true, hideFromExplore: { $ne: true } };
 
         if (query) {
             filter.$or = [
@@ -666,7 +666,8 @@ exports.getUpcomingFests = async (req, res) => {
 
         const fests = await FestOrganizer.find({
             startDate: { $gte: currentDate },
-            isApproved: true
+            isApproved: true,
+            hideFromExplore: { $ne: true },
         })
             .select('-registration.formSchema -registration.steps')
             .populate('organizer', 'name email college')
