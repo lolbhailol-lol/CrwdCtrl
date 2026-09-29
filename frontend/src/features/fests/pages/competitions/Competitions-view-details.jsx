@@ -1429,7 +1429,7 @@ function EventPage() {
 
         const names = String(c.name || '')
             .split(/\s*(?:\/|&|,| and )\s*/i)
-            .map((n) => n.replace(/^event\s*heads?\s*:?\s*/i, '').trim())
+            .map((n) => n.replace(/^event\s*heads?\s*:?\s*/i, '').replace(/^\(|\)$/g, '').trim())
             .filter((n) => n.length > 1);
         const phones = String(c.phone || '')
             .split(/\s*(?:,|\/|;)\s*/)

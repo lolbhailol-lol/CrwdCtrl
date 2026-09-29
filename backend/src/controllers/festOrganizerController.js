@@ -358,7 +358,7 @@ exports.getAllFests = async (req, res) => {
         const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 200));
 
         // Create cache key based on query parameters
-        const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy, v: 'comps-covers-1' });
+        const cacheKey = JSON.stringify({ page, limit, festType, college, search, sortBy, v: 'comps-covers-2' });
         
         const responseData = await publicFestListCache.getOrLoad(cacheKey, async () => {
             // Build filter object
@@ -375,6 +375,7 @@ exports.getAllFests = async (req, res) => {
 
             // Only show approved fests for public view
             filter.isApproved = true;
+            filter.hideFromExplore = { $ne: true };
 
             const skip = (parseInt(page) - 1) * parseInt(limit);
 

@@ -394,6 +394,12 @@ const festOrganizerSchema = new mongoose.Schema(
     default: true,
   },
 
+  /** Hide from public Explore lists while keeping direct links and organizer access. */
+  hideFromExplore: {
+    type: Boolean,
+    default: false,
+  },
+
   /** Volunteer / university scanner login — fest code + password → scan-only access */
   scannerAccess: {
     enabled: { type: Boolean, default: false },
