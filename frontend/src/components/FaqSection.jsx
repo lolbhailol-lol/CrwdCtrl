@@ -13,7 +13,7 @@ import { useDarkMode } from '../context/DarkModeContext';
  */
 export default function FaqSection({
   items = [],
-  title = 'Frequently asked questions',
+  title = 'Frequently asked questionss',
   className = '',
 }) {
   const { isDark } = useDarkMode();
