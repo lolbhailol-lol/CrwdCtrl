@@ -380,14 +380,22 @@ export default function FestOrganizerDashboardPage() {
     useEffect(() => {
         if (pluginId !== 'mindspark') return undefined;
         let cancelled = false;
-        fetchFestOrganizerAuditoriumRoster(festId, { status: 'pending', limit: 500 })
-            .then((res) => {
-                if (!cancelled) setAuditoriumPending(res?.tickets || []);
-            })
-            .catch(() => {
-                if (!cancelled) setAuditoriumPending([]);
-            });
-        return () => { cancelled = true; };
+        const loadPending = () => {
+            if (document.visibilityState !== 'visible') return;
+            fetchFestOrganizerAuditoriumRoster(festId, { status: 'pending', limit: 500 })
+                .then((res) => {
+                    if (!cancelled) setAuditoriumPending(res?.tickets || []);
+                })
+                .catch(() => {});
+        };
+        loadPending();
+        const timer = window.setInterval(loadPending, 15_000);
+        document.addEventListener('visibilitychange', loadPending);
+        return () => {
+            cancelled = true;
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', loadPending);
+        };
     }, [festId, pluginId]);
 
     const comps = useMemo(

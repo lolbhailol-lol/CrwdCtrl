@@ -2,14 +2,37 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Camera, CheckCircle, Loader, Ticket, ArrowLeft, Sparkles, IdCard, Image as ImageIcon, ChevronUp, ChevronDown, ZoomIn } from 'lucide-react';
 import { publicFetchJSON } from '../../../services/api/client';
+import { getBearerAuthHeaders, hasUsableAuthToken } from '../../../utils/authToken';
 import { useDialog } from '../../../context/DialogContext';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import AuditoriumTicketPass, { ensureAuditoriumFonts } from './AuditoriumTicketPass';
-import { CULT_NIGHT_PASS_DAYS, cultNightDayForCategory } from './cultNightPassDays';
-
 const MIN_PHOTO_PX = 160;
 const MINDSPARK_FEST = '6a7f1010ed26d983b34e55c2';
 const DRAFT_KEY = 'mindspark_auditorium_draft_v1';
+const PASS_KEY = 'mindspark_auditorium_pass_v1';
+
+const MOBILE_RE = /^[6-9]\d{9}$/;
+
+/** Keeps 10 digits; strips a pasted +91 / 0 prefix. */
+function cleanMobileInput(value) {
+  let digits = String(value || '').replace(/\D/g, '');
+  if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits.slice(0, 10);
+}
+
+function readSavedPass() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PASS_KEY) || 'null');
+    return saved?.id && saved?.access ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function guestPassPath(saved) {
+  return `/qr-ticket/${encodeURIComponent(saved.id)}?auditorium=1&access=${encodeURIComponent(saved.access)}`;
+}
 const COEP_COLLEGE = 'COEP';
 const COLLEGE_EMAIL = /@coeptech\.ac\.in$/i;
 const COLLEGE_EMAIL_MESSAGE = 'Write your college email. It must end with @coeptech.ac.in.';
@@ -533,6 +556,40 @@ export default function MindSparkAuditoriumPage() {
     ensureAuditoriumFonts();
   }, []);
 
+  const ticketStatus = ticket?.status;
+  useEffect(() => {
+    const saved = readSavedPass();
+    if (!saved || (ticketStatus && ticketStatus !== 'pending')) return undefined;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await publicFetchJSON(
+          `/mindspark/auditorium/pass/${encodeURIComponent(saved.id)}?access=${encodeURIComponent(saved.access)}`,
+          { cache: 'no-store' },
+        );
+        if (cancelled || !res?.ticket) return;
+        if (res.ticket.status === 'rejected') {
+          localStorage.removeItem(PASS_KEY);
+          setTicket(null);
+          toast('Your pass request was declined. You can request again.');
+          return;
+        }
+        setTicket(res.ticket);
+      } catch (error) {
+        if (cancelled || (error?.status !== 404 && error?.status !== 403)) return;
+        localStorage.removeItem(PASS_KEY);
+        setTicket(null);
+        toast('Your pass was removed by the organizers. You can request again.');
+      }
+    };
+    check();
+    const timer = window.setInterval(check, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [ticketStatus, toast]);
+
   const flushDraft = useCallback((override = {}) => {
     const next = {
       ...draftSnapshotRef.current,
@@ -602,21 +659,36 @@ export default function MindSparkAuditoriumPage() {
   const metaRef = useRef(null);
   metaRef.current = meta;
 
-  const loadMeta = useCallback(async () => {
+  const loadMeta = useCallback(async ({ silent = false } = {}) => {
     // Don't flash full-page loader on soft refreshes once we have meta
     if (!metaRef.current) setLoading(true);
     try {
       const qs = inviteCode ? `?code=${encodeURIComponent(inviteCode)}` : '';
-      const res = await publicFetchJSON(`/mindspark/auditorium/meta${qs}`);
+      const res = await publicFetchJSON(`/mindspark/auditorium/meta${qs}`, { cache: 'no-store' });
       setMeta(res?.data || res);
     } catch (e) {
-      toast(e.message || 'Failed to load');
+      if (!silent) toast(e.message || 'Failed to load');
     } finally {
       setLoading(false);
     }
   }, [inviteCode, toast]);
 
   useEffect(() => { loadMeta(); }, [inviteCode, loadMeta]);
+
+  useEffect(() => {
+    if (step !== 1) return undefined;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') loadMeta({ silent: true });
+    };
+    const timer = window.setInterval(refresh, 15_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [loadMeta, step]);
 
   const categories = useMemo(() => {
     const list = [...(meta?.categories || [])];
@@ -782,7 +854,13 @@ export default function MindSparkAuditoriumPage() {
       const res = await publicFetchJSON('/mindspark/auditorium/register', {
         method: 'POST',
         body: JSON.stringify(body),
+        headers: hasUsableAuthToken() ? getBearerAuthHeaders() : undefined,
       });
+      if (res.access && res.ticket?.id) {
+        try {
+          localStorage.setItem(PASS_KEY, JSON.stringify({ id: res.ticket.id, access: res.access }));
+        } catch { /* private mode: the emailed link still opens the pass */ }
+      }
       setTicket(res.ticket);
       setIssuedFresh(true);
       toast('Ticket issued');
@@ -791,6 +869,9 @@ export default function MindSparkAuditoriumPage() {
         setTicket(e.data?.ticket || e.ticket);
         setIssuedFresh(false);
         toast('You already have a ticket');
+      } else if (e.code === 'PHONE_INVALID') {
+        setStep(2);
+        toast(e.message || 'Enter a valid 10-digit mobile number');
       } else if (e.code === 'SAME_PHOTO') {
         toast(e.message || 'Face photo and college ID must be different pictures');
       } else if (e.code === 'EMAIL_VERIFICATION_REQUIRED' || e.code === 'COLLEGE_EMAIL_REQUIRED') {
@@ -830,11 +911,19 @@ export default function MindSparkAuditoriumPage() {
             WAITING FOR APPROVAL
           </h1>
           <p className="text-sm text-white/55 max-w-sm mx-auto leading-relaxed">
-            Organizers will check your ID card and photo. Once they approve, the same pass appears in My Bookings and is emailed to you.
+            Organizers will check your ID card and photo. Once they approve, your pass appears on this page automatically and is emailed to you. No login needed.
           </p>
+          {readSavedPass() ? (
+            <Link
+              to={guestPassPath(readSavedPass())}
+              className="block w-full py-3 rounded-2xl bg-[#0ECCEE] text-black text-sm font-bold"
+            >
+              Open my pass link
+            </Link>
+          ) : null}
           <Link
             to="/booking"
-            className="block w-full py-3 rounded-2xl bg-[#0ECCEE] text-black text-sm font-bold"
+            className="block w-full py-3 rounded-2xl border border-white/15 text-white/70 text-sm font-semibold"
           >
             Go to My Bookings
           </Link>
@@ -1031,61 +1120,7 @@ export default function MindSparkAuditoriumPage() {
             ) : (
               <>
                 <p className="text-sm text-white/60">Choose your year</p>
-                {CULT_NIGHT_PASS_DAYS.map((day) => {
-                  const dayCategories = day.years
-                    .map((year) => categories.find((item) => item.id === year.id))
-                    .filter(Boolean);
-                  if (!dayCategories.length) return null;
-                  return (
-                    <div key={day.id} className="space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#0ECCEE]">
-                        Pass distribution · {day.label}
-                      </p>
-                      {dayCategories.map((c) => {
-                        const full = Boolean(c.full) || (c.left != null && c.left <= 0);
-                        const seats = Number(c.seats) || 0;
-                        const left = c.left != null ? Number(c.left) : null;
-                        const filledPct = seats > 0 && left != null
-                          ? Math.min(100, Math.round(((seats - left) / seats) * 100))
-                          : null;
-                        return (
-                          <button
-                            key={c.id}
-                            type="button"
-                            disabled={full || !regOpen}
-                            onClick={() => { setCategoryId(c.id); setStep(2); }}
-                            className={`group w-full text-left rounded-2xl border px-4 py-3.5 transition duration-200 ${
-                              full
-                                ? 'border-white/5 bg-white/2 opacity-45'
-                                : 'border-white/10 bg-white/3 hover:border-[#0ECCEE]/45 hover:bg-[#0ECCEE]/05 active:scale-[0.99]'
-                            }`}
-                          >
-                            <div className="flex justify-between gap-3 items-start">
-                              <div>
-                                <p className="text-[15px] font-semibold text-white group-hover:text-[#B8F4FC] transition">
-                                  {c.label}
-                                </p>
-                                <p className="text-[10px] text-amber-200/80 mt-1">Collect on {day.label}</p>
-                              </div>
-                              <p className="text-xs tabular-nums text-white/40 shrink-0">
-                                {full ? 'Full' : left != null ? `${left} left` : ''}
-                              </p>
-                            </div>
-                            {filledPct != null && !full ? (
-                              <div className="mt-3 h-1 rounded-full bg-white/8 overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-linear-to-r from-[#0ECCEE] to-amber-300/80"
-                                  style={{ width: `${filledPct}%` }}
-                                />
-                              </div>
-                            ) : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-                {categories.filter((c) => !cultNightDayForCategory(c.id)).map((c, idx) => {
+                {categories.map((c, idx) => {
               const full = Boolean(c.full) || (c.left != null && c.left <= 0);
               const seats = Number(c.seats) || 0;
               const left = c.left != null ? Number(c.left) : null;
@@ -1145,11 +1180,6 @@ export default function MindSparkAuditoriumPage() {
             <p className="text-xs uppercase tracking-[0.16em] text-[#0ECCEE]/80">
               {selected?.label || 'Details'}
             </p>
-            {cultNightDayForCategory(categoryId) ? (
-              <p className="text-[11px] text-amber-200/80 -mt-1">
-                Pass distribution · {cultNightDayForCategory(categoryId).dayLabel}
-              </p>
-            ) : null}
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -1159,12 +1189,16 @@ export default function MindSparkAuditoriumPage() {
             />
             <input
               value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              placeholder="Phone (10 digits)"
+              onChange={(e) => setForm((f) => ({ ...f, phone: cleanMobileInput(e.target.value) }))}
+              placeholder="Mobile number (10 digits)"
               inputMode="numeric"
-              className={fieldClass}
-              autoComplete="tel"
+              type="tel"
+              className={`${fieldClass}${form.phone.length === 10 && !MOBILE_RE.test(form.phone) ? ' border-red-400/80' : ''}`}
+              autoComplete="tel-national"
             />
+            {form.phone.length === 10 && !MOBILE_RE.test(form.phone) ? (
+              <p className="text-[12px] text-red-300 -mt-1 px-1">Enter a valid mobile number starting with 6, 7, 8 or 9.</p>
+            ) : null}
             <input
               value={form.email}
               onChange={(e) => {
@@ -1203,8 +1237,12 @@ export default function MindSparkAuditoriumPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!form.name.trim() || form.phone.replace(/\D/g, '').slice(-10).length !== 10) {
-                    toast('Name and valid phone required');
+                  if (form.name.trim().length < 2) {
+                    toast('Enter your full name');
+                    return;
+                  }
+                  if (!MOBILE_RE.test(form.phone)) {
+                    toast('Enter a valid 10-digit mobile number');
                     return;
                   }
                   if (!inviteCode && !COLLEGE_EMAIL.test(form.email.trim())) {

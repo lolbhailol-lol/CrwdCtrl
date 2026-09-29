@@ -597,6 +597,24 @@ function Booking() {
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [isAuthenticated, user, token, optimisticPending]);
 
+    const hasPendingAuditorium = bookings.some(
+        (b) => b.isAuditorium && b.registrationStatus === 'pending',
+    );
+    useEffect(() => {
+        if (!hasPendingAuditorium || !isAuthenticated || !user) return undefined;
+        const timer = window.setInterval(() => {
+            if (document.hidden) return;
+            loadAllBookings(token)
+                .then(({ bookings: all }) => {
+                    const merged = mergeOptimisticPending(all, optimisticPending);
+                    setBookings(merged);
+                    writeBookingsCache(user, merged);
+                })
+                .catch(() => {});
+        }, 15_000);
+        return () => window.clearInterval(timer);
+    }, [hasPendingAuditorium, isAuthenticated, user, token, optimisticPending]);
+
     const allBookings = [...bookings];
 
     const handleViewDetails = (item) => {

@@ -8,8 +8,6 @@ const { resolveTrekGroupLink } = require('../utils/resolveTrekGroupLink');
 const { captureFlowEvent } = require('../config/sentry');
 const MindSparkBundle = require('../model/mindspark_bundle_model');
 const { getFestPlugin } = require('../modules/fest/plugins');
-const { cultNightDistributionLabel } = require('../modules/fest/plugins/mindsparkAuditorium');
-
 // ===== GET: Generate QR code for a registration =====
 const generateQR = async (req, res) => {
   try {
@@ -27,8 +25,12 @@ const generateQR = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Registration not found' });
     }
 
+    const regResponses = registration.responses instanceof Map
+      ? Object.fromEntries(registration.responses)
+      : (registration.responses || {});
+    const isAuditoriumPass = Boolean(regResponses.auditorium_category_id);
     if (
-      getFestPlugin(registration.fest).manualApprovalRequired === true
+      (getFestPlugin(registration.fest).manualApprovalRequired === true || isAuditoriumPass)
       && registration.status !== 'approved'
     ) {
       return res.status(400).json({
@@ -100,7 +102,6 @@ const generateQR = async (req, res) => {
         idCardPhotoUrl: idCardPhotoUrl || null,
         auditoriumCategory: auditoriumCategory || null,
         auditoriumCategoryId: auditoriumCategoryId || null,
-        auditoriumDistributionDay: cultNightDistributionLabel(auditoriumCategoryId) || null,
         college: responses.college || null,
         stallBrand: stallBrand || null,
         stallDiscountPercent: stallBrand

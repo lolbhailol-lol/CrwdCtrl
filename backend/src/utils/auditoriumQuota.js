@@ -153,6 +153,7 @@ async function releaseCategorySeat(competitionId, categoryId) {
 }
 
 async function syncCategoryCounter(competitionId, categoryId) {
+  if (!competitionId || !categoryId) return 0;
   const filled = await countCategoryFilled(competitionId, categoryId);
   await AuditoriumSeatCounter.findOneAndUpdate(
     { competitionId, categoryId },

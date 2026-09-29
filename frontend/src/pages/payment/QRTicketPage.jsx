@@ -79,7 +79,124 @@ function preferredTicketUrl(registrationId, { isTrekTicket, isSportsTicket, isEv
   return `${API_BASE_URL}/qr/registrations/${registrationId}/qr`;
 }
 
+function GuestAuditoriumPass({ registrationId, access }) {
+  const cacheKey = ticketCacheKey('auditorium-guest', registrationId);
+  const [ticket, setTicket] = useState(() => readCachedTicket(cacheKey));
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(!ticket);
+
+  useEffect(() => {
+    ensureAuditoriumFonts();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer = null;
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/mindspark/auditorium/pass/${encodeURIComponent(registrationId)}?access=${encodeURIComponent(access)}`,
+          { cache: 'no-store', headers: { Accept: 'application/json' } },
+        );
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 404 || res.status === 403) {
+          localStorage.removeItem(cacheKey);
+          if (!cancelled) {
+            setTicket(null);
+            setError(res.status === 404
+              ? 'This pass was removed by the organizers.'
+              : (data.message || 'This pass link is not valid'));
+          }
+          return;
+        }
+        if (!res.ok) throw new Error(data.message || 'Could not load pass');
+        if (cancelled) return;
+        setTicket(data.ticket);
+        setError('');
+        if (data.ticket?.status === 'approved') {
+          writeCachedTicket(cacheKey, data.ticket);
+        } else {
+          localStorage.removeItem(cacheKey);
+          if (data.ticket?.status === 'pending') timer = window.setTimeout(load, 15_000);
+        }
+      } catch (err) {
+        // A saved pass beats an error screen while someone stands at the gate.
+        if (!cancelled && !readCachedTicket(cacheKey)) setError(err.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [registrationId, access, cacheKey]);
+
+  useEffect(() => {
+    if (!loading) signalDetailPageReady();
+  }, [loading]);
+
+  if (loading && !ticket) return <InlinePageLoader label="Loading your pass…" />;
+
+  const status = ticket?.status;
+  return (
+    <div
+      className="min-h-screen pt-[max(2rem,calc(var(--safe-top)+1rem))] pb-10 px-4"
+      style={{
+        background:
+          'radial-gradient(ellipse 100% 60% at 50% -10%, rgba(14,204,238,0.16), transparent 50%), #070809',
+        fontFamily: 'Outfit, Poppins, sans-serif',
+      }}
+    >
+      <div className="max-w-md mx-auto space-y-5">
+        <div className="text-center space-y-1">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-[#0ECCEE] font-semibold">Gate pass</p>
+          <h1
+            className="text-3xl text-white leading-none"
+            style={{ fontFamily: '"Bebas Neue", Impact, sans-serif', letterSpacing: '0.06em' }}
+          >
+            AUDITORIUM
+          </h1>
+        </div>
+        {error ? (
+          <p className="text-center text-sm text-red-400">{error}</p>
+        ) : status === 'approved' ? (
+          <>
+            <AuditoriumTicketPass ticket={ticket} />
+            <p className="text-center text-[11px] text-white/45">
+              Save this link or take a screenshot. It opens without logging in.
+            </p>
+          </>
+        ) : status === 'rejected' ? (
+          <p className="text-center text-sm text-red-300">
+            This pass request was not approved. Contact the MindSpark organizers.
+          </p>
+        ) : (
+          <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-5 text-center space-y-2">
+            <p className="text-sm font-semibold text-amber-200">Waiting for approval</p>
+            <p className="text-xs text-white/55 leading-relaxed">
+              Organizers are checking your ID card and photo. Keep this page open or reopen this link — your pass
+              appears here as soon as it is approved.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function QRTicketPage() {
+  const { registrationId } = useParams();
+  const [searchParams] = useSearchParams();
+  const guestAccess = searchParams.get('access') || '';
+  if (searchParams.get('auditorium') === '1' && guestAccess) {
+    return <GuestAuditoriumPass registrationId={registrationId} access={guestAccess} />;
+  }
+  return <MemberTicketPage />;
+}
+
+function MemberTicketPage() {
   const { isDark } = useDarkMode();
   const { token: authToken, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -221,7 +338,15 @@ export default function QRTicketPage() {
         writeCachedTicket(ticketCacheKey(cacheType, registrationId), payload);
         setFromCache(false);
       } catch (err) {
-        // A saved ticket beats bouncing someone to a login screen while they stand at the gate.
+        // A saved ticket beats bouncing someone to a login screen while they stand at the gate,
+        // unless the server says the registration no longer exists (deleted by organizers).
+        if (cached && !fromPayment && (isTicketNotFoundError(err) || err.status === 400)) {
+          localStorage.removeItem(cacheKey);
+          setTicket(null);
+          setFromCache(false);
+          setError(err.status === 400 ? err.message : 'This ticket was removed by the organizers.');
+          return;
+        }
         if (cached) return;
         if (err.code === 'AUTH_401' && !canGuestTrek) {
           navigate('/login', { state: { from: location.pathname + location.search }, replace: true });
@@ -337,7 +462,6 @@ export default function QRTicketPage() {
       fullName: ticket.userName || ticket.fullName,
       categoryLabel: ticket.auditoriumCategory || ticket.categoryLabel,
       categoryId: ticket.auditoriumCategoryId || ticket.categoryId,
-      auditoriumDistributionDay: ticket.auditoriumDistributionDay,
       qrCodeData: ticket.qrHash || ticket.qrCodeData,
       idCardPhotoUrl: ticket.idCardPhotoUrl,
       id: ticket.registrationId || registrationId,

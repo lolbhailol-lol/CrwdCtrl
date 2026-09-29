@@ -89,7 +89,8 @@ export default function FestOrganizerAuditoriumPage() {
         try {
             await deleteFestOrganizerAuditoriumTicket(festId, ticket.id);
             toast('Auditorium pass deleted');
-            await load();
+            setRequests((current) => current.filter((item) => item.id !== ticket.id));
+            await Promise.all([load(), loadRequests()]);
         } catch (e) {
             toast(e.message || 'Could not delete pass');
         } finally {
@@ -136,7 +137,18 @@ export default function FestOrganizerAuditoriumPage() {
         }
     }, [festId]);
 
-    useEffect(() => { loadRequests(); }, [loadRequests]);
+    useEffect(() => {
+        loadRequests();
+        const refresh = () => {
+            if (document.visibilityState === 'visible') loadRequests();
+        };
+        const timer = window.setInterval(refresh, 15_000);
+        document.addEventListener('visibilitychange', refresh);
+        return () => {
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', refresh);
+        };
+    }, [loadRequests]);
 
     const config = data?.config || {};
     const stats = data?.stats || {};
@@ -214,6 +226,7 @@ export default function FestOrganizerAuditoriumPage() {
             await load();
         } catch (e) {
             toast(e.message || 'Could not update request');
+            await loadRequests();
         } finally {
             setReviewingId('');
         }
@@ -639,7 +652,13 @@ export default function FestOrganizerAuditoriumPage() {
                         <div className="grid grid-cols-2 gap-2">
                             <input
                                 value={deskForm.phone}
-                                onChange={(e) => setDeskForm((f) => ({ ...f, phone: e.target.value }))}
+                                onChange={(e) => {
+                                    let digits = e.target.value.replace(/\D/g, '');
+                                    if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2);
+                                    if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1);
+                                    setDeskForm((f) => ({ ...f, phone: digits.slice(0, 10) }));
+                                }}
+                                inputMode="numeric"
                                 placeholder="Phone"
                                 className="px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
                             />

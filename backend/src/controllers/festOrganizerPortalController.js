@@ -1952,6 +1952,40 @@ exports.updateParticipantStatus = async (req, res) => {
         if (!reg) return res.status(404).json({ success: false, message: 'Participant not found' });
 
         const previousStatus = String(reg.status || '').toLowerCase();
+        const auditoriumCategoryId = String(
+            reg.responses?.get?.('auditorium_category_id')
+            || reg.responses?.auditorium_category_id
+            || '',
+        ).trim();
+        if (auditoriumCategoryId) {
+            const auditorium = require('./mindsparkAuditoriumController');
+            const competition = await auditorium.ensureAuditoriumCompetition(req.festId);
+            if (previousStatus === 'pending' && status !== 'pending') {
+                await auditorium.applyAuditoriumReview({
+                    registrationId: reg._id,
+                    festId: req.festId,
+                    competition,
+                    decision: status === 'rejected' ? 'reject' : 'approve',
+                });
+            } else if (previousStatus !== status) {
+                reg.status = status;
+                await reg.save();
+                if (status === 'rejected') {
+                    await MindSparkAuditoriumTicketClaim.deleteMany({ registrationId: reg._id });
+                }
+                await syncCategoryCounter(reg.competitionId, auditoriumCategoryId);
+            }
+            const updated = await Registration.findById(reg._id)
+                .populate('user', 'name email phone phoneNumber')
+                .populate('competitionId', 'competitionName name coverImage image registration')
+                .lean();
+            return res.json({
+                success: true,
+                message: status === 'approved' ? 'Pass approved' : status === 'rejected' ? 'Request declined' : 'Set to pending',
+                participant: formatParticipant(updated),
+            });
+        }
+
         reg.status = status;
         await reg.save();
 

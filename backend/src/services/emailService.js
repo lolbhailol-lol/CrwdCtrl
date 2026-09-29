@@ -525,6 +525,130 @@ const sendAuditoriumOtpEmail = async (email, code) => {
     return sendEmail(mail);
 };
 
+/** MindSpark auditorium gate pass — mirrors the in-app AuditoriumTicketPass card. */
+function buildAuditoriumPassEmailHTML({
+    fullName = '',
+    categoryLabel = '',
+    college = '',
+    registrationId = '',
+    qrHash = '',
+    photoUrl = '',
+    passUrl = '',
+}) {
+    const name = escapeHtml(fullName || 'Guest');
+    const category = escapeHtml(categoryLabel);
+    const collegeText = escapeHtml(college);
+    const regId = escapeHtml(String(registrationId).slice(-8).toUpperCase());
+    const qrSrc = buildQrImageUrl(qrHash);
+    const photo = resolveEmailHeroImageUrl(photoUrl);
+    const link = escapeHtml(resolveTicketHref(passUrl));
+    const display = `'Bebas Neue',Impact,'Arial Narrow Bold','Helvetica Neue',sans-serif`;
+    const body = `'Outfit',Poppins,'Segoe UI',Helvetica,Arial,sans-serif`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>Your MindSpark Auditorium pass</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#050607;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Approved. Your MindSpark Auditorium pass is inside. Show the QR at the gate.</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#050607" style="background:#050607;background-image:radial-gradient(ellipse 90% 45% at 50% 0%,rgba(14,204,238,0.18),rgba(5,6,7,0) 60%);">
+<tr><td align="center" style="padding:32px 14px 40px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:420px;">
+
+<tr><td align="center" style="padding-bottom:6px;font-family:${body};font-size:10px;letter-spacing:0.32em;text-transform:uppercase;color:#0ECCEE;font-weight:700;">CrwdCtrl &times; MindSpark</td></tr>
+<tr><td align="center" style="padding-bottom:10px;">
+<span style="display:inline-block;border:1px solid #1f6b4a;background:#0d2419;color:#6ee7b7;font-family:${body};font-size:11px;font-weight:700;letter-spacing:0.08em;padding:6px 12px;border-radius:999px;">&#10003; PASS UNLOCKED</span>
+</td></tr>
+<tr><td align="center" style="font-family:${display};font-size:42px;line-height:0.95;letter-spacing:0.06em;color:#ffffff;padding-bottom:6px;">YOU&rsquo;RE ON THE LIST</td></tr>
+<tr><td align="center" style="font-family:${body};font-size:13px;line-height:1.5;color:#8b9196;padding-bottom:22px;">Organizers verified your ID and photo. See you at the auditorium.</td></tr>
+
+<tr><td>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#101214" style="background:#101214;background-image:linear-gradient(165deg,#15181a 0%,#0c0d0f 45%,#101214 100%);border:1px solid #1b4e58;border-radius:28px;overflow:hidden;">
+
+<tr><td style="padding:20px 20px 12px;background-image:radial-gradient(ellipse 90% 70% at 50% -20%,rgba(14,204,238,0.28),rgba(16,18,20,0) 60%);">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>
+<td valign="top">
+<div style="font-family:${body};font-size:10px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:#0ECCEE;">MindSpark</div>
+<div style="font-family:${display};font-size:30px;line-height:1;letter-spacing:0.04em;color:#ffffff;margin-top:4px;">AUDITORIUM</div>
+<div style="font-family:${body};font-size:11px;color:#737a80;margin-top:4px;">COEP &middot; Free entry pass</div>
+</td>
+<td valign="top" align="right">
+<span style="display:inline-block;border:1px solid #19707f;background:#0a2a30;color:#0ECCEE;font-family:${body};font-size:10px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;padding:5px 11px;border-radius:999px;">Valid</span>
+</td>
+</tr></table>
+</td></tr>
+
+<tr><td style="padding:4px 20px 18px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>
+<td width="112" valign="top" style="width:112px;">
+${photo
+        ? `<img src="${escapeHtml(photo)}" alt="" width="108" height="136" style="display:block;width:108px;height:136px;object-fit:cover;border-radius:16px;border:1px solid #2a3a3e;">`
+        : `<div style="width:108px;height:136px;border-radius:16px;border:1px solid #2a3a3e;background:#0a0b0c;"></div>`}
+<div style="margin-top:-14px;padding-left:62px;">
+<span style="display:inline-block;background:#fbbf24;color:#000000;font-family:${body};font-size:10px;font-weight:900;letter-spacing:0.08em;text-transform:uppercase;padding:3px 7px;border-radius:6px;">Free</span>
+</div>
+</td>
+<td valign="middle" style="padding-left:14px;">
+<div style="font-family:${body};font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#6b7176;">Admit</div>
+<div style="font-family:${body};font-size:20px;line-height:1.2;font-weight:600;color:#ffffff;margin-top:2px;">${name}</div>
+${category ? `<div style="margin-top:10px;"><span style="display:inline-block;border:1px solid #1d5f6b;background:#0b2a30;color:#7DE8F7;font-family:${body};font-size:11px;font-weight:700;padding:4px 9px;border-radius:8px;">${category}</span></div>` : ''}
+${collegeText ? `<div style="font-family:${body};font-size:11px;color:#6b7176;margin-top:8px;">${collegeText}</div>` : ''}
+${regId ? `<div style="font-family:'SFMono-Regular',Consolas,monospace;font-size:10px;letter-spacing:0.1em;color:#4b5156;margin-top:10px;">#${regId}</div>` : ''}
+</td>
+</tr></table>
+</td></tr>
+
+<tr><td style="padding:0;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>
+<td width="12" style="width:12px;height:22px;background:#050607;border-radius:0 12px 12px 0;"></td>
+<td style="border-top:2px dashed #2a2e31;font-size:0;line-height:0;">&nbsp;</td>
+<td width="12" style="width:12px;height:22px;background:#050607;border-radius:12px 0 0 12px;"></td>
+</tr></table>
+</td></tr>
+
+<tr><td align="center" style="padding:14px 20px 24px;">
+${qrSrc ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto;"><tr><td bgcolor="#ffffff" style="background:#ffffff;padding:12px;border-radius:18px;box-shadow:0 0 40px -8px rgba(14,204,238,0.6);">
+<img src="${qrSrc}" alt="Gate check-in QR" width="176" height="176" style="display:block;width:176px;height:176px;">
+</td></tr></table>` : ''}
+<div style="font-family:${body};font-size:11px;line-height:1.55;color:#7a8086;max-width:250px;margin:14px auto 0;">Show this pass at the gate. If your ID and face don&rsquo;t match, entry may be restricted.</div>
+</td></tr>
+
+</table>
+</td></tr>
+
+<tr><td align="center" style="padding-top:22px;">
+<a href="${link}" style="display:inline-block;background:#0ECCEE;color:#041316;font-family:${body};font-size:14px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;text-decoration:none;padding:15px 30px;border-radius:16px;">Open live pass</a>
+</td></tr>
+<tr><td align="center" style="padding-top:10px;font-family:${body};font-size:12px;line-height:1.5;color:#6b7176;">Opens without login. Includes your college ID for the gate check.</td></tr>
+<tr><td align="center" style="padding-top:22px;font-family:${body};font-size:11px;line-height:1.6;color:#4b5156;">Screenshot this email or the live pass &mdash; the same QR works either way.<br>Need help? Reply to this email or write to team.crwdctrl@gmail.com</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+const sendAuditoriumPassEmail = async ({ to, ...pass }) => {
+    const email = String(to || '').trim().toLowerCase();
+    if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+        return { success: false, error: 'Invalid email' };
+    }
+    return sendEmail({
+        from: getDefaultFrom(),
+        to: email,
+        subject: '🎟️ Approved — your MindSpark Auditorium pass',
+        text: `Your MindSpark Auditorium pass is approved. Open it here (no login needed): ${resolveTicketHref(pass.passUrl)}`,
+        html: buildAuditoriumPassEmailHTML(pass),
+    });
+};
+
 // ✅ NEW: BROADCAST FUNCTION
 const sendEventBroadcast = async (userList, eventDetails) => {
     console.log(`📢 Starting broadcast for event: ${eventDetails.name}`);
@@ -2022,6 +2146,8 @@ module.exports = {
     sendMindSparkBundleConfirmationEmail,
     sendCompetitionRegistrationEmail,
     sendCompetitionRegistrationEmailForRecord,
+    sendAuditoriumPassEmail,
+    buildAuditoriumPassEmailHTML,
     sendTrekRegistrationEmails,
     sendOrganizerNotificationEmail,
     sendEventOrganizerApprovalEmail,

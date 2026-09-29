@@ -17,6 +17,7 @@ router.post('/request-otp', auditoriumOtpLimiter, ctrl.requestDirectoryOtp);
 router.post('/verify-otp', auditoriumOtpLimiter, ctrl.verifyDirectoryOtp);
 router.post('/register', optionalAuthenticateToken, auditoriumActionLimiter, ctrl.publicRegister);
 router.get('/my-ticket', authenticateToken, ctrl.getMyTicket);
+router.get('/pass/:registrationId', ctrl.getGuestPass);
 router.post(
   '/upload-signature',
   auditoriumActionLimiter,

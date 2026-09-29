@@ -18,7 +18,6 @@ const {
   sumSeats,
   sanitizeCategories,
   cloudinaryPathKey,
-  cultNightDistributionLabel,
 } = require('../modules/fest/plugins/mindsparkAuditorium');
 const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 const {
@@ -33,8 +32,9 @@ const {
   clean,
   validEmail,
 } = require('../utils/competitionDuplicateGuard');
-const { sendCompetitionRegistrationEmailForRecord } = require('../services/emailService');
+const { sendAuditoriumPassEmail } = require('../services/emailService');
 const { sendAuditoriumOtpEmail } = require('../services/emailService');
+const { getJwtSecret } = require('../config/jwtSecret');
 const {
   DIRECTORY_YEARS,
   normalizeDirectoryEmail,
@@ -134,6 +134,32 @@ function assertTrustedPhotoUrl(value, label = 'Photo', { requireAuditoriumFolder
   return raw;
 }
 
+/** Indian mobile: accepts +91 / 0 prefixes, returns 10 digits or '' */
+function normalizeMobile(value) {
+  let digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return /^[6-9]\d{9}$/.test(digits) ? digits : '';
+}
+
+function passAccessToken(registrationId) {
+  return crypto
+    .createHmac('sha256', getJwtSecret())
+    .update(`auditorium-pass:${registrationId}`)
+    .digest('hex')
+    .slice(0, 32);
+}
+
+function isValidPassAccess(registrationId, token) {
+  const expected = Buffer.from(passAccessToken(registrationId));
+  const given = Buffer.from(String(token || ''));
+  return given.length === expected.length && crypto.timingSafeEqual(given, expected);
+}
+
+function guestPassLink(registrationId) {
+  return `/qr-ticket/${registrationId}?auditorium=1&access=${passAccessToken(registrationId)}`;
+}
+
 function formatTicket(reg, competition) {
   const r = responsesToObject(reg.responses);
   const user = reg.user && typeof reg.user === 'object' ? reg.user : null;
@@ -149,9 +175,9 @@ function formatTicket(reg, competition) {
     idCardPhotoUrl: idCardPhotoFrom(reg),
     categoryId: r.auditorium_category_id || '',
     categoryLabel: r.auditorium_category_label || '',
-    fullName: user?.name || r.full_name || r.name || '',
+    fullName: r.full_name || r.name || user?.name || '',
     email: r.email || user?.email || '',
-    phone: user?.phoneNumber || user?.phone || r.phone || r.contact_no || '',
+    phone: r.phone || r.contact_no || user?.phoneNumber || user?.phone || '',
     college: r.college || '',
     misId: r.mis_id || r.mis || '',
     competitionId: String(competition?._id || reg.competitionId || ''),
@@ -266,13 +292,13 @@ function publicMetaPayload(competition, stats, inviteCategory = null) {
 
 /** GET /mindspark/auditorium/meta?code= — cache unscoped meta briefly under rush. */
 const auditoriumMetaCache = { at: 0, payload: null };
-const AUDITORIUM_META_TTL_MS = 10_000;
+const AUDITORIUM_META_TTL_MS = 5_000;
 
 exports.getPublicMeta = async (req, res) => {
   try {
     const code = String(req.query.code || '').trim();
     if (!code && auditoriumMetaCache.payload && Date.now() - auditoriumMetaCache.at < AUDITORIUM_META_TTL_MS) {
-      res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+      res.set('Cache-Control', 'no-store');
       return res.json(auditoriumMetaCache.payload);
     }
 
@@ -292,10 +318,8 @@ exports.getPublicMeta = async (req, res) => {
     if (!code) {
       auditoriumMetaCache.at = Date.now();
       auditoriumMetaCache.payload = body;
-      res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
-    } else {
-      res.set('Cache-Control', 'private, max-age=5');
     }
+    res.set('Cache-Control', 'no-store');
     return res.json(body);
   } catch (error) {
     console.error('[auditorium.getPublicMeta]', error);
@@ -432,26 +456,41 @@ exports.authorizePublicUpload = async (req, res, next) => {
   }
 };
 
+/** Fill missing name/email/phone on an account without tripping the unique email/phone indexes. */
+async function fillMissingUserFields(user, { name, email, phone }) {
+  let dirty = false;
+  if (name && (!user.name || user.name.length < 2)) {
+    user.name = name;
+    dirty = true;
+  }
+  if (email && (!user.email || /@crwdctrl\.local$/i.test(String(user.email)))) {
+    const taken = await User.exists({ email: email.toLowerCase(), _id: { $ne: user._id } });
+    if (!taken) {
+      user.email = email.toLowerCase();
+      dirty = true;
+    }
+  }
+  if (phone && !user.phoneNumber && !user.phone) {
+    const taken = await User.exists({ phoneNumber: phone, _id: { $ne: user._id } });
+    if (!taken) {
+      user.phoneNumber = phone;
+      dirty = true;
+    }
+  }
+  if (dirty) {
+    try {
+      await user.save();
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+    }
+  }
+  return user;
+}
+
 async function resolveOrCreateUser({ name, email, phone, userId }) {
   if (userId && mongoose.Types.ObjectId.isValid(userId)) {
     const existing = await User.findById(userId);
-    if (existing) {
-      let dirty = false;
-      if (name && (!existing.name || existing.name.length < 2)) {
-        existing.name = name;
-        dirty = true;
-      }
-      if (email && (!existing.email || /@crwdctrl\.local$/i.test(String(existing.email)))) {
-        existing.email = email.toLowerCase();
-        dirty = true;
-      }
-      if (phone && !existing.phoneNumber && !existing.phone) {
-        existing.phoneNumber = phone;
-        dirty = true;
-      }
-      if (dirty) await existing.save();
-      return existing;
-    }
+    if (existing) return fillMissingUserFields(existing, { name, email, phone });
   }
   let user = null;
   if (email) user = await User.findOne({ email: email.toLowerCase() });
@@ -469,16 +508,7 @@ async function resolveOrCreateUser({ name, email, phone, userId }) {
     });
     await user.save();
   } else {
-    let dirty = false;
-    if (name && (!user.name || user.name.length < 2)) {
-      user.name = name;
-      dirty = true;
-    }
-    if (email && (!user.email || /@crwdctrl\.local$/i.test(String(user.email)))) {
-      user.email = email.toLowerCase();
-      dirty = true;
-    }
-    if (dirty) await user.save();
+    await fillMissingUserFields(user, { name, email, phone });
   }
   return user;
 }
@@ -569,15 +599,16 @@ async function createAuditoriumTicket({
 
   const fullName = clean(name, 120);
   const normalizedEmail = clean(email, 180).toLowerCase();
-  const digits = phoneDigits(phone);
+  const digits = normalizeMobile(phone);
   if (!fullName || fullName.length < 2) {
     const err = new Error('Name is required');
     err.status = 400;
     throw err;
   }
-  if (!digits || digits.length !== 10) {
-    const err = new Error('Valid 10-digit phone is required');
+  if (!digits) {
+    const err = new Error('Enter a valid 10-digit mobile number');
     err.status = 400;
+    err.code = 'PHONE_INVALID';
     throw err;
   }
   if (normalizedEmail && !validEmail(normalizedEmail)) {
@@ -648,18 +679,18 @@ async function createAuditoriumTicket({
     email: normalizedEmail,
   });
   if (duplicate) {
-    let existingDoc = await Registration.findById(duplicate._id)
-      .populate('user', 'name email phone phoneNumber');
-    if (existingDoc && userId && String(existingDoc.user?._id || existingDoc.user) !== String(userId)) {
-      existingDoc.user = userId;
-      await existingDoc.save();
-      await existingDoc.populate('user', 'name email phone phoneNumber');
-    }
-    const existing = existingDoc?.toObject ? existingDoc.toObject() : existingDoc;
-    const err = new Error('You already have an auditorium ticket');
+    const existing = await Registration.findById(duplicate._id)
+      .populate('user', 'name email phone phoneNumber')
+      .lean();
+    const ownsExisting = Boolean(
+      existing && userId && String(existing.user?._id || existing.user) === String(userId),
+    );
+    const err = new Error(ownsExisting
+      ? 'You already have an auditorium ticket'
+      : 'A pass already exists for this phone or email. Open the pass link from your email.');
     err.status = 409;
     err.code = 'ALREADY_REGISTERED';
-    err.ticket = formatTicket(existing, competition);
+    if (ownsExisting) err.ticket = formatTicket(existing, competition);
     throw err;
   }
 
@@ -777,31 +808,13 @@ async function createAuditoriumTicket({
           console.warn('[auditorium.email] skipped — no real email');
           return;
         }
-        const FestOrganizer = require('../model/fest_organizer_model');
-        const festDoc = await FestOrganizer.findById(competition.fest)
-          .select('festName venue coverImage registration')
-          .lean();
-        const mailUser = {
-          name: fullName || userDoc?.name || 'Guest',
-          email: formEmail,
-        };
-        await sendCompetitionRegistrationEmailForRecord({
-          user: mailUser,
-          fest: festDoc || { _id: competition.fest, festName: 'MindSpark', venue: 'COEP Auditorium' },
-          competition,
+        await emailAuditoriumPass({
           registration,
-          extras: {
-            ticketLink: `/qr-ticket/${registration._id}?auditorium=1`,
-            ticketPhotoUrl: photo,
-            details: [
-              { label: 'Category', value: category.label },
-              ...(cultNightDistributionLabel(category.id)
-                ? [{ label: 'Pass distribution', value: cultNightDistributionLabel(category.id) }]
-                : []),
-              ...(college ? [{ label: 'College', value: college }] : []),
-              { label: 'Entry', value: 'Free' },
-            ],
-          },
+          fullName: fullName || userDoc?.name,
+          email: formEmail,
+          categoryLabel: category.label,
+          college,
+          photo,
         });
       } catch (e) {
         console.warn('[auditorium.email]', e.message);
@@ -849,7 +862,7 @@ exports.publicRegister = async (req, res) => {
       userId,
       skipRegistrationOpen: false,
     });
-    return res.status(201).json({ success: true, ticket });
+    return res.status(201).json({ success: true, ticket, access: passAccessToken(ticket.id) });
   } catch (error) {
     if (error.code === 'ALREADY_REGISTERED' && error.ticket) {
       return res.status(409).json({
@@ -866,6 +879,34 @@ exports.publicRegister = async (req, res) => {
       message: error.message || 'Registration failed',
       ...(error.expectedCategoryId ? { expectedCategoryId: error.expectedCategoryId } : {}),
     });
+  }
+};
+
+/** GET /mindspark/auditorium/pass/:registrationId?access= — pass view without an account */
+exports.getGuestPass = async (req, res) => {
+  try {
+    const { registrationId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(registrationId)
+      || !isValidPassAccess(registrationId, req.query.access)) {
+      return res.status(403).json({ success: false, message: 'This pass link is not valid' });
+    }
+    const competition = await ensureAuditoriumCompetition(MINDSPARK_FEST_ID);
+    const reg = await Registration.findOne({ _id: registrationId, competitionId: competition._id })
+      .populate('user', 'name email phone phoneNumber')
+      .lean();
+    if (!reg) {
+      return res.status(404).json({ success: false, message: 'Pass not found' });
+    }
+    res.set('Cache-Control', 'no-store');
+    if (reg.status === 'rejected') {
+      return res.json({ success: true, ticket: { id: String(reg._id), status: 'rejected' } });
+    }
+    const ticket = formatTicket(reg, competition);
+    if (reg.status !== 'approved') ticket.qrCodeData = null;
+    return res.json({ success: true, ticket });
+  } catch (error) {
+    console.error('[auditorium.getGuestPass]', error);
+    return res.status(500).json({ success: false, message: 'Could not load pass' });
   }
 };
 
@@ -1282,73 +1323,71 @@ exports.deskIssue = async (req, res) => {
   }
 };
 
-async function emailAuditoriumPass({ registration, competition, fullName, email, categoryLabel, college, photo }) {
+async function emailAuditoriumPass({ registration, fullName, email, categoryLabel, college, photo }) {
   const formEmail = String(email || '').trim().toLowerCase();
   if (!formEmail || !validEmail(formEmail)) return;
-  const FestOrganizer = require('../model/fest_organizer_model');
-  const festDoc = await FestOrganizer.findById(competition.fest)
-    .select('festName venue coverImage registration')
-    .lean();
-  await sendCompetitionRegistrationEmailForRecord({
-    user: { name: fullName || 'Guest', email: formEmail },
-    fest: festDoc || { _id: competition.fest, festName: 'MindSpark', venue: 'COEP Auditorium' },
-    competition,
-    registration,
-    extras: {
-      ticketLink: `/qr-ticket/${registration._id}?auditorium=1`,
-      ticketPhotoUrl: photo || ticketPhotoFrom(registration),
-      details: [
-        { label: 'Category', value: categoryLabel || '' },
-        ...(cultNightDistributionLabel(registration.responses?.auditorium_category_id)
-          ? [{ label: 'Pass distribution', value: cultNightDistributionLabel(registration.responses?.auditorium_category_id) }]
-          : []),
-        ...(college ? [{ label: 'College', value: college }] : []),
-        { label: 'Entry', value: 'Free' },
-      ],
-    },
+  const result = await sendAuditoriumPassEmail({
+    to: formEmail,
+    fullName: fullName || 'Guest',
+    categoryLabel: categoryLabel || '',
+    college: college || '',
+    registrationId: String(registration._id),
+    qrHash: registration.qrCodeData || '',
+    photoUrl: photo || ticketPhotoFrom(registration),
+    passUrl: guestPassLink(registration._id),
   });
+  if (result?.success === false) throw new Error(result.error || 'Pass email failed');
+}
+
+/**
+ * Pending → approved/rejected, atomically so two organizers tapping at once email only once.
+ * Returns the formatted ticket, or null when the request is no longer pending.
+ */
+async function applyAuditoriumReview({ registrationId, festId, competition, decision }) {
+  const update = decision === 'reject'
+    ? { $set: { status: 'rejected' } }
+    : { $set: { status: 'approved', qrCodeData: crypto.randomBytes(16).toString('hex') } };
+  const registration = await Registration.findOneAndUpdate(
+    { _id: registrationId, fest: festId, competitionId: competition._id, status: 'pending' },
+    update,
+    { new: true },
+  ).populate('user', 'name email phone phoneNumber');
+  if (!registration) return null;
+
+  const ticket = formatTicket(registration, competition);
+  if (decision === 'reject') {
+    await TicketClaim.deleteMany({ registrationId: registration._id });
+    await syncCategoryCounter(competition._id, ticket.categoryId);
+    auditoriumMetaCache.at = 0;
+    auditoriumMetaCache.payload = null;
+    return ticket;
+  }
+  setImmediate(() => {
+    emailAuditoriumPass({
+      registration,
+      fullName: ticket.fullName,
+      email: ticket.email,
+      categoryLabel: ticket.categoryLabel,
+      college: ticket.college,
+      photo: ticket.ticketPhotoUrl,
+    }).catch((error) => console.warn('[auditorium.approve.email]', error.message));
+  });
+  return ticket;
 }
 
 /** Organizer approves a public year request and emails the existing pass. */
 exports.reviewPass = async (req, res) => {
   try {
     const competition = await ensureAuditoriumCompetition(req.festId);
-    const decision = req.body?.decision === 'reject' ? 'reject' : 'approve';
-    const registration = await Registration.findOne({
-      _id: req.params.registrationId,
-      fest: req.festId,
-      competitionId: competition._id,
-      status: 'pending',
-    }).populate('user', 'name email phone phoneNumber');
-    if (!registration) {
-      return res.status(404).json({ success: false, message: 'Pass request not found' });
-    }
-
-    if (decision === 'reject') {
-      registration.status = 'rejected';
-      await registration.save();
-      await TicketClaim.deleteMany({ registrationId: registration._id });
-      await syncCategoryCounter(competition._id, registration.responses?.auditorium_category_id);
-      return res.json({ success: true, ticket: formatTicket(registration, competition) });
-    }
-
-    if (!registration.qrCodeData) {
-      registration.qrCodeData = crypto.randomBytes(16).toString('hex');
-    }
-    registration.status = 'approved';
-    await registration.save();
-    const ticket = formatTicket(registration, competition);
-    setImmediate(() => {
-      emailAuditoriumPass({
-        registration,
-        competition,
-        fullName: ticket.fullName,
-        email: ticket.email,
-        categoryLabel: ticket.categoryLabel,
-        college: ticket.college,
-        photo: ticket.ticketPhotoUrl,
-      }).catch((error) => console.warn('[auditorium.approve.email]', error.message));
+    const ticket = await applyAuditoriumReview({
+      registrationId: req.params.registrationId,
+      festId: req.festId,
+      competition,
+      decision: req.body?.decision === 'reject' ? 'reject' : 'approve',
     });
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Pass request not found or already reviewed' });
+    }
     return res.json({ success: true, ticket });
   } catch (error) {
     console.error('[auditorium.reviewPass]', error);
@@ -1394,7 +1433,9 @@ exports.deleteTicket = async (req, res) => {
     });
     if (!registration) return res.status(404).json({ success: false, message: 'Auditorium ticket not found' });
     await TicketClaim.deleteMany({ registrationId: registration._id });
-    await syncCategoryCounter(competition._id, registration.responses?.auditorium_category_id);
+    await syncCategoryCounter(competition._id, responsesToObject(registration.responses).auditorium_category_id);
+    auditoriumMetaCache.at = 0;
+    auditoriumMetaCache.payload = null;
     return res.json({ success: true, message: 'Auditorium ticket deleted' });
   } catch (error) {
     console.error('[auditorium.deleteTicket]', error);
@@ -1429,5 +1470,6 @@ exports.lookupByPhone = async (req, res) => {
 };
 
 exports.ensureAuditoriumCompetition = ensureAuditoriumCompetition;
+exports.applyAuditoriumReview = applyAuditoriumReview;
 exports.formatTicket = formatTicket;
 exports.ticketPhotoFrom = ticketPhotoFrom;
