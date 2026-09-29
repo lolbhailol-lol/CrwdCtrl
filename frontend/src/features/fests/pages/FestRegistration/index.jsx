@@ -7,6 +7,7 @@ import FestRegistrationForm from './FestRegistrationForm';
 import PaymentStep, { CompletingPaymentStep } from './PaymentStep';
 import SuccessStep from './SuccessStep';
 import { isAarohanFest } from '../../aarohan';
+import { festRegisterPath } from '../../../../utils/slugRoutes';
 
 export default function FestRegistration() {
   const r = useFestRegistration();
@@ -173,6 +174,55 @@ export default function FestRegistration() {
           >
             Back to Dashboard
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAarohanFest(festId, fest) && !isCompetitionRegistration && Array.isArray(fest.competitions) && fest.competitions.length > 0) {
+    return (
+      <div className="crwdctrl-page crwdctrl-page--content min-h-screen px-4 py-8 sm:py-12">
+        <div className="mx-auto w-full max-w-3xl">
+          <button
+            type="button"
+            onClick={() => goBack()}
+            className={`mb-5 text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}
+          >
+            ← Back
+          </button>
+          <div className={`rounded-2xl border p-5 sm:p-7 ${isDark ? 'border-white/10 bg-[#151617]' : 'border-gray-200 bg-white'}`}>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">AAROHAN 2027</p>
+            <h1 className={`mt-2 text-2xl font-bold sm:text-3xl ${isDark ? 'text-white' : 'text-gray-900'}`}>Choose your competition</h1>
+            <p className={`mt-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Select a competition to continue with team leader, team member and payment details.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {fest.competitions.map((item) => {
+                const competitionKey = item?._id || item?.id || item?.slug || item?.name;
+                return (
+                  <button
+                    key={competitionKey}
+                    type="button"
+                    onClick={() => navigate(festRegisterPath(fest, item), {
+                      state: {
+                        competitionId: item?._id || item?.id,
+                        prefetch: { fest, competition: item },
+                        skipDemoLoad: true,
+                      },
+                    })}
+                    className={`group flex min-h-20 items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
+                      isDark
+                        ? 'border-white/10 bg-[#0E0E0F] text-white hover:border-[#0ECCEE]/70'
+                        : 'border-gray-200 bg-gray-50 text-gray-900 hover:border-[#0ECCEE]'
+                    }`}
+                  >
+                    <span className="font-semibold">{item?.name || item?.title || 'Competition'}</span>
+                    <span className="text-xl text-[#0ECCEE] transition-transform group-hover:translate-x-1">→</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );

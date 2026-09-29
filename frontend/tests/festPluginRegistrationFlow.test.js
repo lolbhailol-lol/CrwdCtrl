@@ -26,3 +26,10 @@ test('payment amount and coupon stay on the final registration step', async () =
   assert.match(source, /Enter coupon code/);
   assert.match(source, /Amount payable/);
 });
+
+test('Aarohan base registration routes users into a competition roster flow', async () => {
+  const source = await readFile(new URL('../src/features/fests/pages/FestRegistration/index.jsx', import.meta.url), 'utf8');
+  assert.match(source, /isAarohanFest\(festId, fest\).*?!isCompetitionRegistration/s);
+  assert.match(source, /Choose your competition/);
+  assert.match(source, /festRegisterPath\(fest, item\)/);
+});

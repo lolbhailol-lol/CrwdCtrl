@@ -79,7 +79,7 @@ Resume_*.pdf
 __pycache__/
 
 # Legacy / internal dumps (keep out of public clones — not for interns)
-treks/
+/treks/
 business/
 content-strategy/
 preview/
@@ -124,3 +124,5 @@ docs/build_*_mou_*.py
 Karan_Jadhav_Attendance*.docx
 *Attendance*Request*.docx
 
+.vercel
+.env*.local

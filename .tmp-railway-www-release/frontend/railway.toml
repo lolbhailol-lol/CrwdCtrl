@@ -1,0 +1,12 @@
+# Frontend static site on Railway (Docker + Caddy)
+# Caddyfile in this directory proxies /api → backend and serves dist/.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

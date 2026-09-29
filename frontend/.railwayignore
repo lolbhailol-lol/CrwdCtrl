@@ -4,6 +4,8 @@ dist/
 .git/
 .vercel/
 tests/
+.env
+.env.*
 *.apk
 *.aab
 *.mp4
