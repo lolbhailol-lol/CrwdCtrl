@@ -426,8 +426,8 @@ exports.authorizePublicUpload = async (req, res, next) => {
   } catch {
     return res.status(403).json({
       success: false,
-      code: 'EMAIL_VERIFICATION_REQUIRED',
-      message: 'Only @coeptech.ac.in addresses are allowed.',
+      code: 'COLLEGE_EMAIL_REQUIRED',
+      message: 'Write your college email. It must end with @coeptech.ac.in.',
     });
   }
 };
@@ -633,8 +633,9 @@ async function createAuditoriumTicket({
   if (category.channel === 'public' && channelHint === 'public') {
     const collegeEmail = String(normalizedEmail || '').toLowerCase();
     if (!/@coeptech\.ac\.in$/.test(collegeEmail)) {
-      const err = new Error('Only @coeptech.ac.in addresses are allowed.');
+      const err = new Error('Write your college email. It must end with @coeptech.ac.in.');
       err.status = 400;
+      err.code = 'COLLEGE_EMAIL_REQUIRED';
       throw err;
     }
   }

@@ -442,6 +442,9 @@ export default function FestOrganizerDashboardPage() {
 
     const quickOps = hideProShow
         ? [
+            ...(plugin.id === 'mindspark'
+                ? [{ label: 'Cult Night', desc: 'Year requests · approve', to: 'auditorium', icon: Ticket, glow: 'from-amber-500/15' }]
+                : []),
             { label: 'Competitions', desc: `${stats.competitionCount || comps.length} desks`, to: 'competitions', icon: Trophy, glow: 'from-[#0ECCEE]/15' },
             { label: 'Fest Day Desk', desc: 'Pay · issue · assist', to: 'fest-day-desk', icon: ScanLine, glow: 'from-sky-500/10' },
             { label: 'Scan', desc: 'Gate check-in', to: 'scan', icon: QrCode, glow: 'from-emerald-500/15' },
@@ -684,9 +687,10 @@ export default function FestOrganizerDashboardPage() {
                     <div className="flex items-center justify-between gap-2">
                         <div>
                             <h2 className="text-sm font-semibold text-white inline-flex items-center gap-2">
-                                <Ticket size={16} className="text-[#0ECCEE]" /> Cult Night passes
+                                <Ticket size={16} className="text-[#0ECCEE]" /> Cult Night pass requests
                             </h2>
                             <p className="text-[11px] text-gray-500 mt-0.5">
+                                Students request a pass. Open a year, check the ID and face, then approve. The pass is emailed.
                                 30 Sep: 1st, 2nd, MBA. 1 Oct: 3rd, 4th, M.Tech.
                             </p>
                         </div>

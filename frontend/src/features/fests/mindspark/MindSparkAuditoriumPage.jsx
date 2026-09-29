@@ -11,6 +11,8 @@ const MIN_PHOTO_PX = 160;
 const MINDSPARK_FEST = '6a7f1010ed26d983b34e55c2';
 const DRAFT_KEY = 'mindspark_auditorium_draft_v1';
 const COEP_COLLEGE = 'COEP';
+const COLLEGE_EMAIL = /@coeptech\.ac\.in$/i;
+const COLLEGE_EMAIL_MESSAGE = 'Write your college email. It must end with @coeptech.ac.in.';
 
 function readDraft() {
   try {
@@ -39,8 +41,8 @@ function clearDraft() {
 
 async function uploadTicketPhoto(file, { eligibilityToken, inviteCode, categoryId, email }) {
   const collegeEmail = String(email || '').trim();
-  if (!eligibilityToken && !inviteCode && !/@coeptech\.ac\.in$/i.test(collegeEmail)) {
-    throw new Error('Only @coeptech.ac.in addresses are allowed.');
+  if (!eligibilityToken && !inviteCode && !COLLEGE_EMAIL.test(collegeEmail)) {
+    throw new Error(COLLEGE_EMAIL_MESSAGE);
   }
   const signed = await publicFetchJSON('/mindspark/auditorium/upload-signature', {
     method: 'POST',
@@ -502,6 +504,7 @@ export default function MindSparkAuditoriumPage() {
   const [photoPreview, setPhotoPreview] = useState('');
   const [idCardUrl, setIdCardUrl] = useState(() => String(draftBoot?.idCardUrl || ''));
   const [idCardPreview, setIdCardPreview] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploadingKind, setUploadingKind] = useState(null); // 'id' | 'face' | null
   const [ticket, setTicket] = useState(null);
@@ -681,8 +684,9 @@ export default function MindSparkAuditoriumPage() {
 
   const onFacePhoto = async (file) => {
     if (!file) return;
-    if (!inviteCode && !/@coeptech\.ac\.in$/i.test(form.email.trim())) {
-      toast('Only @coeptech.ac.in addresses are allowed.');
+    if (!inviteCode && !COLLEGE_EMAIL.test(form.email.trim())) {
+      setEmailError(COLLEGE_EMAIL_MESSAGE);
+      toast(COLLEGE_EMAIL_MESSAGE);
       setStep(2);
       return;
     }
@@ -719,8 +723,9 @@ export default function MindSparkAuditoriumPage() {
 
   const onIdCardPhoto = async (file) => {
     if (!file) return;
-    if (!inviteCode && !/@coeptech\.ac\.in$/i.test(form.email.trim())) {
-      toast('Only @coeptech.ac.in addresses are allowed.');
+    if (!inviteCode && !COLLEGE_EMAIL.test(form.email.trim())) {
+      setEmailError(COLLEGE_EMAIL_MESSAGE);
+      toast(COLLEGE_EMAIL_MESSAGE);
       setStep(2);
       return;
     }
@@ -788,12 +793,10 @@ export default function MindSparkAuditoriumPage() {
         toast('You already have a ticket');
       } else if (e.code === 'SAME_PHOTO') {
         toast(e.message || 'Face photo and college ID must be different pictures');
-      } else if (e.code === 'EMAIL_VERIFICATION_REQUIRED') {
-        setEligibilityToken('');
-        setOtpChallengeId('');
-        setOtpCode('');
-        setStep(1);
-        toast(e.message || 'Verify your college email again');
+      } else if (e.code === 'EMAIL_VERIFICATION_REQUIRED' || e.code === 'COLLEGE_EMAIL_REQUIRED') {
+        setEmailError(COLLEGE_EMAIL_MESSAGE);
+        setStep(2);
+        toast(COLLEGE_EMAIL_MESSAGE);
       } else {
         toast(e.message || 'Registration failed');
       }
@@ -1164,15 +1167,26 @@ export default function MindSparkAuditoriumPage() {
             />
             <input
               value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="College email"
+              onChange={(e) => {
+                const next = e.target.value;
+                setForm((f) => ({ ...f, email: next }));
+                const trimmed = next.trim();
+                if (!inviteCode && trimmed.includes('@') && !COLLEGE_EMAIL.test(trimmed)) {
+                  setEmailError(COLLEGE_EMAIL_MESSAGE);
+                } else {
+                  setEmailError('');
+                }
+              }}
+              placeholder="name@coeptech.ac.in"
               type="email"
-              className={fieldClass}
+              className={`${fieldClass}${emailError ? ' border-red-400/80 focus:border-red-400' : ''}`}
               autoComplete="email"
             />
-            {!inviteCode ? (
+            {emailError ? (
+              <p className="text-[12px] leading-relaxed text-red-300 -mt-1 px-1">{emailError}</p>
+            ) : !inviteCode ? (
               <p className="text-[11px] text-white/45 -mt-1 px-1">
-                Only addresses ending in @coeptech.ac.in are accepted.
+                Use the email that ends with @coeptech.ac.in. Gmail and other addresses will not work.
               </p>
             ) : null}
             <p className="text-[11px] text-white/40 px-1">
@@ -1193,8 +1207,9 @@ export default function MindSparkAuditoriumPage() {
                     toast('Name and valid phone required');
                     return;
                   }
-                  if (!inviteCode && !/@coeptech\.ac\.in$/i.test(form.email.trim())) {
-                    toast('Only @coeptech.ac.in addresses are allowed.');
+                  if (!inviteCode && !COLLEGE_EMAIL.test(form.email.trim())) {
+                    setEmailError(COLLEGE_EMAIL_MESSAGE);
+                    toast(COLLEGE_EMAIL_MESSAGE);
                     return;
                   }
                   if (inviteCode && (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))) {
