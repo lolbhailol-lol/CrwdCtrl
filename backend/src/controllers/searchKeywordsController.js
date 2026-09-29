@@ -12,6 +12,25 @@ const dbOk = () => mongoose.connection.readyState === 1;
 
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const buildSmartRegexes = (query) => {
+    const raw = String(query || '').trim();
+    if (!raw) return [];
+
+    const cleaned = raw.replace(/\b(fests?|festivals?|events?|competitions?|shows?|clubs?|treks?|games?)\b/gi, '').trim();
+
+    const terms = new Set([raw]);
+    if (cleaned.length >= 2) terms.add(cleaned);
+    raw.split(/\s+/).forEach((w) => {
+        if (w.length >= 2) terms.add(w);
+    });
+
+    if (/\b(cult|cultural)\b/i.test(raw)) terms.add('cultural');
+    if (/\b(tech|technical)\b/i.test(raw)) terms.add('technical');
+    if (/\b(sport|sports)\b/i.test(raw)) terms.add('sports');
+
+    return Array.from(terms).map((t) => new RegExp(escapeRegex(t), 'i'));
+};
+
 exports.searchAll = async (req, res) => {
     try {
         if (!dbOk()) return res.status(503).json({ results: [] });
@@ -19,31 +38,32 @@ exports.searchAll = async (req, res) => {
         const query = String(req.query.query || req.query.q || '').trim();
         if (!query) return res.json({ results: [] });
 
-        const regex = new RegExp(escapeRegex(query), 'i');
+        const regexes = buildSmartRegexes(query);
+        if (!regexes.length) return res.json({ results: [] });
         const perTypeLimit = Math.min(Math.max(Number(req.query.limit) || 8, 1), 20);
         const published = { $in: ['published', 'completed'] };
         const [fests, sports, runClubs, competitions, events, games] = await Promise.all([
             FestOrganizer.find({ isApproved: true, $or: [
-                { festName: regex }, { collegeName: regex }, { description: regex },
-                { festType: regex }, { venue: regex }, { location: regex }, { highlights: regex },
+                { festName: { $in: regexes } }, { collegeName: { $in: regexes } }, { description: { $in: regexes } },
+                { festType: { $in: regexes } }, { venue: { $in: regexes } }, { location: { $in: regexes } }, { highlights: { $in: regexes } },
             ] }).select('festName collegeName description festType venue location coverImage coverImages startDate endDate slug').limit(perTypeLimit).lean(),
             SportsEvent.find({ status: published, $or: [
-                { title: regex }, { sportType: regex }, { organizer: regex }, { venue: regex },
-                { city: regex }, { distance: regex }, { runCategory: regex },
+                { title: { $in: regexes } }, { sportType: { $in: regexes } }, { organizer: { $in: regexes } }, { venue: { $in: regexes } },
+                { city: { $in: regexes } }, { distance: { $in: regexes } }, { runCategory: { $in: regexes } },
             ] }).select('title sportType organizer venue city distance coverImage coverImages slug previousSlugs eventDate runClubId').populate('runClubId', 'listingHub').limit(perTypeLimit).lean(),
             RunClub.find({ status: 'published', $or: [
-                { name: regex }, { basedIn: regex }, { tagline: regex }, { organizer: regex },
-                { aboutUs: regex }, { runCategories: regex },
+                { name: { $in: regexes } }, { basedIn: { $in: regexes } }, { tagline: { $in: regexes } }, { organizer: { $in: regexes } },
+                { aboutUs: { $in: regexes } }, { runCategories: { $in: regexes } },
             ] }).select('name basedIn tagline coverImage coverImages slug listingHub').limit(perTypeLimit).lean(),
             Competition.find({ isApproved: true, $or: [
-                { name: regex }, { description: regex }, { competitionType: regex }, { subtitle: regex }, { venue: regex },
+                { name: { $in: regexes } }, { description: { $in: regexes } }, { competitionType: { $in: regexes } }, { subtitle: { $in: regexes } }, { venue: { $in: regexes } },
             ] }).select('name description competitionType subtitle venue coverImage dateTime').populate('fest', 'festName collegeName').limit(perTypeLimit).lean(),
             EventShow.find({ status: published, $or: [
-                { title: regex }, { displayName: regex }, { description: regex }, { eventType: regex },
-                { eventHeading: regex }, { organizer: regex }, { venue: regex }, { city: regex }, { cast: regex },
+                { title: { $in: regexes } }, { displayName: { $in: regexes } }, { description: { $in: regexes } }, { eventType: { $in: regexes } },
+                { eventHeading: { $in: regexes } }, { organizer: { $in: regexes } }, { venue: { $in: regexes } }, { city: { $in: regexes } }, { cast: { $in: regexes } },
             ] }).select('title displayName description eventType eventHeading organizer venue city poster banner coverImage coverImages showTimings').limit(perTypeLimit).lean(),
             CollegeGame.find({ status: 'published', $or: [
-                { title: regex }, { description: regex }, { city: regex }, { venue: regex },
+                { title: { $in: regexes } }, { description: { $in: regexes } }, { city: { $in: regexes } }, { venue: { $in: regexes } },
             ] }).select('title description city venue coverImage slug startsAt').limit(perTypeLimit).lean(),
         ]);
 

@@ -1,7 +1,7 @@
 /**
  * Search API — fest/competition search and public listing endpoints.
  */
-import { publicFetch } from './client.js';
+import { publicFetch, publicFetchJSONRetry } from './client.js';
 import { pickBestCardImage } from '../../utils/coverImages';
 
 const transformFestData = (fest) => ({
@@ -47,10 +47,8 @@ export const searchCompetitions = async (query, filters = {}) => {
     if (filters.festType) searchParams.append('festType', filters.festType);
     if (filters.location) searchParams.append('location', filters.location);
 
-    const response = await publicFetch(`/competitions/search?${searchParams.toString()}`);
-    if (!response.ok) return [];
-
-    const competitions = await response.json();
+    const { data } = await publicFetchJSONRetry(`/competitions/search?${searchParams.toString()}`);
+    const competitions = Array.isArray(data) ? data : [];
     return competitions.map(transformCompetitionData);
   } catch (error) {
     console.error('Error searching competitions:', error);
@@ -63,9 +61,7 @@ export const searchAll = async (query, filters = {}) => {
     const searchParams = new URLSearchParams();
     if (query?.trim()) searchParams.set('query', query.trim());
     if (filters.limit) searchParams.set('limit', filters.limit);
-    const response = await publicFetch(`/search/all?${searchParams.toString()}`);
-    if (!response.ok) return { results: [], total: 0 };
-    const data = await response.json();
+    const { data } = await publicFetchJSONRetry(`/search/all?${searchParams.toString()}`);
     const results = Array.isArray(data?.results) ? data.results : [];
     return { results, total: results.length };
   } catch (error) {
@@ -88,9 +84,7 @@ export const fetchSearchKeywords = async () => {
     return keywordsCache;
   }
   try {
-    const response = await publicFetch('/search/keywords');
-    if (!response.ok) return keywordsCache || [];
-    const data = await response.json();
+    const { data } = await publicFetchJSONRetry('/search/keywords');
     const list = Array.isArray(data?.keywords) ? data.keywords.filter(Boolean) : [];
     keywordsCache = list;
     keywordsCacheAt = Date.now();
@@ -110,12 +104,8 @@ export const searchFests = async (query, filters = {}) => {
     if (filters.startDate) searchParams.append('startDate', filters.startDate);
     if (filters.endDate) searchParams.append('endDate', filters.endDate);
 
-    const response = await publicFetch(`/fests/search?${searchParams.toString()}`);
-    if (!response.ok) {
-      throw new Error(`Search failed: ${response.status} ${response.statusText}`);
-    }
-
-    const fests = await response.json();
+    const { data } = await publicFetchJSONRetry(`/fests/search?${searchParams.toString()}`);
+    const fests = Array.isArray(data) ? data : [];
     return fests.map(transformFestData);
   } catch (error) {
     console.error('Error searching fests:', error);

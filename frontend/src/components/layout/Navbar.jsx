@@ -172,15 +172,13 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
         const performSearch = async () => {
             if (searchQuery.trim().length >= 2) {
                 setIsSearching(true);
+                setIsSearchDropdownOpen(true);
                 try {
                     const results = await searchAll(searchQuery);
-
                     setSearchResults((results.results || []).slice(0, 8));
-                    setIsSearchDropdownOpen(true);
                 } catch (error) {
                     console.error('Search error:', error);
                     setSearchResults([]);
-                    setIsSearchDropdownOpen(false);
                 } finally {
                     setIsSearching(false);
                 }
@@ -551,8 +549,15 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
     // Handle search form submit (Enter key)
     const handleSearchSubmit = (e) => {
         e.preventDefault();
-        if (searchQuery.trim() && searchResults.length > 0) {
+        const trimmed = searchQuery.trim();
+        if (!trimmed) return;
+        if (searchResults.length > 0) {
             handleSearchResultClick(searchResults[0]);
+        } else {
+            saveRecentSearch(trimmed);
+            setIsSearchDropdownOpen(false);
+            setIsSearchFocused(false);
+            navigate(`/fests?search=${encodeURIComponent(trimmed)}`);
         }
     };
 
@@ -734,13 +739,13 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                             <input
                                 id="navbar-search"
                                 name="q"
-                                type="search"
+                                type="text"
                                 autoComplete="off"
                                 placeholder="Search events, communities..."
                                 value={searchQuery}
                                 onChange={handleSearchChange}
                                 onFocus={handleSearchFocus}
-                                className={`w-32 sm:w-56 lg:w-64 pl-10 pr-10 py-2 rounded-full text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 ${isDark
+                                className={`w-32 sm:w-56 lg:w-64 pl-10 pr-10 py-2 rounded-full text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#007BFF]/30 [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden ${isDark
                                     ? 'bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:bg-white/10'
                                     : 'bg-gray-100 border border-gray-200 text-gray-900 placeholder-gray-500 focus:bg-white'
                                     }`}
