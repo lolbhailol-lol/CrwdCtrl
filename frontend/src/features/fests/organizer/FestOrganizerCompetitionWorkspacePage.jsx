@@ -1404,9 +1404,11 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                             ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                         </p>
                         <p className="text-[11px] text-gray-500 mt-1">
-                            {Number(stats.grossCollected) > 0 && Number(stats.grossCollected) !== Number(stats.revenue)
-                                ? `₹${Number(stats.grossCollected).toLocaleString('en-IN', { maximumFractionDigits: 0 })} paid · after gateway fee`
-                                : 'Paid entries on this competition'}
+                            {plugin.id === 'mindspark'
+                                ? 'Included in the fest total'
+                                : (Number(stats.grossCollected) > 0 && Number(stats.grossCollected) !== Number(stats.revenue)
+                                    ? `₹${Number(stats.grossCollected).toLocaleString('en-IN', { maximumFractionDigits: 0 })} paid · after gateway fee`
+                                    : 'Paid entries on this competition')}
                         </p>
                     </div>
                     {noReview ? (

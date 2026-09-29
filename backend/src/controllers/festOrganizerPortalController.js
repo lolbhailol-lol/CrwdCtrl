@@ -162,6 +162,36 @@ async function festDayOverallParticipants(festId) {
     return value;
 }
 
+async function mindSparkScaledCompetitionAmounts(festId) {
+    const festOid = new mongoose.Types.ObjectId(String(festId));
+    const Competition = mongoose.model('Competition');
+    const [competitions, grouped, razorpay] = await Promise.all([
+        Competition.find({ fest: festId }).select('_id').lean(),
+        Registration.aggregate([
+            { $match: { fest: festOid, isProShow: { $ne: true }, status: 'approved' } },
+            { $group: { _id: '$competitionId', revenue: { $sum: { $ifNull: ['$amountPaid', 0] } } } },
+        ]),
+        require('./mindsparkPaymentsController').getRazorpayMindSparkActivity().catch(() => null),
+    ]);
+    const paidById = new Map(grouped.map((row) => [row._id ? String(row._id) : 'none', Number(row.revenue) || 0]));
+    const rows = competitions.map((competition) => {
+        const paid = paidById.get(String(competition._id)) || 0;
+        return { id: String(competition._id), revenue: paid, grossCollected: paid };
+    });
+    const override = getFestPlugin(festId).settlementOverride || {};
+    const locked = mindSparkLockedTotals({
+        cashfreeGross: Number(override.cashfreeLockGross) || 0,
+        cashfreeRevenue: Number(override.cashfreeLockRevenue) || 0,
+        razorpayGross: Number(razorpay?.totalCollected) || 0,
+        override,
+    });
+    scaleCompetitionSettlementToTotals(rows, {
+        grossCollected: locked.revenue,
+        revenue: locked.revenue,
+    });
+    return new Map(rows.map((row) => [String(row.id), Number(row.revenue) || 0]));
+}
+
 function bundleNameFromRecord(bundle) {
     const key = String(bundle?.bundleKey || '');
     const pct = Number(bundle?.discountPercent) || 0;
@@ -1235,13 +1265,16 @@ exports.getDashboard = async (req, res) => {
             razorpayPaidRevenue = locked.razorpayPaidRevenue;
             cashfreeLockGross = locked.cashfreeGross;
             cashfreeLockRevenue = locked.cashfreeRevenue;
-            for (const row of competitionStats) {
+            const listed = competitionStats.filter((row) => row.id);
+            for (const row of listed) {
                 row.grossCollected = Number(row.revenue) || 0;
             }
-            const countedGross = Math.round(competitionStats.reduce((sum, row) => sum + (Number(row.grossCollected) || 0), 0) * 100) / 100;
-            const countedRevenue = Math.round(competitionStats.reduce((sum, row) => sum + (Number(row.revenue) || 0), 0) * 100) / 100;
-            earlierClearGross = Math.round((grossCollected - countedGross) * 100) / 100;
-            earlierClearRevenue = Math.round((revenue - countedRevenue) * 100) / 100;
+            scaleCompetitionSettlementToTotals(listed, { grossCollected: revenue, revenue });
+            for (const row of listed) {
+                row.grossCollected = row.revenue;
+            }
+            earlierClearGross = 0;
+            earlierClearRevenue = 0;
             rememberMindSparkMoney(festId, {
                 grossCollected,
                 revenue,
@@ -2342,7 +2375,11 @@ exports.getCompetitionOps = async (req, res) => {
         let revenue = paidApproved.reduce((s, r) => s + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
         let gatewayFees = 0;
-        if (getFestPlugin(festId).useCashfreeSettlement) {
+        if (isMindSparkFestId(festId)) {
+            const shares = await mindSparkScaledCompetitionAmounts(festId);
+            revenue = shares.get(String(competitionId)) || 0;
+            grossCollected = revenue;
+        } else if (getFestPlugin(festId).useCashfreeSettlement) {
             const orderIds = [...new Set(
                 paidApproved.map((r) => cashfreeBaseOrderId(r.payment_order_id)).filter(Boolean),
             )];

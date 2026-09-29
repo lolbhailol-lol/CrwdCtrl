@@ -257,7 +257,7 @@ export default function FestOrganizerRevenuePage() {
                 ) : null}
                 {ranked.length ? (
                     <div className="space-y-2">
-                        {mindSparkMode ? (
+                        {mindSparkMode && Math.abs(lockAndFees) >= 0.5 ? (
                             <div className="rounded-xl border border-white/8 bg-[#121314] px-3.5 py-3 space-y-2">
                                 <p className="text-[11px] text-gray-500">
                                     Add each event total to this line. That equals After fees.
