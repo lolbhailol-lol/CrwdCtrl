@@ -350,7 +350,7 @@ function buildWhatsAppJoinBlock(groupLink, communityName, { product = 'trek', co
         ? `Questions${fromLabel}? Message the organizers here.`
         : product === 'event'
             ? `Event updates & meetup details${fromLabel}.`
-            : product === 'run'
+        : product === 'run'
                 ? `Run updates & meetup details${fromLabel}.`
                 : product === 'fest'
                     ? `Fest updates${fromLabel}.`
@@ -625,10 +625,10 @@ const generateTrekParticipantEmailHTML = ({
         footnote: isEvent
             ? 'You received this about your event booking on CrwdCtrl.'
             : isRun
-                ? 'You received this about your run booking on CrwdCtrl.'
+            ? 'You received this about your run booking on CrwdCtrl.'
                 : isFest
                     ? 'You received this about your fest registration on CrwdCtrl.'
-                    : 'You received this about your trek on CrwdCtrl.',
+            : 'You received this about your trek on CrwdCtrl.',
     });
 };
 
@@ -972,13 +972,13 @@ function buildCrwdCtrlExploreEmailHTML({
 
     return `<!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head>
+    <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="format-detection" content="telephone=no,email=no,address=no" />
     <title>${safeHeadline}</title>
-    <style>
+        <style>
         body { margin:0 !important; padding:0 !important; width:100% !important; }
         img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
         table { border-collapse:collapse; mso-table-lspace:0; mso-table-rspace:0; }
@@ -994,10 +994,10 @@ function buildCrwdCtrlExploreEmailHTML({
             .cta-btn { display:block !important; width:100% !important; box-sizing:border-box !important; text-align:center !important; }
             .cta-btn a { display:block !important; width:100% !important; box-sizing:border-box !important; padding:14px 18px !important; }
             .footer-pad { padding:14px 18px 20px !important; }
-        }
-    </style>
+            }
+        </style>
     <!--[if mso]><style>table{border-collapse:collapse;}td{font-family:Arial,Helvetica,sans-serif;}</style><![endif]-->
-</head>
+    </head>
 <body style="margin:0;padding:0;background-color:#f0f1f5;-webkit-text-size-adjust:100%;text-size-adjust:100%;">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${safePreheader}</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#f0f1f5" style="background-color:#f0f1f5;">
@@ -1050,7 +1050,7 @@ function buildCrwdCtrlExploreEmailHTML({
             </td>
         </tr>
     </table>
-</body>
+    </body>
 </html>`;
 }
 
@@ -1926,23 +1926,23 @@ const generateLoginConfirmationEmailHTML = (userData) => {
 
     return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
-<head>
+    <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
     <meta name="x-apple-disable-message-reformatting" />
     <title>You're logged in — CrwdCtrl</title>
-    <style>
+        <style>
         body{margin:0;padding:0}
         table{mso-table-lspace:0;mso-table-rspace:0}
         img{border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic}
         a[x-apple-data-detectors]{color:inherit!important;text-decoration:inherit!important}
         @media (max-width:599px){.ecw{width:100%!important;min-width:0!important}}
-    </style>
+        </style>
     <!--[if mso]><noscript><xml>
         <o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings>
     </xml></noscript><![endif]-->
-</head>
+    </head>
 <body style="width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%;background-color:#f0f1f5;margin:0;padding:0">
     <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escapeHtml(preheader)}</div>
     <table width="100%" border="0" cellpadding="0" cellspacing="0" bgcolor="#f0f1f5" style="background-color:#f0f1f5" role="presentation">
@@ -2010,7 +2010,7 @@ const generateLoginConfirmationEmailHTML = (userData) => {
             </td>
         </tr>
     </table>
-</body>
+    </body>
 </html>`;
 };
 

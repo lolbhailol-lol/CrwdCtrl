@@ -162,34 +162,62 @@ async function festDayOverallParticipants(festId) {
     return value;
 }
 
-async function mindSparkScaledCompetitionAmounts(festId) {
+async function mindSparkScaledCompetitionAmounts(festId, targetRevenue = null) {
     const festOid = new mongoose.Types.ObjectId(String(festId));
     const Competition = mongoose.model('Competition');
+    const bundlePaid = { $gt: [{ $strLenCP: { $ifNull: ['$responses.mindspark_bundle_id', ''] } }, 0] };
     const [competitions, grouped, razorpay] = await Promise.all([
         Competition.find({ fest: festId }).select('_id').lean(),
         Registration.aggregate([
             { $match: { fest: festOid, isProShow: { $ne: true }, status: 'approved' } },
-            { $group: { _id: '$competitionId', revenue: { $sum: { $ifNull: ['$amountPaid', 0] } } } },
+            {
+                $group: {
+                    _id: '$competitionId',
+                    bundle: { $sum: { $cond: [bundlePaid, { $ifNull: ['$amountPaid', 0] }, 0] } },
+                    solo: { $sum: { $cond: [bundlePaid, 0, { $ifNull: ['$amountPaid', 0] }] } },
+                },
+            },
         ]),
-        require('./mindsparkPaymentsController').getRazorpayMindSparkActivity().catch(() => null),
+        targetRevenue == null
+            ? require('./mindsparkPaymentsController').getRazorpayMindSparkActivity().catch(() => null)
+            : Promise.resolve(null),
     ]);
-    const paidById = new Map(grouped.map((row) => [row._id ? String(row._id) : 'none', Number(row.revenue) || 0]));
+    const byId = new Map(grouped.map((row) => [row._id ? String(row._id) : 'none', row]));
     const rows = competitions.map((competition) => {
-        const paid = paidById.get(String(competition._id)) || 0;
-        return { id: String(competition._id), revenue: paid, grossCollected: paid };
+        const paid = byId.get(String(competition._id)) || {};
+        const bundle = Math.round((Number(paid.bundle) || 0) * 100) / 100;
+        const solo = Math.round((Number(paid.solo) || 0) * 100) / 100;
+        return { id: String(competition._id), bundle, solo, revenue: solo, grossCollected: solo };
     });
-    const override = getFestPlugin(festId).settlementOverride || {};
-    const locked = mindSparkLockedTotals({
-        cashfreeGross: Number(override.cashfreeLockGross) || 0,
-        cashfreeRevenue: Number(override.cashfreeLockRevenue) || 0,
-        razorpayGross: Number(razorpay?.totalCollected) || 0,
-        override,
-    });
-    scaleCompetitionSettlementToTotals(rows, {
-        grossCollected: locked.revenue,
-        revenue: locked.revenue,
-    });
-    return new Map(rows.map((row) => [String(row.id), Number(row.revenue) || 0]));
+    let target = targetRevenue;
+    if (target == null) {
+        const override = getFestPlugin(festId).settlementOverride || {};
+        const locked = mindSparkLockedTotals({
+            cashfreeGross: Number(override.cashfreeLockGross) || 0,
+            cashfreeRevenue: Number(override.cashfreeLockRevenue) || 0,
+            razorpayGross: Number(razorpay?.totalCollected) || 0,
+            override,
+        });
+        target = locked.revenue;
+    }
+    const bundleFixed = Math.round(rows.reduce((sum, row) => sum + row.bundle, 0) * 100) / 100;
+    const soloTarget = Math.round((Number(target) - bundleFixed) * 100) / 100;
+    if (soloTarget > 0) {
+        scaleCompetitionSettlementToTotals(rows, { grossCollected: soloTarget, revenue: soloTarget });
+    } else {
+        for (const row of rows) {
+            row.revenue = 0;
+            row.grossCollected = 0;
+        }
+    }
+    const totals = new Map();
+    const bundles = new Map();
+    for (const row of rows) {
+        const amount = Math.round((row.bundle + (Number(row.revenue) || 0)) * 100) / 100;
+        totals.set(row.id, amount);
+        bundles.set(row.id, row.bundle);
+    }
+    return { totals, bundles };
 }
 
 function bundleNameFromRecord(bundle) {
@@ -935,7 +963,7 @@ exports.getMe = async (req, res) => {
 };
 
 exports.getDashboard = async (req, res) => {
-    const festId = req.festId;
+        const festId = req.festId;
     const dashKey = String(festId || '');
     let sent = false;
     let refreshing = false;
@@ -1265,13 +1293,13 @@ exports.getDashboard = async (req, res) => {
             razorpayPaidRevenue = locked.razorpayPaidRevenue;
             cashfreeLockGross = locked.cashfreeGross;
             cashfreeLockRevenue = locked.cashfreeRevenue;
-            const listed = competitionStats.filter((row) => row.id);
-            for (const row of listed) {
-                row.grossCollected = Number(row.revenue) || 0;
-            }
-            scaleCompetitionSettlementToTotals(listed, { grossCollected: revenue, revenue });
-            for (const row of listed) {
-                row.grossCollected = row.revenue;
+            const shares = await mindSparkScaledCompetitionAmounts(festId, revenue);
+            for (const row of competitionStats) {
+                if (!row.id) continue;
+                const amount = shares.totals.get(String(row.id));
+                if (amount == null) continue;
+                row.revenue = amount;
+                row.grossCollected = amount;
             }
             earlierClearGross = 0;
             earlierClearRevenue = 0;
@@ -1573,7 +1601,7 @@ exports.listParticipants = async (req, res) => {
             if (paymentStatus === 'collected') {
                 filter.paymentStatus = { $in: ['paid', 'free'] };
             } else {
-                filter.paymentStatus = paymentStatus;
+            filter.paymentStatus = paymentStatus;
             }
         }
         if (whatsappGroup === 'joined') {
@@ -1867,8 +1895,8 @@ exports.exportParticipants = async (req, res) => {
         const format = String(req.query.format || 'xlsx').toLowerCase();
 
         if (format === 'csv') {
-            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.csv"`);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.csv"`);
             return res.send(participantsToCsv(participants));
         }
 
@@ -2375,10 +2403,12 @@ exports.getCompetitionOps = async (req, res) => {
         let revenue = paidApproved.reduce((s, r) => s + (Number(r.amountPaid) || 0), 0);
         let grossCollected = revenue;
         let gatewayFees = 0;
+        let bundleCollected = 0;
         if (isMindSparkFestId(festId)) {
             const shares = await mindSparkScaledCompetitionAmounts(festId);
-            revenue = shares.get(String(competitionId)) || 0;
+            revenue = shares.totals.get(String(competitionId)) || 0;
             grossCollected = revenue;
+            bundleCollected = shares.bundles.get(String(competitionId)) || 0;
         } else if (getFestPlugin(festId).useCashfreeSettlement) {
             const orderIds = [...new Set(
                 paidApproved.map((r) => cashfreeBaseOrderId(r.payment_order_id)).filter(Boolean),
@@ -2440,6 +2470,7 @@ exports.getCompetitionOps = async (req, res) => {
                 checkInRate: approved > 0 ? Math.round((checkedIn / approved) * 100) : 0,
                 revenue,
                 grossCollected,
+                bundleCollected,
                 gatewayFees,
                 teamCount: teams.length,
                 soloCount: solo.length,

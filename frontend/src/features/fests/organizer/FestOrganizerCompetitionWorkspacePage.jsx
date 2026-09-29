@@ -1405,7 +1405,9 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                         </p>
                         <p className="text-[11px] text-gray-500 mt-1">
                             {plugin.id === 'mindspark'
-                                ? 'Included in the fest total'
+                                ? (Number(stats.bundleCollected) > 0
+                                    ? `Bundles ₹${Number(stats.bundleCollected).toLocaleString('en-IN', { maximumFractionDigits: 0 })} match the receipts`
+                                    : 'Included in the fest total')
                                 : (Number(stats.grossCollected) > 0 && Number(stats.grossCollected) !== Number(stats.revenue)
                                     ? `₹${Number(stats.grossCollected).toLocaleString('en-IN', { maximumFractionDigits: 0 })} paid · after gateway fee`
                                     : 'Paid entries on this competition')}
