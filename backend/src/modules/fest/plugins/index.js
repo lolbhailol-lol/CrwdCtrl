@@ -9,6 +9,7 @@ const {
     techfestPlugin,
 } = require('./techfest');
 const { isKshitijFest, kshitijPlugin } = require('./kshitij');
+const { isAarohanFest, aarohanPlugin } = require('./aarohan');
 
 const defaultFestPlugin = {
     id: 'default',
@@ -27,6 +28,7 @@ function getFestPlugin(festIdOrFest) {
     if (isMindSparkFestId(id)) return mindsparkPlugin;
     if (isTechfestFest(festIdOrFest)) return techfestPlugin;
     if (isKshitijFest(festIdOrFest)) return kshitijPlugin;
+    if (isAarohanFest(festIdOrFest)) return aarohanPlugin;
     return defaultFestPlugin;
 }
 
@@ -47,6 +49,8 @@ module.exports = {
     techfestPlugin,
     isKshitijFest,
     kshitijPlugin,
+    isAarohanFest,
+    aarohanPlugin,
     shouldAutoConfirmRegistration,
     defaultFestPlugin,
 };

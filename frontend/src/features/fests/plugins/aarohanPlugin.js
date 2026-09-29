@@ -5,7 +5,7 @@ import { defaultFestPlugin } from './defaultPlugin';
 export const aarohanPlugin = {
   ...defaultFestPlugin,
   id: 'aarohan',
-  skipRegistrationReview: false,
+  skipRegistrationReview: true,
   suppressDefaultSuccessPopup: false,
   skipFestCommonFormOnCompetition: true,
   hasRosterPersonStep: true,
