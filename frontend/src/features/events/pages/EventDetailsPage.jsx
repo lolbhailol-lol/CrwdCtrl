@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -1351,7 +1351,7 @@ export default function EventDetailsPage() {
                       </div>
                     </>
                   );
-                })()}                })()}
+                })()}
               </div>
             </div>
           ) : null}

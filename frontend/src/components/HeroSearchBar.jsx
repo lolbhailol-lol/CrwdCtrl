@@ -88,7 +88,7 @@ export default function HeroSearchBar({
                     id={resolvedInputId}
                     name="q"
                     ref={inputRef}
-                    type="search"
+                    type="text"
                     enterKeyHint="search"
                     inputMode="search"
                     autoComplete="off"
@@ -101,7 +101,7 @@ export default function HeroSearchBar({
                     onBlur={handleBlur}
                     placeholder={activePlaceholder}
                     readOnly={readOnly}
-                    className={`w-full bg-transparent text-fluid-sm leading-none outline-none lowercase placeholder:text-[#70757A] placeholder:lowercase ${
+                    className={`w-full bg-transparent text-fluid-sm leading-none outline-none lowercase placeholder:text-[#70757A] placeholder:lowercase [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden ${
                         isDark ? 'text-gray-100' : 'text-[#3c4043]'
                     }`}
                 />
