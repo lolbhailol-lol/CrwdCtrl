@@ -1,0 +1,11 @@
+android/
+node_modules/
+dist/
+.git/
+.vercel/
+tests/
+*.apk
+*.aab
+*.mp4
+*.mov
+*.zip
