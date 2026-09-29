@@ -6,6 +6,7 @@ import { festOrganizerRoutes } from './festOrganizerRoutes';
 import { mindsparkPaymentsRoutes } from './mindsparkPaymentsRoutes';
 import { runClubOrganizerRoutes } from './runClubOrganizerRoutes';
 import { eventOrganizerRoutes } from './eventOrganizerRoutes';
+import { garbaRoutes } from './garbaRoutes';
 import { campusHuntRoutes } from './campusHuntRoutes';
 
 /** Route elements for use inside <Routes> — must be JSX, not a wrapper component. */
@@ -18,6 +19,7 @@ export const appRoutes = (
     {mindsparkPaymentsRoutes}
     {runClubOrganizerRoutes}
     {eventOrganizerRoutes}
+    {garbaRoutes}
     {campusHuntRoutes}
     {adminRoutes}
   </>

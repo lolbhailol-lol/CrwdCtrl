@@ -131,6 +131,7 @@ export const EventOrganizerDashboardPage = lazyWithRetry(() => import('../../fea
 export const EventOrganizerParticipantsPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerParticipantsPage'));
 export const EventOrganizerScanPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerScanPage'));
 export const EventOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/events/organizer/show/EventOrganizerNotificationsPage'));
+export const GarbaDashboardPage = lazyWithRetry(() => import('../../features/garba/GarbaDashboardPage'));
 
 export const FestOrganizerLoginPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerLoginPage'));
 export const FestOrganizerSignupPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerSignupPage'));
