@@ -1,9 +1,8 @@
-# Frontend static site on Railway (Docker + Caddy)
+# Frontend static site on Railway (Railpack + Caddy)
 # Caddyfile in this directory proxies /api → backend and serves dist/.
 
 [build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+builder = "RAILPACK"
 
 [deploy]
 healthcheckPath = "/health"
