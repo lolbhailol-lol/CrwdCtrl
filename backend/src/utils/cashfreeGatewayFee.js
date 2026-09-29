@@ -158,6 +158,7 @@ function mindSparkLockedTotals({
   override = {},
 } = {}) {
   const feeRate = Number(override.gatewayFeeRate ?? CASHFREE_GATEWAY_FEE_RATE);
+  const additionalDeduction = round2(Number(override.additionalDeduction) || 0);
   const cfLockGross = round2(Number(override.cashfreeLockGross) || 0);
   const cfLockRevenue = round2(Number(override.cashfreeLockRevenue) || 0);
   const rzBaseGross = round2(Number(override.razorpayPaidGross) || 0);
@@ -171,7 +172,8 @@ function mindSparkLockedTotals({
   const grossCollected = round2(cfGross + rzGross);
   return {
     grossCollected,
-    revenue: round2(cfRevenue + rzRevenue),
+    revenue: round2(Math.max(0, cfRevenue + rzRevenue - additionalDeduction)),
+    additionalDeduction,
     gatewayFees: round2(grossCollected * feeRate),
     razorpayPaidGross: rzGross,
     razorpayPaidRevenue: rzRevenue,

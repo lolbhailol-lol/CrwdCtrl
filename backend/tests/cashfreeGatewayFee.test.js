@@ -203,4 +203,14 @@ test('locked Cashfree 435303 stays put while live Razorpay above 9314 increases 
   assert.equal(grown.revenue, 445451.98);
   assert.equal(grown.razorpayPaidGross, 10314);
   assert.equal(grown.cashfreeRevenue, 435303);
+
+  const adjusted = mindSparkLockedTotals({
+    cashfreeGross: 380000,
+    cashfreeRevenue: 373920,
+    razorpayGross: 10314,
+    override: { ...override, additionalDeduction: 5000 },
+  });
+  assert.equal(adjusted.revenue, 440451.98);
+  assert.equal(adjusted.cashfreeRevenue, 435303);
+  assert.equal(adjusted.razorpayPaidGross, 10314);
 });

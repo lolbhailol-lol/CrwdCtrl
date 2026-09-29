@@ -86,6 +86,13 @@
 		}
 		respond @missingAsset 404
 
+		# Vite asset names are content-hashed, so browsers can keep them for a year.
+		# Everything else (index.html) must revalidate so a deploy never serves stale chunk names.
+		@hashedAsset path /assets/*
+		header @hashedAsset Cache-Control "public, max-age=31536000, immutable"
+		@revalidate not path /assets/*
+		header @revalidate Cache-Control "no-cache"
+
 		try_files {path} {path}.html {path}/index.html /index.html
 		file_server {
 			hide .git
