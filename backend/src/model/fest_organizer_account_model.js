@@ -14,6 +14,16 @@ const festOrganizerAccountSchema = new mongoose.Schema(
         portalRole: { type: String, enum: PORTAL_ROLES, default: 'organizer', index: true },
         /** Page keys for cohead accounts (see festOrganizerPages.PAGE_KEYS). Ignored for full organizers. */
         allowedPages: { type: [String], default: [] },
+        /** Non-empty = co-head limited to these competitions; allowedPages is derived from sections. */
+        competitionAccess: {
+            type: [{
+                _id: false,
+                festId: { type: mongoose.Schema.Types.ObjectId, ref: 'FestOrganizer', required: true },
+                competitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Competition', required: true },
+                sections: { type: [String], default: [] },
+            }],
+            default: [],
+        },
         assignedFestIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FestOrganizer' }],
         status: {
             type: String,

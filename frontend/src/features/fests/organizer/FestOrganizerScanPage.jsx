@@ -3,7 +3,8 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
 import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
 import { getApiBaseUrl } from '../../../config/apiBase';
-import { getFestOrganizerToken } from '../../../utils/festOrganizerSession';
+import { getFestOrganizerSession, getFestOrganizerToken } from '../../../utils/festOrganizerSession';
+import { organizerCompetitionIds } from './festOrganizerPages';
 import {
     fetchFestOrganizerParticipants,
     lookupFestOrganizerParticipant,
@@ -34,18 +35,24 @@ function FestOrganizerScanPageContent() {
     const { toast } = useDialog();
     const [rosterKey, setRosterKey] = useState(0);
     const [competitions, setCompetitions] = useState([]);
+    const scannerIds = useMemo(
+        () => organizerCompetitionIds(getFestOrganizerSession(), festId, 'scanner'),
+        [festId],
+    );
 
     useEffect(() => {
         let cancelled = false;
         fetchFestOrganizerParticipants(festId, { status: 'approved', page: 1, limit: 10 })
             .then((data) => {
-                if (!cancelled) setCompetitions(Array.isArray(data?.competitions) ? data.competitions : []);
+                if (cancelled) return;
+                const list = Array.isArray(data?.competitions) ? data.competitions : [];
+                setCompetitions(scannerIds ? list.filter((c) => scannerIds.has(String(c.id))) : list);
             })
             .catch((error) => {
                 if (!cancelled) toast(error?.message || 'Could not load competitions');
             });
         return () => { cancelled = true; };
-    }, [festId, toast]);
+    }, [festId, toast, scannerIds]);
 
     const selectedCompetition = useMemo(
         () => competitions.find((item) => String(item.id) === String(competitionId)) || null,
@@ -60,6 +67,13 @@ function FestOrganizerScanPageContent() {
         setSearchParams(next, { replace: true });
         setRosterKey((key) => key + 1);
     };
+
+    useEffect(() => {
+        if (!scannerIds || proShow || !competitions.length) return;
+        if (!competitions.some((c) => String(c.id) === String(competitionId))) {
+            selectCompetition(String(competitions[0].id));
+        }
+    }, [scannerIds, competitions, competitionId, proShow]);
 
     const statsQs = proShow
         ? '?proShow=1'
@@ -128,7 +142,7 @@ function FestOrganizerScanPageContent() {
                         onChange={(event) => selectCompetition(event.target.value)}
                         className="w-full min-h-[48px] rounded-xl border border-white/10 bg-[#111213] px-3 text-sm font-semibold text-white focus:border-[#0ECCEE] focus:outline-none"
                     >
-                        <option value="">All competitions</option>
+                        {scannerIds ? null : <option value="">All competitions</option>}
                         {competitions.map((competition) => (
                             <option key={competition.id} value={competition.id}>{competition.name}</option>
                         ))}

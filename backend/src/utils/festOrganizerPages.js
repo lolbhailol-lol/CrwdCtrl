@@ -44,6 +44,7 @@ const PAGE_ROUTE_MATCHERS = {
     ],
     'check-in': [
         { methods: ['GET', 'POST'], re: /\/checkin(\/|$)/ },
+        { methods: ['GET'], re: /\/participants(\/lookup)?$/ },
     ],
     auditorium: [
         { methods: ['GET', 'PATCH', 'PUT', 'POST', 'DELETE'], re: /\/auditorium(\/|$)/ },
@@ -133,19 +134,81 @@ function festRouteAllowedForOrganizer(organizer, method, path) {
     const role = normalizePortalRole(organizer?.portalRole);
     if (role === 'organizer') return true;
     if (role === 'desk') return deskRouteAllowed(method, path);
-    return routeAllowedForPages(method, path, organizer?.allowedPages);
+    const access = sanitizeCompetitionAccess(organizer?.competitionAccess);
+    const pages = access.length ? pagesForCompetitionAccess(access) : organizer?.allowedPages;
+    return routeAllowedForPages(method, path, pages);
+}
+
+/** Per-competition sections a co-head can be granted. */
+const COMPETITION_SECTIONS = [
+    { key: 'participants', label: 'Participants', pages: ['participants', 'competitions', 'overview'] },
+    { key: 'desk', label: 'Desk registration', pages: ['fest-day-desk'] },
+    { key: 'scanner', label: 'Scanner', pages: ['check-in'] },
+    { key: 'revenue', label: 'Revenue', pages: ['revenue', 'overview'] },
+];
+const COMPETITION_SECTION_KEYS = new Set(COMPETITION_SECTIONS.map((s) => s.key));
+
+function sanitizeCompetitionAccess(raw) {
+    if (!Array.isArray(raw)) return [];
+    const byCompetition = new Map();
+    for (const item of raw) {
+        const festId = String(item?.festId || '').trim();
+        const competitionId = String(item?.competitionId || '').trim();
+        if (!/^[a-f0-9]{24}$/i.test(festId) || !/^[a-f0-9]{24}$/i.test(competitionId)) continue;
+        const sections = [...new Set((Array.isArray(item.sections) ? item.sections : [])
+            .map((s) => String(s || '').trim().toLowerCase())
+            .filter((s) => COMPETITION_SECTION_KEYS.has(s)))];
+        if (!sections.length) continue;
+        byCompetition.set(competitionId, { festId, competitionId, sections });
+    }
+    return [...byCompetition.values()];
+}
+
+function pagesForCompetitionAccess(access) {
+    const pages = new Set();
+    for (const entry of access || []) {
+        for (const key of entry.sections || []) {
+            const section = COMPETITION_SECTIONS.find((s) => s.key === key);
+            (section?.pages || []).forEach((p) => pages.add(p));
+        }
+    }
+    return PAGE_KEYS.filter((key) => pages.has(key));
+}
+
+/**
+ * Competition scope for a fest, or null when the account is not competition-limited.
+ * @returns {null | { all: Set<string>, participants: Set<string>, desk: Set<string>, scanner: Set<string>, revenue: Set<string> }}
+ */
+function getCompetitionScope(organizer, festId) {
+    if (normalizePortalRole(organizer?.portalRole) !== 'cohead') return null;
+    const access = Array.isArray(organizer?.competitionAccess) ? organizer.competitionAccess : [];
+    if (!access.length) return null;
+    const scope = { all: new Set(), participants: new Set(), desk: new Set(), scanner: new Set(), revenue: new Set() };
+    for (const entry of access) {
+        if (String(entry.festId) !== String(festId)) continue;
+        const id = String(entry.competitionId);
+        scope.all.add(id);
+        for (const key of entry.sections || []) {
+            if (scope[key]) scope[key].add(id);
+        }
+    }
+    return scope;
 }
 
 function publicOrganizerFields(organizer) {
     const portalRole = normalizePortalRole(organizer?.portalRole);
+    const competitionAccess = portalRole === 'cohead'
+        ? sanitizeCompetitionAccess(organizer?.competitionAccess)
+        : [];
     const allowedPages = portalRole === 'cohead'
-        ? sanitizeAllowedPages(organizer?.allowedPages)
+        ? (competitionAccess.length ? pagesForCompetitionAccess(competitionAccess) : sanitizeAllowedPages(organizer?.allowedPages))
         : portalRole === 'desk'
             ? ['fest-day-desk']
             : [...PAGE_KEYS];
     return {
         portalRole,
         allowedPages,
+        competitionAccess,
         canManageAccess: portalRole === 'organizer',
     };
 }
@@ -168,4 +231,8 @@ module.exports = {
     deskRouteAllowed,
     publicOrganizerFields,
     navPageKeyForLabel,
+    COMPETITION_SECTIONS,
+    sanitizeCompetitionAccess,
+    pagesForCompetitionAccess,
+    getCompetitionScope,
 };

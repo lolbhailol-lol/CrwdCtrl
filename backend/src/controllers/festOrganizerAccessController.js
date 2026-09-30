@@ -9,13 +9,55 @@ const {
     sanitizeAllowedPages,
     normalizePortalRole,
 } = require('../utils/festOrganizerAccess');
+const {
+    COMPETITION_SECTIONS,
+    sanitizeCompetitionAccess,
+    pagesForCompetitionAccess,
+} = require('../utils/festOrganizerPages');
+const Competition = require('../model/competition_model');
+
+const SECTION_LIST = COMPETITION_SECTIONS.map(({ key, label }) => ({ key, label }));
 
 function tempPassword() {
     return `Cc${crypto.randomBytes(4).toString('hex')}!${crypto.randomInt(10, 99)}`;
 }
 
-function serializeMember(row) {
+async function festCompetitions(festId) {
+    return Competition.find({ fest: festId, 'auditorium.enabled': { $ne: true } })
+        .select('name')
+        .sort({ name: 1 })
+        .lean();
+}
+
+/** Validate [{competitionId, sections}] against this fest; returns stored entries or throws. */
+async function resolveCompetitionAccess(festId, raw) {
+    const entries = sanitizeCompetitionAccess(
+        (Array.isArray(raw) ? raw : []).map((item) => ({ ...item, festId })),
+    );
+    if (!entries.length) return [];
+    const valid = new Set((await festCompetitions(festId)).map((c) => String(c._id)));
+    const bad = entries.find((entry) => !valid.has(entry.competitionId));
+    if (bad) {
+        const error = new Error('One of the selected competitions is not part of this fest');
+        error.status = 400;
+        throw error;
+    }
+    return entries;
+}
+
+async function describeCompetitionAccess(festId, entries) {
+    if (!entries.length) return [];
+    const names = new Map((await festCompetitions(festId)).map((c) => [String(c._id), c.name || 'Competition']));
+    const labelOf = (key) => SECTION_LIST.find((s) => s.key === key)?.label || key;
+    return entries.map((entry) => `${names.get(entry.competitionId) || 'Competition'} (${entry.sections.map(labelOf).join(', ')})`);
+}
+
+function serializeMember(row, festId) {
     const portalRole = normalizePortalRole(row.portalRole);
+    const allAccess = portalRole === 'cohead' ? sanitizeCompetitionAccess(row.competitionAccess) : [];
+    const competitionAccess = allAccess
+        .filter((entry) => !festId || entry.festId === String(festId))
+        .map(({ competitionId, sections }) => ({ competitionId, sections }));
     return {
         id: String(row._id),
         name: row.name || '',
@@ -23,8 +65,10 @@ function serializeMember(row) {
         email: row.email || '',
         phone: row.phone || '',
         portalRole,
+        accessMode: allAccess.length ? 'competitions' : 'pages',
+        competitionAccess,
         allowedPages: portalRole === 'cohead'
-            ? sanitizeAllowedPages(row.allowedPages)
+            ? (allAccess.length ? pagesForCompetitionAccess(allAccess) : sanitizeAllowedPages(row.allowedPages))
             : portalRole === 'desk'
                 ? ['fest-day-desk']
                 : [...PAGE_KEYS],
@@ -52,14 +96,17 @@ async function trySendInviteEmail({
     password,
     festName,
     pages,
+    competitionLines = [],
     invitedBy,
 }) {
     if (!to) return { sent: false, reason: 'no_email' };
     if (!process.env.RESEND_API_KEY) return { sent: false, reason: 'email_not_configured' };
 
-    const pageLabels = PAGE_CATALOG
-        .filter((p) => pages.includes(p.key))
-        .map((p) => p.label);
+    const pageLabels = competitionLines.length
+        ? competitionLines
+        : PAGE_CATALOG
+            .filter((p) => pages.includes(p.key))
+            .map((p) => p.label);
     const loginUrl = frontendLoginUrl();
     const safe = (v) => String(v || '').replace(/</g, '');
     try {
@@ -71,7 +118,7 @@ async function trySendInviteEmail({
             html: `
               <p>Hi ${safe(name) || 'there'},</p>
               <p><strong>${safe(invitedBy) || 'A fest organizer'}</strong> invited you as a co-head on <strong>${safe(festName) || 'the fest'}</strong>.</p>
-              <p>Pages granted: ${pageLabels.length ? pageLabels.join(', ') : 'none yet'}.</p>
+              <p>${competitionLines.length ? 'Access granted' : 'Pages granted'}: ${pageLabels.length ? pageLabels.map(safe).join('; ') : 'none yet'}.</p>
               <p>Login: <a href="${loginUrl}">${loginUrl}</a></p>
               <p>Username: <code>${safe(username)}</code><br/>
               Temporary password: <code>${safe(password)}</code></p>
@@ -79,7 +126,7 @@ async function trySendInviteEmail({
             text: [
                 `Hi ${name || 'there'},`,
                 `${invitedBy || 'A fest organizer'} invited you as a co-head on ${festName || 'the fest'}.`,
-                `Pages: ${pageLabels.join(', ') || 'none'}`,
+                `${competitionLines.length ? 'Access' : 'Pages'}: ${pageLabels.join('; ') || 'none'}`,
                 `Login: ${loginUrl}`,
                 `Username: ${username}`,
                 `Temporary password: ${password}`,
@@ -102,18 +149,23 @@ exports.getAccessCatalog = async (_req, res) => {
 exports.listAccessMembers = async (req, res) => {
     try {
         const festId = req.festId;
-        const members = await FestOrganizerAccount.find({
-            assignedFestIds: festId,
-            portalRole: { $in: ['cohead', 'desk'] },
-        })
-            .select('name username email phone portalRole allowedPages isActive status lastLoginAt createdAt')
-            .sort({ createdAt: -1 })
-            .lean();
+        const [members, competitions] = await Promise.all([
+            FestOrganizerAccount.find({
+                assignedFestIds: festId,
+                portalRole: { $in: ['cohead', 'desk'] },
+            })
+                .select('name username email phone portalRole allowedPages competitionAccess isActive status lastLoginAt createdAt')
+                .sort({ createdAt: -1 })
+                .lean(),
+            festCompetitions(festId),
+        ]);
 
         res.json({
             success: true,
             pages: PAGE_CATALOG.filter((p) => p.key !== 'access'),
-            members: members.map(serializeMember),
+            sections: SECTION_LIST,
+            competitions: competitions.map((c) => ({ id: String(c._id), name: c.name || 'Competition' })),
+            members: members.map((row) => serializeMember(row, festId)),
         });
     } catch (error) {
         console.error('[festOrganizerAccess.list]', error);
@@ -132,14 +184,17 @@ exports.inviteAccessMember = async (req, res) => {
         const emailRaw = String(req.body.email || '').trim().toLowerCase();
         const email = FestOrganizerAccount.normalizeOptionalEmail(emailRaw);
         const phone = String(req.body.phone || '').trim();
-        const allowedPages = sanitizeAllowedPages(req.body.allowedPages || req.body.pages || []);
+        const competitionAccess = await resolveCompetitionAccess(festId, req.body.competitionAccess);
+        const allowedPages = competitionAccess.length
+            ? pagesForCompetitionAccess(competitionAccess)
+            : sanitizeAllowedPages(req.body.allowedPages || req.body.pages || []);
         const passwordPlain = String(req.body.password || '').trim() || tempPassword();
 
         if (!name || !username) {
             return res.status(400).json({ success: false, message: 'Name and username are required' });
         }
         if (!allowedPages.length) {
-            return res.status(400).json({ success: false, message: 'Select at least one page for the co-head' });
+            return res.status(400).json({ success: false, message: 'Select at least one page or competition section for the co-head' });
         }
         if (passwordPlain.length < 6) {
             return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
@@ -165,6 +220,7 @@ exports.inviteAccessMember = async (req, res) => {
             passwordHash,
             portalRole: 'cohead',
             allowedPages,
+            competitionAccess,
             assignedFestIds: [festId],
             status: 'approved',
             isActive: true,
@@ -179,12 +235,13 @@ exports.inviteAccessMember = async (req, res) => {
             password: passwordPlain,
             festName: fest?.festName,
             pages: allowedPages,
+            competitionLines: await describeCompetitionAccess(festId, competitionAccess),
             invitedBy: req.organizer?.name || req.displayName,
         });
 
         res.status(201).json({
             success: true,
-            member: serializeMember(created.toObject ? created.toObject() : created),
+            member: serializeMember(created.toObject ? created.toObject() : created, festId),
             credentials: {
                 username,
                 password: passwordPlain,
@@ -193,6 +250,7 @@ exports.inviteAccessMember = async (req, res) => {
             email: emailResult,
         });
     } catch (error) {
+        if (error?.status === 400) return res.status(400).json({ success: false, message: error.message });
         console.error('[festOrganizerAccess.invite]', error);
         if (error?.code === 11000) {
             return res.status(409).json({ success: false, message: 'Username or email already exists' });
@@ -216,15 +274,29 @@ exports.updateAccessMember = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Cannot edit main organizer accounts here' });
         }
 
-        if (req.body.allowedPages !== undefined || req.body.pages !== undefined) {
-            if (normalizePortalRole(member.portalRole) !== 'cohead') {
-                return res.status(400).json({ success: false, message: 'Page grants only apply to co-heads' });
-            }
+        const touchesGrants = req.body.competitionAccess !== undefined
+            || req.body.allowedPages !== undefined
+            || req.body.pages !== undefined;
+        if (touchesGrants && normalizePortalRole(member.portalRole) !== 'cohead') {
+            return res.status(400).json({ success: false, message: 'Page grants only apply to co-heads' });
+        }
+        if (req.body.competitionAccess !== undefined) {
+            const mine = await resolveCompetitionAccess(festId, req.body.competitionAccess);
+            const others = sanitizeCompetitionAccess(member.competitionAccess)
+                .filter((entry) => entry.festId !== festId);
+            member.competitionAccess = [...others, ...mine];
+        }
+        const storedAccess = sanitizeCompetitionAccess(member.competitionAccess);
+        if (storedAccess.length) {
+            member.allowedPages = pagesForCompetitionAccess(storedAccess);
+        } else if (req.body.allowedPages !== undefined || req.body.pages !== undefined) {
             const pages = sanitizeAllowedPages(req.body.allowedPages || req.body.pages || []);
             if (!pages.length) {
                 return res.status(400).json({ success: false, message: 'Select at least one page' });
             }
             member.allowedPages = pages;
+        } else if (req.body.competitionAccess !== undefined && !sanitizeAllowedPages(member.allowedPages).length) {
+            return res.status(400).json({ success: false, message: 'Select at least one competition section or page' });
         }
 
         if (req.body.isActive !== undefined) {
@@ -239,8 +311,9 @@ exports.updateAccessMember = async (req, res) => {
         }
 
         await member.save();
-        res.json({ success: true, member: serializeMember(member.toObject()) });
+        res.json({ success: true, member: serializeMember(member.toObject(), festId) });
     } catch (error) {
+        if (error?.status === 400) return res.status(400).json({ success: false, message: error.message });
         console.error('[festOrganizerAccess.update]', error);
         res.status(500).json({ success: false, message: 'Failed to update access' });
     }
@@ -272,7 +345,7 @@ exports.revokeAccessMember = async (req, res) => {
             message: member.isActive
                 ? 'Removed from this fest'
                 : 'Access revoked and account deactivated',
-            member: serializeMember(member.toObject()),
+            member: serializeMember(member.toObject(), festId),
         });
     } catch (error) {
         console.error('[festOrganizerAccess.revoke]', error);

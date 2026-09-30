@@ -13,16 +13,111 @@ import { FEST_ORG_PAGE_CATALOG } from './festOrganizerPages';
 
 const GRANTABLE = FEST_ORG_PAGE_CATALOG.filter((p) => p.key !== 'access');
 
+const DEFAULT_SECTIONS = [
+    { key: 'participants', label: 'Participants' },
+    { key: 'desk', label: 'Desk registration' },
+    { key: 'scanner', label: 'Scanner' },
+    { key: 'revenue', label: 'Revenue' },
+];
+
 const EMPTY_INVITE = {
     name: '',
     username: '',
     email: '',
     phone: '',
+    mode: 'pages',
     pages: ['fest-day-desk'],
+    competitionAccess: [],
 };
 
 function inputClass() {
     return 'w-full bg-[#121314] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]/50';
+}
+
+function chipClass(on) {
+    return `text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors ${
+        on
+            ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/15 text-[#0ECCEE]'
+            : 'border-white/10 text-gray-500 hover:border-white/20'
+    }`;
+}
+
+function toggleSection(access, competitionId, sectionKey) {
+    const entry = access.find((a) => a.competitionId === competitionId);
+    const sections = new Set(entry?.sections || []);
+    if (sections.has(sectionKey)) sections.delete(sectionKey);
+    else sections.add(sectionKey);
+    const rest = access.filter((a) => a.competitionId !== competitionId);
+    return sections.size ? [...rest, { competitionId, sections: [...sections] }] : rest;
+}
+
+function AccessModeToggle({ mode, onChange }) {
+    return (
+        <div className="inline-flex rounded-xl border border-white/10 p-0.5 text-[11px]">
+            {[['pages', 'Whole pages'], ['competitions', 'Specific competitions']].map(([key, label]) => (
+                <button
+                    key={key}
+                    type="button"
+                    onClick={() => onChange(key)}
+                    className={`px-2.5 py-1 rounded-lg ${mode === key ? 'bg-[#0ECCEE] text-black font-semibold' : 'text-gray-400'}`}
+                >
+                    {label}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+function CompetitionAccessEditor({ competitions, sections, value, onToggle }) {
+    const [query, setQuery] = useState('');
+    const granted = useMemo(() => new Map(value.map((a) => [a.competitionId, new Set(a.sections)])), [value]);
+    const visible = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        const list = q ? competitions.filter((c) => c.name.toLowerCase().includes(q)) : competitions;
+        return [...list].sort((a, b) => Number(granted.has(b.id)) - Number(granted.has(a.id)));
+    }, [competitions, query, granted]);
+
+    if (!competitions.length) {
+        return <p className="text-xs text-gray-500">No competitions in this fest yet.</p>;
+    }
+    return (
+        <div className="space-y-2">
+            <input
+                className={inputClass()}
+                placeholder="Search competitions"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+            />
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                {visible.map((comp) => {
+                    const on = granted.get(comp.id);
+                    return (
+                        <div
+                            key={comp.id}
+                            className={`rounded-xl border px-3 py-2 ${on ? 'border-[#0ECCEE]/30 bg-[#0ECCEE]/5' : 'border-white/10'}`}
+                        >
+                            <p className="text-sm font-medium truncate">{comp.name}</p>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {sections.map((section) => (
+                                    <button
+                                        key={section.key}
+                                        type="button"
+                                        onClick={() => onToggle(comp.id, section.key)}
+                                        className={chipClass(Boolean(on?.has(section.key)))}
+                                    >
+                                        {section.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+            <p className="text-[11px] text-gray-500">
+                {value.length} competition{value.length === 1 ? '' : 's'} selected. They only see data for these.
+            </p>
+        </div>
+    );
 }
 
 export default function FestOrganizerAccessPage() {
@@ -32,6 +127,9 @@ export default function FestOrganizerAccessPage() {
     const [saving, setSaving] = useState(false);
     const [members, setMembers] = useState([]);
     const [pages, setPages] = useState(GRANTABLE);
+    const [competitions, setCompetitions] = useState([]);
+    const [sections, setSections] = useState(DEFAULT_SECTIONS);
+    const [modeById, setModeById] = useState({});
     const [error, setError] = useState('');
     const [showInvite, setShowInvite] = useState(false);
     const [invite, setInvite] = useState(EMPTY_INVITE);
@@ -44,6 +142,8 @@ export default function FestOrganizerAccessPage() {
             const data = await fetchFestOrganizerAccess(festId);
             setMembers(data.members || []);
             if (Array.isArray(data.pages) && data.pages.length) setPages(data.pages);
+            setCompetitions(Array.isArray(data.competitions) ? data.competitions : []);
+            if (Array.isArray(data.sections) && data.sections.length) setSections(data.sections);
         } catch (e) {
             setError(e.message || 'Failed to load access');
         } finally {
@@ -78,8 +178,9 @@ export default function FestOrganizerAccessPage() {
             toast('Name and username are required');
             return;
         }
-        if (!invite.pages.length) {
-            toast('Select at least one page');
+        const byCompetition = invite.mode === 'competitions';
+        if (byCompetition ? !invite.competitionAccess.length : !invite.pages.length) {
+            toast(byCompetition ? 'Pick at least one competition section' : 'Select at least one page');
             return;
         }
         setSaving(true);
@@ -89,7 +190,9 @@ export default function FestOrganizerAccessPage() {
                 username: invite.username.trim(),
                 email: invite.email.trim(),
                 phone: invite.phone.trim(),
-                allowedPages: invite.pages,
+                ...(byCompetition
+                    ? { competitionAccess: invite.competitionAccess }
+                    : { allowedPages: invite.pages }),
             });
             setCredentials(data.credentials || null);
             setShowInvite(false);
@@ -122,6 +225,35 @@ export default function FestOrganizerAccessPage() {
         } catch (err) {
             toast(err.message || 'Update failed');
         }
+    };
+
+    const memberMode = (member) => modeById[member.id] || member.accessMode || 'pages';
+
+    const saveMemberAccess = async (member, payload) => {
+        try {
+            const data = await updateFestOrganizerAccess(festId, member.id, payload);
+            setMembers((list) => list.map((m) => (
+                m.id === member.id ? { ...m, ...data.member } : m
+            )));
+        } catch (err) {
+            toast(err.message || 'Update failed');
+        }
+    };
+
+    const changeMemberMode = (member, mode) => {
+        setModeById((prev) => ({ ...prev, [member.id]: mode }));
+        if (mode === 'pages' && (member.competitionAccess || []).length) {
+            saveMemberAccess(member, { competitionAccess: [], allowedPages: member.allowedPages?.length ? member.allowedPages : ['fest-day-desk'] });
+        }
+    };
+
+    const toggleMemberSection = (member, competitionId, sectionKey) => {
+        const next = toggleSection(member.competitionAccess || [], competitionId, sectionKey);
+        if (!next.length) {
+            toast('Keep at least one competition section, or switch to whole pages');
+            return;
+        }
+        saveMemberAccess(member, { competitionAccess: next });
     };
 
     const toggleActive = async (member) => {
@@ -173,7 +305,7 @@ export default function FestOrganizerAccessPage() {
                     </div>
                     <h1 className="text-2xl font-semibold tracking-tight mt-2">Co-head access</h1>
                     <p className="text-sm text-gray-400 mt-1">
-                        Invite co-heads and choose which pages they can open. Desk accounts stay Fest Day Desk only.
+                        Invite co-heads and give them whole pages, or only specific competitions with Participants, Desk registration, Scanner or Revenue.
                     </p>
                 </div>
                 <button
@@ -249,25 +381,28 @@ export default function FestOrganizerAccessPage() {
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                                {pages.map((page) => {
-                                    const on = (member.allowedPages || []).includes(page.key);
-                                    return (
+                            <AccessModeToggle mode={memberMode(member)} onChange={(mode) => changeMemberMode(member, mode)} />
+                            {memberMode(member) === 'competitions' ? (
+                                <CompetitionAccessEditor
+                                    competitions={competitions}
+                                    sections={sections}
+                                    value={member.competitionAccess || []}
+                                    onToggle={(competitionId, key) => toggleMemberSection(member, competitionId, key)}
+                                />
+                            ) : (
+                                <div className="flex flex-wrap gap-2">
+                                    {pages.map((page) => (
                                         <button
                                             key={page.key}
                                             type="button"
                                             onClick={() => toggleMemberPage(member, page.key)}
-                                            className={`text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors ${
-                                                on
-                                                    ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/15 text-[#0ECCEE]'
-                                                    : 'border-white/10 text-gray-500 hover:border-white/20'
-                                            }`}
+                                            className={chipClass((member.allowedPages || []).includes(page.key))}
                                         >
                                             {page.label}
                                         </button>
-                                    );
-                                })}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     ))
                 )}
@@ -305,27 +440,35 @@ export default function FestOrganizerAccessPage() {
                         <input className={inputClass()} placeholder="Username" value={invite.username} onChange={(e) => setInvite({ ...invite, username: e.target.value })} required autoCapitalize="none" />
                         <input className={inputClass()} placeholder="Email (optional — sends login)" type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} />
                         <input className={inputClass()} placeholder="Phone (optional)" value={invite.phone} onChange={(e) => setInvite({ ...invite, phone: e.target.value })} />
-                        <div>
-                            <p className="text-xs text-gray-400 mb-2">Pages</p>
-                            <div className="flex flex-wrap gap-2">
-                                {pages.map((page) => {
-                                    const on = invite.pages.includes(page.key);
-                                    return (
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <p className="text-xs text-gray-400">Access</p>
+                                <AccessModeToggle mode={invite.mode} onChange={(mode) => setInvite({ ...invite, mode })} />
+                            </div>
+                            {invite.mode === 'competitions' ? (
+                                <CompetitionAccessEditor
+                                    competitions={competitions}
+                                    sections={sections}
+                                    value={invite.competitionAccess}
+                                    onToggle={(competitionId, key) => setInvite((prev) => ({
+                                        ...prev,
+                                        competitionAccess: toggleSection(prev.competitionAccess, competitionId, key),
+                                    }))}
+                                />
+                            ) : (
+                                <div className="flex flex-wrap gap-2">
+                                    {pages.map((page) => (
                                         <button
                                             key={page.key}
                                             type="button"
                                             onClick={() => toggleInvitePage(page.key)}
-                                            className={`text-[11px] px-2.5 py-1.5 rounded-lg border ${
-                                                on
-                                                    ? 'border-[#0ECCEE]/40 bg-[#0ECCEE]/15 text-[#0ECCEE]'
-                                                    : 'border-white/10 text-gray-500'
-                                            }`}
+                                            className={chipClass(invite.pages.includes(page.key))}
                                         >
                                             {page.label}
                                         </button>
-                                    );
-                                })}
-                            </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                         <button
                             type="submit"

@@ -16,6 +16,7 @@ const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
 const { notifyFestParticipants, notifyFestParticipant, parseNotifyChannels } = require('../utils/festParticipantOutreach');
 const { participantsToCsv, participantsToXlsx } = require('../utils/festOrganizerExport');
+const { scopedCompetitionFilter } = require('../middleware/festCompetitionScope');
 const {
     normalizeUsername,
     getOrganizerFests,
@@ -1604,6 +1605,8 @@ exports.listParticipants = async (req, res) => {
         if (!proShowOnly && competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
             filter.competitionId = competitionId;
         }
+        const scopedCompetitions = scopedCompetitionFilter(req);
+        if (scopedCompetitions && !filter.competitionId) filter.competitionId = scopedCompetitions;
         if (['paid', 'pending', 'free', 'failed', 'collected'].includes(paymentStatus)) {
             if (paymentStatus === 'collected') {
                 filter.paymentStatus = { $in: ['paid', 'free'] };
@@ -1661,7 +1664,14 @@ exports.listParticipants = async (req, res) => {
                 .lean(),
             Competition.find({ fest: festId, ...NOT_AUDITORIUM_COMP }).select('name').sort({ name: 1 }).lean(),
             Registration.aggregate([
-                { $match: { fest: festOid, isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG } },
+                {
+                    $match: {
+                        fest: festOid,
+                        isProShow: { $ne: true },
+                        ...NOT_AUDITORIUM_REG,
+                        ...(scopedCompetitions ? { competitionId: scopedCompetitions } : {}),
+                    },
+                },
                 {
                     $addFields: {
                         _people: registrationPeopleCountExpr(),
@@ -1791,6 +1801,8 @@ exports.lookupParticipant = async (req, res) => {
         if (!proShowOnly && competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
             filter.competitionId = competitionId;
         }
+        const scopedCompetitions = scopedCompetitionFilter(req);
+        if (scopedCompetitions && !filter.competitionId) filter.competitionId = scopedCompetitions;
 
         const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
         if (mongoose.Types.ObjectId.isValid(q) && String(q).length === 24) {
@@ -1912,6 +1924,8 @@ exports.exportParticipants = async (req, res) => {
         if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
             filter.competitionId = competitionId;
         }
+        const scopedCompetitions = scopedCompetitionFilter(req);
+        if (scopedCompetitions && !filter.competitionId) filter.competitionId = scopedCompetitions;
         const paymentStatus = String(req.query.paymentStatus || '').trim();
         if (['paid', 'pending', 'free', 'failed', 'collected'].includes(paymentStatus)) {
             if (paymentStatus === 'collected') {
@@ -1949,6 +1963,12 @@ exports.exportParticipants = async (req, res) => {
             const complete = !paymentStatus && !checkInStatus && !whatsappGroup && (!status || status === 'approved');
             await applyMindSparkExportAmounts(req.festId, rows, participants, { complete });
             exportOptions.amountLabel = 'Net amount';
+        }
+        if (req.competitionScope) {
+            rows.forEach((reg, index) => {
+                const id = String(reg.competitionId?._id || reg.competitionId || '');
+                if (!req.competitionScope.revenue.has(id)) participants[index].amountPaid = 0;
+            });
         }
         const safeName = (fest?.festName || 'fest').replace(/[^a-z0-9-_]+/gi, '_');
         const format = String(req.query.format || 'xlsx').toLowerCase();

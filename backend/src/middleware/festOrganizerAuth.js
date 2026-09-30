@@ -7,6 +7,7 @@ const {
     isFullOrganizer,
 } = require('../utils/festOrganizerAccess');
 const { MINDSPARK_FEST_ID } = require('../modules/fest/plugins/mindspark');
+const { enforceCompetitionScope } = require('./festCompetitionScope');
 
 async function authenticateFestOrganizer(req, res, next) {
     try {
@@ -63,7 +64,7 @@ async function requireFestAccess(req, res, next) {
         }
 
         req.festId = festId;
-        next();
+        return enforceCompetitionScope(req, res, next);
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Access check failed' });
     }

@@ -37,6 +37,17 @@ export function organizerAllowedPages(sessionOrOrganizer) {
         .filter(Boolean);
 }
 
+/** Competition ids granted a section on this fest, or null when access is not competition-limited. */
+export function organizerCompetitionIds(sessionOrOrganizer, festId, section) {
+    const org = sessionOrOrganizer?.organizer || sessionOrOrganizer || {};
+    if (organizerPortalRole(org) !== 'cohead') return null;
+    const access = Array.isArray(org.competitionAccess) ? org.competitionAccess : [];
+    if (!access.length) return null;
+    return new Set(access
+        .filter((a) => String(a.festId) === String(festId) && (a.sections || []).includes(section))
+        .map((a) => String(a.competitionId)));
+}
+
 export function canManageFestAccess(sessionOrOrganizer) {
     const org = sessionOrOrganizer?.organizer || sessionOrOrganizer || {};
     if (org.canManageAccess === true) return true;
