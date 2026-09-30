@@ -1341,14 +1341,19 @@ async function emailAuditoriumPass({ registration, fullName, email, categoryLabe
 
 /**
  * Pending → approved/rejected, atomically so two organizers tapping at once email only once.
- * Returns the formatted ticket, or null when the request is no longer pending.
+ * Approved passes can still be declined until they are checked in at the gate.
+ * Returns the formatted ticket, or null when the pass can no longer be reviewed.
  */
 async function applyAuditoriumReview({ registrationId, festId, competition, decision }) {
-  const update = decision === 'reject'
+  const reject = decision === 'reject';
+  const update = reject
     ? { $set: { status: 'rejected' } }
     : { $set: { status: 'approved', qrCodeData: crypto.randomBytes(16).toString('hex') } };
+  const filter = reject
+    ? { status: { $in: ['pending', 'approved'] }, checkedIn: { $ne: true } }
+    : { status: 'pending' };
   const registration = await Registration.findOneAndUpdate(
-    { _id: registrationId, fest: festId, competitionId: competition._id, status: 'pending' },
+    { _id: registrationId, fest: festId, competitionId: competition._id, ...filter },
     update,
     { new: true },
   ).populate('user', 'name email phone phoneNumber');
@@ -1386,7 +1391,7 @@ exports.reviewPass = async (req, res) => {
       decision: req.body?.decision === 'reject' ? 'reject' : 'approve',
     });
     if (!ticket) {
-      return res.status(404).json({ success: false, message: 'Pass request not found or already reviewed' });
+      return res.status(404).json({ success: false, message: 'Pass not found, already reviewed, or already checked in' });
     }
     return res.json({ success: true, ticket });
   } catch (error) {

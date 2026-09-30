@@ -546,6 +546,7 @@ async function clearMindSparkReviewQueue(festId, competitionId = null) {
         fest: festId,
         status: 'pending',
         isProShow: { $ne: true },
+        'responses.auditorium_category_id': { $exists: false },
     };
     if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
         filter.competitionId = competitionId;
@@ -3216,7 +3217,7 @@ exports.bulkUpdateParticipantStatus = async (req, res) => {
         }
 
         const result = await Registration.updateMany(
-            { _id: { $in: validIds }, fest: req.festId },
+            { _id: { $in: validIds }, fest: req.festId, 'responses.auditorium_category_id': { $exists: false } },
             { $set: { status } },
         );
 

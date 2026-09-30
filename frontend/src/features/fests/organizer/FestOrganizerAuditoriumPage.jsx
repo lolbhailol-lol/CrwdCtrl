@@ -58,6 +58,85 @@ function StatPill({ label, value, tone = 'default' }) {
     );
 }
 
+function PassCard({ ticket, busy, onPreview, onApprove, onDecline, onDelete }) {
+    const photos = [
+        { url: ticket.ticketPhotoUrl, label: 'Face' },
+        { url: ticket.idCardPhotoUrl, label: 'ID card' },
+    ];
+    return (
+        <div className="rounded-xl border border-white/8 bg-black/20 p-3 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+                {photos.map((photo) => (
+                    <button
+                        key={photo.label}
+                        type="button"
+                        onClick={() => photo.url && onPreview(photo)}
+                        className="text-left"
+                    >
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">{photo.label}</p>
+                        {photo.url ? (
+                            <img src={photo.url} alt={photo.label} className="h-36 w-full rounded-lg object-cover" />
+                        ) : (
+                            <div className="h-36 rounded-lg bg-white/10 flex items-center justify-center text-[11px] text-rose-300">
+                                No {photo.label.toLowerCase()}
+                            </div>
+                        )}
+                    </button>
+                ))}
+            </div>
+            <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{ticket.fullName}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{ticket.email}</p>
+                    <p className="text-[11px] text-gray-500">{ticket.phone}</p>
+                </div>
+                {ticket.status === 'approved' ? (
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${
+                        ticket.checkedIn ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-200'
+                    }`}>
+                        {ticket.checkedIn ? 'Checked in' : 'Approved'}
+                    </span>
+                ) : null}
+            </div>
+            <div className="flex gap-2">
+                {onApprove ? (
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={onApprove}
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-400 px-3 py-2.5 text-sm font-bold text-black disabled:opacity-50"
+                    >
+                        {busy ? <Loader size={14} className="animate-spin" /> : <Check size={14} />}
+                        Approve
+                    </button>
+                ) : null}
+                {onDecline && !ticket.checkedIn ? (
+                    <button
+                        type="button"
+                        disabled={busy}
+                        onClick={onDecline}
+                        className={`${onApprove ? '' : 'flex-1'} inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-3 py-2.5 text-sm text-rose-200 disabled:opacity-50`}
+                    >
+                        {busy && !onApprove ? <Loader size={14} className="animate-spin" /> : null}
+                        Decline
+                    </button>
+                ) : null}
+                {onDelete ? (
+                    <button
+                        type="button"
+                        title="Delete pass"
+                        disabled={busy}
+                        onClick={onDelete}
+                        className="rounded-xl border border-white/10 px-3 py-2.5 text-rose-300/80 hover:bg-rose-500/15 disabled:opacity-40"
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
 export default function FestOrganizerAuditoriumPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
@@ -80,6 +159,7 @@ export default function FestOrganizerAuditoriumPage() {
         ? searchParams.get('year')
         : 'first_year';
     const [requests, setRequests] = useState([]);
+    const [approvedTickets, setApprovedTickets] = useState([]);
     const [reviewingId, setReviewingId] = useState('');
     const [photoPreview, setPhotoPreview] = useState(null);
 
@@ -90,6 +170,7 @@ export default function FestOrganizerAuditoriumPage() {
             await deleteFestOrganizerAuditoriumTicket(festId, ticket.id);
             toast('Auditorium pass deleted');
             setRequests((current) => current.filter((item) => item.id !== ticket.id));
+            setApprovedTickets((current) => current.filter((item) => item.id !== ticket.id));
             await Promise.all([load(), loadRequests()]);
         } catch (e) {
             toast(e.message || 'Could not delete pass');
@@ -126,15 +207,12 @@ export default function FestOrganizerAuditoriumPage() {
     useEffect(() => { load(); }, [load]);
 
     const loadRequests = useCallback(async () => {
-        try {
-            const res = await fetchFestOrganizerAuditoriumRoster(festId, {
-                status: 'pending',
-                limit: 500,
-            });
-            setRequests(res?.tickets || []);
-        } catch {
-            setRequests([]);
-        }
+        const [pending, approved] = await Promise.allSettled([
+            fetchFestOrganizerAuditoriumRoster(festId, { status: 'pending', limit: 1000 }),
+            fetchFestOrganizerAuditoriumRoster(festId, { status: 'approved', limit: 1000 }),
+        ]);
+        setRequests(pending.status === 'fulfilled' ? pending.value?.tickets || [] : []);
+        if (approved.status === 'fulfilled') setApprovedTickets(approved.value?.tickets || []);
     }, [festId]);
 
     useEffect(() => {
@@ -153,7 +231,6 @@ export default function FestOrganizerAuditoriumPage() {
     const config = data?.config || {};
     const stats = data?.stats || {};
     const invites = data?.invites || [];
-    const recent = data?.recent || [];
     const risks = data?.risks || [];
 
     const inviteCategories = useMemo(
@@ -174,12 +251,12 @@ export default function FestOrganizerAuditoriumPage() {
     const selectedYear = PUBLIC_YEARS.find((year) => year.id === requestYear) || PUBLIC_YEARS[0];
 
     const filteredRecent = useMemo(() => {
-        if (rosterFilter === 'all') return recent;
-        if (rosterFilter === 'checked') return recent.filter((t) => t.checkedIn);
-        if (rosterFilter === 'outside') return recent.filter((t) => !t.checkedIn);
-        if (rosterFilter === 'noid') return recent.filter((t) => !t.idCardPhotoUrl);
-        return recent.filter((t) => String(t.categoryId) === rosterFilter);
-    }, [recent, rosterFilter]);
+        if (rosterFilter === 'all') return approvedTickets;
+        if (rosterFilter === 'checked') return approvedTickets.filter((t) => t.checkedIn);
+        if (rosterFilter === 'outside') return approvedTickets.filter((t) => !t.checkedIn);
+        if (rosterFilter === 'noid') return approvedTickets.filter((t) => !t.idCardPhotoUrl);
+        return approvedTickets.filter((t) => String(t.categoryId) === rosterFilter);
+    }, [approvedTickets, rosterFilter]);
 
     if (plugin.id !== 'mindspark') {
         return (
@@ -218,12 +295,20 @@ export default function FestOrganizerAuditoriumPage() {
     };
 
     const reviewRequest = async (ticket, decision) => {
+        if (
+            decision === 'reject'
+            && ticket.status === 'approved'
+            && !window.confirm(`Decline the approved pass for ${ticket.fullName || 'this student'}? Their QR stops working.`)
+        ) return;
         setReviewingId(ticket.id);
         try {
             await reviewFestOrganizerAuditoriumPass(festId, ticket.id, decision);
             setRequests((current) => current.filter((item) => item.id !== ticket.id));
-            toast(decision === 'approve' ? 'Pass approved and emailed' : 'Request declined');
-            await load();
+            if (decision === 'reject') {
+                setApprovedTickets((current) => current.filter((item) => item.id !== ticket.id));
+            }
+            toast(decision === 'approve' ? 'Pass approved and emailed' : 'Pass declined');
+            await Promise.all([load(), loadRequests()]);
         } catch (e) {
             toast(e.message || 'Could not update request');
             await loadRequests();
@@ -416,58 +501,14 @@ export default function FestOrganizerAuditoriumPage() {
                         </div>
                         <div className="space-y-3">
                             {yearRequests.map((ticket) => (
-                                <div key={ticket.id} className="rounded-xl border border-white/8 bg-black/20 p-3 space-y-3">
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => ticket.ticketPhotoUrl && setPhotoPreview({ url: ticket.ticketPhotoUrl, label: 'Face' })}
-                                            className="text-left"
-                                        >
-                                            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Face</p>
-                                            {ticket.ticketPhotoUrl ? (
-                                                <img src={ticket.ticketPhotoUrl} alt="" className="h-36 w-full rounded-lg object-cover" />
-                                            ) : (
-                                                <div className="h-36 rounded-lg bg-white/10" />
-                                            )}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => ticket.idCardPhotoUrl && setPhotoPreview({ url: ticket.idCardPhotoUrl, label: 'ID card' })}
-                                            className="text-left"
-                                        >
-                                            <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">ID card</p>
-                                            {ticket.idCardPhotoUrl ? (
-                                                <img src={ticket.idCardPhotoUrl} alt="ID card" className="h-36 w-full rounded-lg object-cover" />
-                                            ) : (
-                                                <div className="h-36 rounded-lg bg-white/10" />
-                                            )}
-                                        </button>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-white">{ticket.fullName}</p>
-                                        <p className="text-[11px] text-gray-400 truncate">{ticket.email}</p>
-                                        <p className="text-[11px] text-gray-500">{ticket.phone}</p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            disabled={reviewingId === ticket.id}
-                                            onClick={() => reviewRequest(ticket, 'approve')}
-                                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-400 px-3 py-2.5 text-sm font-bold text-black disabled:opacity-50"
-                                        >
-                                            {reviewingId === ticket.id ? <Loader size={14} className="animate-spin" /> : <Check size={14} />}
-                                            Approve
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={reviewingId === ticket.id}
-                                            onClick={() => reviewRequest(ticket, 'reject')}
-                                            className="rounded-xl border border-white/10 px-3 py-2.5 text-sm text-rose-200 disabled:opacity-50"
-                                        >
-                                            Decline
-                                        </button>
-                                    </div>
-                                </div>
+                                <PassCard
+                                    key={ticket.id}
+                                    ticket={ticket}
+                                    busy={reviewingId === ticket.id}
+                                    onPreview={setPhotoPreview}
+                                    onApprove={() => reviewRequest(ticket, 'approve')}
+                                    onDecline={() => reviewRequest(ticket, 'reject')}
+                                />
                             ))}
                             {!yearRequests.length ? (
                                 <p className="text-xs text-gray-600 text-center py-4">No requests in {selectedYear.label}</p>
@@ -751,44 +792,21 @@ export default function FestOrganizerAuditoriumPage() {
                                 ))}
                             </select>
                         </div>
-                        <div className="space-y-1.5 max-h-80 overflow-y-auto">
+                        <p className="text-[11px] text-gray-500">
+                            {filteredRecent.length} approved · decline any pass whose face or ID does not match
+                        </p>
+                        <div className="grid sm:grid-cols-2 gap-3 max-h-[70vh] overflow-y-auto pr-1">
                             {filteredRecent.map((t) => (
-                                <div key={t.id} className="flex items-center gap-3 rounded-xl bg-white/4 px-3 py-2">
-                                    {t.ticketPhotoUrl ? (
-                                        <img src={t.ticketPhotoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                                    ) : (
-                                        <div className="w-10 h-10 rounded-lg bg-white/10" />
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-sm text-white truncate">{t.fullName}</p>
-                                        <p className="text-[10px] text-gray-500 truncate">
-                                            {t.categoryLabel} · {t.phone}
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-0.5 shrink-0">
-                                        {t.checkedIn ? (
-                                            <span className="text-[9px] uppercase text-emerald-300">In</span>
-                                        ) : (
-                                            <span className="text-[9px] uppercase text-amber-300">Out</span>
-                                        )}
-                                        {t.idCardPhotoUrl ? (
-                                            <IdCard size={12} className="text-[#0ECCEE]/70" />
-                                        ) : (
-                                            <span className="text-[9px] text-rose-300">No ID</span>
-                                        )}
-                                        <button
-                                            type="button"
-                                            title="Delete pass"
-                                            disabled={deletingTicket === t.id}
-                                            onClick={() => deleteTicket(t)}
-                                            className="mt-1 rounded-md p-1 text-rose-300/80 hover:bg-rose-500/15 disabled:opacity-40"
-                                        >
-                                            <Trash2 size={13} />
-                                        </button>
-                                    </div>
-                                </div>
+                                <PassCard
+                                    key={t.id}
+                                    ticket={t}
+                                    busy={reviewingId === t.id || deletingTicket === t.id}
+                                    onPreview={setPhotoPreview}
+                                    onDecline={() => reviewRequest(t, 'reject')}
+                                    onDelete={() => deleteTicket(t)}
+                                />
                             ))}
-                            {!filteredRecent.length ? <p className="text-xs text-gray-600 text-center py-4">No tickets in this filter</p> : null}
+                            {!filteredRecent.length ? <p className="text-xs text-gray-600 text-center py-4 sm:col-span-2">No tickets in this filter</p> : null}
                         </div>
                     </section>
                 </div>
