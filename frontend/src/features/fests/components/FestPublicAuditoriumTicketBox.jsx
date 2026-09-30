@@ -13,7 +13,6 @@ export default function FestPublicAuditoriumTicketBox({
   if (!meta || meta.showPublicTicketBox !== true) return null;
 
   const open = Boolean(meta.registrationOpen);
-  const left = meta.totalLeft;
 
   return (
     <section
@@ -64,11 +63,6 @@ export default function FestPublicAuditoriumTicketBox({
           </div>
           <p className={`text-sm ${isDark ? 'text-white/45' : 'text-gray-600'}`}>
             Photo ticket · year-wise seats
-            {left != null && open ? (
-              <span className={isDark ? ' text-[#7DE8F7]' : ' text-cyan-700'}>
-                {' '}· {left} left
-              </span>
-            ) : null}
           </p>
         </div>
 

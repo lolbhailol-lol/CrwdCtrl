@@ -1011,9 +1011,6 @@ export default function MindSparkAuditoriumPage() {
           <span className="inline-flex items-center gap-1 rounded-full border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0ECCEE]">
             <Sparkles size={10} /> MindSpark
           </span>
-          {meta?.totalLeft != null && regOpen ? (
-            <span className="text-[11px] text-white/35 tabular-nums">{meta.totalLeft} seats left</span>
-          ) : null}
         </div>
         <h1
           className="text-[2.35rem] leading-[0.95] text-white"
@@ -1122,12 +1119,6 @@ export default function MindSparkAuditoriumPage() {
                 <p className="text-sm text-white/60">Choose your year</p>
                 {categories.map((c, idx) => {
               const full = Boolean(c.full) || (c.left != null && c.left <= 0);
-              const seats = Number(c.seats) || 0;
-              const left = c.left != null ? Number(c.left) : null;
-              const filledPct =
-                seats > 0 && left != null
-                  ? Math.min(100, Math.round(((seats - left) / seats) * 100))
-                  : null;
               return (
                 <button
                   key={c.id}
@@ -1152,18 +1143,8 @@ export default function MindSparkAuditoriumPage() {
                         </p>
                       ) : null}
                     </div>
-                    <p className="text-xs tabular-nums text-white/40 shrink-0">
-                      {full ? 'Full' : left != null ? `${left} left` : ''}
-                    </p>
+                    {full ? <p className="text-xs text-white/40 shrink-0">Full</p> : null}
                   </div>
-                  {filledPct != null && !full ? (
-                    <div className="mt-3 h-1 rounded-full bg-white/8 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-linear-to-r from-[#0ECCEE] to-amber-300/80"
-                        style={{ width: `${filledPct}%` }}
-                      />
-                    </div>
-                  ) : null}
                 </button>
               );
                 })}
