@@ -42,6 +42,10 @@ const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 const { verifyCashfreePayment } = require('../services/cashfreeService');
 const CashfreeSettlement = require('../model/cashfree_settlement_model');
 const { sendCompetitionRegistrationEmailForRecord } = require('../services/emailService');
+
+/** Auditorium passes and their competition stay out of overview, competitions and participants. */
+const NOT_AUDITORIUM_REG = { 'responses.auditorium_category_id': { $exists: false } };
+const NOT_AUDITORIUM_COMP = { 'auditorium.enabled': { $ne: true } };
 const { scheduleRegistrationNotification } = require('./registration/helpers');
 const { extractCompetitionChoice } = require('../utils/festCompetitionAssignment');
 const { countFestDayAttendees, rosterDetails } = require('../utils/festDayHeadcount');
@@ -142,13 +146,14 @@ async function festDayOverallParticipants(festId) {
     const festOid = new mongoose.Types.ObjectId(key);
     const [headRows, bundleRegs] = await Promise.all([
         Registration.aggregate([
-            { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true } } },
+            { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG } },
             { $group: { _id: null, totalParticipants: { $sum: registrationPeopleCountExpr() } } },
         ]),
         Registration.find({
             fest: festId,
             status: 'approved',
             isProShow: { $ne: true },
+            ...NOT_AUDITORIUM_REG,
             'responses.mindspark_bundle_id': { $nin: [null, ''] },
         }).select('responses.mindspark_bundle_id responses.team_members responses.members responses.team_size').lean(),
     ]);
@@ -167,9 +172,9 @@ async function mindSparkScaledCompetitionAmounts(festId, targetRevenue = null) {
     const Competition = mongoose.model('Competition');
     const bundlePaid = { $gt: [{ $strLenCP: { $ifNull: ['$responses.mindspark_bundle_id', ''] } }, 0] };
     const [competitions, grouped, razorpay] = await Promise.all([
-        Competition.find({ fest: festId }).select('_id').lean(),
+        Competition.find({ fest: festId, ...NOT_AUDITORIUM_COMP }).select('_id').lean(),
         Registration.aggregate([
-            { $match: { fest: festOid, isProShow: { $ne: true }, status: 'approved' } },
+            { $match: { fest: festOid, isProShow: { $ne: true }, status: 'approved', ...NOT_AUDITORIUM_REG } },
             {
                 $group: {
                     _id: '$competitionId',
@@ -1000,8 +1005,8 @@ exports.getDashboard = async (req, res) => {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const baseApproved = { fest: festId, status: 'approved', isProShow: { $ne: true } };
-        const notProShow = { fest: festId, isProShow: { $ne: true } };
+        const baseApproved = { fest: festId, status: 'approved', isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG };
+        const notProShow = { fest: festId, isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG };
 
         const peopleExpr = registrationPeopleCountExpr();
         const [
@@ -1032,7 +1037,7 @@ exports.getDashboard = async (req, res) => {
             }),
             Registration.countDocuments({ ...notProShow, status: { $in: ['pending', 'approved'] } }),
             Registration.aggregate([
-                { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true } } },
+                { $match: { fest: festOid, status: 'approved', isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG } },
                 { $addFields: { _people: peopleExpr } },
                 {
                     $group: {
@@ -1048,12 +1053,12 @@ exports.getDashboard = async (req, res) => {
             })
                 .select('responses.mindspark_bundle_id responses.team_members responses.members responses.team_size')
                 .lean(),
-            Competition.find({ fest: festId })
+            Competition.find({ fest: festId, ...NOT_AUDITORIUM_COMP })
                 .select('name competitionType category module coverImage subtitle feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.whatsappGroupLink registration.status')
                 .sort({ name: 1 })
                 .lean(),
             Registration.aggregate([
-                { $match: { fest: festOid, isProShow: { $ne: true } } },
+                { $match: { fest: festOid, isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG } },
                 {
                     $addFields: {
                         _people: peopleExpr,
@@ -1123,7 +1128,7 @@ exports.getDashboard = async (req, res) => {
                 },
             ]),
             Registration.aggregate([
-                { $match: { fest: festOid, status: { $in: ['pending', 'approved'] }, isProShow: { $ne: true } } },
+                { $match: { fest: festOid, status: { $in: ['pending', 'approved'] }, isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG } },
                 {
                     $group: {
                         _id: { $ifNull: ['$paymentStatus', 'unknown'] },
@@ -1132,7 +1137,7 @@ exports.getDashboard = async (req, res) => {
                     },
                 },
             ]),
-            Registration.find({ fest: festId, status: { $in: ['pending', 'approved'] }, isProShow: { $ne: true } })
+            Registration.find({ fest: festId, status: { $in: ['pending', 'approved'] }, isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG })
                 .populate('user', 'name email')
                 .populate('competitionId', 'name')
                 .sort({ createdAt: -1 })
@@ -1576,6 +1581,7 @@ exports.listParticipants = async (req, res) => {
         const filter = {
             fest: festId,
             isProShow: proShowOnly ? true : { $ne: true },
+            ...NOT_AUDITORIUM_REG,
         };
 
         if (['pending', 'approved', 'rejected'].includes(status)) {
@@ -1653,9 +1659,9 @@ exports.listParticipants = async (req, res) => {
                 .skip(skip)
                 .limit(limit)
                 .lean(),
-            Competition.find({ fest: festId }).select('name').sort({ name: 1 }).lean(),
+            Competition.find({ fest: festId, ...NOT_AUDITORIUM_COMP }).select('name').sort({ name: 1 }).lean(),
             Registration.aggregate([
-                { $match: { fest: festOid, isProShow: { $ne: true } } },
+                { $match: { fest: festOid, isProShow: { $ne: true }, ...NOT_AUDITORIUM_REG } },
                 {
                     $addFields: {
                         _people: registrationPeopleCountExpr(),
@@ -1848,6 +1854,51 @@ exports.getParticipant = async (req, res) => {
     }
 };
 
+/** Per-competition amountPaid sums must equal the dashboard competition revenue. */
+async function applyMindSparkExportAmounts(festId, rows, participants, { complete = false } = {}) {
+    const hasBundle = { $gt: [{ $strLenCP: { $ifNull: ['$responses.mindspark_bundle_id', ''] } }, 0] };
+    const [{ totals, bundles }, soloGroups] = await Promise.all([
+        mindSparkScaledCompetitionAmounts(festId),
+        Registration.aggregate([
+            { $match: { fest: new mongoose.Types.ObjectId(String(festId)), isProShow: { $ne: true }, status: 'approved', ...NOT_AUDITORIUM_REG } },
+            { $group: { _id: '$competitionId', solo: { $sum: { $cond: [hasBundle, 0, { $ifNull: ['$amountPaid', 0] }] } } } },
+        ]),
+    ]);
+    const round2 = (n) => Math.round(n * 100) / 100;
+    const isBundle = (reg) => Boolean(responsesToObject(reg.responses).mindspark_bundle_id);
+    const soloRaw = new Map(soloGroups.map((g) => [String(g._id || ''), Number(g.solo) || 0]));
+    const soloIndexes = new Map();
+    rows.forEach((reg, index) => {
+        const id = String(reg.competitionId?._id || reg.competitionId || '');
+        const raw = Number(reg.amountPaid) || 0;
+        if (reg.status !== 'approved') {
+            participants[index].amountPaid = 0;
+            return;
+        }
+        if (isBundle(reg)) {
+            participants[index].amountPaid = round2(raw);
+            return;
+        }
+        const soloTarget = Math.max(0, (totals.get(id) || 0) - (bundles.get(id) || 0));
+        const base = soloRaw.get(id) || 0;
+        participants[index].amountPaid = base > 0 ? round2(raw * (soloTarget / base)) : 0;
+        if (raw > 0) {
+            if (!soloIndexes.has(id)) soloIndexes.set(id, []);
+            soloIndexes.get(id).push(index);
+        }
+    });
+    if (!complete) return;
+    for (const [id, indexes] of soloIndexes) {
+        const soloTarget = Math.max(0, (totals.get(id) || 0) - (bundles.get(id) || 0));
+        const sum = indexes.reduce((s, i) => s + participants[i].amountPaid, 0);
+        const drift = round2(soloTarget - sum);
+        if (drift) {
+            const top = indexes.reduce((a, b) => (participants[b].amountPaid > participants[a].amountPaid ? b : a));
+            participants[top].amountPaid = round2(participants[top].amountPaid + drift);
+        }
+    }
+}
+
 exports.exportParticipants = async (req, res) => {
     try {
         const fest = await FestOrganizer.findById(req.festId).select('festName').lean();
@@ -1855,6 +1906,7 @@ exports.exportParticipants = async (req, res) => {
             fest: req.festId,
             status: { $in: ['pending', 'approved'] },
             isProShow: { $ne: true },
+            ...NOT_AUDITORIUM_REG,
         };
         const competitionId = String(req.query.competitionId || '').trim();
         if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
@@ -1892,16 +1944,22 @@ exports.exportParticipants = async (req, res) => {
             .lean();
 
         const participants = rows.map(formatParticipant);
+        const exportOptions = {};
+        if (isMindSparkFestId(req.festId)) {
+            const complete = !paymentStatus && !checkInStatus && !whatsappGroup && (!status || status === 'approved');
+            await applyMindSparkExportAmounts(req.festId, rows, participants, { complete });
+            exportOptions.amountLabel = 'Net amount';
+        }
         const safeName = (fest?.festName || 'fest').replace(/[^a-z0-9-_]+/gi, '_');
         const format = String(req.query.format || 'xlsx').toLowerCase();
 
         if (format === 'csv') {
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${safeName}_participants.csv"`);
-            return res.send(participantsToCsv(participants));
+            return res.send(participantsToCsv(participants, exportOptions));
         }
 
-        const buffer = await participantsToXlsx(participants);
+        const buffer = await participantsToXlsx(participants, exportOptions);
         res.setHeader(
             'Content-Type',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -2897,7 +2955,7 @@ function tryClearPublicCaches() {
 exports.listCompetitions = async (req, res) => {
     try {
         const Competition = mongoose.model('Competition');
-        const competitions = await Competition.find({ fest: req.festId }).sort({ name: 1 }).lean();
+        const competitions = await Competition.find({ fest: req.festId, ...NOT_AUDITORIUM_COMP }).sort({ name: 1 }).lean();
         res.json({
             success: true,
             competitions: competitions.map(serializeCompetitionDetails),
@@ -3486,7 +3544,7 @@ exports.getFestDayDesk = async (req, res) => {
                 .limit(60)
                 .lean();
         const [competitions, assistedDeskEntries] = await Promise.all([
-            Competition.find({ fest: req.festId })
+            Competition.find({ fest: req.festId, ...NOT_AUDITORIUM_COMP })
                 .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.status category module teamSizeMin teamSizeMax teamSizeLabel')
                 .sort({ name: 1 })
                 .lean(),

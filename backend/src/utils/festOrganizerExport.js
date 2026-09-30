@@ -113,7 +113,7 @@ function getExportRoster(p = {}) {
     return [];
 }
 
-function buildParticipantExportTable(participants = []) {
+function buildParticipantExportTable(participants = [], { amountLabel = 'amountPaid' } = {}) {
     const formKeys = collectFormFieldKeys(participants);
     const maxPeople = Math.min(
         12,
@@ -125,7 +125,7 @@ function buildParticipantExportTable(participants = []) {
     }
     const header = [
         'id', 'name', 'email', 'phone', 'team', 'teamSize', 'college', 'city', 'year', 'course',
-        'status', 'paymentStatus', 'amountPaid', 'checkedIn', 'whatsappGroup', 'competition', 'submittedAt',
+        'status', 'paymentStatus', amountLabel, 'checkedIn', 'whatsappGroup', 'competition', 'submittedAt',
         'rosterSummary',
         ...personCols,
         ...formKeys.map(humanizeFieldName),
@@ -172,13 +172,13 @@ function buildParticipantExportTable(participants = []) {
     return { header, body, formKeys };
 }
 
-function participantsToCsv(participants = []) {
-    const { header, body } = buildParticipantExportTable(participants);
+function participantsToCsv(participants = [], { amountLabel } = {}) {
+    const { header, body } = buildParticipantExportTable(participants, { amountLabel });
     return `\uFEFF${[header, ...body].map((row) => row.map(escapeCsv).join(',')).join('\n')}`;
 }
 
-async function participantsToXlsx(participants = [], { sheetName = 'Participants' } = {}) {
-    const { header, body } = buildParticipantExportTable(participants);
+async function participantsToXlsx(participants = [], { sheetName = 'Participants', amountLabel } = {}) {
+    const { header, body } = buildParticipantExportTable(participants, { amountLabel });
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'CrwdCtrl';
     workbook.created = new Date();
