@@ -32,7 +32,7 @@ const {
   clean,
   validEmail,
 } = require('../utils/competitionDuplicateGuard');
-const { sendAuditoriumPassEmail } = require('../services/emailService');
+const { sendAuditoriumPassEmail, sendAuditoriumPassDeclinedEmail } = require('../services/emailService');
 const { sendAuditoriumOtpEmail } = require('../services/emailService');
 const { getJwtSecret } = require('../config/jwtSecret');
 const {
@@ -1339,6 +1339,21 @@ async function emailAuditoriumPass({ registration, fullName, email, categoryLabe
   if (result?.success === false) throw new Error(result.error || 'Pass email failed');
 }
 
+function notifyAuditoriumDeclined(ticket) {
+  if (!ticket?.email) return;
+  setImmediate(() => {
+    sendAuditoriumPassDeclinedEmail({
+      to: ticket.email,
+      fullName: ticket.fullName,
+      categoryLabel: ticket.categoryLabel,
+    })
+      .then((result) => {
+        if (result?.success === false) console.warn('[auditorium.decline.email]', result.error);
+      })
+      .catch((error) => console.warn('[auditorium.decline.email]', error.message));
+  });
+}
+
 /**
  * Pending → approved/rejected, atomically so two organizers tapping at once email only once.
  * Approved passes can still be declined until they are checked in at the gate.
@@ -1365,6 +1380,7 @@ async function applyAuditoriumReview({ registrationId, festId, competition, deci
     await syncCategoryCounter(competition._id, ticket.categoryId);
     auditoriumMetaCache.at = 0;
     auditoriumMetaCache.payload = null;
+    notifyAuditoriumDeclined(ticket);
     return ticket;
   }
   setImmediate(() => {
@@ -1435,12 +1451,13 @@ exports.deleteTicket = async (req, res) => {
       fest: req.festId,
       competitionId: competition._id,
       'responses.auditorium_category_id': { $exists: true, $ne: '' },
-    });
+    }).populate('user', 'name email phone phoneNumber');
     if (!registration) return res.status(404).json({ success: false, message: 'Auditorium ticket not found' });
     await TicketClaim.deleteMany({ registrationId: registration._id });
     await syncCategoryCounter(competition._id, responsesToObject(registration.responses).auditorium_category_id);
     auditoriumMetaCache.at = 0;
     auditoriumMetaCache.payload = null;
+    if (registration.status !== 'rejected') notifyAuditoriumDeclined(formatTicket(registration, competition));
     return res.json({ success: true, message: 'Auditorium ticket deleted' });
   } catch (error) {
     console.error('[auditorium.deleteTicket]', error);
@@ -1476,5 +1493,6 @@ exports.lookupByPhone = async (req, res) => {
 
 exports.ensureAuditoriumCompetition = ensureAuditoriumCompetition;
 exports.applyAuditoriumReview = applyAuditoriumReview;
+exports.notifyAuditoriumDeclined = notifyAuditoriumDeclined;
 exports.formatTicket = formatTicket;
 exports.ticketPhotoFrom = ticketPhotoFrom;

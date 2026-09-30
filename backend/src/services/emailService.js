@@ -649,6 +649,69 @@ const sendAuditoriumPassEmail = async ({ to, ...pass }) => {
     });
 };
 
+function buildAuditoriumPassDeclinedEmailHTML({ fullName = '', categoryLabel = '' }) {
+    const name = escapeHtml(fullName || 'there');
+    const category = escapeHtml(categoryLabel);
+    const display = `'Bebas Neue',Impact,'Arial Narrow Bold','Helvetica Neue',sans-serif`;
+    const body = `'Outfit',Poppins,'Segoe UI',Helvetica,Arial,sans-serif`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>MindSpark Auditorium pass update</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#050607;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your MindSpark Auditorium pass request was declined by the organizers.</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#050607" style="background:#050607;background-image:radial-gradient(ellipse 90% 45% at 50% 0%,rgba(244,63,94,0.16),rgba(5,6,7,0) 60%);">
+<tr><td align="center" style="padding:32px 14px 40px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:420px;">
+
+<tr><td align="center" style="padding-bottom:6px;font-family:${body};font-size:10px;letter-spacing:0.32em;text-transform:uppercase;color:#0ECCEE;font-weight:700;">CrwdCtrl &times; MindSpark</td></tr>
+<tr><td align="center" style="padding-bottom:10px;">
+<span style="display:inline-block;border:1px solid #7f1d35;background:#2a0d15;color:#fda4af;font-family:${body};font-size:11px;font-weight:700;letter-spacing:0.08em;padding:6px 12px;border-radius:999px;">&#10005; PASS DECLINED</span>
+</td></tr>
+<tr><td align="center" style="font-family:${display};font-size:40px;line-height:0.95;letter-spacing:0.06em;color:#ffffff;padding-bottom:18px;">REQUEST NOT APPROVED</td></tr>
+
+<tr><td>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#101214" style="background:#101214;border:1px solid #3a1d25;border-radius:24px;">
+<tr><td style="padding:22px 22px 20px;font-family:${body};color:#d1d5db;font-size:14px;line-height:1.6;">
+<div style="font-size:16px;color:#ffffff;font-weight:600;padding-bottom:8px;">Hi ${name},</div>
+The organizers have declined your MindSpark Auditorium pass${category ? ` for <span style="color:#7DE8F7;font-weight:600;">${category}</span>` : ''}. Any pass or QR you received earlier will not work at the gate.
+<div style="margin-top:14px;padding:12px 14px;border-radius:14px;background:#0a0b0c;border:1px solid #23272a;font-size:12px;color:#9ca3af;">
+Usually this happens when the face photo, college ID, or year did not match. If you think this is a mistake, reply to this email.
+</div>
+</td></tr>
+</table>
+</td></tr>
+
+<tr><td align="center" style="padding-top:22px;font-family:${body};font-size:11px;line-height:1.6;color:#4b5156;">Need help? Reply to this email or write to team.crwdctrl@gmail.com</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+const sendAuditoriumPassDeclinedEmail = async ({ to, fullName, categoryLabel }) => {
+    const email = String(to || '').trim().toLowerCase();
+    if (!email || !EMAIL_ADDRESS_REGEX.test(email)) {
+        return { success: false, error: 'Invalid email' };
+    }
+    return sendEmail({
+        from: getDefaultFrom(),
+        to: email,
+        subject: 'MindSpark Auditorium — your pass request was declined',
+        text: `Hi ${fullName || 'there'}, the organizers have declined your MindSpark Auditorium pass${categoryLabel ? ` for ${categoryLabel}` : ''}. Any earlier pass or QR will not work at the gate. If you think this is a mistake, reply to this email.`,
+        html: buildAuditoriumPassDeclinedEmailHTML({ fullName, categoryLabel }),
+    });
+};
+
 // ✅ NEW: BROADCAST FUNCTION
 const sendEventBroadcast = async (userList, eventDetails) => {
     console.log(`📢 Starting broadcast for event: ${eventDetails.name}`);
@@ -2148,6 +2211,7 @@ module.exports = {
     sendCompetitionRegistrationEmailForRecord,
     sendAuditoriumPassEmail,
     buildAuditoriumPassEmailHTML,
+    sendAuditoriumPassDeclinedEmail,
     sendTrekRegistrationEmails,
     sendOrganizerNotificationEmail,
     sendEventOrganizerApprovalEmail,

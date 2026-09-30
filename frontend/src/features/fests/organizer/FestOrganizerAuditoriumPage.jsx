@@ -171,7 +171,7 @@ export default function FestOrganizerAuditoriumPage() {
     const [photoPreview, setPhotoPreview] = useState(null);
 
     const deleteTicket = async (ticket) => {
-        if (!ticket?.id || !window.confirm(`Delete the Auditorium pass for ${ticket.fullName || 'this participant'}?`)) return;
+        if (!ticket?.id || !window.confirm(`Delete the Auditorium pass for ${ticket.fullName || 'this participant'}? They will get a "pass declined" email.`)) return;
         setDeletingTicket(ticket.id);
         try {
             await deleteFestOrganizerAuditoriumTicket(festId, ticket.id);
@@ -310,7 +310,7 @@ export default function FestOrganizerAuditoriumPage() {
         if (
             decision === 'reject'
             && ticket.status === 'approved'
-            && !window.confirm(`Decline the approved pass for ${ticket.fullName || 'this student'}? Their QR stops working.`)
+            && !window.confirm(`Decline the approved pass for ${ticket.fullName || 'this student'}? Their QR stops working and they get a "pass declined" email.`)
         ) return;
         setReviewingId(ticket.id);
         try {
@@ -319,7 +319,7 @@ export default function FestOrganizerAuditoriumPage() {
             if (decision === 'reject') {
                 setApprovedTickets((current) => current.filter((item) => item.id !== ticket.id));
             }
-            toast(decision === 'approve' ? 'Pass approved and emailed' : 'Pass declined');
+            toast(decision === 'approve' ? 'Pass approved and emailed' : 'Pass declined and student emailed');
             await Promise.all([load(), loadRequests()]);
         } catch (e) {
             toast(e.message || 'Could not update request');

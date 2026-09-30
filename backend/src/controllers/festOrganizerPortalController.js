@@ -1920,7 +1920,8 @@ exports.deleteParticipant = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(registrationId)) {
             return res.status(400).json({ success: false, message: 'Invalid registration ID' });
         }
-        const deleted = await Registration.findOneAndDelete({ _id: registrationId, fest: req.festId });
+        const deleted = await Registration.findOneAndDelete({ _id: registrationId, fest: req.festId })
+            .populate('user', 'name email phone phoneNumber');
         if (!deleted) return res.status(404).json({ success: false, message: 'Participant not found' });
         const auditoriumCategoryId = String(
             deleted.responses?.get?.('auditorium_category_id')
@@ -1930,6 +1931,10 @@ exports.deleteParticipant = async (req, res) => {
         if (auditoriumCategoryId && deleted.competitionId) {
             await MindSparkAuditoriumTicketClaim.deleteMany({ registrationId: deleted._id });
             await syncCategoryCounter(deleted.competitionId, auditoriumCategoryId);
+            if (deleted.status !== 'rejected') {
+                const auditorium = require('./mindsparkAuditoriumController');
+                auditorium.notifyAuditoriumDeclined(auditorium.formatTicket(deleted, null));
+            }
         }
         res.json({ success: true, message: 'Entry deleted' });
     } catch (error) {
@@ -1961,19 +1966,22 @@ exports.updateParticipantStatus = async (req, res) => {
         if (auditoriumCategoryId) {
             const auditorium = require('./mindsparkAuditoriumController');
             const competition = await auditorium.ensureAuditoriumCompetition(req.festId);
-            if (previousStatus === 'pending' && status !== 'pending') {
-                await auditorium.applyAuditoriumReview({
+            const reviewable = status === 'rejected'
+                ? ['pending', 'approved'].includes(previousStatus)
+                : status === 'approved' && previousStatus === 'pending';
+            if (reviewable) {
+                const reviewed = await auditorium.applyAuditoriumReview({
                     registrationId: reg._id,
                     festId: req.festId,
                     competition,
                     decision: status === 'rejected' ? 'reject' : 'approve',
                 });
+                if (!reviewed) {
+                    return res.status(409).json({ success: false, message: 'Pass already reviewed or already checked in' });
+                }
             } else if (previousStatus !== status) {
                 reg.status = status;
                 await reg.save();
-                if (status === 'rejected') {
-                    await MindSparkAuditoriumTicketClaim.deleteMany({ registrationId: reg._id });
-                }
                 await syncCategoryCounter(reg.competitionId, auditoriumCategoryId);
             }
             const updated = await Registration.findById(reg._id)
