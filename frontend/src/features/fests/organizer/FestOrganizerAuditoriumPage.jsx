@@ -254,6 +254,11 @@ export default function FestOrganizerAuditoriumPage() {
         });
         return grouped;
     }, [requests]);
+    const approvedByYear = useMemo(() => approvedTickets.reduce((acc, ticket) => {
+        const id = String(ticket.categoryId || '');
+        acc[id] = (acc[id] || 0) + 1;
+        return acc;
+    }, {}), [approvedTickets]);
     const yearRequests = requestsByYear[requestYear] || [];
     const selectedYear = PUBLIC_YEARS.find((year) => year.id === requestYear) || PUBLIC_YEARS[0];
 
@@ -445,14 +450,17 @@ export default function FestOrganizerAuditoriumPage() {
                             if (!category) return null;
                             const isOpen = category.enabled !== false;
                             const waiting = (requestsByYear[year.id] || []).length;
+                            const approvedCount = approvedByYear[year.id] || 0;
+                            const seatStat = (stats.categories || []).find((c) => c.id === year.id);
+                            const seatText = seatStat ? ` · ${seatStat.filled}/${seatStat.seats} seats` : '';
                             return (
                                 <Toggle
                                     key={year.id}
                                     on={isOpen}
                                     label={`${category.label} requests`}
                                     hint={isOpen
-                                        ? `Open · ${waiting} waiting`
-                                        : 'Requests for this year are paused'}
+                                        ? `Open · ${waiting} waiting · ${approvedCount} approved${seatText}`
+                                        : `Paused · ${approvedCount} approved${seatText}`}
                                     onClick={() => patchConfig({
                                         categories: seatDraft.map((item) => (
                                             item.id === year.id ? { ...item, enabled: !isOpen } : item
@@ -477,6 +485,8 @@ export default function FestOrganizerAuditoriumPage() {
                                     <div className="grid grid-cols-3 gap-2">
                                         {day.years.map((year) => {
                                             const count = (requestsByYear[year.id] || []).length;
+                                            const approvedCount = approvedByYear[year.id] || 0;
+                                            const seatStat = (stats.categories || []).find((c) => c.id === year.id);
                                             const active = year.id === requestYear;
                                             return (
                                                 <button
@@ -492,7 +502,13 @@ export default function FestOrganizerAuditoriumPage() {
                                                     <p className={`text-lg font-bold tabular-nums leading-none ${count ? 'text-amber-200' : 'text-white'}`}>
                                                         {count}
                                                     </p>
-                                                    <p className="text-[11px] text-gray-400 mt-1">{year.label}</p>
+                                                    <p className="text-[11px] text-gray-400 mt-1">{year.label} · waiting</p>
+                                                    <p className="text-[10px] text-emerald-300 mt-1 tabular-nums">{approvedCount} approved</p>
+                                                    {seatStat ? (
+                                                        <p className={`text-[10px] tabular-nums ${seatStat.full ? 'text-rose-300' : 'text-gray-500'}`}>
+                                                            {seatStat.filled}/{seatStat.seats} seats{seatStat.full ? ' · full' : ''}
+                                                        </p>
+                                                    ) : null}
                                                 </button>
                                             );
                                         })}
