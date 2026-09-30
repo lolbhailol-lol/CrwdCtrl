@@ -751,7 +751,7 @@ async function createAuditoriumTicket({
       team_size: 1,
     };
 
-    const awaitingReview = channelHint === 'public';
+    const awaitingReview = channelHint !== 'desk';
     registration = await Registration.create({
       fest: competition.fest,
       user: user._id,

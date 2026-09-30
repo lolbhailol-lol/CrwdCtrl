@@ -82,6 +82,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/mindspark-payments') ||
     location.pathname.startsWith('/mindspark/bundle') ||
     location.pathname.startsWith('/mindspark/auditorium') ||
+    location.pathname.startsWith('/demo/') ||
     location.pathname.startsWith('/stall') ||
     location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
@@ -135,6 +136,7 @@ function ConditionalFooter() {
     location.pathname.startsWith('/mindspark/bundle') ||
     location.pathname.startsWith('/mindspark/auditorium') ||
     location.pathname.startsWith('/mindspark/coupon-preview') ||
+    location.pathname.startsWith('/demo/') ||
     location.pathname.startsWith('/stall') ||
     location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
@@ -172,7 +174,7 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile,
 
   // Hide navigation on login, register, and email verification pages
   const isDeskBundle = location.pathname.startsWith('/mindspark/bundle') && new URLSearchParams(location.search).get('desk') === '1';
-  const shouldHideNavigation = isDeskBundle || location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer') || location.pathname.startsWith('/fest-organizer') || location.pathname.startsWith('/mindspark-payments') || location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/') || location.pathname.startsWith('/run-club-organizer') || location.pathname.startsWith('/event-community-organizer') || location.pathname.startsWith('/event-organizer') || location.pathname.startsWith('/campus-hunt') || location.pathname.startsWith('/campus-hunt-volunteer');
+  const shouldHideNavigation = isDeskBundle || location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer') || location.pathname.startsWith('/fest-organizer') || location.pathname.startsWith('/mindspark-payments') || location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/') || location.pathname.startsWith('/demo/') || location.pathname.startsWith('/run-club-organizer') || location.pathname.startsWith('/event-community-organizer') || location.pathname.startsWith('/event-organizer') || location.pathname.startsWith('/campus-hunt') || location.pathname.startsWith('/campus-hunt-volunteer');
 
   if (shouldHideNavigation) {
     return null;
@@ -216,7 +218,9 @@ function AppContent({
   const isTrekOrganizerRoute = location.pathname.startsWith('/trek-organizer');
   const isFestOrganizerRoute = location.pathname.startsWith('/fest-organizer');
   const isMindSparkPaymentsRoute = location.pathname.startsWith('/mindspark-payments');
-  const isStallRoute = location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/');
+  const isStallRoute = location.pathname.startsWith('/stall')
+    || location.pathname.startsWith('/s/')
+    || location.pathname.startsWith('/demo/');
   const isRunClubOrganizerRoute = location.pathname.startsWith('/run-club-organizer')
     || location.pathname.startsWith('/event-community-organizer');
   const isEventOrganizerRoute = location.pathname.startsWith('/event-organizer');

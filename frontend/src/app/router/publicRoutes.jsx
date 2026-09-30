@@ -52,6 +52,7 @@ import {
   DeskPaymentPage,
   MindSparkBundlePage,
   MindSparkAuditoriumPage,
+  PassDemoDashboardPage,
   MindSparkBundlePaymentPage,
   MindSparkCouponPreviewPage,
   FestStallInterestPage,
@@ -75,6 +76,7 @@ export const publicRoutes = (
       <Route path="/mindspark/bundle-pay/:token" element={<MindSparkBundlePaymentPage />} />
       <Route path="/mindspark/auditorium" element={<MindSparkAuditoriumPage />} />
       <Route path="/mindspark/coupon-preview" element={<MindSparkCouponPreviewPage />} />
+      <Route path="/demo/entry-pass" element={<PassDemoDashboardPage />} />
       {paymentReturnRedirect}
       <Route path="/" element={<Dashboard />} />
       {dashboardRedirect}

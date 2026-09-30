@@ -1394,7 +1394,7 @@ export default function MindSparkAuditoriumPage() {
                 className="flex-1 py-3 rounded-2xl bg-emerald-400 text-black text-sm font-bold disabled:opacity-40 inline-flex items-center justify-center gap-2 shadow-[0_12px_36px_-14px_rgba(52,211,153,0.7)]"
               >
                 {busy ? <Loader className="animate-spin" size={16} /> : <Ticket size={16} />}
-                {inviteCode ? 'Get my pass' : 'Request pass'}
+                Request pass
               </button>
             </div>
           </div>
