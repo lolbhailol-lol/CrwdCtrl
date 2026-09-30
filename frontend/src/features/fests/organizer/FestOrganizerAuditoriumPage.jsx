@@ -90,13 +90,20 @@ function PassCard({ ticket, busy, onPreview, onApprove, onDecline, onDelete }) {
                     <p className="text-[11px] text-gray-400 truncate">{ticket.email}</p>
                     <p className="text-[11px] text-gray-500">{ticket.phone}</p>
                 </div>
-                {ticket.status === 'approved' ? (
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${
-                        ticket.checkedIn ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-200'
-                    }`}>
-                        {ticket.checkedIn ? 'Checked in' : 'Approved'}
-                    </span>
-                ) : null}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                    {ticket.categoryLabel ? (
+                        <span className="rounded-full bg-[#0ECCEE]/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-[#7DE8F7]">
+                            {ticket.categoryLabel}
+                        </span>
+                    ) : null}
+                    {ticket.status === 'approved' ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ${
+                            ticket.checkedIn ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-200'
+                        }`}>
+                            {ticket.checkedIn ? 'Checked in' : 'Approved'}
+                        </span>
+                    ) : null}
+                </div>
             </div>
             <div className="flex gap-2">
                 {onApprove ? (
