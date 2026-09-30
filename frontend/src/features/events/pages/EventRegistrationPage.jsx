@@ -167,6 +167,13 @@ export default function EventRegistrationPage() {
     const [values, setValues] = useState({});
     const [files, setFiles] = useState({});
     const [error, setError] = useState('');
+    const [fieldWarnings, setFieldWarnings] = useState({});
+    const triggerFieldWarning = (fieldName, msg) => {
+        setFieldWarnings((prev) => ({ ...prev, [fieldName]: msg }));
+        setTimeout(() => {
+            setFieldWarnings((prev) => ({ ...prev, [fieldName]: '' }));
+        }, 2500);
+    };
     const [paying, setPaying] = useState(initialUi.paying);
     const [awaitingPaymentOrderId, setAwaitingPaymentOrderId] = useState('');
     const [paymentResumeError, setPaymentResumeError] = useState('');
@@ -858,15 +865,48 @@ export default function EventRegistrationPage() {
                 </div>
             );
         }
+        const fieldWarn = fieldWarnings[field.fieldName];
         return (
-            <input
-                type={field.type === 'date' ? 'date' : field.type || 'text'}
-                placeholder={field.placeholder || ''}
-                value={val}
-                onChange={(e) => setVal(field.fieldName, e.target.value)}
-                className={inp}
-                style={field.type === 'date' ? { colorScheme: isDark ? 'dark' : 'light' } : undefined}
-            />
+            <div>
+                <input
+                    type={field.type === 'date' ? 'date' : field.type || 'text'}
+                    placeholder={field.placeholder || ''}
+                    value={val}
+                    onChange={(e) => {
+                        let v = e.target.value;
+                        const fName = (field.fieldName || field.id || field.label || '').toLowerCase();
+                        const fType = field.type || 'text';
+
+                        const isName = (fName.includes('name') || fName.includes('driver') || fName.includes('person') || fName.includes('leader') || fName.includes('participant')) &&
+                            !fName.includes('college') && !fName.includes('company') &&
+                            !fName.includes('school') && !fName.includes('team');
+
+                        const isPhone = fType === 'tel' || fType === 'number' ||
+                            fName.includes('phone') || fName.includes('mobile') || fName.includes('contact') || fName.includes('whatsapp');
+
+                        if (isName && (fType === 'text' || fType === 'string')) {
+                            if (/[0-9]/.test(e.target.value)) {
+                                triggerFieldWarning(field.fieldName, 'Only letters (A-Z) allowed');
+                            }
+                            v = v.replace(/[^a-zA-Z\s]/g, '');
+                        } else if (isPhone) {
+                            if (/[a-zA-Z]/.test(e.target.value)) {
+                                triggerFieldWarning(field.fieldName, 'Only 10-digit numbers allowed');
+                            }
+                            v = v.replace(/\D/g, '').slice(0, 10);
+                        }
+
+                        setVal(field.fieldName, v);
+                    }}
+                    className={inp}
+                    style={field.type === 'date' ? { colorScheme: isDark ? 'dark' : 'light' } : undefined}
+                />
+                {fieldWarn && (
+                    <p className="text-[11px] font-medium text-amber-400/90 mt-1 flex items-center gap-1 pl-1">
+                        <span>⚠️ {fieldWarn}</span>
+                    </p>
+                )}
+            </div>
         );
     };
 

@@ -46,10 +46,25 @@ export default function MissingFormAnswersEditor({ participant, onSave, busy = f
                     ) : (
                         <input
                             value={draftAnswers[field.fieldName] || ''}
-                            onChange={(e) => setDraftAnswers((prev) => ({
-                                ...prev,
-                                [field.fieldName]: e.target.value,
-                            }))}
+                            onChange={(e) => {
+                                let v = e.target.value;
+                                const fName = (field.fieldName || field.label || '').toLowerCase();
+                                const isName = (fName.includes('name') || fName.includes('person') || fName.includes('runner')) &&
+                                    !fName.includes('college') && !fName.includes('company') && !fName.includes('team');
+                                const isPhone = field.type === 'tel' || field.type === 'number' ||
+                                    fName.includes('phone') || fName.includes('mobile') || fName.includes('contact');
+
+                                if (isName) {
+                                    v = v.replace(/[^a-zA-Z\s]/g, '');
+                                } else if (isPhone) {
+                                    v = v.replace(/\D/g, '').slice(0, 10);
+                                }
+
+                                setDraftAnswers((prev) => ({
+                                    ...prev,
+                                    [field.fieldName]: v,
+                                }));
+                            }}
                             className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#0c0d0e] border border-gray-700 text-sm"
                             placeholder="Add answer"
                         />

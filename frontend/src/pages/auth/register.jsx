@@ -21,12 +21,13 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [name, setName] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [errors, setErrors] = useState({});
-    const [showSocialFields, setShowSocialFields] = useState(false);
-    const [socialAuthData, setSocialAuthData] = useState(null);
-    const [authProvider, setAuthProvider] = useState('');
-    const [showOpenBrowserSheet, setShowOpenBrowserSheet] = useState(false);
-    const [inAppBrowserName, setInAppBrowserName] = useState('this app');
+    const [fieldWarnings, setFieldWarnings] = useState({ name: '', phone: '' });
+    const showWarning = (field, msg) => {
+        setFieldWarnings(prev => ({ ...prev, [field]: msg }));
+        setTimeout(() => {
+            setFieldWarnings(prev => ({ ...prev, [field]: '' }));
+        }, 3000);
+    };
     const { login, isAuthenticated, user } = useAuth();
     const { isDark } = useDarkMode();
     const navigate = useNavigate();
@@ -427,7 +428,13 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                         autoComplete="name"
                                         placeholder="Enter your Name"
                                         value={name}
-                                        onChange={(e) => setName(e.target.value)}
+                                        onChange={(e) => {
+                                            const raw = e.target.value;
+                                            if (/[0-9]/.test(raw)) {
+                                                showWarning('name', 'Only letters (A-Z) allowed');
+                                            }
+                                            setName(raw.replace(/[^a-zA-Z\s]/g, ''));
+                                        }}
                                         className={`w-full px-3 py-2 sm:py-2.5 rounded-lg border text-sm transition-colors
                                 ${errors.name ? 'border-red-500' : ''}
                                 ${isDark
@@ -435,6 +442,11 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                                 : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                             } focus:outline-none focus:ring-2`}
                                     />
+                                    {fieldWarnings.name && (
+                                        <p className="text-[11px] font-medium text-amber-400/90 mt-1 pl-0.5 flex items-center gap-1">
+                                            <span>⚠️ {fieldWarnings.name}</span>
+                                        </p>
+                                    )}
                                     {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
                                 </div>
 
@@ -554,7 +566,11 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                 placeholder={showSocialFields ? "Phone Number (Required)*" : "Phone Number (10 digits only)*"}
                                 value={phone}
                                 onChange={(e) => {
-                                    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                    const raw = e.target.value;
+                                    if (/[a-zA-Z]/.test(raw)) {
+                                        showWarning('phone', 'Only 10-digit numbers allowed');
+                                    }
+                                    const value = raw.replace(/\D/g, '').slice(0, 10);
                                     setPhone(value);
                                 }}
                                 maxLength={10}
@@ -565,6 +581,11 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
                                         : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900 focus:ring-blue-500'
                                     } focus:outline-none focus:ring-2`}
                             />
+                            {fieldWarnings.phone && (
+                                <p className="text-[11px] font-medium text-amber-400/90 mt-1 pl-0.5 flex items-center gap-1">
+                                    <span>⚠️ {fieldWarnings.phone}</span>
+                                </p>
+                            )}
                             {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
                             {showSocialFields && (
                                 <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>

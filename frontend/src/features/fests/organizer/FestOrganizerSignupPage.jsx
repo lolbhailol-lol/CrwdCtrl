@@ -40,9 +40,14 @@ export default function FestOrganizerSignupPage() {
                         <input
                             key={key}
                             required={key !== 'phone'}
-                            type={key === 'email' ? 'email' : 'text'}
+                            type={key === 'email' ? 'email' : key === 'phone' ? 'tel' : 'text'}
                             value={form[key]}
-                            onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                            onChange={(e) => {
+                                let val = e.target.value;
+                                if (key === 'name') val = val.replace(/[^a-zA-Z\s]/g, '');
+                                if (key === 'phone') val = val.replace(/\D/g, '').slice(0, 10);
+                                setForm((prev) => ({ ...prev, [key]: val }));
+                            }}
                             placeholder={key.charAt(0).toUpperCase() + key.slice(1)}
                             className={fieldClass}
                         />

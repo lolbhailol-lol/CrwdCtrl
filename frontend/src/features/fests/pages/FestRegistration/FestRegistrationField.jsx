@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Loader } from 'lucide-react';
 import { scrollFieldIntoView } from '../../../../utils/registrationDraft';
 
@@ -11,6 +12,13 @@ export default function FestRegistrationField({
   uploadingFiles,
   onFileUpload,
 }) {
+  const [warning, setWarning] = useState('');
+
+  const triggerWarning = (msg) => {
+    setWarning(msg);
+    setTimeout(() => setWarning(''), 3000);
+  };
+
   return (
     <div className="space-y-2">
       <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -23,14 +31,20 @@ export default function FestRegistrationField({
           fest,
           uploadingFiles,
           onFileUpload,
+          triggerWarning,
         })}
       </div>
+      {warning && (
+        <p className="text-[11px] font-medium text-amber-400/90 mt-1 pl-0.5 flex items-center gap-1">
+          <span>⚠️ {warning}</span>
+        </p>
+      )}
     </div>
   );
 }
 
 function renderField(field, fieldId, currentData, onFieldChange, ctx) {
-  const { isDark, fest, uploadingFiles, onFileUpload } = ctx;
+  const { isDark, fest, uploadingFiles, onFileUpload, triggerWarning } = ctx;
   const value = currentData[fieldId] || '';
 
   switch (field.type) {
@@ -45,7 +59,35 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             name={fieldId}
             placeholder={field.placeholder}
             value={value}
-            onChange={(e) => onFieldChange(fieldId, e.target.value)}
+            onChange={(e) => {
+              let val = e.target.value;
+              const idStr = (fieldId || field.id || field.fieldName || '').toLowerCase();
+              const labelStr = (field.label || '').toLowerCase();
+
+              const isName = (idStr.includes('name') || labelStr.includes('name')) &&
+                !idStr.includes('college') && !labelStr.includes('college') &&
+                !idStr.includes('company') && !labelStr.includes('company') &&
+                !idStr.includes('school') && !labelStr.includes('school') &&
+                !idStr.includes('team') && !labelStr.includes('team');
+
+              const isPhone = field.type === 'tel' ||
+                idStr.includes('phone') || idStr.includes('mobile') || idStr.includes('contact') || idStr.includes('whatsapp') ||
+                labelStr.includes('phone') || labelStr.includes('mobile') || labelStr.includes('contact') || labelStr.includes('whatsapp');
+
+              if (isName && (field.type === 'text' || !field.type)) {
+                if (/[0-9]/.test(e.target.value)) {
+                  triggerWarning?.('Only letters (A-Z) allowed');
+                }
+                val = val.replace(/[^a-zA-Z\s]/g, '');
+              } else if (isPhone) {
+                if (/[a-zA-Z]/.test(e.target.value)) {
+                  triggerWarning?.('Only 10-digit numbers allowed');
+                }
+                val = val.replace(/\D/g, '').slice(0, 10);
+              }
+
+              onFieldChange(fieldId, val);
+            }}
             onFocus={scrollFieldIntoView}
             required={field.required}
             autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'on'}

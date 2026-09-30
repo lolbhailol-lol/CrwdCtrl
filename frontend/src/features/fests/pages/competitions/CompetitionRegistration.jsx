@@ -98,6 +98,11 @@ export default function CompetitionRegistration() {
     const [registrationId, setRegistrationId] = useState(null);
     const [completingPayment, setCompletingPayment] = useState(initialUi.completingPayment);
     const [uploadingFiles, setUploadingFiles] = useState({});
+    const [inputWarning, setInputWarning] = useState('');
+    const showInputWarning = (msg) => {
+        setInputWarning(msg);
+        setTimeout(() => setInputWarning(''), 3000);
+    };
     // ✅ NEW: Multi-step form state
     const [currentStep, setCurrentStep] = useState(1);
     const [stepData, setStepData] = useState({});
@@ -613,6 +618,28 @@ export default function CompetitionRegistration() {
     };
 
     const handleInputChange = (fieldId, value, fieldType = 'text') => {
+        let val = value;
+        if (typeof value === 'string') {
+            const idStr = (fieldId || '').toLowerCase();
+            const isName = (idStr.includes('name') || idStr.includes('person') || idStr.includes('leader') || idStr.includes('participant')) &&
+                !idStr.includes('college') && !idStr.includes('company') &&
+                !idStr.includes('school') && !idStr.includes('team');
+
+            const isPhone = fieldType === 'tel' || fieldType === 'number' ||
+                idStr.includes('phone') || idStr.includes('mobile') || idStr.includes('contact') || idStr.includes('whatsapp');
+
+            if (isName && (fieldType === 'text' || fieldType === 'string' || !fieldType)) {
+                if (/[0-9]/.test(value)) {
+                    showInputWarning('⚠️ Numbers not allowed! Only letters (A-Z) allowed in Name.');
+                }
+                val = val.replace(/[^a-zA-Z\s]/g, '');
+            } else if (isPhone) {
+                if (/[a-zA-Z]/.test(value)) {
+                    showInputWarning('⚠️ Letters not allowed! Only 10-digit numbers allowed in Phone.');
+                }
+                val = val.replace(/\D/g, '').slice(0, 10);
+            }
+        }
         
         if (isMultiStepFormActive()) {
             // For multi-step forms, use step-specific data handling
@@ -621,10 +648,10 @@ export default function CompetitionRegistration() {
                 [currentStep]: {
                     ...prev[currentStep],
                     [fieldId]: fieldType === 'checkbox' ? 
-                        ((prev[currentStep]?.[fieldId] || []).includes(value)
-                            ? (prev[currentStep]?.[fieldId] || []).filter(v => v !== value)
-                            : [...(prev[currentStep]?.[fieldId] || []), value])
-                        : value
+                        ((prev[currentStep]?.[fieldId] || []).includes(val)
+                            ? (prev[currentStep]?.[fieldId] || []).filter(v => v !== val)
+                            : [...(prev[currentStep]?.[fieldId] || []), val])
+                        : val
                 }
             }));
         } else {
@@ -632,9 +659,9 @@ export default function CompetitionRegistration() {
             setFormData(prev => {
                 if (fieldType === 'checkbox') {
                     const currentValues = prev[fieldId] || [];
-                    const updatedValues = currentValues.includes(value)
-                        ? currentValues.filter(v => v !== value)
-                        : [...currentValues, value];
+                    const updatedValues = currentValues.includes(val)
+                        ? currentValues.filter(v => v !== val)
+                        : [...currentValues, val];
 
                     return {
                         ...prev,
@@ -644,7 +671,7 @@ export default function CompetitionRegistration() {
 
                 return {
                     ...prev,
-                    [fieldId]: value
+                    [fieldId]: val
                 };
             });
         }

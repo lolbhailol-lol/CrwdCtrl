@@ -158,9 +158,14 @@ function EditProfile() {
             return;
         }
 
+        let val = value;
+        if (name === 'firstName' || name === 'lastName') {
+            val = val.replace(/[^a-zA-Z\s]/g, '');
+        }
+
         setFormData(prev => ({
             ...prev,
-            [name]: value
+            [name]: val
         }));
 
         // Clear errors when user starts typing

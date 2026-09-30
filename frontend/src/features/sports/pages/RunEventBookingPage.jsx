@@ -198,6 +198,13 @@ export default function RunEventBookingPage() {
     const [showTierIncludes, setShowTierIncludes] = useState(false);
     const [processingProgress, setProcessingProgress] = useState('');
     const [showPaymentEscape, setShowPaymentEscape] = useState(false);
+    const [fieldWarnings, setFieldWarnings] = useState({});
+    const triggerFieldWarning = (fieldName, msg) => {
+        setFieldWarnings((prev) => ({ ...prev, [fieldName]: msg }));
+        setTimeout(() => {
+            setFieldWarnings((prev) => ({ ...prev, [fieldName]: '' }));
+        }, 2500);
+    };
     const [paymentResumeError, setPaymentResumeError] = useState('');
     const [existingRegistrationId, setExistingRegistrationId] = useState('');
     const [existingRegistrationStatus, setExistingRegistrationStatus] = useState('');
@@ -642,11 +649,44 @@ export default function RunEventBookingPage() {
                 </label>
             );
         }
+        const fieldWarn = fieldWarnings[field.fieldName || field.id];
         return (
-            <input type={field.type || 'text'} placeholder={field.placeholder || ''} value={val}
-                onChange={(e) => onChange(e.target.value)} onFocus={scrollFieldIntoView}
-                autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'name'}
-                className={inp} />
+            <div>
+                <input type={field.type || 'text'} placeholder={field.placeholder || ''} value={val}
+                    onChange={(e) => {
+                        let v = e.target.value;
+                        const key = field.fieldName || field.id;
+                        const fName = (key || field.label || '').toLowerCase();
+                        const fType = field.type || 'text';
+
+                        const isName = (fName.includes('name') || fName.includes('runner') || fName.includes('participant')) &&
+                            !fName.includes('college') && !fName.includes('company') &&
+                            !fName.includes('school') && !fName.includes('team');
+
+                        const isPhone = fType === 'tel' || fType === 'number' ||
+                            fName.includes('phone') || fName.includes('mobile') || fName.includes('contact') || fName.includes('whatsapp');
+
+                        if (isName && (fType === 'text' || fType === 'string')) {
+                            if (/[0-9]/.test(e.target.value)) {
+                                triggerFieldWarning(key, 'Only letters (A-Z) allowed');
+                            }
+                            v = v.replace(/[^a-zA-Z\s]/g, '');
+                        } else if (isPhone) {
+                            if (/[a-zA-Z]/.test(e.target.value)) {
+                                triggerFieldWarning(key, 'Only 10-digit numbers allowed');
+                            }
+                            v = v.replace(/\D/g, '').slice(0, 10);
+                        }
+                        onChange(v);
+                    }} onFocus={scrollFieldIntoView}
+                    autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'name'}
+                    className={inp} />
+                {fieldWarn && (
+                    <p className="text-[11px] font-medium text-amber-400/90 mt-1 pl-1 flex items-center gap-1">
+                        <span>⚠️ {fieldWarn}</span>
+                    </p>
+                )}
+            </div>
         );
     };
 
