@@ -12,6 +12,8 @@ const stubs = {
   updated: null,
   sportsFulfillCalls: 0,
   bundleFulfillCalls: 0,
+  sort: null,
+  touched: [],
 };
 
 const originalLoad = Module._load;
@@ -19,7 +21,8 @@ Module._load = function patchedLoad(request, parent, isMain) {
   if (request.endsWith('model/payment_order_model') || request === '../model/payment_order_model') {
     return {
       find: () => ({
-        sort() {
+        sort(spec) {
+          stubs.sort = spec;
           return this;
         },
         limit() {
@@ -32,6 +35,10 @@ Module._load = function patchedLoad(request, parent, isMain) {
       }),
       findOne: async () => stubs.updated,
       findOneAndUpdate: async () => stubs.updated,
+      updateOne: async (filter, update) => {
+        stubs.touched.push({ filter, update });
+        return { acknowledged: true };
+      },
     };
   }
   if (request.endsWith('services/cashfreeService') || request === './cashfreeService') {
@@ -139,6 +146,22 @@ test('reconcile skips orders that are not PAID at Cashfree', async () => {
   assert.equal(summary.paid, 0);
   assert.equal(summary.fulfilled, 0);
   assert.equal(stubs.sportsFulfillCalls, 0);
+});
+
+test('reconcile rotates through abandoned orders instead of rechecking the oldest', async () => {
+  stubs.touched = [];
+  stubs.pending = [
+    { _id: 'a', orderId: 'order_abandoned', entityType: 'competition', gateway: 'razorpay', orderTags: {} },
+  ];
+  stubs.razorpayVerifyResult = { verified: false, status: 'pending', orderId: 'order_abandoned' };
+  stubs.updated = null;
+
+  await reconcilePendingCashfreeOrders({ minAgeMs: 0, maxAgeMs: 24 * 60 * 60 * 1000 });
+
+  assert.deepEqual(stubs.sort, { lastReconcileAt: 1, createdAt: -1 });
+  assert.equal(stubs.touched.length, 1);
+  assert.equal(stubs.touched[0].filter._id, 'a');
+  assert.ok(stubs.touched[0].update.$set.lastReconcileAt instanceof Date);
 });
 
 test('reconcile recovers a paid Razorpay MindSpark bundle', async () => {

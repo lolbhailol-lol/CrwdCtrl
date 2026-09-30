@@ -75,7 +75,8 @@ async function reconcilePendingPaymentOrders({
     entityType: { $in: RECONCILE_ENTITY_TYPES },
     createdAt: { $gte: newerThan, $lte: olderThan },
   })
-    .sort({ createdAt: 1 })
+    // Abandoned orders stay PENDING; rotate so they cannot starve newer paid ones.
+    .sort({ lastReconcileAt: 1, createdAt: -1 })
     .limit(Math.max(1, Math.min(limit, 50)))
     .select('orderId entityType gateway cashfreeMerchant status orderTags paymentId')
     .lean();
@@ -85,6 +86,7 @@ async function reconcilePendingPaymentOrders({
   for (const row of pending) {
     const orderId = row.orderId;
     if (!orderId) continue;
+    await PaymentOrder.updateOne({ _id: row._id }, { $set: { lastReconcileAt: new Date() } }, { timestamps: false }).catch(() => {});
     try {
       const result = row.gateway === 'razorpay'
         ? await verifyRazorpayPayment({ orderId })

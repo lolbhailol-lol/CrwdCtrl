@@ -57,6 +57,7 @@ const paymentOrderSchema = new mongoose.Schema(
     paymentId: { type: String, default: null },
     paymentSessionId: { type: String, default: null },
     orderTags: { type: mongoose.Schema.Types.Mixed, default: {} },
+    lastReconcileAt: { type: Date, default: null },
     customerEmail: { type: String, trim: true, lowercase: true },
     customerPhone: { type: String, trim: true, default: '' },
   },
