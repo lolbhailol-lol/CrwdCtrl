@@ -363,7 +363,7 @@ export default function FestStallInterestPage() {
                             ref={nameRef}
                             required
                             value={form.name}
-                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            onChange={(e) => setForm({ ...form, name: e.target.value.replace(/[^a-zA-Z\s]/g, '') })}
                             placeholder="Your name"
                             autoComplete="name"
                             className={fieldClass}
