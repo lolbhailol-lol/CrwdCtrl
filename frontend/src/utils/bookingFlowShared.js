@@ -4,7 +4,9 @@ import {
     buildVerifiedPaymentFields,
     classifyCheckoutError,
 } from './useCashfree';
-import { runRazorpayCheckoutAndVerify } from './useRazorpay';
+import { preloadRazorpayCheckout, runRazorpayCheckoutAndVerify } from './useRazorpay';
+
+preloadRazorpayCheckout();
 import { prepareLogin, currentAppPath } from './loginFlow';
 
 function readSessionDraft(draftKey) {

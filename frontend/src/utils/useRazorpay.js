@@ -53,6 +53,14 @@ function loadRazorpayScript() {
   return razorpayScriptPromise;
 }
 
+/** Start loading Checkout.js early so tapping Pay opens the modal without a script wait. */
+export function preloadRazorpayCheckout() {
+  if (typeof window === 'undefined' || window.Razorpay) return;
+  const start = () => loadRazorpayScript().catch(() => {});
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(start, { timeout: 2000 });
+  else window.setTimeout(start, 300);
+}
+
 /** Razorpay contact must be digits; prefer last 10 for IN numbers. Empty if unusable. */
 export function sanitizeRazorpayContact(raw) {
   const digits = String(raw || '').replace(/\D/g, '');

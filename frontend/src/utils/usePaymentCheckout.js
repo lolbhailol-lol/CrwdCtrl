@@ -1,5 +1,7 @@
 import { openCashfreeCheckout } from './useCashfree';
-import { openRazorpayCheckout } from './useRazorpay';
+import { openRazorpayCheckout, preloadRazorpayCheckout } from './useRazorpay';
+
+preloadRazorpayCheckout();
 
 /** Open the checkout selected by the backend order response. */
 export async function openPaymentCheckout({
