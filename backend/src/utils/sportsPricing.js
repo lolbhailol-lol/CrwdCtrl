@@ -95,7 +95,7 @@ function normalizeTierIdList(raw) {
 }
 
 /**
- * Sum fees for multiple selected tiers (e.g. Dirt Drag classes @ ₹10k each).
+ * Sum fees for multiple selected tiers (e.g. Dirt Drag classes @ ₹7k each).
  * @returns {{ fee: number, tiers: object[], tierIds: string[], pricingMode: string }}
  */
 function resolveSportsMultiTierFee(event, tierIds) {

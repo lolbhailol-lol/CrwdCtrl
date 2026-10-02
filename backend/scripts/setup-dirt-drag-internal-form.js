@@ -1,5 +1,6 @@
 /**
- * Switch Dirt Drag to CrwdCtrl internal multi-step form with free registration.
+ * Switch Dirt Drag to CrwdCtrl internal multi-step form + paid tiers
+ * (₹7,000 per competition class — mirrors the organiser Google Form).
  * Run: node scripts/setup-dirt-drag-internal-form.js
  */
 require('dotenv').config();
@@ -52,8 +53,8 @@ const f = (id, label, fieldName, type, required = true, options = [], placeholde
     ...CLASSES.map((c, i) => ({
       id: c.id,
       name: c.name,
-      description: 'Select this competition class for your Dirt Drag entry.',
-      fee: 0,
+      description: 'Rs 7,000 per class. Select multiple classes — total adds up.',
+      fee: 7000,
       participantCount: 1,
       inclusions: [
         'Competitor entry for selected class',
@@ -301,18 +302,18 @@ const f = (id, label, fieldName, type, required = true, options = [], placeholde
         pricingMode: 'tiers',
         tiersMultiSelect: true,
         tiers,
-        ticketPrice: 0,
+        ticketPrice: 7000,
         platformFeePercent: 0,
-        priceLabel: '',
+        priceLabel: 'Rs 7,000 / class · Spectators free',
         registrationLink: '',
         bookingLink: '',
         registration,
         registrationProcess: [
           'Tap Register and enter your personal details.',
           'Choose Participant or Spectator.',
-          'Participants complete vehicle & insurance details, then select one or more competition classes.',
+          'Participants complete vehicle & insurance details, then select one or more classes (Rs 7,000 each — total adds up).',
           'Spectators register free with no class selection.',
-          'Submit the free registration form. After submitting, contact +919823317125 for payment instructions. Download and sign the Indemnity Bond as instructed by the Organiser.',
+          'Pay online when a fee applies. Download and sign the Indemnity Bond as instructed by the Organiser.',
         ].join('\n'),
       },
     },

@@ -46,8 +46,6 @@ import InAppOpenChromeGate, { shouldShowInAppChromeGate } from '../../../compone
 import { getExternalBrowserTargetUrl } from '../../../utils/openInExternalBrowser';
 
 const API = API_BASE_URL;
-const DIRT_DRAG_EVENT_ID = '6a722ada2a151369a4a2ff03';
-const DIRT_DRAG_PAYMENT_PHONE = '+919823317125';
 
 function getDiscordInviteFromEvent(event) {
     const fromMeeting = (Array.isArray(event?.meetingPoints) ? event.meetingPoints : [])
@@ -366,7 +364,6 @@ export default function EventRegistrationPage() {
         ? Number(couponInfo.amountAfterDiscount)
         : breakdown.totalAmount;
     const title = event?.displayName || event?.title || 'Event';
-    const isDirtDrag = String(event?._id || event?.id || eventId) === DIRT_DRAG_EVENT_ID;
     const driveOnlyTier = useMemo(
         () => packages.find((t) => isDriveOnlyTier(t)) || null,
         [packages],
@@ -458,8 +455,8 @@ export default function EventRegistrationPage() {
             };
 
             const steps = [personal, entryStep];
+            // Until Spectator is picked, show the full participant path so the progress count doesn't jump.
             if (spectatorPath) return steps;
-            if (!participantPath) return steps;
 
             configuredSteps.slice(1).forEach((s) => {
                 const fields = (s.fields || []).filter((f) => String(f.fieldName) !== ENTRY_TYPE_FIELD);
@@ -468,7 +465,7 @@ export default function EventRegistrationPage() {
             });
             steps.push({
                 title: 'Select classes',
-                description: 'Pick one or more competition classes for your entry.',
+                description: 'Pick one or more competition classes — ₹7,000 each; total adds up.',
                 packageSelect: true,
                 multiSelect: true,
                 fields: [],
@@ -1641,21 +1638,6 @@ export default function EventRegistrationPage() {
                             ? 'Your registration is pending organizer approval. You can track status in My Bookings.'
                             : "Download your ticket or view all bookings whenever you're ready."}
                     </p>
-                    {isDirtDrag && (
-                        <div className={`mb-6 rounded-2xl border px-4 py-4 text-left ${
-                            isDark ? 'border-[#0ECCEE]/30 bg-[#0ECCEE]/10' : 'border-cyan-200 bg-cyan-50'
-                        }`}>
-                            <p className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                                Please contact the number below for payment
-                            </p>
-                            <a
-                                href={`tel:${DIRT_DRAG_PAYMENT_PHONE}`}
-                                className="mt-1 inline-block text-lg font-bold text-[#0ECCEE]"
-                            >
-                                {DIRT_DRAG_PAYMENT_PHONE}
-                            </a>
-                        </div>
-                    )}
                     <div className="flex flex-col gap-3 animate-step-enter">
                         {registrationId && (
                             <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 active:scale-[0.98] transition-all duration-200">
@@ -1737,9 +1719,9 @@ export default function EventRegistrationPage() {
                                 style={{ width: `${((step + 1) / allSteps.length) * 100}%` }}
                             />
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between gap-1">
                             {allSteps.map((s, i) => (
-                                <div key={s.title + i} className="flex flex-col items-center">
+                                <div key={s.title + i} className="flex flex-col items-center min-w-0 flex-1">
                                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                                         i === step ? 'bg-[#0ECCEE] text-black scale-110'
                                         : i < step ? 'bg-green-600 text-white'
@@ -1748,7 +1730,9 @@ export default function EventRegistrationPage() {
                                     }`}>
                                         {i < step ? '✓' : i + 1}
                                     </div>
-                                    <span className={`text-xs mt-1 text-center max-w-20 truncate transition-colors duration-200 ${
+                                    <span className={`text-xs mt-1 text-center w-full truncate transition-colors duration-200 ${
+                                        allSteps.length > 4 ? 'hidden sm:block' : ''
+                                    } ${
                                         i === step
                                             ? (isDark ? 'text-white' : 'text-gray-800')
                                             : (isDark ? 'text-gray-400' : 'text-gray-500')
@@ -1803,9 +1787,7 @@ export default function EventRegistrationPage() {
                         <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
                             <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                                 {current.multiSelect || multiClassFlow
-                                    ? (isDirtDrag
-                                        ? 'Select one or more competition classes for your entry.'
-                                        : 'Select one or more classes. The total is calculated from your selections.')
+                                    ? 'Select one or more classes. Fee is ₹7,000 per class — total adds up at checkout.'
                                     : skippingDrive
                                         ? 'Select a Trackday package.'
                                         : 'Select your Trackday package. Independence Day Drive is included free.'}

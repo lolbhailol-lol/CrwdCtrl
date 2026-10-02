@@ -70,7 +70,7 @@ const MAP_URL =
     'Open to motorsport enthusiasts with stock or modified vehicles. Valid driving licence and compliance with technical/safety regulations required. All entries subject to organiser scrutiny.';
 
   const registrationProcess =
-    'Tap Book / Register, choose your competition class, and complete the free in-app registration form. After submitting, contact +919823317125 for payment instructions. Sign and submit the Indemnity Bond as instructed. To enter another class, register again.';
+    'Tap Book / Register, choose your competition class (Rs 7,000 per class), complete the in-app form, and pay online. Sign and submit the Indemnity Bond as instructed. To enter another class, register again.';
 
   const contacts = [
     {
