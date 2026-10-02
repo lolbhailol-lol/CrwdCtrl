@@ -183,6 +183,14 @@ async function enforceCompetitionScope(req, res, next) {
             return next();
         }
 
+        if (/\/auditorium\/gate-roster$/.test(path)) {
+            const [gateId] = [...scope.gate];
+            if (!gateId) return deny(res, 'You do not have auditorium gate access');
+            const allowedCats = scope.gateCategories.get(gateId);
+            req.auditoriumCategoryIds = allowedCats ? [...allowedCats] : null;
+            return next();
+        }
+
         if (/\/checkin$/.test(path) && method === 'POST') {
             const competitionId = String(body.competitionId || '');
             if (body.proShowOnly || body.proShow) return deny(res);

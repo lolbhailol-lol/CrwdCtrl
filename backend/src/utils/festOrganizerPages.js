@@ -47,12 +47,12 @@ const PAGE_ROUTE_MATCHERS = {
     'check-in': [
         { methods: ['GET', 'POST'], re: /\/checkin(\/|$)/ },
         { methods: ['GET'], re: /\/participants(\/lookup)?$/ },
-        { methods: ['GET'], re: /\/auditorium\/(gate|lookup)$/ },
+        { methods: ['GET'], re: /\/auditorium\/(gate|lookup|gate-roster)$/ },
     ],
     'auditorium-gate': [
         { methods: ['POST'], re: /\/checkin$/ },
         { methods: ['GET'], re: /\/checkin\/stats$/ },
-        { methods: ['GET'], re: /\/auditorium\/(gate|lookup)$/ },
+        { methods: ['GET'], re: /\/auditorium\/(gate|lookup|gate-roster)$/ },
     ],
     auditorium: [
         { methods: ['GET', 'PATCH', 'PUT', 'POST', 'DELETE'], re: /\/auditorium(\/|$)/ },

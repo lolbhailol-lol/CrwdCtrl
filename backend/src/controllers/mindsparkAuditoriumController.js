@@ -1546,7 +1546,14 @@ exports.listGateRoster = async (req, res) => {
     const categoryId = String(req.query.categoryId || '').trim().slice(0, 80);
 
     const filter = { fest: req.festId, competitionId: competition._id, status: 'approved' };
-    if (categoryId) filter['responses.auditorium_category_id'] = categoryId;
+    const scopedCategories = Array.isArray(req.auditoriumCategoryIds) ? req.auditoriumCategoryIds : null;
+    if (scopedCategories) {
+      filter['responses.auditorium_category_id'] = categoryId
+        ? (scopedCategories.includes(categoryId) ? categoryId : { $in: [] })
+        : { $in: scopedCategories };
+    } else if (categoryId) {
+      filter['responses.auditorium_category_id'] = categoryId;
+    }
     if (checkInStatus === 'checked_in') filter.checkedIn = true;
     else if (checkInStatus === 'not_in') filter.checkedIn = { $ne: true };
     if (search) {
