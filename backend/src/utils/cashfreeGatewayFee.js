@@ -170,7 +170,8 @@ function mindSparkLockedTotals({
     ? rzBaseRevenue
     : round2(rzLiveGross * (1 - feeRate));
   const rzGross = round2(Math.max(0, rzLiveGross - additionalDeduction));
-  const rzRevenue = round2(Math.max(0, rzLiveRevenue - additionalDeduction));
+  const rzRevenueRaw = Math.max(0, rzLiveRevenue - additionalDeduction);
+  const rzRevenue = override.wholeRupeeRazorpayRevenue ? Math.floor(rzRevenueRaw) : round2(rzRevenueRaw);
   const grossCollected = round2(cfGross + rzGross);
   return {
     grossCollected,

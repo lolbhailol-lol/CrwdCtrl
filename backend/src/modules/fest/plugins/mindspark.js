@@ -29,7 +29,8 @@ const mindsparkPlugin = {
         razorpayPaidRevenue: 9165,
         gatewayFeeRate: 0.0195,
         // Taken off the Razorpay amount. New Razorpay payments still add on top.
-        additionalDeduction: 5000,
+        additionalDeduction: 9000,
+        wholeRupeeRazorpayRevenue: true,
     },
 };
 
