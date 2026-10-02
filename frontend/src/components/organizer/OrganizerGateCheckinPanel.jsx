@@ -146,6 +146,7 @@ export default function OrganizerGateCheckinPanel({
   useEffect(() => {
     if (tab === 'search' && activeSearch) return undefined;
     const poll = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       load(stateRef.current.pagination.page || 1);
     }, pollMs);
     return () => clearInterval(poll);
@@ -368,11 +369,21 @@ export default function OrganizerGateCheckinPanel({
                 className="flex items-center justify-between gap-3 p-3 rounded-xl border border-white/10 bg-[#111213]"
               >
                 <div className="flex items-start gap-2.5 min-w-0">
-                  <span className="mt-0.5 shrink-0 size-6 rounded-md bg-white/5 border border-white/10 text-[11px] font-semibold tabular-nums text-gray-500 flex items-center justify-center">
-                    {(pagination.page - 1) * pageSize + idx + 1}
-                  </span>
+                  {row.photoUrl ? (
+                    <img
+                      src={row.photoUrl}
+                      alt=""
+                      loading="lazy"
+                      className="shrink-0 size-12 rounded-lg object-cover border border-white/10"
+                    />
+                  ) : (
+                    <span className="mt-0.5 shrink-0 size-6 rounded-md bg-white/5 border border-white/10 text-[11px] font-semibold tabular-nums text-gray-500 flex items-center justify-center">
+                      {(pagination.page - 1) * pageSize + idx + 1}
+                    </span>
+                  )}
                     <div className="min-w-0 space-y-0.5">
                     <p className="font-medium text-white truncate">{row.name || 'Guest'}</p>
+                    {row.meta ? <p className="text-[11px] font-semibold text-[#0ECCEE] truncate">{row.meta}</p> : null}
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
                       {row.phone ? (
                         phoneLink ? (

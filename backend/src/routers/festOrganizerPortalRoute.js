@@ -59,6 +59,7 @@ router.post('/fests/:festId/auditorium/roster/:registrationId/review', authentic
 router.delete('/fests/:festId/auditorium/roster/:registrationId', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deleteTicket);
 router.get('/fests/:festId/auditorium/gate', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.getGateInfo);
 router.get('/fests/:festId/auditorium/lookup', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.lookupByPhone);
+router.get('/fests/:festId/auditorium/gate-roster', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.listGateRoster);
 router.post('/fests/:festId/auditorium/invites', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.createInvite);
 router.post('/fests/:festId/auditorium/invites/:inviteId/deactivate', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deactivateInvite);
 router.post('/fests/:festId/auditorium/desk', authenticateFestOrganizer, requireFestAccess, auditoriumCtrl.deskIssue);

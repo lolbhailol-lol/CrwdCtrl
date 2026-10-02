@@ -15,9 +15,9 @@ const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // payload briefly instead of re-submitting it once scanning resumes.
 const DUPLICATE_SCAN_WINDOW_MS = 4500;
 /** Brief success flash, then keep scanning the next guest without a tap. */
-const SUCCESS_RESUME_DELAY_MS = 900;
+const SUCCESS_RESUME_DELAY_MS = 700;
 /** Already-in tickets should not stall the gate — flash and continue. */
-const ALREADY_IN_RESUME_DELAY_MS = 700;
+const ALREADY_IN_RESUME_DELAY_MS = 600;
 
 let feedbackAudioCtx = null;
 /** Beep + buzz so gate volunteers know the result without reading the screen. */
@@ -213,7 +213,6 @@ export default function CheckinScannerPage({
   const videoWatchdogRef = useRef(null);
   const lastScanRef = useRef({ value: null, at: 0 });
   const resumeTimerRef = useRef(null);
-  const pendingYearConfirmRawRef = useRef(null);
   const startScanLoopRef = useRef(null);
 
   const useNativeScanner = isNativeApp() && nativeScanAvailable;
@@ -407,11 +406,6 @@ export default function CheckinScannerPage({
       }
 
       const outcome = data.status || (data.success ? 'checked_in' : 'error');
-      if (outcome === 'needs_year_confirm') {
-        pendingYearConfirmRawRef.current = trimmed;
-      } else {
-        pendingYearConfirmRawRef.current = null;
-      }
       setScanResult({
         status: outcome,
         message: data.message || data.error || 'Check-in failed',
@@ -437,16 +431,6 @@ export default function CheckinScannerPage({
       scanLockRef.current = false;
     }
   }, [resolvedGetToken, resolvedCheckinUrl, mode, fetchCheckinStats, competitionId, checkinExtraBody, sessionExpiredMessage, authErrorMessage, isVolunteerScanner]);
-
-  const confirmYearAndCheckin = useCallback(async () => {
-    const raw = pendingYearConfirmRawRef.current
-      || (scanResult?.data?.registrationId
-        ? JSON.stringify({ registrationId: String(scanResult.data.registrationId), type: 'fest' })
-        : '');
-    if (!raw || isProcessing) return;
-    scanLockRef.current = true;
-    await verifyQrPayload(raw, { confirmYear: true });
-  }, [scanResult, isProcessing, verifyQrPayload]);
 
   const handleQRData = useCallback(async (rawData) => {
     if (scanLockRef.current) return;
@@ -744,7 +728,6 @@ export default function CheckinScannerPage({
     }
     setScanResult(null);
     setManualHash('');
-    pendingYearConfirmRawRef.current = null;
     scanLockRef.current = false;
     if (useNativeScanner && isScanning) return;
     await releaseCamera();
@@ -851,9 +834,7 @@ export default function CheckinScannerPage({
                     ? 'bg-green-600/95'
                     : scanResult.status === 'already_checked_in'
                       ? 'bg-amber-500/95'
-                      : scanResult.status === 'needs_year_confirm'
-                        ? 'bg-sky-600/95'
-                        : 'bg-red-600/95'
+                      : 'bg-red-600/95'
                 }`}
               >
                 <p className="text-white font-bold text-sm">{scanResult.message}</p>
@@ -869,16 +850,6 @@ export default function CheckinScannerPage({
                 )}
                 {scanResult.data?.auditoriumCategory ? (
                   <p className="text-white/90 text-xs mt-0.5">{scanResult.data.auditoriumCategory}</p>
-                ) : null}
-                {scanResult.status === 'needs_year_confirm' ? (
-                  <button
-                    type="button"
-                    disabled={isProcessing}
-                    onClick={confirmYearAndCheckin}
-                    className="mt-2 w-full min-h-[44px] px-4 py-2.5 bg-white text-sky-900 rounded-xl text-sm font-bold"
-                  >
-                    Year matches ID — allow entry
-                  </button>
                 ) : null}
                 {(scanResult.data?.userPhone || scanResult.data?.userEmail) && (
                   <p className="text-white/85 text-xs mt-0.5">
@@ -907,7 +878,7 @@ export default function CheckinScannerPage({
                     ) : null}
                   </div>
                 )}
-                {scanResult.status !== 'checked_in' && scanResult.status !== 'needs_year_confirm' && (
+                {scanResult.status !== 'checked_in' && (
                   <button
                     type="button"
                     onClick={resumeScanning}
@@ -1132,9 +1103,7 @@ export default function CheckinScannerPage({
                     ? 'bg-green-500/10 border border-green-500/25'
                     : scanResult.status === 'already_checked_in'
                       ? 'bg-amber-500/10 border border-amber-500/25'
-                      : scanResult.status === 'needs_year_confirm'
-                        ? 'bg-sky-500/10 border border-sky-500/25'
-                        : 'bg-red-500/10 border border-red-500/25'
+                      : 'bg-red-500/10 border border-red-500/25'
               }`}
             >
               <div className="mb-3">
@@ -1143,9 +1112,6 @@ export default function CheckinScannerPage({
                 )}
                 {scanResult.status === 'already_checked_in' && (
                   <AlertTriangle size={48} className="text-yellow-400 mx-auto" />
-                )}
-                {scanResult.status === 'needs_year_confirm' && (
-                  <AlertTriangle size={48} className="text-sky-400 mx-auto" />
                 )}
                 {(scanResult.status === 'invalid' || scanResult.status === 'error') && (
                   <XCircle size={48} className="text-red-400 mx-auto" />
@@ -1158,9 +1124,7 @@ export default function CheckinScannerPage({
                     ? 'text-green-400'
                     : scanResult.status === 'already_checked_in'
                       ? 'text-yellow-400'
-                      : scanResult.status === 'needs_year_confirm'
-                        ? 'text-sky-300'
-                        : 'text-red-400'
+                      : 'text-red-400'
                 }`}
               >
                 {scanResult.message}
@@ -1227,17 +1191,6 @@ export default function CheckinScannerPage({
                   )}
                 </div>
               )}
-
-              {scanResult.status === 'needs_year_confirm' ? (
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={confirmYearAndCheckin}
-                  className="mt-4 w-full min-h-[48px] inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-400 text-black rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-                >
-                  Year matches ID — allow entry
-                </button>
-              ) : null}
 
               <button
                 type="button"

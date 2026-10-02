@@ -1475,7 +1475,13 @@ exports.getGateInfo = async (req, res) => {
   try {
     const competition = await ensureAuditoriumCompetition(req.festId);
     const counts = await Registration.aggregate([
-      { $match: { competitionId: competition._id, status: 'approved' } },
+      {
+        $match: {
+          fest: new mongoose.Types.ObjectId(String(req.festId)),
+          competitionId: competition._id,
+          status: 'approved',
+        },
+      },
       {
         $group: {
           _id: '$responses.auditorium_category_id',
@@ -1525,6 +1531,53 @@ exports.lookupByPhone = async (req, res) => {
     return res.json({ success: true, ticket: tickets[0], tickets });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
+/** Gate roster: Still outside / Checked in, searchable by name, phone, email, MIS or college. */
+exports.listGateRoster = async (req, res) => {
+  try {
+    const competition = await ensureAuditoriumCompetition(req.festId);
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 30));
+    const checkInStatus = String(req.query.checkInStatus || '').trim();
+    const search = String(req.query.search || '').trim().slice(0, 80);
+
+    const categoryId = String(req.query.categoryId || '').trim().slice(0, 80);
+
+    const filter = { fest: req.festId, competitionId: competition._id, status: 'approved' };
+    if (categoryId) filter['responses.auditorium_category_id'] = categoryId;
+    if (checkInStatus === 'checked_in') filter.checkedIn = true;
+    else if (checkInStatus === 'not_in') filter.checkedIn = { $ne: true };
+    if (search) {
+      const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { 'responses.full_name': regex },
+        { 'responses.name': regex },
+        { 'responses.phone': regex },
+        { 'responses.contact_no': regex },
+        { 'responses.email': regex },
+        { 'responses.mis_id': regex },
+        { 'responses.college': regex },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      Registration.find(filter)
+        .populate('user', 'name email phone phoneNumber')
+        .sort(checkInStatus === 'checked_in' ? { checkedInAt: -1 } : { 'responses.full_name': 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Registration.countDocuments(filter),
+    ]);
+    return res.json({
+      success: true,
+      participants: rows.map((reg) => formatTicket(reg, competition)),
+      pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed' });
   }
 };
 

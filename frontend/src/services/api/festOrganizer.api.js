@@ -751,6 +751,14 @@ export async function lookupFestOrganizerAuditoriumPhone(festId, phone) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/lookup?${qs}`);
 }
 
+export async function fetchFestOrganizerAuditoriumGateRoster(festId, params = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
+    });
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/gate-roster?${qs}`);
+}
+
 export async function createFestOrganizerAuditoriumInvite(festId, body) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/auditorium/invites`, {
         method: 'POST',

@@ -41,7 +41,7 @@ function FestOrganizerScanPageContent() {
         rosterTimerRef.current = setTimeout(() => {
             rosterTimerRef.current = null;
             setRosterKey((k) => k + 1);
-        }, 3000);
+        }, 1500);
     }, []);
     useEffect(() => () => clearTimeout(rosterTimerRef.current), []);
     const scannerIds = useMemo(
@@ -194,7 +194,7 @@ function FestOrganizerScanPageContent() {
                 searchPlaceholder="Name, phone, email, or registration ID"
                 outsideStatus="not_in"
                 insideStatus="checked_in"
-                pollMs={10000}
+                pollMs={6000}
                 labels={{
                     title: selectedCompetition ? `${selectedCompetition.name} live roster` : 'Live fest roster',
                     subtitle: 'Approved entries update automatically · tap Check in for participants without a QR',

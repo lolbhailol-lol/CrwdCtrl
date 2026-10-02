@@ -1,17 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Search } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
+import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
 import { getApiBaseUrl } from '../../../config/apiBase';
 import { getFestOrganizerSession, getFestOrganizerToken } from '../../../utils/festOrganizerSession';
 import {
     fetchFestOrganizerAuditoriumGate,
-    lookupFestOrganizerAuditoriumPhone,
+    fetchFestOrganizerAuditoriumGateRoster,
     festOrganizerCheckin,
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
 import { getFestPlugin } from '../plugins/registry';
 import { organizerHasPage } from './festOrganizerPages';
+
+function normalizeAuditoriumRow(ticket) {
+    if (!ticket) return null;
+    return {
+        id: String(ticket.registrationId || ticket.id),
+        name: ticket.fullName || 'Guest',
+        phone: ticket.phone || '',
+        email: ticket.email || '',
+        checkedIn: Boolean(ticket.checkedIn),
+        checkedInAt: ticket.checkedInAt || null,
+        photoUrl: ticket.ticketPhotoUrl || '',
+        meta: [ticket.categoryLabel, ticket.college].filter(Boolean).join(' · '),
+        raw: ticket,
+    };
+}
 
 export default function FestOrganizerAuditoriumScanPage() {
     const { festId } = useParams();
@@ -21,11 +37,8 @@ export default function FestOrganizerAuditoriumScanPage() {
     const canOpenAuditorium = organizerHasPage(getFestOrganizerSession(), 'auditorium');
     const [competitionId, setCompetitionId] = useState('');
     const [categories, setCategories] = useState([]);
-    const [phone, setPhone] = useState('');
-    const [lookupBusy, setLookupBusy] = useState(false);
-    const [lookupTickets, setLookupTickets] = useState([]);
-    const [checkingId, setCheckingId] = useState('');
-    const phoneInputRef = useRef(null);
+    const [rosterKey, setRosterKey] = useState(0);
+    const [categoryFilter, setCategoryFilter] = useState('');
 
     const loadGate = useCallback(() => {
         if (getFestPlugin(festId).id !== 'mindspark') return;
@@ -39,77 +52,43 @@ export default function FestOrganizerAuditoriumScanPage() {
 
     useEffect(() => {
         loadGate();
+        const poll = setInterval(() => {
+            if (!document.hidden) loadGate();
+        }, 6000);
+        return () => clearInterval(poll);
     }, [loadGate]);
 
-    const countsTimerRef = useRef(null);
-    const refreshCountsSoon = useCallback(() => {
-        if (countsTimerRef.current) return;
-        countsTimerRef.current = setTimeout(() => {
-            countsTimerRef.current = null;
+    const refreshTimerRef = useRef(null);
+    const refreshSoon = useCallback((withRoster = true) => {
+        if (refreshTimerRef.current) return;
+        refreshTimerRef.current = setTimeout(() => {
+            refreshTimerRef.current = null;
             loadGate();
-        }, 3000);
+            if (withRoster) setRosterKey((k) => k + 1);
+        }, 1500);
     }, [loadGate]);
 
-    useEffect(() => () => clearTimeout(countsTimerRef.current), []);
+    useEffect(() => () => clearTimeout(refreshTimerRef.current), []);
 
-    const manualCheckin = useCallback(async (ticket) => {
-        const registrationId = ticket?.registrationId || ticket?.id;
-        if (!registrationId || !competitionId || checkingId) return;
-        setCheckingId(registrationId);
-        const markInside = (inside, at = null) => setLookupTickets((list) => list.map((t) => (
-            (t.registrationId || t.id) === registrationId ? { ...t, checkedIn: inside, checkedInAt: at } : t
-        )));
-        markInside(true, new Date().toISOString());
-        try {
-            const res = await festOrganizerCheckin(festId, { registrationId, competitionId });
-            if (res?.status === 'already_checked_in') {
-                markInside(true, res?.data?.checkedInAt || null);
-                toast('Already inside');
-            } else {
-                toast('Checked in');
-            }
-            refreshCountsSoon();
-        } catch (e) {
-            markInside(false);
-            toast(e.message || 'Check-in failed');
-        } finally {
-            setCheckingId('');
-        }
-    }, [competitionId, festId, toast, checkingId, refreshCountsSoon]);
+    const listRoster = useCallback(
+        ({ checkInStatus, search, page, limit }) => fetchFestOrganizerAuditoriumGateRoster(festId, {
+            checkInStatus,
+            search,
+            page,
+            limit,
+            categoryId: categoryFilter,
+        }),
+        [festId, categoryFilter],
+    );
 
-    const doLookup = async (value = phone) => {
-        const digits = String(value || '').replace(/\D/g, '').slice(-10);
-        if (digits.length !== 10) return;
-        setLookupBusy(true);
-        setLookupTickets([]);
-        try {
-            const res = await lookupFestOrganizerAuditoriumPhone(festId, digits);
-            setLookupTickets(Array.isArray(res?.tickets) ? res.tickets : (res?.ticket ? [res.ticket] : []));
-        } catch (e) {
-            toast(e.message || 'Not found');
-        } finally {
-            setLookupBusy(false);
-        }
-    };
+    const selectedCategory = categories.find((c) => c.id === categoryFilter) || null;
+    const toggleCategory = (id) => setCategoryFilter((current) => (current === id ? '' : id));
 
-    const onPhoneChange = (e) => {
-        const next = e.target.value.replace(/\D/g, '').slice(0, 10);
-        setPhone(next);
-        if (next.length === 10) doLookup(next);
-        else if (lookupTickets.length) setLookupTickets([]);
-    };
-
-    const clearLookup = () => {
-        setPhone('');
-        setLookupTickets([]);
-        phoneInputRef.current?.focus();
-    };
-
-    const formatTime = (value) => {
-        if (!value) return '';
-        const d = new Date(value);
-        return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    };
+    const manualCheckin = useCallback(async (row) => {
+        const res = await festOrganizerCheckin(festId, { registrationId: row.id, competitionId });
+        refreshSoon(false);
+        return res;
+    }, [festId, competitionId, refreshSoon]);
 
     if (getFestPlugin(festId).id !== 'mindspark') {
         return (
@@ -141,126 +120,88 @@ export default function FestOrganizerAuditoriumScanPage() {
                 </p>
                 {categories.length ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+                        <button
+                            type="button"
+                            onClick={() => setCategoryFilter('')}
+                            aria-pressed={!categoryFilter}
+                            className={`text-left rounded-xl border px-3 py-2 min-h-[52px] transition-colors ${
+                                !categoryFilter ? 'border-[#0ECCEE] bg-[#0ECCEE]/10' : 'border-white/10 bg-[#161718]'
+                            }`}
+                        >
+                            <p className="text-[11px] font-semibold text-white truncate">All categories</p>
+                            <p className="text-xs mt-0.5 tabular-nums">
+                                <span className="text-emerald-400">
+                                    {categories.reduce((n, c) => n + (c.inside || 0), 0)} in
+                                </span>
+                                <span className="text-gray-600"> · </span>
+                                <span className="text-amber-300">
+                                    {categories.reduce((n, c) => n + (c.outside || 0), 0)} outside
+                                </span>
+                            </p>
+                        </button>
                         {categories.map((c) => (
-                            <div key={c.id} className="rounded-xl border border-white/10 bg-[#161718] px-3 py-2">
+                            <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => toggleCategory(c.id)}
+                                aria-pressed={categoryFilter === c.id}
+                                className={`text-left rounded-xl border px-3 py-2 min-h-[52px] transition-colors ${
+                                    categoryFilter === c.id ? 'border-[#0ECCEE] bg-[#0ECCEE]/10' : 'border-white/10 bg-[#161718]'
+                                }`}
+                            >
                                 <p className="text-[11px] font-semibold text-[#0ECCEE] truncate">{c.label}</p>
                                 <p className="text-xs mt-0.5 tabular-nums">
                                     <span className="text-emerald-400">{c.inside || 0} in</span>
                                     <span className="text-gray-600"> · </span>
                                     <span className="text-amber-300">{c.outside || 0} outside</span>
                                 </p>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 ) : null}
             </div>
 
             {competitionId ? (
-                <CheckinScannerPage
-                    embedded
-                    showStats
-                    showSheetStatus={false}
-                    festId={festId}
-                    competitionId={competitionId}
-                    festName="Auditorium check-in"
-                    getAuthToken={getFestOrganizerToken}
-                    onCheckinSuccess={refreshCountsSoon}
-                    checkinUrl={`${api}/fest-organizer/fests/${festId}/checkin`}
-                    statsUrl={`${api}/fest-organizer/fests/${festId}/checkin/stats?competitionId=${encodeURIComponent(competitionId)}`}
-                    sessionExpiredMessage="Organizer session expired — please sign in again."
-                    authErrorMessage="Access denied or session expired."
-                    title="Scan auditorium ticket"
-                    subtitle="Face photo + ID appear after a successful scan"
-                />
+                <>
+                    <CheckinScannerPage
+                        embedded
+                        showStats
+                        showSheetStatus={false}
+                        festId={festId}
+                        competitionId={competitionId}
+                        festName="Auditorium check-in"
+                        getAuthToken={getFestOrganizerToken}
+                        onCheckinSuccess={() => refreshSoon(true)}
+                        checkinUrl={`${api}/fest-organizer/fests/${festId}/checkin`}
+                        statsUrl={`${api}/fest-organizer/fests/${festId}/checkin/stats?competitionId=${encodeURIComponent(competitionId)}`}
+                        sessionExpiredMessage="Organizer session expired — please sign in again."
+                        authErrorMessage="Access denied or session expired."
+                        title="Scan auditorium ticket"
+                        subtitle="Face photo + ID appear after a successful scan"
+                    />
+
+                    <OrganizerGateCheckinPanel
+                        key={`roster-${categoryFilter || 'all'}`}
+                        listRoster={listRoster}
+                        manualCheckin={manualCheckin}
+                        normalize={normalizeAuditoriumRow}
+                        refreshKey={rosterKey}
+                        onToast={toast}
+                        searchPlaceholder="Name, phone, email, MIS, or college"
+                        outsideStatus="not_in"
+                        insideStatus="checked_in"
+                        pollMs={6000}
+                        labels={{
+                            title: selectedCategory ? `Manual check-in · ${selectedCategory.label}` : 'Manual check-in · All categories',
+                            subtitle: 'Tap a category above to filter · search and tap Check in',
+                            outside: 'Still outside',
+                            inside: 'Checked in',
+                        }}
+                    />
+                </>
             ) : (
                 <p className="text-sm text-gray-500">Loading scanner…</p>
             )}
-
-            <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
-                <p className="text-sm font-semibold text-white">Phone lookup (damaged QR)</p>
-                <form
-                    className="flex gap-2"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        doLookup();
-                    }}
-                >
-                    <input
-                        ref={phoneInputRef}
-                        value={phone}
-                        onChange={onPhoneChange}
-                        inputMode="numeric"
-                        autoComplete="off"
-                        placeholder="10-digit phone"
-                        className="flex-1 px-3 py-2.5 rounded-xl bg-[#121314] border border-white/10 text-sm text-white"
-                    />
-                    <button
-                        type="submit"
-                        disabled={lookupBusy || phone.length !== 10}
-                        className="px-3 py-2.5 rounded-xl bg-[#0ECCEE] text-black disabled:opacity-50"
-                    >
-                        <Search size={16} />
-                    </button>
-                </form>
-                {lookupBusy ? <p className="text-xs text-gray-500">Searching…</p> : null}
-                {lookupTickets.map((ticket) => {
-                    const id = ticket.registrationId || ticket.id;
-                    const inside = Boolean(ticket.checkedIn);
-                    return (
-                        <div
-                            key={id}
-                            className={`space-y-3 rounded-xl border p-3 ${inside ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-amber-500/40 bg-amber-500/5'}`}
-                        >
-                            <div className="flex gap-3 items-start">
-                                {ticket.ticketPhotoUrl ? (
-                                    <img
-                                        src={ticket.ticketPhotoUrl}
-                                        alt=""
-                                        className="w-24 h-24 rounded-xl object-cover shrink-0"
-                                    />
-                                ) : null}
-                                <div className="min-w-0 flex-1 space-y-1">
-                                    <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-md ${inside ? 'bg-emerald-500 text-black' : 'bg-amber-400 text-black'}`}>
-                                        {inside ? `INSIDE${ticket.checkedInAt ? ` · ${formatTime(ticket.checkedInAt)}` : ''}` : 'OUTSIDE'}
-                                    </span>
-                                    <p className="text-sm font-semibold text-white">{ticket.fullName}</p>
-                                    <p className="text-[11px] font-semibold text-[#0ECCEE]">{ticket.categoryLabel}</p>
-                                    <p className="text-[11px] text-gray-500">{ticket.phone} · {ticket.email}</p>
-                                    {!inside ? (
-                                        <button
-                                            type="button"
-                                            disabled={Boolean(checkingId)}
-                                            onClick={() => manualCheckin(ticket)}
-                                            className="mt-1 w-full min-h-[44px] px-3 py-2 rounded-lg bg-emerald-500 text-black text-sm font-bold disabled:opacity-60"
-                                        >
-                                            Check in
-                                        </button>
-                                    ) : null}
-                                </div>
-                            </div>
-                            {ticket.idCardPhotoUrl ? (
-                                <div>
-                                    <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">College ID</p>
-                                    <img
-                                        src={ticket.idCardPhotoUrl}
-                                        alt="ID card"
-                                        className="w-full max-h-40 object-contain rounded-lg bg-black/40 border border-white/10"
-                                    />
-                                </div>
-                            ) : null}
-                        </div>
-                    );
-                })}
-                {lookupTickets.length ? (
-                    <button
-                        type="button"
-                        onClick={clearLookup}
-                        className="w-full min-h-[44px] rounded-xl border border-white/10 text-sm text-gray-300"
-                    >
-                        Next person
-                    </button>
-                ) : null}
-            </section>
         </div>
     );
 }
