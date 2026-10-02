@@ -2,6 +2,12 @@
   "appId": "in.crwdctrl.app",
   "appName": "CrwdCtrl",
   "webDir": "dist",
+  "server": {
+    "url": "https://www.crwdctrl.in",
+    "cleartext": false,
+    "errorPath": "offline.html",
+    "allowNavigation": ["razorpay.com", "*.razorpay.com"]
+  },
   "android": {
     "allowMixedContent": false
   },
