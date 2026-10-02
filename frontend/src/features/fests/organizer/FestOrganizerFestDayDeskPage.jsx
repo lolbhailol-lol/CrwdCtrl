@@ -22,6 +22,7 @@ import {
   createFestDayAssistedRegistration,
   refundFestDayDeskOrder,
   refreshFestDayDeskOrder,
+  updateFestDayDeskSettings,
 } from "../../../services/api/festOrganizer.api";
 import { verifyDeskPayment } from "../../../services/api/deskPayment.api";
 import { verifyMindSparkBundlePayment } from "../../../services/api/mindsparkBundle.api";
@@ -531,13 +532,34 @@ function DeskQrModal({ row, onClose, onPaid }) {
   );
 }
 
+function DeskSwitch({ on, busy, onToggle, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      title={label}
+      disabled={busy}
+      onClick={onToggle}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60 ${on ? "bg-emerald-500" : "bg-white/15"}`}
+    >
+      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? "left-5.5" : "left-0.5"}`} />
+    </button>
+  );
+}
+
 export default function FestOrganizerFestDayDeskPage() {
   const { festId } = useParams();
   const { toast, confirm } = useDialog();
   const organizerSession = getFestOrganizerSession();
   const isDeskRole = organizerSession?.organizer?.portalRole === "desk";
   const canRefund = !isDeskRole;
+  const portalRole = organizerSession?.organizer?.portalRole;
+  const canManageDesk = !portalRole || portalRole === "organizer";
   const [competitions, setCompetitions] = useState(() => peekFestDayDesk(festId)?.competitions || []);
+  const [deskBundlesEnabled, setDeskBundlesEnabled] = useState(() => peekFestDayDesk(festId)?.deskBundlesEnabled === true);
+  const [savingToggle, setSavingToggle] = useState("");
   const [activity, setActivity] = useState(() => peekFestDayDesk(festId)?.activity || []);
   const [bundleActivity, setBundleActivity] = useState(() => peekFestDayDesk(festId)?.bundleActivity || []);
   const [query, setQuery] = useState("");
@@ -599,6 +621,7 @@ export default function FestOrganizerFestDayDeskPage() {
         if (Array.isArray(data.competitions) && data.competitions.length > 0) {
           setCompetitions(data.competitions);
         }
+        setDeskBundlesEnabled(data.deskBundlesEnabled === true);
         setActivity(data.activity || []);
         setBundleActivity(data.bundleActivity || []);
       } catch (error) {
@@ -618,6 +641,7 @@ export default function FestOrganizerFestDayDeskPage() {
       .then((data) => {
         if (!active) return;
         setCompetitions(data.competitions || []);
+        setDeskBundlesEnabled(data.deskBundlesEnabled === true);
         catalogLoadedRef.current = true;
         setLoading(false);
       })
@@ -627,6 +651,39 @@ export default function FestOrganizerFestDayDeskPage() {
     load();
     return () => { active = false; };
   }, [load]);
+
+  const toggleBundles = async () => {
+    const next = !deskBundlesEnabled;
+    setSavingToggle("bundles");
+    setDeskBundlesEnabled(next);
+    try {
+      await updateFestDayDeskSettings(festId, { deskBundlesEnabled: next });
+      toast(next ? "Bundle registration turned on" : "Bundle registration turned off");
+    } catch (error) {
+      setDeskBundlesEnabled(!next);
+      toast(error.message || "Could not update bundles");
+    } finally {
+      setSavingToggle("");
+    }
+  };
+
+  const toggleCompetitionDesk = async (competition) => {
+    const id = competition._id;
+    const next = competition.registrationsOpen === false;
+    const apply = (open) => setCompetitions((rows) => rows.map((row) => (
+      row._id === id ? { ...row, registrationsOpen: open } : row
+    )));
+    setSavingToggle(id);
+    apply(next);
+    try {
+      await updateFestDayDeskSettings(festId, { competitionId: id, deskRegistrationOpen: next });
+    } catch (error) {
+      apply(!next);
+      toast(error.message || "Could not update competition");
+    } finally {
+      setSavingToggle("");
+    }
+  };
 
   const combinedActivity = useMemo(() => {
     const phaseRank = (row) => {
@@ -854,7 +911,9 @@ export default function FestOrganizerFestDayDeskPage() {
           <div>
             <p className="text-xs uppercase tracking-wider text-[#0ECCEE]">MindSpark operations</p>
             <h1 className="text-2xl sm:text-3xl font-bold mt-1">Fest Day Desk</h1>
-            <p className="text-sm text-gray-400 mt-2">Pick one competition, or open a bundle. Then generate the payment QR.</p>
+            <p className="text-sm text-gray-400 mt-2">
+              {deskBundlesEnabled ? "Pick one competition, or open a bundle." : "Pick one competition."} Then generate the payment QR.
+            </p>
           </div>
           <button
             type="button"
@@ -866,21 +925,40 @@ export default function FestOrganizerFestDayDeskPage() {
             Refresh
           </button>
         </div>
-        <div className="mt-4 grid sm:grid-cols-2 gap-2">
+        <div className={`mt-4 grid gap-2 ${deskBundlesEnabled || canManageDesk ? "sm:grid-cols-2" : ""}`}>
           <div className="rounded-2xl border border-[#0ECCEE] bg-[#0ECCEE]/15 p-3 text-left">
             <UserRound size={18} className="text-[#0ECCEE] mb-2" />
             <p className="font-semibold text-white text-sm">Competition</p>
             <p className="text-[11px] text-gray-400 mt-1">Select one competition below, fill the form, then generate the payment QR</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setBundleOpen(true)}
-            className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-left hover:border-emerald-300/50"
-          >
-            <ShoppingCart size={18} className="text-emerald-300 mb-2" />
-            <p className="font-semibold text-emerald-100 text-sm">Bundle</p>
-            <p className="text-[11px] text-gray-400 mt-1">Hat-Trick, Tech duo, or Dynamic duo. Next student keeps the last QR as Draft</p>
-          </button>
+          {deskBundlesEnabled || canManageDesk ? (
+            <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-left">
+              <div className="flex items-start justify-between gap-3">
+                <ShoppingCart size={18} className="text-emerald-300 mb-2" />
+                {canManageDesk ? (
+                  <DeskSwitch
+                    on={deskBundlesEnabled}
+                    busy={savingToggle === "bundles"}
+                    onToggle={toggleBundles}
+                    label="Bundle registration at desk"
+                  />
+                ) : null}
+              </div>
+              <p className="font-semibold text-emerald-100 text-sm">
+                Bundle {deskBundlesEnabled ? "" : <span className="text-xs font-normal text-gray-400">· turned off</span>}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">Hat-Trick, Tech duo, or Dynamic duo. Next student keeps the last QR as Draft</p>
+              {deskBundlesEnabled ? (
+                <button
+                  type="button"
+                  onClick={() => setBundleOpen(true)}
+                  className="mt-2 rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/30"
+                >
+                  Open bundle
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -908,29 +986,41 @@ export default function FestOrganizerFestDayDeskPage() {
             {filtered.map((competition) => {
               const closed = competition.registrationsOpen === false;
               return (
-                <button
+                <div
                   key={competition._id}
-                  type="button"
-                  disabled={closed}
-                  onClick={() => setSelected({ ...competition, id: competition._id })}
-                  className="rounded-2xl border border-white/10 bg-[#1A1B1D] p-4 text-left hover:border-[#0ECCEE]/50 disabled:opacity-45 transition"
+                  className={`rounded-2xl border border-white/10 bg-[#1A1B1D] p-4 transition ${closed ? "" : "hover:border-[#0ECCEE]/50"}`}
                 >
                   <div className="flex justify-between gap-3">
-                    <p className="font-semibold text-white">{competition.name}</p>
-                    <span className="shrink-0 rounded-lg bg-[#0ECCEE]/10 px-2 py-1 text-[10px] font-bold text-[#0ECCEE]">REGISTER</span>
+                    <p className={`font-semibold ${closed ? "text-gray-500" : "text-white"}`}>{competition.name}</p>
+                    {canManageDesk ? (
+                      <DeskSwitch
+                        on={!closed}
+                        busy={savingToggle === competition._id}
+                        onToggle={() => toggleCompetitionDesk(competition)}
+                        label={`Desk registration for ${competition.name}`}
+                      />
+                    ) : null}
                   </div>
-                  <p className="text-sm text-[#0ECCEE] mt-2">
+                  <p className={`text-sm mt-2 ${closed ? "text-gray-500" : "text-[#0ECCEE]"}`}>
                     {organizerCompetitionFeeLabel(competition)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {closed ? "Registration closed" : "Registration open"}
+                    {closed ? "Desk registration off" : "Desk registration on"}
                   </p>
                   {(competition.pendingToday || competition.paidToday) ? (
                     <p className="text-[11px] text-gray-400 mt-2">
                       Today · {competition.pendingToday || 0} pending · {competition.paidToday || 0} paid
                     </p>
                   ) : null}
-                </button>
+                  <button
+                    type="button"
+                    disabled={closed}
+                    onClick={() => setSelected({ ...competition, id: competition._id })}
+                    className="mt-3 w-full rounded-lg bg-[#0ECCEE]/10 px-3 py-2 text-xs font-bold text-[#0ECCEE] hover:bg-[#0ECCEE]/20 disabled:cursor-not-allowed disabled:bg-white/5 disabled:text-gray-500"
+                  >
+                    {closed ? "CLOSED AT DESK" : "REGISTER"}
+                  </button>
+                </div>
               );
             })}
           </div>

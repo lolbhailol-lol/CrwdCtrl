@@ -255,6 +255,16 @@ export async function clearExpiredFestDayDeskEntries(festId) {
     });
 }
 
+/** Body: `{ deskBundlesEnabled }` and/or `{ competitionId, deskRegistrationOpen }`. */
+export async function updateFestDayDeskSettings(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/settings`, {
+        method: 'PATCH',
+        body,
+        retries: 0,
+        timeout: 15000,
+    });
+}
+
 export async function deleteFestDayDeskDrafts(festId, body) {
     return festOrganizerFetch(`/fest-organizer/fests/${festId}/fest-day-desk/drafts`, {
         method: 'DELETE',

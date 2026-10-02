@@ -3601,9 +3601,9 @@ exports.getFestDayDesk = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .limit(60)
                 .lean();
-        const [competitions, assistedDeskEntries] = await Promise.all([
+        const [competitions, assistedDeskEntries, festSettings] = await Promise.all([
             Competition.find({ fest: req.festId, ...NOT_AUDITORIUM_COMP })
-                .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic registration.status category module teamSizeMin teamSizeMax teamSizeLabel')
+                .select('name feeAmount registrationFee feeTiers slotsAllotted showSlotsPublic deskRegistrationOpen registration.status category module teamSizeMin teamSizeMax teamSizeLabel')
                 .sort({ name: 1 })
                 .lean(),
             catalogOnly ? Promise.resolve([]) : FestDayAssistedRegistration.find({
@@ -3611,7 +3611,9 @@ exports.getFestDayDesk = async (req, res) => {
                 paymentOrderId: { $nin: [null, ''] },
                 hiddenAt: null,
             }).select('paymentOrderId +paymentToken').sort({ createdAt: -1 }).limit(300).lean(),
+            FestOrganizer.findById(req.festId).select('festDayDeskBundlesEnabled').lean(),
         ]);
+        const deskBundlesEnabled = festSettings?.festDayDeskBundlesEnabled === true;
         if (catalogOnly) {
             const competitionRows = competitions.filter(isDeskVisibleCompetition).map((competition) => {
             return {
@@ -3619,8 +3621,8 @@ exports.getFestDayDesk = async (req, res) => {
                 slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
                 slotsFilled: 0,
                 slotsLeft: Number(competition.slotsAllotted) > 0 ? Number(competition.slotsAllotted) : null,
-                /** The desk sells even when online registration is closed. */
-                registrationsOpen: true,
+                /** Desk availability is independent of online registration status. */
+                registrationsOpen: competition.deskRegistrationOpen !== false,
                 pendingToday: 0,
                 paidToday: 0,
             };
@@ -3628,6 +3630,7 @@ exports.getFestDayDesk = async (req, res) => {
             const payload = {
             success: true,
             festDayAttendees: 0,
+            deskBundlesEnabled,
             competitions: competitionRows,
             activity: [],
             bundleActivity: [],
@@ -3668,8 +3671,8 @@ exports.getFestDayDesk = async (req, res) => {
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft: slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null,
-                /** The desk sells even when online registration is closed. */
-                registrationsOpen: true,
+                /** Desk availability is independent of online registration status. */
+                registrationsOpen: competition.deskRegistrationOpen !== false,
                 pendingToday: 0,
                 paidToday: 0,
             };
@@ -3900,6 +3903,7 @@ exports.getFestDayDesk = async (req, res) => {
         const payload = {
             success: true,
             festDayAttendees,
+            deskBundlesEnabled,
             competitions: competitionRows,
             activity,
             bundleActivity,
@@ -3912,6 +3916,44 @@ exports.getFestDayDesk = async (req, res) => {
         if (!sent) res.status(500).json({ success: false, message: 'Failed to load Fest Day Desk' });
     } finally {
         if (refreshing) deskRefreshInflight.delete(deskKey);
+    }
+};
+
+/** Toggle desk bundles (fest-wide) and/or desk registration for one competition. */
+exports.updateFestDayDeskSettings = async (req, res) => {
+    try {
+        if (!requireMindSparkDesk(req, res)) return;
+        const body = req.body || {};
+        const result = {};
+        if (typeof body.deskBundlesEnabled === 'boolean') {
+            await FestOrganizer.updateOne(
+                { _id: req.festId },
+                { $set: { festDayDeskBundlesEnabled: body.deskBundlesEnabled } },
+            );
+            result.deskBundlesEnabled = body.deskBundlesEnabled;
+        }
+        if (body.competitionId != null) {
+            if (typeof body.deskRegistrationOpen !== 'boolean'
+                || !mongoose.Types.ObjectId.isValid(String(body.competitionId))) {
+                return res.status(400).json({ success: false, message: 'competitionId and deskRegistrationOpen are required' });
+            }
+            const updated = await mongoose.model('Competition').findOneAndUpdate(
+                { _id: body.competitionId, fest: req.festId },
+                { $set: { deskRegistrationOpen: body.deskRegistrationOpen } },
+                { new: true, projection: { _id: 1, deskRegistrationOpen: 1 } },
+            ).lean();
+            if (!updated) return res.status(404).json({ success: false, message: 'Competition not found' });
+            result.competitionId = String(updated._id);
+            result.deskRegistrationOpen = updated.deskRegistrationOpen !== false;
+        }
+        if (!Object.keys(result).length) {
+            return res.status(400).json({ success: false, message: 'Nothing to update' });
+        }
+        clearDeskSnaps(req.festId);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('[festOrganizerPortal.updateFestDayDeskSettings]', error);
+        res.status(500).json({ success: false, message: 'Failed to update desk settings' });
     }
 };
 

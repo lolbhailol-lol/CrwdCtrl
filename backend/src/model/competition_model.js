@@ -177,6 +177,12 @@ const competitionSchema = new mongoose.Schema(
     min: 0,
   },
 
+  /** Fest Day Desk: when false, desk staff cannot register this competition (online is unaffected). */
+  deskRegistrationOpen: {
+    type: Boolean,
+    default: true,
+  },
+
   /** When false, public competition page hides “X slots remain” (capacity still tracked). */
   showSlotsPublic: {
     type: Boolean,

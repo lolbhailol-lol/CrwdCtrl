@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const Bundle = require('../model/mindspark_bundle_model');
 const Competition = require('../model/competition_model');
+const FestOrganizer = require('../model/fest_organizer_model');
 const PaymentOrder = require('../model/payment_order_model');
 const User = require('../model/usermodel');
 const { FEST_ID, BUNDLE_COMPETITION_IDS, BUNDLES, groupFor, resolveBundle, idsForBundle, assertBundleSelection } = require('../modules/fest/plugins/mindsparkBundle');
@@ -231,9 +232,14 @@ async function validateItems(rawItems, opts = {}) {
     throw e;
   }
   const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID })
-    .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration slotsAllotted registrationsOpen')
+    .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration slotsAllotted registrationsOpen deskRegistrationOpen')
     .lean();
   if (docs.length !== bundle.size) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
+  if (opts.desk && docs.some((doc) => doc.deskRegistrationOpen === false)) {
+    const e = new Error('Desk registration is turned off for one of these competitions.');
+    e.status = 409;
+    throw e;
+  }
   if (checkSlots) {
     await assertCompetitionsAcceptRegistration(docs, { allowClosed: opts.allowClosed === true });
   }
@@ -516,6 +522,12 @@ exports.create = source => async (req, res) => {
         existing = await Bundle.findById(existing._id).select('+paymentToken');
       }
       return res.json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${existing.paymentToken}`, ...await serializeWithTickets(existing, order) });
+    }
+    if (source === 'desk') {
+      const fest = await FestOrganizer.findById(FEST_ID).select('festDayDeskBundlesEnabled').lean();
+      if (fest?.festDayDeskBundlesEnabled !== true) {
+        return res.status(409).json({ success: false, message: 'Bundle registration is turned off at the desk.' });
+      }
     }
     const offerBundle = resolveBundle(req.body.bundleKey || 'hat_trick');
     const valid = await validateItems(req.body.items, {

@@ -60,6 +60,12 @@ const festOrganizerSchema = new mongoose.Schema(
     default: 3,
   },
 
+  /** Fest Day Desk: whether staff may sell competition bundles at the desk. */
+  festDayDeskBundlesEnabled: {
+    type: Boolean,
+    default: false,
+  },
+
   description: {
     type: String,
     required: true,

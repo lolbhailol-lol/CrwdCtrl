@@ -189,6 +189,9 @@ exports.createAssistedRegistration = async (req, res) => {
 
     const competition = await Competition.findOne({ _id: req.body.competitionId, fest: req.festId }).populate('fest');
     if (!competition) return res.status(404).json({ success: false, message: 'Competition not found' });
+    if (competition.deskRegistrationOpen === false) {
+      return res.status(409).json({ success: false, message: 'Desk registration is turned off for this competition.' });
+    }
 
     const name = clean(req.body.name, 100);
     const phone = phoneDigits(req.body.phone);
