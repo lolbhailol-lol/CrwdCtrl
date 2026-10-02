@@ -3643,26 +3643,29 @@ exports.getFestDayDesk = async (req, res) => {
             res.json(payload);
             return;
         }
+        // Activity still covers hidden competitions so earlier desk sales stay auditable.
         const competitionIds = competitions.map((competition) => competition._id);
+        const visibleCompetitions = competitions.filter(isDeskVisibleCompetition);
+        const visibleCompetitionIds = visibleCompetitions.map((competition) => competition._id);
         const [filledRows, reservedRows] = await Promise.all([
             Registration.aggregate([
                 {
                     $match: {
                         fest: new mongoose.Types.ObjectId(String(req.festId)),
-                        competitionId: { $in: competitionIds },
+                        competitionId: { $in: visibleCompetitionIds },
                         status: 'approved',
                     },
                 },
                 { $group: { _id: '$competitionId', count: { $sum: 1 } } },
             ]),
             CompetitionSlotReservation.aggregate([
-                { $match: { competitionId: { $in: competitionIds }, expiresAt: { $gt: new Date() } } },
+                { $match: { competitionId: { $in: visibleCompetitionIds }, expiresAt: { $gt: new Date() } } },
                 { $group: { _id: '$competitionId', count: { $sum: 1 } } },
             ]),
         ]);
         const filledByCompetition = new Map(filledRows.map((row) => [String(row._id), Number(row.count) || 0]));
         const reservedByCompetition = new Map(reservedRows.map((row) => [String(row._id), Number(row.count) || 0]));
-        const competitionRowsBase = competitions.filter(isDeskVisibleCompetition).map((competition) => {
+        const competitionRowsBase = visibleCompetitions.map((competition) => {
             const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
             const slotsFilled = (filledByCompetition.get(String(competition._id)) || 0)
                 + (reservedByCompetition.get(String(competition._id)) || 0);

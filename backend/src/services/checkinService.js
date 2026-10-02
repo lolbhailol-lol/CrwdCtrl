@@ -12,7 +12,6 @@ const { decryptRegistrationPii } = require('../utils/runClubPiiCrypto');
 const { buildSportsCheckinGuestPayload } = require('../utils/runClubOrganizerFormat');
 const {
   normalizeAuditoriumConfig,
-  YEAR_CATEGORY_IDS,
   ID_EXEMPT_CATEGORY_IDS,
 } = require('../modules/fest/plugins/mindsparkAuditorium');
 
@@ -104,8 +103,6 @@ async function performCheckinFromRaw(raw, options = {}) {
     competitionId = null,
     /** When true with festId, only accept Pro Show tickets */
     proShowOnly = false,
-    /** Gate volunteer confirmed year matches college ID (auditorium) */
-    confirmYear = false,
     /** Gate-scoped scanner: only auditorium passes, optionally only these category ids */
     auditoriumOnly = false,
     auditoriumCategoryIds = null,
@@ -785,36 +782,6 @@ async function performCheckinFromRaw(raw, options = {}) {
           userPhone: registration.user?.phone || registration.user?.phoneNumber || responsePhone || '',
           ticketPhotoUrl,
           auditoriumCategory,
-          college,
-          registrationId: registration._id,
-        },
-      },
-    };
-  }
-
-  const needsYearAck = isAuditoriumTicket
-    && YEAR_CATEGORY_IDS.has(auditoriumCategoryId)
-    && !confirmYear;
-
-  if (needsYearAck) {
-    return {
-      status: 200,
-      body: {
-        success: false,
-        status: 'needs_year_confirm',
-        code: 'NEEDS_YEAR_CONFIRM',
-        message: 'Match face + ID year, then confirm entry',
-        data: {
-          userName: registration.user?.name || responseName,
-          userPhone: registration.user?.phone || registration.user?.phoneNumber || responsePhone || '',
-          userEmail: registration.user?.email || '',
-          festName,
-          competitionName,
-          ticketType,
-          ticketPhotoUrl,
-          idCardPhotoUrl,
-          auditoriumCategory,
-          auditoriumCategoryId,
           college,
           registrationId: registration._id,
         },

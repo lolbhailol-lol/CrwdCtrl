@@ -4,6 +4,7 @@ const Competition = require('../model/competition_model');
 const PaymentOrder = require('../model/payment_order_model');
 const User = require('../model/usermodel');
 const { FEST_ID, BUNDLE_COMPETITION_IDS, BUNDLES, groupFor, resolveBundle, idsForBundle, assertBundleSelection } = require('../modules/fest/plugins/mindsparkBundle');
+const { DESK_HIDDEN_COMPETITION_IDS } = require('../modules/fest/plugins/mindspark');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 const { assertCompetitionsAcceptRegistration } = require('../utils/competitionSlots');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
@@ -212,7 +213,7 @@ exports.offer = async (_req, res) => {
 
 /**
  * @param {object[]} rawItems
- * @param {{ checkSlots?: boolean, bundleKey?: string }} [opts]
+ * @param {{ checkSlots?: boolean, bundleKey?: string, allowClosed?: boolean, desk?: boolean }} [opts]
  */
 async function validateItems(rawItems, opts = {}) {
   const checkSlots = opts.checkSlots !== false;
@@ -224,6 +225,11 @@ async function validateItems(rawItems, opts = {}) {
   }
   assertBundleSelection(bundle, rawItems.map((i) => i.competitionId));
   const ids = rawItems.map((i) => String(i.competitionId || ''));
+  if (opts.desk && ids.some((id) => DESK_HIDDEN_COMPETITION_IDS.has(id))) {
+    const e = new Error('This competition is not available at the desk.');
+    e.status = 409;
+    throw e;
+  }
   const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID })
     .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration slotsAllotted registrationsOpen')
     .lean();
@@ -512,7 +518,11 @@ exports.create = source => async (req, res) => {
       return res.json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${existing.paymentToken}`, ...await serializeWithTickets(existing, order) });
     }
     const offerBundle = resolveBundle(req.body.bundleKey || 'hat_trick');
-    const valid = await validateItems(req.body.items, { bundleKey: offerBundle.key, allowClosed: source === 'desk' });
+    const valid = await validateItems(req.body.items, {
+      bundleKey: offerBundle.key,
+      allowClosed: source === 'desk',
+      desk: source === 'desk',
+    });
     const { findOpenMindSparkCheckout, retireOpenRazorpayCheckout } = require('../utils/openMindSparkCheckout');
     const openCheckout = await findOpenMindSparkCheckout({
       festId: FEST_ID,

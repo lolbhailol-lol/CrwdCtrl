@@ -1474,11 +1474,27 @@ exports.deleteTicket = async (req, res) => {
 exports.getGateInfo = async (req, res) => {
   try {
     const competition = await ensureAuditoriumCompetition(req.festId);
+    const counts = await Registration.aggregate([
+      { $match: { competitionId: competition._id, status: 'approved' } },
+      {
+        $group: {
+          _id: '$responses.auditorium_category_id',
+          total: { $sum: 1 },
+          inside: { $sum: { $cond: [{ $eq: ['$checkedIn', true] }, 1, 0] } },
+        },
+      },
+    ]);
+    const countById = new Map(counts.map((c) => [String(c._id || ''), c]));
     return res.json({
       success: true,
       competitionId: String(competition._id),
       categories: sanitizeCategories(competition.auditorium?.categories)
-        .map((c) => ({ id: c.id, label: c.label })),
+        .map((c) => {
+          const row = countById.get(c.id);
+          const total = row?.total || 0;
+          const inside = row?.inside || 0;
+          return { id: c.id, label: c.label, total, inside, outside: total - inside };
+        }),
     });
   } catch (error) {
     return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed' });
@@ -1492,7 +1508,7 @@ exports.lookupByPhone = async (req, res) => {
     if (digits.length !== 10) {
       return res.status(400).json({ success: false, message: 'Valid phone required' });
     }
-    const reg = await Registration.findOne({
+    const regs = await Registration.find({
       fest: req.festId,
       competitionId: competition._id,
       status: 'approved',
@@ -1504,8 +1520,9 @@ exports.lookupByPhone = async (req, res) => {
     })
       .populate('user', 'name email phone phoneNumber')
       .lean();
-    if (!reg) return res.status(404).json({ success: false, message: 'No ticket for this phone' });
-    return res.json({ success: true, ticket: formatTicket(reg, competition) });
+    if (!regs.length) return res.status(404).json({ success: false, message: 'No ticket for this phone' });
+    const tickets = regs.map((reg) => formatTicket(reg, competition));
+    return res.json({ success: true, ticket: tickets[0], tickets });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || 'Failed' });
   }

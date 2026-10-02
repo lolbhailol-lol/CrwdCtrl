@@ -103,6 +103,9 @@ const apiLimiter = rateLimit({
     // Skip the shared-IP limiter for every auditorium request so a campus NAT
     // cannot block thousands of students completing OTP + photo registration.
     if (isAuditoriumRushRequest(req)) return true;
+    // Organizer-token gate scanning (check-in, stats, auditorium gate/lookup). Volunteers
+    // share the venue NAT with every attendee, so a 429 here would stall the entry queue.
+    if (/^\/fest-organizer\/fests\/[^/]+\/(checkin(\/stats)?|auditorium\/(gate|lookup)|participants(\/lookup)?)$/.test(path)) return true;
     // Bundle routes use token/user-aware limits below; venue Wi-Fi must not share one bucket.
     if (path.startsWith('/mindspark/bundle/')) return true;
     // Campus Hunt has route-specific identity/team/admin limiters. A shared college

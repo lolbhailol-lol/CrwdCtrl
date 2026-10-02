@@ -54,7 +54,8 @@ export default function OrganizerGateCheckinPanel({
   const [activeSearch, setActiveSearch] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [checkinId, setCheckinId] = useState(null);
+  const [pendingIds, setPendingIds] = useState(() => new Set());
+  const pendingRef = useRef(new Set());
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
 
   const adaptersRef = useRef({ listRoster, lookup, normalize, manualCheckin, confirmCheckin, onToast });
@@ -91,7 +92,7 @@ export default function OrganizerGateCheckinPanel({
         setRows(list);
         setPagination({ page: 1, pages: 1, total: list.length });
         setTab('search');
-        if (!list.length) toast('No matching participants');
+        if (!list.length && !opts.silent) toast('No matching participants');
         return;
       }
 
@@ -111,7 +112,7 @@ export default function OrganizerGateCheckinPanel({
           total: data?.pagination?.total ?? list.length,
         });
         setTab('search');
-        if (!list.length) toast('No matching participants');
+        if (!list.length && !opts.silent) toast('No matching participants');
         return;
       }
 
@@ -150,6 +151,25 @@ export default function OrganizerGateCheckinPanel({
     return () => clearInterval(poll);
   }, [tab, activeSearch, load, pollMs]);
 
+  useEffect(() => {
+    const q = query.trim();
+    if (q === stateRef.current.activeSearch) return undefined;
+    if (!q) {
+      if (stateRef.current.activeSearch) {
+        setActiveSearch('');
+        setTab('outside');
+        load(1, { search: '', tab: 'outside' });
+      }
+      return undefined;
+    }
+    if (q.length < 3) return undefined;
+    const timer = setTimeout(() => {
+      setActiveSearch(q);
+      load(1, { search: q, silent: true });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query, load]);
+
   const runSearch = async (e) => {
     e?.preventDefault();
     const q = query.trim();
@@ -170,43 +190,70 @@ export default function OrganizerGateCheckinPanel({
     await load(1, { search: '', tab: next });
   };
 
+  const setPending = (id, on) => {
+    if (on) pendingRef.current.add(id);
+    else pendingRef.current.delete(id);
+    setPendingIds(new Set(pendingRef.current));
+  };
+
+  // Optimistic: the row flips (or leaves "Still outside") on tap; reverted only if the server rejects.
   const handleCheckin = async (row) => {
-    if (row.checkedIn || checkinId) {
-      if (row.checkedIn) toast('Already checked in');
+    if (row.checkedIn) {
+      toast('Already checked in');
       return;
     }
+    if (pendingRef.current.has(row.id)) return;
     const { confirmCheckin: confirmFn, manualCheckin: checkinFn } = adaptersRef.current;
     if (typeof confirmFn === 'function') {
       const ok = await confirmFn(row);
       if (!ok) return;
     }
-    setCheckinId(row.id);
+    setPending(row.id, true);
+
+    const viewingOutside = stateRef.current.tab === 'outside' && !stateRef.current.activeSearch;
+    let removedIndex = -1;
+    if (viewingOutside) {
+      setRows((prev) => {
+        removedIndex = prev.findIndex((r) => r.id === row.id);
+        return prev.filter((r) => r.id !== row.id);
+      });
+      setPagination((p) => ({ ...p, total: Math.max(0, (p.total || 1) - 1) }));
+    } else {
+      setRows((prev) => prev.map((r) => (
+        r.id === row.id ? { ...r, checkedIn: true, checkedInAt: new Date().toISOString() } : r
+      )));
+    }
+
+    const revert = () => {
+      if (viewingOutside) {
+        setRows((prev) => {
+          if (prev.some((r) => r.id === row.id)) return prev;
+          const next = [...prev];
+          next.splice(removedIndex < 0 ? 0 : Math.min(removedIndex, next.length), 0, row);
+          return next;
+        });
+        setPagination((p) => ({ ...p, total: (p.total || 0) + 1 }));
+      } else {
+        setRows((prev) => prev.map((r) => (
+          r.id === row.id ? { ...r, checkedIn: false, checkedInAt: null } : r
+        )));
+      }
+    };
+
     try {
       const res = await checkinFn(row);
       if (res?.success || res?.status === 'checked_in' || res?.status === 'already_checked_in') {
         const wasAlready = res?.status === 'already_checked_in';
         toast(wasAlready ? (res?.message || 'Already checked in') : (res?.message || 'Checked in'));
-        const viewingOutside = stateRef.current.tab === 'outside' && !stateRef.current.activeSearch;
-        if (viewingOutside) {
-          setRows((prev) => prev.filter((r) => r.id !== row.id));
-          setPagination((p) => ({ ...p, total: Math.max(0, (p.total || 1) - 1) }));
-        } else {
-          setRows((prev) =>
-            prev.map((r) =>
-              r.id === row.id
-                ? { ...r, checkedIn: true, checkedInAt: new Date().toISOString() }
-                : r,
-            ),
-          );
-        }
       } else {
+        revert();
         toast(res?.message || res?.error || 'Check-in failed');
       }
     } catch (err) {
+      revert();
       toast(err?.message || 'Check-in failed');
     } finally {
-      // Clear lock immediately so the next Let in can fire without waiting a paint.
-      setCheckinId(null);
+      setPending(row.id, false);
     }
   };
 
@@ -366,11 +413,11 @@ export default function OrganizerGateCheckinPanel({
                 </div>
                 <button
                   type="button"
-                  disabled={Boolean(checkinId) || row.checkedIn}
+                  disabled={pendingIds.has(row.id) || row.checkedIn}
                   onClick={() => handleCheckin(row)}
                   className="shrink-0 min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500 text-black text-xs font-bold disabled:opacity-40 disabled:bg-emerald-500/20 disabled:text-emerald-300"
                 >
-                  {checkinId === row.id ? <Loader className="animate-spin" size={14} /> : <UserCheck size={14} />}
+                  {pendingIds.has(row.id) ? <Loader className="animate-spin" size={14} /> : <UserCheck size={14} />}
                   {row.checkedIn ? 'In' : L.checkIn}
                 </button>
               </div>

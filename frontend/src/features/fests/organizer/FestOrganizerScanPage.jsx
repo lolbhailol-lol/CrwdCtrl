@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
 import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
@@ -35,6 +35,15 @@ function FestOrganizerScanPageContent() {
     const { toast } = useDialog();
     const [rosterKey, setRosterKey] = useState(0);
     const [competitions, setCompetitions] = useState([]);
+    const rosterTimerRef = useRef(null);
+    const refreshRosterSoon = useCallback(() => {
+        if (rosterTimerRef.current) return;
+        rosterTimerRef.current = setTimeout(() => {
+            rosterTimerRef.current = null;
+            setRosterKey((k) => k + 1);
+        }, 3000);
+    }, []);
+    useEffect(() => () => clearTimeout(rosterTimerRef.current), []);
     const scannerIds = useMemo(
         () => organizerCompetitionIds(getFestOrganizerSession(), festId, 'scanner'),
         [festId],
@@ -171,7 +180,7 @@ function FestOrganizerScanPageContent() {
                 authErrorMessage="Access denied or session expired — sign in at the fest organizer portal."
                 title={proShow ? 'Scan Pro Show QR' : competitionId ? 'Scan competition QR' : 'Scan participant QR'}
                 subtitle="Allow camera when prompted · works on phone browser and app"
-                onCheckinSuccess={() => setRosterKey((k) => k + 1)}
+                onCheckinSuccess={refreshRosterSoon}
             />
 
             <OrganizerGateCheckinPanel

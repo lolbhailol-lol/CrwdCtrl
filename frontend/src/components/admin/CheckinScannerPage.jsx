@@ -18,6 +18,42 @@ const DUPLICATE_SCAN_WINDOW_MS = 4500;
 const SUCCESS_RESUME_DELAY_MS = 900;
 /** Already-in tickets should not stall the gate — flash and continue. */
 const ALREADY_IN_RESUME_DELAY_MS = 700;
+
+let feedbackAudioCtx = null;
+/** Beep + buzz so gate volunteers know the result without reading the screen. */
+function playScanFeedback(outcome) {
+  const tones = outcome === 'checked_in'
+    ? [[1200, 0, 0.12]]
+    : outcome === 'already_checked_in'
+      ? [[700, 0, 0.1], [700, 0.16, 0.1]]
+      : [[220, 0, 0.35]];
+  try {
+    navigator.vibrate?.(outcome === 'checked_in' ? 80 : outcome === 'already_checked_in' ? [60, 80, 60] : 400);
+  } catch {
+    /* vibration unsupported */
+  }
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    feedbackAudioCtx = feedbackAudioCtx || new Ctx();
+    if (feedbackAudioCtx.state === 'suspended') feedbackAudioCtx.resume().catch(() => {});
+    const now = feedbackAudioCtx.currentTime;
+    tones.forEach(([freq, start, duration]) => {
+      const osc = feedbackAudioCtx.createOscillator();
+      const gain = feedbackAudioCtx.createGain();
+      osc.frequency.value = freq;
+      osc.type = outcome === 'checked_in' ? 'sine' : 'square';
+      gain.gain.setValueAtTime(0.25, now + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
+      osc.connect(gain).connect(feedbackAudioCtx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + duration);
+    });
+  } catch {
+    /* audio unsupported */
+  }
+}
+
 const acquireCameraStream = async () => {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('Camera not supported. Use Photo of QR or manual entry.');
@@ -426,6 +462,7 @@ export default function CheckinScannerPage({
     if (!useNativeScanner) {
       lastScanRef.current = { value: rawData, at: Date.now() };
       const outcome = await verifyQrPayload(rawData);
+      playScanFeedback(outcome);
       if (!mountedRef.current) return;
 
       if (outcome === 'checked_in') {
@@ -454,11 +491,30 @@ export default function CheckinScannerPage({
       return;
     }
 
-    await clearNativeListener();
-    setIsScanning(false);
-    await verifyQrPayload(rawData);
-    await releaseCamera();
-  }, [verifyQrPayload, clearNativeListener, releaseCamera, useNativeScanner]);
+    // Native camera keeps running; the listener re-fires every frame while a QR is in view.
+    const now = Date.now();
+    const last = lastScanRef.current;
+    if (last.value === rawData && now - last.at < DUPLICATE_SCAN_WINDOW_MS) {
+      lastScanRef.current = { value: rawData, at: now };
+      scanLockRef.current = false;
+      return;
+    }
+    lastScanRef.current = { value: rawData, at: now };
+
+    const outcome = await verifyQrPayload(rawData);
+    playScanFeedback(outcome);
+    if (!mountedRef.current) return;
+    scanLockRef.current = true;
+
+    if (outcome === 'checked_in' || outcome === 'already_checked_in') {
+      if (outcome === 'checked_in') setSessionCount((n) => n + 1);
+      resumeTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current) return;
+        setScanResult(null);
+        scanLockRef.current = false;
+      }, outcome === 'checked_in' ? SUCCESS_RESUME_DELAY_MS : ALREADY_IN_RESUME_DELAY_MS);
+    }
+  }, [verifyQrPayload, useNativeScanner]);
 
   const decodeFrame = useCallback(async (video) => {
     if (!video || video.readyState < 2 || video.videoWidth === 0) return null;
@@ -588,7 +644,7 @@ export default function CheckinScannerPage({
 
       if (barcodes?.length > 0) {
         scanLockRef.current = true;
-        await verifyQrPayload(barcodes[0].rawValue || barcodes[0].displayValue);
+        playScanFeedback(await verifyQrPayload(barcodes[0].rawValue || barcodes[0].displayValue));
       }
     } catch (err) {
       document.body.classList.remove('barcode-scanner-active');
@@ -682,10 +738,15 @@ export default function CheckinScannerPage({
   };
 
   const scanAnother = async () => {
+    if (resumeTimerRef.current) {
+      clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = null;
+    }
     setScanResult(null);
     setManualHash('');
     pendingYearConfirmRawRef.current = null;
     scanLockRef.current = false;
+    if (useNativeScanner && isScanning) return;
     await releaseCamera();
     await startScanning();
   };
@@ -1037,7 +1098,7 @@ export default function CheckinScannerPage({
             </div>
           )}
 
-          {isScanning && useNativeScanner && !isProcessing && (
+          {isScanning && useNativeScanner && !isProcessing && !scanResult && (
             <div className="text-center py-10">
               <RefreshCw className="animate-spin text-[#0ECCEE] mx-auto mb-3" size={32} />
               <p className="text-gray-300">{scannerHint || 'Camera active — scan a ticket'}</p>
@@ -1061,13 +1122,19 @@ export default function CheckinScannerPage({
           {scanResult && !isProcessing && (
             <div
               className={`rounded-2xl p-6 sm:p-8 text-center ${
-                scanResult.status === 'checked_in'
-                  ? 'bg-green-500/10 border border-green-500/25'
-                  : scanResult.status === 'already_checked_in'
-                    ? 'bg-amber-500/10 border border-amber-500/25'
-                    : scanResult.status === 'needs_year_confirm'
-                      ? 'bg-sky-500/10 border border-sky-500/25'
-                      : 'bg-red-500/10 border border-red-500/25'
+                isScanning && useNativeScanner
+                  ? scanResult.status === 'checked_in'
+                    ? 'bg-green-950/95 border border-green-500/40'
+                    : scanResult.status === 'already_checked_in'
+                      ? 'bg-amber-950/95 border border-amber-500/40'
+                      : 'bg-red-950/95 border border-red-500/40'
+                  : scanResult.status === 'checked_in'
+                    ? 'bg-green-500/10 border border-green-500/25'
+                    : scanResult.status === 'already_checked_in'
+                      ? 'bg-amber-500/10 border border-amber-500/25'
+                      : scanResult.status === 'needs_year_confirm'
+                        ? 'bg-sky-500/10 border border-sky-500/25'
+                        : 'bg-red-500/10 border border-red-500/25'
               }`}
             >
               <div className="mb-3">
