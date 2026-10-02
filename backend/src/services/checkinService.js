@@ -13,6 +13,7 @@ const { buildSportsCheckinGuestPayload } = require('../utils/runClubOrganizerFor
 const {
   normalizeAuditoriumConfig,
   YEAR_CATEGORY_IDS,
+  ID_EXEMPT_CATEGORY_IDS,
 } = require('../modules/fest/plugins/mindsparkAuditorium');
 
 function matchesFestScope(recordFestId, festId) {
@@ -770,7 +771,8 @@ async function performCheckinFromRaw(raw, options = {}) {
     };
   }
 
-  if (isAuditoriumTicket && (auditoriumCfg?.requireIdAtGate !== false) && !idCardPhotoUrl) {
+  if (isAuditoriumTicket && (auditoriumCfg?.requireIdAtGate !== false) && !idCardPhotoUrl
+    && !ID_EXEMPT_CATEGORY_IDS.has(auditoriumCategoryId)) {
     return {
       status: 403,
       body: {

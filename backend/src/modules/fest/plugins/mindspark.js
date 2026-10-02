@@ -34,8 +34,16 @@ const mindsparkPlugin = {
     },
 };
 
+/** Withdrawn from fest-day sales (Sherlocked, Roboraces, Googler). The desk ignores online "closed", so these are blocked by id. */
+const DESK_HIDDEN_COMPETITION_IDS = new Set([
+    '6a7f158f0e5ff505e2a4c4bf',
+    '6a7f15900e5ff505e2a4c4ca',
+    '6a7f15b543825c1b6ced805c',
+]);
+
 module.exports = {
     MINDSPARK_FEST_ID,
+    DESK_HIDDEN_COMPETITION_IDS,
     isMindSparkFestId,
     mindsparkPlugin,
 };

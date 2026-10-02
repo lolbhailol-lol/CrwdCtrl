@@ -7,8 +7,8 @@ const {
 
 const RESERVATION_MS = 30 * 60 * 1000;
 
-async function acquireCompetitionSlot({ competition, userId }) {
-  const state = await assertCompetitionAcceptsRegistration(competition);
+async function acquireCompetitionSlot({ competition, userId, allowClosed = false }) {
+  const state = await assertCompetitionAcceptsRegistration(competition, { allowClosed });
   if (!state.limited) return null;
   const competitionId = competition._id || competition;
   await CompetitionSlotReservation.deleteMany({ competitionId, expiresAt: { $lte: new Date() } });

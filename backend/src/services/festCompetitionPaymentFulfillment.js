@@ -188,7 +188,7 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       : null;
     if (!activeReservation) {
       try {
-        const replacement = await acquireCompetitionSlot({ competition, userId });
+        const replacement = await acquireCompetitionSlot({ competition, userId, allowClosed: true });
         if (replacement?.token) {
           paymentOrder.orderTags = {
             ...(paymentOrder.orderTags || {}),

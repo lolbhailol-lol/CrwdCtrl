@@ -128,6 +128,8 @@ function inferYearCategoryFromMis(mis, now = new Date()) {
 }
 
 const YEAR_CATEGORY_IDS = new Set(['first_year', 'second_year', 'third_year', 'fourth_year']);
+/** Family guests have no college ID; the gate lets these in without one. */
+const ID_EXEMPT_CATEGORY_IDS = new Set(['core_families']);
 
 const CULT_NIGHT_PASS_DAYS = [
   { id: '30', label: '30 Sep', categoryIds: ['first_year', 'second_year', 'mba'] },
@@ -154,6 +156,7 @@ module.exports = {
   AUDITORIUM_MODULE,
   DEFAULT_AUDITORIUM_CATEGORIES,
   YEAR_CATEGORY_IDS,
+  ID_EXEMPT_CATEGORY_IDS,
   CULT_NIGHT_PASS_DAYS,
   cultNightDistributionLabel,
   sanitizeCategories,

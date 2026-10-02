@@ -4,7 +4,7 @@ const Registration = require('../model/registration_model');
 const PaymentOrder = require('../model/payment_order_model');
 const Competition = require('../model/competition_model');
 const User = require('../model/usermodel');
-const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
+const { isMindSparkFestId, DESK_HIDDEN_COMPETITION_IDS } = require('../modules/fest/plugins/mindspark');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
 const { buildPriceBreakdown } = require('../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
@@ -100,7 +100,12 @@ async function createOrderForEntry({ entry, competition, user }) {
   const tierId = clean(entry.responses?.get?.('feeTierId') || entry.responses?.feeTierId, 80);
   const priced = resolveCompetitionTicketPrice(competition, tierId);
   const totals = buildPriceBreakdown(priced.ticketPrice, resolveTrekPlatformFeePercent(competition.fest?.platformFeePercent, 3));
-  const reservation = await acquireCompetitionSlot({ competition, userId: user._id });
+  if (DESK_HIDDEN_COMPETITION_IDS.has(String(competition._id))) {
+    const error = new Error('This competition is not available at the desk.');
+    error.status = 409;
+    throw error;
+  }
+  const reservation = await acquireCompetitionSlot({ competition, userId: user._id, allowClosed: true });
   if (totals.totalAmount <= 0) {
     try {
       const issued = await Registration.create({

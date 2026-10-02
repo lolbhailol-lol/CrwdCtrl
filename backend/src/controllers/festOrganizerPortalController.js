@@ -47,6 +47,9 @@ const { sendCompetitionRegistrationEmailForRecord } = require('../services/email
 /** Auditorium passes and their competition stay out of overview, competitions and participants. */
 const NOT_AUDITORIUM_REG = { 'responses.auditorium_category_id': { $exists: false } };
 const NOT_AUDITORIUM_COMP = { 'auditorium.enabled': { $ne: true } };
+const { DESK_HIDDEN_COMPETITION_IDS } = require('../modules/fest/plugins/mindspark');
+/** Filtered after the query so past desk activity keeps its competition names. */
+const isDeskVisibleCompetition = (competition) => !DESK_HIDDEN_COMPETITION_IDS.has(String(competition._id));
 const { scheduleRegistrationNotification } = require('./registration/helpers');
 const { extractCompetitionChoice } = require('../utils/festCompetitionAssignment');
 const { countFestDayAttendees, rosterDetails } = require('../utils/festDayHeadcount');
@@ -3528,7 +3531,7 @@ exports.createManualParticipant = async (req, res) => {
 
         if (isMindSparkFestId(req.festId) && competition) {
             const { assertCompetitionAcceptsRegistration } = require('../utils/competitionSlots');
-            await assertCompetitionAcceptsRegistration(competition);
+            await assertCompetitionAcceptsRegistration(competition, { allowClosed: true });
         }
 
         const reg = await Registration.create({
@@ -3616,14 +3619,14 @@ exports.getFestDayDesk = async (req, res) => {
             }).select('paymentOrderId +paymentToken').sort({ createdAt: -1 }).limit(300).lean(),
         ]);
         if (catalogOnly) {
-            const competitionRows = competitions.map((competition) => {
-            const registrationStatus = String(competition.registration?.status || '');
+            const competitionRows = competitions.filter(isDeskVisibleCompetition).map((competition) => {
             return {
                 ...competition,
                 slotsAllotted: Math.max(0, Number(competition.slotsAllotted) || 0),
                 slotsFilled: 0,
                 slotsLeft: Number(competition.slotsAllotted) > 0 ? Number(competition.slotsAllotted) : null,
-                registrationsOpen: registrationStatus.toLowerCase() !== 'registration_closed',
+                /** The desk sells even when online registration is closed. */
+                registrationsOpen: true,
                 pendingToday: 0,
                 paidToday: 0,
             };
@@ -3659,17 +3662,17 @@ exports.getFestDayDesk = async (req, res) => {
         ]);
         const filledByCompetition = new Map(filledRows.map((row) => [String(row._id), Number(row.count) || 0]));
         const reservedByCompetition = new Map(reservedRows.map((row) => [String(row._id), Number(row.count) || 0]));
-        const competitionRowsBase = competitions.map((competition) => {
+        const competitionRowsBase = competitions.filter(isDeskVisibleCompetition).map((competition) => {
             const slotsAllotted = Math.max(0, Number(competition.slotsAllotted) || 0);
             const slotsFilled = (filledByCompetition.get(String(competition._id)) || 0)
                 + (reservedByCompetition.get(String(competition._id)) || 0);
-            const registrationStatus = String(competition.registration?.status || '');
             return {
                 ...competition,
                 slotsAllotted,
                 slotsFilled,
                 slotsLeft: slotsAllotted > 0 ? Math.max(0, slotsAllotted - slotsFilled) : null,
-                registrationsOpen: registrationStatus.toLowerCase() !== 'registration_closed',
+                /** The desk sells even when online registration is closed. */
+                registrationsOpen: true,
                 pendingToday: 0,
                 paidToday: 0,
             };

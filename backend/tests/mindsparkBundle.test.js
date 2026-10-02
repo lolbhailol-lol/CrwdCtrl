@@ -24,9 +24,10 @@ test('MindSpark baskets: hat-trick, tech duo, dynamic duo', () => {
     ['tech_duo', 2, 50],
     ['dynamic_duo', 2, 40],
   ]);
-  assert.equal(BUNDLE_COMPETITION_IDS.length, 20);
-  assert.equal(new Set(BUNDLE_COMPETITION_IDS).size, 20);
-  assert.equal(TECH_IDS.length + NON_TECH_IDS.length, 20);
+  assert.equal(BUNDLE_COMPETITION_IDS.length, 19);
+  assert.equal(new Set(BUNDLE_COMPETITION_IDS).size, 19);
+  assert.equal(TECH_IDS.length + NON_TECH_IDS.length, 19);
+  assert.equal(isBundleEligible('6a7f15b543825c1b6ced805c'), false); // GOOGLER removed
   assert.equal(isBundleEligible('6ab9616b9da31251f82b3ab6'), true);
   assert.equal(groupFor('6ab9616b9da31251f82b3ab6'), 'non_technical');
   assert.equal(isBundleEligible('6a7f158e0e5ff505e2a4c495'), true);

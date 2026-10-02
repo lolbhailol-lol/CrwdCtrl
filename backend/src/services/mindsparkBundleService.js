@@ -197,7 +197,7 @@ async function fulfillMindSparkBundle(paymentOrder) {
     for (const item of claimed.items) {
       if (activeTokens.has(item.reservationToken)) continue;
       const competition = await Competition.findById(item.competitionId);
-      const reservation = await acquireCompetitionSlot({ competition, userId: claimed.user });
+      const reservation = await acquireCompetitionSlot({ competition, userId: claimed.user, allowClosed: true });
       replacementReservations.push(reservation);
       item.reservationToken = reservation?.token || '';
     }

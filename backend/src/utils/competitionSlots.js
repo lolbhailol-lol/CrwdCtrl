@@ -143,24 +143,25 @@ function competitionNotFoundError() {
 
 /**
  * New unpaid entries / checkout orders. Paid in-flight fulfillment should skip this.
+ * allowClosed: fest-day desk and paid fulfillment still sell when online registration is closed.
  */
-async function assertCompetitionAcceptsRegistration(competitionOrId) {
+async function assertCompetitionAcceptsRegistration(competitionOrId, { allowClosed = false } = {}) {
   const competition = await loadCompetitionForSlots(competitionOrId);
   if (!competition) {
     throw competitionNotFoundError();
   }
-  if (isCompetitionRegistrationClosed(competition)) {
+  if (!allowClosed && isCompetitionRegistrationClosed(competition)) {
     throw registrationClosedError();
   }
   return assertCompetitionHasOpenSlot(competition);
 }
 
 /** Batch open/closed + slot checks for already-loaded competition docs. */
-async function assertCompetitionsAcceptRegistration(competitions) {
+async function assertCompetitionsAcceptRegistration(competitions, { allowClosed = false } = {}) {
   const list = (competitions || []).filter(Boolean);
   for (const competition of list) {
     if (!competition?._id) throw competitionNotFoundError();
-    if (isCompetitionRegistrationClosed(competition)) throw registrationClosedError();
+    if (!allowClosed && isCompetitionRegistrationClosed(competition)) throw registrationClosedError();
   }
   const limited = list.filter((c) => resolveAllottedSlots(c) > 0);
   if (!limited.length) return;

@@ -229,7 +229,7 @@ async function validateItems(rawItems, opts = {}) {
     .lean();
   if (docs.length !== bundle.size) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
   if (checkSlots) {
-    await assertCompetitionsAcceptRegistration(docs);
+    await assertCompetitionsAcceptRegistration(docs, { allowClosed: opts.allowClosed === true });
   }
   const byId = new Map(docs.map(c => [String(c._id), c]));
   return rawItems.map(raw => {
@@ -403,7 +403,7 @@ async function restoreBundleReservations(bundle) {
   const acquired = [];
   try {
     for (const item of bundle.items) {
-      const reservation = await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user });
+      const reservation = await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user, allowClosed: bundle.source === 'desk' });
       acquired.push(reservation);
       item.reservationToken = reservation?.token || '';
     }
@@ -512,7 +512,7 @@ exports.create = source => async (req, res) => {
       return res.json({ success: true, paymentUrl: `${FRONTEND()}/mindspark/bundle-pay/${existing.paymentToken}`, ...await serializeWithTickets(existing, order) });
     }
     const offerBundle = resolveBundle(req.body.bundleKey || 'hat_trick');
-    const valid = await validateItems(req.body.items, { bundleKey: offerBundle.key });
+    const valid = await validateItems(req.body.items, { bundleKey: offerBundle.key, allowClosed: source === 'desk' });
     const { findOpenMindSparkCheckout, retireOpenRazorpayCheckout } = require('../utils/openMindSparkCheckout');
     const openCheckout = await findOpenMindSparkCheckout({
       festId: FEST_ID,
@@ -582,7 +582,7 @@ exports.create = source => async (req, res) => {
       });
       }
     }
-    for (const item of valid) reservations.push(await acquireCompetitionSlot({ competition: item.competition, userId: user._id }));
+    for (const item of valid) reservations.push(await acquireCompetitionSlot({ competition: item.competition, userId: user._id, allowClosed: source === 'desk' }));
     const subtotal = valid.reduce((s, x) => s + x.originalAmount, 0);
     const totalAmount = Math.round(subtotal * PAYABLE_RATIO(offerBundle.discountPercent));
     const token = crypto.randomBytes(32).toString('hex');
@@ -698,7 +698,7 @@ exports.reissue = async (req, res) => {
     }
     const docs = await Competition.find({ _id: { $in: bundle.items.map(i => i.competitionId) }, fest: FEST_ID }).populate('fest');
     const byId = new Map(docs.map(c => [String(c._id), c]));
-    for (const item of bundle.items) reservations.push(await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user }));
+    for (const item of bundle.items) reservations.push(await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user, allowClosed: bundle.source === 'desk' }));
     const user = await User.findById(bundle.user); const token = bundle.paymentToken;
     const customerPhone = resolveBundlePhone(bundle, user);
     if (!customerPhone) {
