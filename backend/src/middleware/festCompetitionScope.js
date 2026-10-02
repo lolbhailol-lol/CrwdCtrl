@@ -197,9 +197,12 @@ async function enforceCompetitionScope(req, res, next) {
         }
         if (/\/checkin\/stats$/.test(path)) {
             const competitionId = String(query.competitionId || '');
-            return scope.scanner.has(competitionId) || scope.gate.has(competitionId)
-                ? next()
-                : deny(res, 'Pick one of your competitions');
+            if (scope.gate.has(competitionId)) {
+                const allowedCats = scope.gateCategories.get(competitionId);
+                req.auditoriumCategoryIds = allowedCats ? [...allowedCats] : null;
+                return next();
+            }
+            return scope.scanner.has(competitionId) ? next() : deny(res, 'Pick one of your competitions');
         }
 
         if (/\/fest-day-desk$/.test(path) && method === 'GET') {

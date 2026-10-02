@@ -2253,6 +2253,9 @@ exports.getCheckinStats = async (req, res) => {
             if (competitionId && mongoose.Types.ObjectId.isValid(competitionId)) {
                 filter.competitionId = competitionId;
             }
+            if (Array.isArray(req.auditoriumCategoryIds)) {
+                filter['responses.auditorium_category_id'] = { $in: req.auditoriumCategoryIds };
+            }
         }
         const [totalRegistered, totalCheckedIn] = await Promise.all([
             Registration.countDocuments(filter),

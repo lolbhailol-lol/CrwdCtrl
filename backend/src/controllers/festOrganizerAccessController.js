@@ -110,7 +110,11 @@ function serializeMember(row, festId) {
         email: row.email || '',
         phone: row.phone || '',
         portalRole,
-        accessMode: allAccess.length ? 'competitions' : 'pages',
+        accessMode: !allAccess.length
+            ? 'pages'
+            : competitionAccess.length && competitionAccess.every((e) => e.sections.includes('gate'))
+                ? 'auditorium'
+                : 'competitions',
         competitionAccess,
         allowedPages: portalRole === 'cohead'
             ? (allAccess.length ? pagesForCompetitionAccess(allAccess) : sanitizeAllowedPages(row.allowedPages))

@@ -28,6 +28,7 @@ const EMPTY_INVITE = {
     mode: 'pages',
     pages: ['fest-day-desk'],
     competitionAccess: [],
+    gateCategories: [],
 };
 
 function inputClass() {
@@ -53,68 +54,68 @@ function toggleSection(access, competitionId, sectionKey) {
 
 const isGateEntry = (entry) => (entry.sections || []).includes('gate');
 
-/** Gate on/off plus category picks; `categories: []` means every category. */
-function setGateAccess(access, auditoriumId, gate) {
-    const rest = access.filter((a) => a.competitionId !== auditoriumId);
-    return gate ? [...rest, { competitionId: auditoriumId, sections: ['gate'], categories: gate.categories }] : rest;
+/** `categories: []` means every auditorium category. */
+const gateAccess = (auditoriumId, categories) => [{ competitionId: auditoriumId, sections: ['gate'], categories }];
+const gateCategoriesOf = (access) => (access || []).find(isGateEntry)?.categories || [];
+const withoutGate = (access) => (access || []).filter((a) => !isGateEntry(a));
+
+function accessSummary(member, auditorium, competitions, pages) {
+    const access = member.competitionAccess || [];
+    if (!access.length) {
+        const labels = pages.filter((p) => (member.allowedPages || []).includes(p.key)).map((p) => p.label);
+        return labels.length ? `Pages: ${labels.join(', ')}` : 'No access';
+    }
+    return access.map((entry) => {
+        if (isGateEntry(entry)) {
+            const cats = (auditorium?.categories || []).filter((c) => (entry.categories || []).includes(c.id)).map((c) => c.label);
+            return `Auditorium gate: ${cats.length ? cats.join(', ') : 'all categories'}`;
+        }
+        const name = competitions.find((c) => c.id === entry.competitionId)?.name || 'Competition';
+        return `${name} (${entry.sections.join(', ')})`;
+    }).join(' · ');
 }
 
-function AuditoriumGateEditor({ auditorium, value, onChange }) {
-    if (!auditorium) return null;
-    const entry = value.find((a) => a.competitionId === auditorium.id && isGateEntry(a));
-    const picked = new Set(entry?.categories || []);
-    const toggleCategory = (id) => {
+function AuditoriumCategoryPicker({ auditorium, value, onChange }) {
+    const picked = new Set(value || []);
+    const toggle = (id) => {
         const next = new Set(picked);
         if (next.has(id)) next.delete(id);
         else next.add(id);
         const all = next.size === 0 || next.size === auditorium.categories.length;
-        onChange(setGateAccess(value, auditorium.id, { categories: all ? [] : [...next] }));
+        onChange(all ? [] : [...next]);
     };
     return (
-        <div className={`rounded-xl border px-3 py-2 ${entry ? 'border-[#0ECCEE]/30 bg-[#0ECCEE]/5' : 'border-white/10'}`}>
-            <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium truncate">{auditorium.name}</p>
-                <button
-                    type="button"
-                    onClick={() => onChange(setGateAccess(value, auditorium.id, entry ? null : { categories: [] }))}
-                    className={chipClass(Boolean(entry))}
-                >
-                    Gate scanner
+        <div className="rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/5 px-3 py-2 space-y-2">
+            <p className="text-sm font-medium truncate">{auditorium.name} · gate scanner</p>
+            <p className="text-[11px] text-gray-500">Which passes can they admit?</p>
+            <div className="flex flex-wrap gap-1.5">
+                <button type="button" onClick={() => onChange([])} className={chipClass(picked.size === 0)}>
+                    All categories
                 </button>
+                {auditorium.categories.map((cat) => (
+                    <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => toggle(cat.id)}
+                        className={chipClass(picked.has(cat.id))}
+                    >
+                        {cat.label}
+                    </button>
+                ))}
             </div>
-            {entry ? (
-                <div className="mt-2 space-y-1.5">
-                    <p className="text-[11px] text-gray-500">Which passes can they admit?</p>
-                    <div className="flex flex-wrap gap-1.5">
-                        <button
-                            type="button"
-                            onClick={() => onChange(setGateAccess(value, auditorium.id, { categories: [] }))}
-                            className={chipClass(picked.size === 0)}
-                        >
-                            All categories
-                        </button>
-                        {auditorium.categories.map((cat) => (
-                            <button
-                                key={cat.id}
-                                type="button"
-                                onClick={() => toggleCategory(cat.id)}
-                                className={chipClass(picked.has(cat.id))}
-                            >
-                                {cat.label}
-                            </button>
-                        ))}
-                    </div>
-                    <p className="text-[11px] text-gray-500">They only get the gate scanner. No rosters, invites or stats.</p>
-                </div>
-            ) : null}
+            <p className="text-[11px] text-gray-500">
+                After login only the gate scanner opens. Passes from other categories are rejected. No rosters, invites or other pages.
+            </p>
         </div>
     );
 }
 
-function AccessModeToggle({ mode, onChange }) {
+function AccessModeToggle({ mode, onChange, showAuditorium = false }) {
+    const modes = [['pages', 'Whole pages'], ['competitions', 'Specific competitions']];
+    if (showAuditorium) modes.push(['auditorium', 'Auditorium pass']);
     return (
-        <div className="inline-flex rounded-xl border border-white/10 p-0.5 text-[11px]">
-            {[['pages', 'Whole pages'], ['competitions', 'Specific competitions']].map(([key, label]) => (
+        <div className="inline-flex flex-wrap rounded-xl border border-white/10 p-0.5 text-[11px]">
+            {modes.map(([key, label]) => (
                 <button
                     key={key}
                     type="button"
@@ -128,9 +129,9 @@ function AccessModeToggle({ mode, onChange }) {
     );
 }
 
-function CompetitionAccessEditor({ competitions, sections, value, onToggle, auditorium = null, onGateChange }) {
+function CompetitionAccessEditor({ competitions, sections, value, onToggle }) {
     const [query, setQuery] = useState('');
-    const competitionCount = value.filter((a) => !isGateEntry(a)).length;
+    const competitionCount = value.length;
     const granted = useMemo(() => new Map(value.map((a) => [a.competitionId, new Set(a.sections)])), [value]);
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -138,12 +139,11 @@ function CompetitionAccessEditor({ competitions, sections, value, onToggle, audi
         return [...list].sort((a, b) => Number(granted.has(b.id)) - Number(granted.has(a.id)));
     }, [competitions, query, granted]);
 
-    if (!competitions.length && !auditorium) {
+    if (!competitions.length) {
         return <p className="text-xs text-gray-500">No competitions in this fest yet.</p>;
     }
     return (
         <div className="space-y-2">
-            <AuditoriumGateEditor auditorium={auditorium} value={value} onChange={onGateChange} />
             <input
                 className={inputClass()}
                 placeholder="Search competitions"
@@ -243,10 +243,14 @@ export default function FestOrganizerAccessPage() {
             return;
         }
         const byCompetition = invite.mode === 'competitions';
-        if (byCompetition ? !invite.competitionAccess.length : !invite.pages.length) {
+        const byAuditorium = invite.mode === 'auditorium' && Boolean(auditorium);
+        if (!byAuditorium && (byCompetition ? !invite.competitionAccess.length : !invite.pages.length)) {
             toast(byCompetition ? 'Pick at least one competition section' : 'Select at least one page');
             return;
         }
+        let grant = { allowedPages: invite.pages };
+        if (byCompetition) grant = { competitionAccess: invite.competitionAccess };
+        if (byAuditorium) grant = { competitionAccess: gateAccess(auditorium.id, invite.gateCategories) };
         setSaving(true);
         try {
             const data = await inviteFestOrganizerAccess(festId, {
@@ -254,9 +258,7 @@ export default function FestOrganizerAccessPage() {
                 username: invite.username.trim(),
                 email: invite.email.trim(),
                 phone: invite.phone.trim(),
-                ...(byCompetition
-                    ? { competitionAccess: invite.competitionAccess }
-                    : { allowedPages: invite.pages }),
+                ...grant,
             });
             setCredentials(data.credentials || null);
             setShowInvite(false);
@@ -304,15 +306,29 @@ export default function FestOrganizerAccessPage() {
         }
     };
 
-    const changeMemberMode = (member, mode) => {
+    const changeMemberMode = async (member, mode) => {
+        const current = memberMode(member);
+        if (mode === current) return;
+        if (mode === 'auditorium' && auditorium) {
+            const ok = await confirm({
+                title: 'Switch to auditorium pass only?',
+                message: `${member.name || member.username} will only get the auditorium gate scanner (all categories). Their other access is removed.`,
+                confirmText: 'Switch',
+            });
+            if (!ok) return;
+            setModeById((prev) => ({ ...prev, [member.id]: mode }));
+            saveMemberAccess(member, { competitionAccess: gateAccess(auditorium.id, []) });
+            return;
+        }
         setModeById((prev) => ({ ...prev, [member.id]: mode }));
         if (mode === 'pages' && (member.competitionAccess || []).length) {
-            saveMemberAccess(member, { competitionAccess: [], allowedPages: member.allowedPages?.length ? member.allowedPages : ['fest-day-desk'] });
+            const kept = (member.allowedPages || []).filter((p) => p !== 'auditorium-gate');
+            saveMemberAccess(member, { competitionAccess: [], allowedPages: kept.length ? kept : ['fest-day-desk'] });
         }
     };
 
     const toggleMemberSection = (member, competitionId, sectionKey) => {
-        const next = toggleSection(member.competitionAccess || [], competitionId, sectionKey);
+        const next = toggleSection(withoutGate(member.competitionAccess), competitionId, sectionKey);
         if (!next.length) {
             toast('Keep at least one competition section, or switch to whole pages');
             return;
@@ -320,12 +336,9 @@ export default function FestOrganizerAccessPage() {
         saveMemberAccess(member, { competitionAccess: next });
     };
 
-    const changeMemberGate = (member, next) => {
-        if (!next.length) {
-            toast('Keep at least one competition section, or switch to whole pages');
-            return;
-        }
-        saveMemberAccess(member, { competitionAccess: next });
+    const changeMemberGate = (member, categories) => {
+        if (!auditorium) return;
+        saveMemberAccess(member, { competitionAccess: gateAccess(auditorium.id, categories) });
     };
 
     const toggleActive = async (member) => {
@@ -431,6 +444,9 @@ export default function FestOrganizerAccessPage() {
                                         @{member.username}
                                         {member.email ? ` · ${member.email}` : ''}
                                     </p>
+                                    <p className="text-[11px] text-[#0ECCEE]/90 mt-1 break-words">
+                                        {accessSummary(member, auditorium, competitions, pages)}
+                                    </p>
                                     <p className={`text-[10px] mt-1 ${member.isActive ? 'text-emerald-400' : 'text-amber-400'}`}>
                                         {member.isActive ? 'Active' : 'Inactive'}
                                     </p>
@@ -453,15 +469,23 @@ export default function FestOrganizerAccessPage() {
                                     </button>
                                 </div>
                             </div>
-                            <AccessModeToggle mode={memberMode(member)} onChange={(mode) => changeMemberMode(member, mode)} />
-                            {memberMode(member) === 'competitions' ? (
+                            <AccessModeToggle
+                                mode={memberMode(member)}
+                                onChange={(mode) => changeMemberMode(member, mode)}
+                                showAuditorium={Boolean(auditorium)}
+                            />
+                            {memberMode(member) === 'auditorium' && auditorium ? (
+                                <AuditoriumCategoryPicker
+                                    auditorium={auditorium}
+                                    value={gateCategoriesOf(member.competitionAccess)}
+                                    onChange={(categories) => changeMemberGate(member, categories)}
+                                />
+                            ) : memberMode(member) === 'competitions' ? (
                                 <CompetitionAccessEditor
                                     competitions={competitions}
                                     sections={sections}
-                                    value={member.competitionAccess || []}
+                                    value={withoutGate(member.competitionAccess)}
                                     onToggle={(competitionId, key) => toggleMemberSection(member, competitionId, key)}
-                                    auditorium={auditorium}
-                                    onGateChange={(next) => changeMemberGate(member, next)}
                                 />
                             ) : (
                                 <div className="flex flex-wrap gap-2">
@@ -517,9 +541,19 @@ export default function FestOrganizerAccessPage() {
                         <div className="space-y-2">
                             <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <p className="text-xs text-gray-400">Access</p>
-                                <AccessModeToggle mode={invite.mode} onChange={(mode) => setInvite({ ...invite, mode })} />
+                                <AccessModeToggle
+                                    mode={invite.mode}
+                                    onChange={(mode) => setInvite({ ...invite, mode })}
+                                    showAuditorium={Boolean(auditorium)}
+                                />
                             </div>
-                            {invite.mode === 'competitions' ? (
+                            {invite.mode === 'auditorium' && auditorium ? (
+                                <AuditoriumCategoryPicker
+                                    auditorium={auditorium}
+                                    value={invite.gateCategories}
+                                    onChange={(gateCategories) => setInvite((prev) => ({ ...prev, gateCategories }))}
+                                />
+                            ) : invite.mode === 'competitions' ? (
                                 <CompetitionAccessEditor
                                     competitions={competitions}
                                     sections={sections}
@@ -528,8 +562,6 @@ export default function FestOrganizerAccessPage() {
                                         ...prev,
                                         competitionAccess: toggleSection(prev.competitionAccess, competitionId, key),
                                     }))}
-                                    auditorium={auditorium}
-                                    onGateChange={(next) => setInvite((prev) => ({ ...prev, competitionAccess: next }))}
                                 />
                             ) : (
                                 <div className="flex flex-wrap gap-2">

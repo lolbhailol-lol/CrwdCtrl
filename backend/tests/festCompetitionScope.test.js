@@ -139,6 +139,9 @@ test('gate check-in passes category limits and rejects other competitions', asyn
     assert.equal(other.res.statusCode, 403);
     const noGate = await run({ path: `/fests/${FEST}/auditorium/lookup` });
     assert.equal(noGate.res.statusCode, 403);
+    const stats = await runGate({ path: `/fests/${FEST}/checkin/stats`, query: { competitionId: AUD } });
+    assert.equal(stats.nexted, true);
+    assert.deepEqual(stats.req.auditoriumCategoryIds, ['first_year', 'second_year']);
 });
 
 test('gate lookup hides passes outside granted categories', async () => {
