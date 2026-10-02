@@ -11,9 +11,12 @@ const { getPaymentSummary, getPaymentHistory, exportPaymentCsv } = require('../s
 const PaymentOrder = require('../model/payment_order_model');
 const MindSparkBundle = require('../model/mindspark_bundle_model');
 const Competition = require('../model/competition_model');
+const Registration = require('../model/registration_model');
 
 const TOKEN_TTL = '7d';
 const BUCKET = 'mindspark';
+/** Raw per-payment amounts don't reconcile with the locked MindSpark totals, so organizers only see totals. */
+const MINDSPARK_PER_PAYMENT_HIDDEN = true;
 
 function actorLabel(req) {
     return req.organizer?.username || 'mindspark-payments';
@@ -265,14 +268,41 @@ exports.getSummary = async (req, res) => {
             getPaymentSummary(),
             getRazorpayMindSparkActivity(),
         ]);
-        res.json({ success: true, ...scopeSummaryToMindspark(summary, razorpay), razorpay });
+        const scoped = scopeSummaryToMindspark(summary, razorpay);
+        const t = scoped.totals;
+        const collected = round2(t.totalCollected);
+        const payable = round2(t.organizerPayable);
+        const auditoriumIds = await Competition.find({ fest: MINDSPARK_FEST_ID, 'auditorium.enabled': true }).distinct('_id');
+        const paidEntries = await Registration.countDocuments({
+            fest: MINDSPARK_FEST_ID,
+            status: 'approved',
+            isProShow: { $ne: true },
+            competitionId: { $nin: auditoriumIds },
+            amountPaid: { $gt: 0 },
+        });
+        res.json({
+            success: true,
+            totals: {
+                totalCollected: collected,
+                organizerPayable: payable,
+                totalDeductions: round2(Math.max(0, collected - payable)),
+                paidEntries,
+                alreadyPaid: t.alreadyPaid,
+            },
+        });
     } catch (err) {
         console.error('[mindsparkPayments] summary', err);
         res.status(500).json({ success: false, message: 'Failed to load payment summary' });
     }
 };
 
+const PER_PAYMENT_HIDDEN = {
+    success: false,
+    message: 'Per-payment details are not available for MindSpark. See the totals on the dashboard.',
+};
+
 exports.getHistory = async (req, res) => {
+    if (MINDSPARK_PER_PAYMENT_HIDDEN) return res.status(403).json(PER_PAYMENT_HIDDEN);
     try {
         const data = await getPaymentHistory({
             page: req.query.page,
@@ -293,6 +323,7 @@ exports.getHistory = async (req, res) => {
 };
 
 exports.exportPayments = async (req, res) => {
+    if (MINDSPARK_PER_PAYMENT_HIDDEN) return res.status(403).json(PER_PAYMENT_HIDDEN);
     try {
         const kind = String(req.query.kind || 'history').toLowerCase();
         if (!['history', 'monday_clear', 'ready_batch'].includes(kind)) {
