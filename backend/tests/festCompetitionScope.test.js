@@ -103,6 +103,64 @@ test('dashboard only shows granted competitions and hides money without revenue'
     assert.deepEqual(body.recent, [{ competitionName: 'A', amountPaid: 0 }]);
 });
 
+const AUD = '4'.repeat(24);
+const gateOrganizer = {
+    portalRole: 'cohead',
+    competitionAccess: [
+        { festId: FEST, competitionId: AUD, sections: ['gate', 'participants'], categories: ['first_year', 'second_year'] },
+    ],
+};
+const runGate = (req) => run({ organizer: gateOrganizer, ...req });
+
+test('gate grant only opens the auditorium scanner', () => {
+    const fields = publicOrganizerFields(gateOrganizer);
+    assert.deepEqual(fields.allowedPages, ['auditorium-gate']);
+    assert.deepEqual(fields.competitionAccess[0].sections, ['gate']);
+    const allowed = (method, path) => festRouteAllowedForOrganizer(gateOrganizer, method, `/fests/${FEST}${path}`);
+    assert.equal(allowed('POST', '/checkin'), true);
+    assert.equal(allowed('GET', '/auditorium/gate'), true);
+    assert.equal(allowed('GET', '/auditorium/lookup'), true);
+    assert.equal(allowed('GET', '/auditorium'), false);
+    assert.equal(allowed('GET', '/auditorium/roster'), false);
+    assert.equal(allowed('POST', '/auditorium/desk'), false);
+    assert.equal(allowed('GET', '/participants'), false);
+    assert.equal(allowed('GET', '/dashboard'), false);
+    const scope = getCompetitionScope(gateOrganizer, FEST);
+    assert.ok(!scope.all.has(AUD));
+    assert.deepEqual([...scope.gateCategories.get(AUD)], ['first_year', 'second_year']);
+});
+
+test('gate check-in passes category limits and rejects other competitions', async () => {
+    const ok = await runGate({ method: 'POST', path: `/fests/${FEST}/checkin`, body: { competitionId: AUD } });
+    assert.equal(ok.nexted, true);
+    assert.equal(ok.req.auditoriumGateOnly, true);
+    assert.deepEqual(ok.req.auditoriumCategoryIds, ['first_year', 'second_year']);
+    const other = await runGate({ method: 'POST', path: `/fests/${FEST}/checkin`, body: { competitionId: COMP_A } });
+    assert.equal(other.res.statusCode, 403);
+    const noGate = await run({ path: `/fests/${FEST}/auditorium/lookup` });
+    assert.equal(noGate.res.statusCode, 403);
+});
+
+test('gate lookup hides passes outside granted categories', async () => {
+    const hit = await runGate({ path: `/fests/${FEST}/auditorium/lookup` });
+    hit.res.json({ success: true, ticket: { competitionId: AUD, categoryId: 'third_year' } });
+    assert.equal(hit.res.statusCode, 404);
+    assert.equal(hit.res.body.success, false);
+    const mine = await runGate({ path: `/fests/${FEST}/auditorium/lookup` });
+    mine.res.json({ success: true, ticket: { competitionId: AUD, categoryId: 'first_year' } });
+    assert.equal(mine.res.body.ticket.categoryId, 'first_year');
+});
+
+test('gate info lists only granted categories', async () => {
+    const { res } = await runGate({ path: `/fests/${FEST}/auditorium/gate` });
+    res.json({
+        success: true,
+        competitionId: AUD,
+        categories: [{ id: 'first_year' }, { id: 'second_year' }, { id: 'ex_core' }],
+    });
+    assert.deepEqual(res.body.categories.map((c) => c.id), ['first_year', 'second_year']);
+});
+
 test('participant list rejects competitions outside scope', async () => {
     const bad = await run({ path: `/fests/${FEST}/participants`, query: { competitionId: COMP_C } });
     assert.equal(bad.res.statusCode, 403);

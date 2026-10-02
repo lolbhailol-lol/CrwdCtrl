@@ -3,21 +3,24 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Search } from 'lucide-react';
 import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
 import { getApiBaseUrl } from '../../../config/apiBase';
-import { getFestOrganizerToken } from '../../../utils/festOrganizerSession';
+import { getFestOrganizerSession, getFestOrganizerToken } from '../../../utils/festOrganizerSession';
 import {
-    fetchFestOrganizerAuditorium,
+    fetchFestOrganizerAuditoriumGate,
     lookupFestOrganizerAuditoriumPhone,
     festOrganizerCheckin,
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
 import { getFestPlugin } from '../plugins/registry';
+import { organizerHasPage } from './festOrganizerPages';
 
 export default function FestOrganizerAuditoriumScanPage() {
     const { festId } = useParams();
     const navigate = useNavigate();
     const api = getApiBaseUrl();
     const { toast } = useDialog();
+    const canOpenAuditorium = organizerHasPage(getFestOrganizerSession(), 'auditorium');
     const [competitionId, setCompetitionId] = useState('');
+    const [categories, setCategories] = useState([]);
     const [phone, setPhone] = useState('');
     const [lookupBusy, setLookupBusy] = useState(false);
     const [lookupTicket, setLookupTicket] = useState(null);
@@ -25,12 +28,12 @@ export default function FestOrganizerAuditoriumScanPage() {
 
     useEffect(() => {
         if (getFestPlugin(festId).id !== 'mindspark') return;
-        fetchFestOrganizerAuditorium(festId)
+        fetchFestOrganizerAuditoriumGate(festId)
             .then((res) => {
-                const id = res?.data?.competitionId || res?.competitionId || '';
-                setCompetitionId(id);
+                setCompetitionId(res?.competitionId || '');
+                setCategories(Array.isArray(res?.categories) ? res.categories : []);
             })
-            .catch((e) => toast(e.message || 'Failed to load auditorium'));
+            .catch((e) => toast(e.message || 'Failed to load auditorium gate'));
     }, [festId, toast]);
 
     const manualCheckin = useCallback(async ({ confirmYear = false } = {}) => {
@@ -83,21 +86,32 @@ export default function FestOrganizerAuditoriumScanPage() {
 
     return (
         <div className="space-y-4 max-w-2xl mx-auto pb-10">
-            <div className="flex items-center justify-between gap-2">
-                <button
-                    type="button"
-                    onClick={() => navigate(`/fest-organizer/fests/${festId}/auditorium`)}
-                    className="inline-flex items-center gap-1.5 text-sm text-gray-400"
-                >
-                    <ArrowLeft size={16} /> Auditorium
-                </button>
-            </div>
+            {canOpenAuditorium ? (
+                <div className="flex items-center justify-between gap-2">
+                    <button
+                        type="button"
+                        onClick={() => navigate(`/fest-organizer/fests/${festId}/auditorium`)}
+                        className="inline-flex items-center gap-1.5 text-sm text-gray-400"
+                    >
+                        <ArrowLeft size={16} /> Auditorium
+                    </button>
+                </div>
+            ) : null}
 
             <div>
                 <h1 className="text-xl font-bold text-white">Auditorium gate</h1>
                 <p className="text-sm text-gray-500 mt-1">
                     Photo ticket check-in only. Other competition QRs will be rejected.
                 </p>
+                {categories.length ? (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                        {categories.map((c) => (
+                            <span key={c.id} className="text-[11px] px-2 py-0.5 rounded-lg border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 text-[#0ECCEE]">
+                                {c.label}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
             </div>
 
             {competitionId ? (

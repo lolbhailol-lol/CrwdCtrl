@@ -1465,6 +1465,21 @@ exports.deleteTicket = async (req, res) => {
   }
 };
 
+/** Minimal gate info for scanner accounts (no stats, invites or rosters). */
+exports.getGateInfo = async (req, res) => {
+  try {
+    const competition = await ensureAuditoriumCompetition(req.festId);
+    return res.json({
+      success: true,
+      competitionId: String(competition._id),
+      categories: sanitizeCategories(competition.auditorium?.categories)
+        .map((c) => ({ id: c.id, label: c.label })),
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, message: error.message || 'Failed' });
+  }
+};
+
 exports.lookupByPhone = async (req, res) => {
   try {
     const competition = await ensureAuditoriumCompetition(req.festId);

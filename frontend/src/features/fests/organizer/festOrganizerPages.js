@@ -8,6 +8,7 @@ export const FEST_ORG_PAGE_CATALOG = [
     { key: 'participants', label: 'Participants', navLabels: ['Participants'] },
     { key: 'check-in', label: 'Check-in', navLabels: ['Check-in'] },
     { key: 'auditorium', label: 'Auditorium', navLabels: ['Auditorium'] },
+    { key: 'auditorium-gate', label: 'Auditorium gate', navLabels: ['Auditorium gate'] },
     { key: 'coupons', label: 'Coupons', navLabels: ['Coupons'] },
     { key: 'revenue', label: 'Revenue', navLabels: ['Revenue'] },
     { key: 'connect', label: 'Connect', navLabels: ['Connect'] },
@@ -69,6 +70,7 @@ export function firstGrantedFestPath(festId, sessionOrOrganizer) {
         ['participants', `${base}/participants`],
         ['check-in', `${base}/scan`],
         ['auditorium', `${base}/auditorium`],
+        ['auditorium-gate', `${base}/auditorium/scan`],
         ['coupons', `${base}/coupons`],
         ['revenue', `${base}/revenue`],
         ['connect', `${base}/notifications`],
@@ -93,7 +95,10 @@ export function pathAllowedForOrganizer(pathname, festId, sessionOrOrganizer) {
     if (path.startsWith(`${base}/competitions`)) return pages.has('competitions') || pages.has('edit-listing');
     if (path.startsWith(`${base}/participants`)) return pages.has('participants');
     if (path.startsWith(`${base}/scan`)) return pages.has('check-in');
-    if (path.startsWith(`${base}/auditorium`)) return pages.has('auditorium') || pages.has('check-in');
+    if (path.startsWith(`${base}/auditorium/scan`)) {
+        return pages.has('auditorium') || pages.has('auditorium-gate') || pages.has('check-in');
+    }
+    if (path.startsWith(`${base}/auditorium`)) return pages.has('auditorium');
     if (path.startsWith(`${base}/coupons`)) return pages.has('coupons');
     if (path.startsWith(`${base}/revenue`)) return pages.has('revenue');
     if (path.startsWith(`${base}/notifications`)) return pages.has('connect');

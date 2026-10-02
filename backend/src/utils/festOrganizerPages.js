@@ -12,6 +12,8 @@ const PAGE_CATALOG = [
     { key: 'participants', label: 'Participants', navLabels: ['Participants'] },
     { key: 'check-in', label: 'Check-in', navLabels: ['Check-in'] },
     { key: 'auditorium', label: 'Auditorium', navLabels: ['Auditorium'] },
+    /** Granted only through the auditorium competition's `gate` section, never as a whole page. */
+    { key: 'auditorium-gate', label: 'Auditorium gate', navLabels: ['Auditorium gate'] },
     { key: 'coupons', label: 'Coupons', navLabels: ['Coupons'] },
     { key: 'revenue', label: 'Revenue', navLabels: ['Revenue'] },
     { key: 'connect', label: 'Connect', navLabels: ['Connect'] },
@@ -45,6 +47,12 @@ const PAGE_ROUTE_MATCHERS = {
     'check-in': [
         { methods: ['GET', 'POST'], re: /\/checkin(\/|$)/ },
         { methods: ['GET'], re: /\/participants(\/lookup)?$/ },
+        { methods: ['GET'], re: /\/auditorium\/(gate|lookup)$/ },
+    ],
+    'auditorium-gate': [
+        { methods: ['POST'], re: /\/checkin$/ },
+        { methods: ['GET'], re: /\/checkin\/stats$/ },
+        { methods: ['GET'], re: /\/auditorium\/(gate|lookup)$/ },
     ],
     auditorium: [
         { methods: ['GET', 'PATCH', 'PUT', 'POST', 'DELETE'], re: /\/auditorium(\/|$)/ },
@@ -89,6 +97,7 @@ function sanitizeAllowedPages(raw) {
         if (!PAGE_KEY_SET.has(key) || seen.has(key)) continue;
         // Co-heads must never self-grant Access management
         if (key === 'access') continue;
+        if (key === 'auditorium-gate') continue;
         seen.add(key);
         out.push(key);
     }
@@ -145,8 +154,16 @@ const COMPETITION_SECTIONS = [
     { key: 'desk', label: 'Desk registration', pages: ['fest-day-desk'] },
     { key: 'scanner', label: 'Scanner', pages: ['check-in'] },
     { key: 'revenue', label: 'Revenue', pages: ['revenue', 'overview'] },
+    /** Auditorium competition only — gate scanner limited to `categories`. */
+    { key: 'gate', label: 'Auditorium gate', pages: ['auditorium-gate'] },
 ];
 const COMPETITION_SECTION_KEYS = new Set(COMPETITION_SECTIONS.map((s) => s.key));
+
+function sanitizeCategoryIds(raw) {
+    return [...new Set((Array.isArray(raw) ? raw : [])
+        .map((c) => String(c || '').trim())
+        .filter((c) => /^[A-Za-z0-9_-]{1,40}$/.test(c)))];
+}
 
 function sanitizeCompetitionAccess(raw) {
     if (!Array.isArray(raw)) return [];
@@ -155,11 +172,15 @@ function sanitizeCompetitionAccess(raw) {
         const festId = String(item?.festId || '').trim();
         const competitionId = String(item?.competitionId || '').trim();
         if (!/^[a-f0-9]{24}$/i.test(festId) || !/^[a-f0-9]{24}$/i.test(competitionId)) continue;
-        const sections = [...new Set((Array.isArray(item.sections) ? item.sections : [])
+        let sections = [...new Set((Array.isArray(item.sections) ? item.sections : [])
             .map((s) => String(s || '').trim().toLowerCase())
             .filter((s) => COMPETITION_SECTION_KEYS.has(s)))];
+        // The gate never mixes with competition sections on the same entry.
+        if (sections.includes('gate')) sections = ['gate'];
         if (!sections.length) continue;
-        byCompetition.set(competitionId, { festId, competitionId, sections });
+        const entry = { festId, competitionId, sections };
+        if (sections[0] === 'gate') entry.categories = sanitizeCategoryIds(item.categories);
+        byCompetition.set(competitionId, entry);
     }
     return [...byCompetition.values()];
 }
@@ -177,19 +198,35 @@ function pagesForCompetitionAccess(access) {
 
 /**
  * Competition scope for a fest, or null when the account is not competition-limited.
- * @returns {null | { all: Set<string>, participants: Set<string>, desk: Set<string>, scanner: Set<string>, revenue: Set<string> }}
+ * `gateCategories` maps an auditorium competition id to its allowed category ids (null = all).
+ * @returns {null | { all: Set<string>, participants: Set<string>, desk: Set<string>, scanner: Set<string>, revenue: Set<string>, gate: Set<string>, gateCategories: Map<string, Set<string>|null> }}
  */
 function getCompetitionScope(organizer, festId) {
     if (normalizePortalRole(organizer?.portalRole) !== 'cohead') return null;
-    const access = Array.isArray(organizer?.competitionAccess) ? organizer.competitionAccess : [];
+    const access = sanitizeCompetitionAccess(
+        (Array.isArray(organizer?.competitionAccess) ? organizer.competitionAccess : [])
+            .map((entry) => ({ ...entry, festId: String(entry?.festId || ''), competitionId: String(entry?.competitionId || '') })),
+    );
     if (!access.length) return null;
-    const scope = { all: new Set(), participants: new Set(), desk: new Set(), scanner: new Set(), revenue: new Set() };
+    const scope = {
+        all: new Set(),
+        participants: new Set(),
+        desk: new Set(),
+        scanner: new Set(),
+        revenue: new Set(),
+        gate: new Set(),
+        gateCategories: new Map(),
+    };
     for (const entry of access) {
         if (String(entry.festId) !== String(festId)) continue;
         const id = String(entry.competitionId);
-        scope.all.add(id);
         for (const key of entry.sections || []) {
             if (scope[key]) scope[key].add(id);
+        }
+        if (entry.sections.includes('gate')) {
+            scope.gateCategories.set(id, entry.categories?.length ? new Set(entry.categories) : null);
+        } else {
+            scope.all.add(id);
         }
     }
     return scope;
@@ -233,6 +270,7 @@ module.exports = {
     navPageKeyForLabel,
     COMPETITION_SECTIONS,
     sanitizeCompetitionAccess,
+    sanitizeCategoryIds,
     pagesForCompetitionAccess,
     getCompetitionScope,
 };

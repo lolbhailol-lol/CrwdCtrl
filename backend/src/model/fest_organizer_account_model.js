@@ -21,6 +21,8 @@ const festOrganizerAccountSchema = new mongoose.Schema(
                 festId: { type: mongoose.Schema.Types.ObjectId, ref: 'FestOrganizer', required: true },
                 competitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Competition', required: true },
                 sections: { type: [String], default: [] },
+                /** Auditorium gate only: category ids this scanner may admit; empty = every category. */
+                categories: { type: [String], default: [] },
             }],
             default: [],
         },

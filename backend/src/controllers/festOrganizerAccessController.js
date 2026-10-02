@@ -15,8 +15,18 @@ const {
     pagesForCompetitionAccess,
 } = require('../utils/festOrganizerPages');
 const Competition = require('../model/competition_model');
+const { sanitizeCategories } = require('../modules/fest/plugins/mindsparkAuditorium');
 
-const SECTION_LIST = COMPETITION_SECTIONS.map(({ key, label }) => ({ key, label }));
+const SECTION_LIST = COMPETITION_SECTIONS
+    .filter(({ key }) => key !== 'gate')
+    .map(({ key, label }) => ({ key, label }));
+const GRANTABLE_PAGES = PAGE_CATALOG.filter((p) => p.key !== 'access' && p.key !== 'auditorium-gate');
+
+function badRequest(message) {
+    const error = new Error(message);
+    error.status = 400;
+    return error;
+}
 
 function tempPassword() {
     return `Cc${crypto.randomBytes(4).toString('hex')}!${crypto.randomInt(10, 99)}`;
@@ -29,27 +39,58 @@ async function festCompetitions(festId) {
         .lean();
 }
 
-/** Validate [{competitionId, sections}] against this fest; returns stored entries or throws. */
+/** The fest's auditorium competition with its pass categories, or null. */
+async function festAuditorium(festId) {
+    const comp = await Competition.findOne({ fest: festId, 'auditorium.enabled': true })
+        .select('name auditorium.categories')
+        .lean();
+    if (!comp) return null;
+    return {
+        id: String(comp._id),
+        name: comp.name || 'Auditorium',
+        categories: sanitizeCategories(comp.auditorium?.categories).map((c) => ({ id: c.id, label: c.label })),
+    };
+}
+
+/** Validate [{competitionId, sections, categories?}] against this fest; returns stored entries or throws. */
 async function resolveCompetitionAccess(festId, raw) {
     const entries = sanitizeCompetitionAccess(
         (Array.isArray(raw) ? raw : []).map((item) => ({ ...item, festId })),
     );
     if (!entries.length) return [];
-    const valid = new Set((await festCompetitions(festId)).map((c) => String(c._id)));
-    const bad = entries.find((entry) => !valid.has(entry.competitionId));
-    if (bad) {
-        const error = new Error('One of the selected competitions is not part of this fest');
-        error.status = 400;
-        throw error;
+    const [competitions, auditorium] = await Promise.all([festCompetitions(festId), festAuditorium(festId)]);
+    const valid = new Set(competitions.map((c) => String(c._id)));
+    for (const entry of entries) {
+        const isGate = entry.sections.includes('gate');
+        if (isGate) {
+            if (!auditorium || entry.competitionId !== auditorium.id) {
+                throw badRequest('Auditorium gate access only applies to the auditorium');
+            }
+            const known = new Set(auditorium.categories.map((c) => c.id));
+            if (entry.categories.some((id) => !known.has(id))) {
+                throw badRequest('One of the selected auditorium categories no longer exists');
+            }
+        } else if (!valid.has(entry.competitionId)) {
+            throw badRequest('One of the selected competitions is not part of this fest');
+        }
     }
     return entries;
 }
 
 async function describeCompetitionAccess(festId, entries) {
     if (!entries.length) return [];
-    const names = new Map((await festCompetitions(festId)).map((c) => [String(c._id), c.name || 'Competition']));
+    const [competitions, auditorium] = await Promise.all([festCompetitions(festId), festAuditorium(festId)]);
+    const names = new Map(competitions.map((c) => [String(c._id), c.name || 'Competition']));
     const labelOf = (key) => SECTION_LIST.find((s) => s.key === key)?.label || key;
-    return entries.map((entry) => `${names.get(entry.competitionId) || 'Competition'} (${entry.sections.map(labelOf).join(', ')})`);
+    return entries.map((entry) => {
+        if (entry.sections.includes('gate')) {
+            const catLabels = (auditorium?.categories || [])
+                .filter((c) => entry.categories.includes(c.id))
+                .map((c) => c.label);
+            return `${auditorium?.name || 'Auditorium'} gate scanner (${catLabels.length ? catLabels.join(', ') : 'all categories'})`;
+        }
+        return `${names.get(entry.competitionId) || 'Competition'} (${entry.sections.map(labelOf).join(', ')})`;
+    });
 }
 
 function serializeMember(row, festId) {
@@ -57,7 +98,11 @@ function serializeMember(row, festId) {
     const allAccess = portalRole === 'cohead' ? sanitizeCompetitionAccess(row.competitionAccess) : [];
     const competitionAccess = allAccess
         .filter((entry) => !festId || entry.festId === String(festId))
-        .map(({ competitionId, sections }) => ({ competitionId, sections }));
+        .map(({ competitionId, sections, categories }) => ({
+            competitionId,
+            sections,
+            ...(sections.includes('gate') ? { categories: categories || [] } : {}),
+        }));
     return {
         id: String(row._id),
         name: row.name || '',
@@ -98,6 +143,7 @@ async function trySendInviteEmail({
     pages,
     competitionLines = [],
     invitedBy,
+    note = '',
 }) {
     if (!to) return { sent: false, reason: 'no_email' };
     if (!process.env.RESEND_API_KEY) return { sent: false, reason: 'email_not_configured' };
@@ -119,6 +165,7 @@ async function trySendInviteEmail({
               <p>Hi ${safe(name) || 'there'},</p>
               <p><strong>${safe(invitedBy) || 'A fest organizer'}</strong> invited you as a co-head on <strong>${safe(festName) || 'the fest'}</strong>.</p>
               <p>${competitionLines.length ? 'Access granted' : 'Pages granted'}: ${pageLabels.length ? pageLabels.map(safe).join('; ') : 'none yet'}.</p>
+              ${note ? `<p>${safe(note)}</p>` : ''}
               <p>Login: <a href="${loginUrl}">${loginUrl}</a></p>
               <p>Username: <code>${safe(username)}</code><br/>
               Temporary password: <code>${safe(password)}</code></p>
@@ -127,6 +174,7 @@ async function trySendInviteEmail({
                 `Hi ${name || 'there'},`,
                 `${invitedBy || 'A fest organizer'} invited you as a co-head on ${festName || 'the fest'}.`,
                 `${competitionLines.length ? 'Access' : 'Pages'}: ${pageLabels.join('; ') || 'none'}`,
+                ...(note ? [note] : []),
                 `Login: ${loginUrl}`,
                 `Username: ${username}`,
                 `Temporary password: ${password}`,
@@ -142,14 +190,14 @@ async function trySendInviteEmail({
 exports.getAccessCatalog = async (_req, res) => {
     res.json({
         success: true,
-        pages: PAGE_CATALOG.filter((p) => p.key !== 'access'),
+        pages: GRANTABLE_PAGES,
     });
 };
 
 exports.listAccessMembers = async (req, res) => {
     try {
         const festId = req.festId;
-        const [members, competitions] = await Promise.all([
+        const [members, competitions, auditorium] = await Promise.all([
             FestOrganizerAccount.find({
                 assignedFestIds: festId,
                 portalRole: { $in: ['cohead', 'desk'] },
@@ -158,13 +206,15 @@ exports.listAccessMembers = async (req, res) => {
                 .sort({ createdAt: -1 })
                 .lean(),
             festCompetitions(festId),
+            festAuditorium(festId),
         ]);
 
         res.json({
             success: true,
-            pages: PAGE_CATALOG.filter((p) => p.key !== 'access'),
+            pages: GRANTABLE_PAGES,
             sections: SECTION_LIST,
             competitions: competitions.map((c) => ({ id: String(c._id), name: c.name || 'Competition' })),
+            auditorium,
             members: members.map((row) => serializeMember(row, festId)),
         });
     } catch (error) {
@@ -200,19 +250,26 @@ exports.inviteAccessMember = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
         }
 
-        const existingUser = await FestOrganizerAccount.findOne({ username }).lean();
-        if (existingUser) {
+        // Revoked co-heads keep their account with no fests; let a re-invite take it over.
+        const reusable = (acc) => acc
+            && ['cohead', 'desk'].includes(normalizePortalRole(acc.portalRole))
+            && !(acc.assignedFestIds || []).length;
+        const byUsername = await FestOrganizerAccount.findOne({ username });
+        if (byUsername && !reusable(byUsername)) {
             return res.status(409).json({ success: false, message: 'Username already taken' });
         }
-        if (email) {
-            const existingEmail = await FestOrganizerAccount.findOne({ email }).lean();
-            if (existingEmail) {
-                return res.status(409).json({ success: false, message: 'Email already used by another account' });
-            }
+        const byEmail = email ? await FestOrganizerAccount.findOne({ email }) : null;
+        if (byEmail && !reusable(byEmail)) {
+            return res.status(409).json({ success: false, message: 'Email already used by another account' });
+        }
+        const existing = byUsername || byEmail;
+        if (byUsername && byEmail && String(byUsername._id) !== String(byEmail._id)) {
+            byEmail.email = undefined;
+            await byEmail.save();
         }
 
         const passwordHash = await FestOrganizerAccount.hashPassword(passwordPlain);
-        const created = await FestOrganizerAccount.create({
+        const fields = {
             name,
             username,
             email,
@@ -225,8 +282,15 @@ exports.inviteAccessMember = async (req, res) => {
             status: 'approved',
             isActive: true,
             approvedAt: new Date(),
-            createdBy: null,
-        });
+            rejectedReason: '',
+        };
+        let created;
+        if (existing) {
+            existing.set(fields);
+            created = await existing.save();
+        } else {
+            created = await FestOrganizerAccount.create({ ...fields, createdBy: null });
+        }
 
         const emailResult = await trySendInviteEmail({
             to: email,
@@ -237,6 +301,13 @@ exports.inviteAccessMember = async (req, res) => {
             pages: allowedPages,
             competitionLines: await describeCompetitionAccess(festId, competitionAccess),
             invitedBy: req.organizer?.name || req.displayName,
+            note: (() => {
+                const hasGate = competitionAccess.some((e) => e.sections.includes('gate'));
+                if (!hasGate) return '';
+                return competitionAccess.length === 1
+                    ? 'When you sign in, the auditorium gate scanner opens directly. Scan the pass QR, or look it up by phone if the QR is damaged.'
+                    : 'Open "Auditorium gate" from the menu to scan auditorium passes.';
+            })(),
         });
 
         res.status(201).json({

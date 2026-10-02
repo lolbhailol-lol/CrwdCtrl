@@ -29,6 +29,7 @@ const navForFest = (festId, {
     showcaseAll = false,
     showAccess = false,
     showAuditorium = false,
+    showAuditoriumGate = false,
 } = {}) => {
     const showLive = showcaseAll || !hideLiveNav;
     const showLeads = showcaseAll || !hideStallLeads;
@@ -57,6 +58,9 @@ const navForFest = (festId, {
         { label: 'Check-in', path: `/fest-organizer/fests/${festId}/scan`, icon: QrCode, short: 'Scan', group: 'ops' },
         ...(showAuditorium
             ? [{ label: 'Auditorium', path: `/fest-organizer/fests/${festId}/auditorium`, icon: Ticket, short: 'Passes', group: 'ops' }]
+            : []),
+        ...(showAuditoriumGate
+            ? [{ label: 'Auditorium gate', path: `/fest-organizer/fests/${festId}/auditorium/scan`, icon: QrCode, short: 'Gate', group: 'ops' }]
             : []),
         ...(showCoupons
             ? [{ label: 'Coupons', path: `/fest-organizer/fests/${festId}/coupons`, icon: Tag, short: 'Codes', group: 'ops' }]
@@ -174,6 +178,7 @@ export default function FestOrganizerLayout() {
             showcaseAll: simplePortal,
             showAccess: showAccessNav,
             showAuditorium,
+            showAuditoriumGate: showAuditorium && portalRole === 'cohead',
         }).map((item) => ({
             ...item,
             locked: simplePortal && !SIMPLE_PORTAL_UNLOCKED.has(item.label),
@@ -200,7 +205,7 @@ export default function FestOrganizerLayout() {
     const mobilePrimary = simplePortal
         ? ['Competitions', 'Participants', 'Check-in']
         : hideProShow
-            ? ['Fest Day Desk', 'Competitions', 'Participants', 'Check-in', 'Connect']
+            ? ['Fest Day Desk', 'Competitions', 'Participants', 'Check-in', 'Auditorium gate', 'Connect']
             : ['Live', 'Competitions', 'Pro Show'];
     const mobileNav = simplePortal || hideProShow
         ? [

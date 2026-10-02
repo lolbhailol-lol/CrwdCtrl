@@ -11,7 +11,7 @@ import { useDialog } from '../../../context/DialogContext';
 import { InlinePageLoader } from '../../../components/DetailPageLoader';
 import { FEST_ORG_PAGE_CATALOG } from './festOrganizerPages';
 
-const GRANTABLE = FEST_ORG_PAGE_CATALOG.filter((p) => p.key !== 'access');
+const GRANTABLE = FEST_ORG_PAGE_CATALOG.filter((p) => p.key !== 'access' && p.key !== 'auditorium-gate');
 
 const DEFAULT_SECTIONS = [
     { key: 'participants', label: 'Participants' },
@@ -51,6 +51,66 @@ function toggleSection(access, competitionId, sectionKey) {
     return sections.size ? [...rest, { competitionId, sections: [...sections] }] : rest;
 }
 
+const isGateEntry = (entry) => (entry.sections || []).includes('gate');
+
+/** Gate on/off plus category picks; `categories: []` means every category. */
+function setGateAccess(access, auditoriumId, gate) {
+    const rest = access.filter((a) => a.competitionId !== auditoriumId);
+    return gate ? [...rest, { competitionId: auditoriumId, sections: ['gate'], categories: gate.categories }] : rest;
+}
+
+function AuditoriumGateEditor({ auditorium, value, onChange }) {
+    if (!auditorium) return null;
+    const entry = value.find((a) => a.competitionId === auditorium.id && isGateEntry(a));
+    const picked = new Set(entry?.categories || []);
+    const toggleCategory = (id) => {
+        const next = new Set(picked);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        const all = next.size === 0 || next.size === auditorium.categories.length;
+        onChange(setGateAccess(value, auditorium.id, { categories: all ? [] : [...next] }));
+    };
+    return (
+        <div className={`rounded-xl border px-3 py-2 ${entry ? 'border-[#0ECCEE]/30 bg-[#0ECCEE]/5' : 'border-white/10'}`}>
+            <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium truncate">{auditorium.name}</p>
+                <button
+                    type="button"
+                    onClick={() => onChange(setGateAccess(value, auditorium.id, entry ? null : { categories: [] }))}
+                    className={chipClass(Boolean(entry))}
+                >
+                    Gate scanner
+                </button>
+            </div>
+            {entry ? (
+                <div className="mt-2 space-y-1.5">
+                    <p className="text-[11px] text-gray-500">Which passes can they admit?</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        <button
+                            type="button"
+                            onClick={() => onChange(setGateAccess(value, auditorium.id, { categories: [] }))}
+                            className={chipClass(picked.size === 0)}
+                        >
+                            All categories
+                        </button>
+                        {auditorium.categories.map((cat) => (
+                            <button
+                                key={cat.id}
+                                type="button"
+                                onClick={() => toggleCategory(cat.id)}
+                                className={chipClass(picked.has(cat.id))}
+                            >
+                                {cat.label}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[11px] text-gray-500">They only get the gate scanner. No rosters, invites or stats.</p>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
 function AccessModeToggle({ mode, onChange }) {
     return (
         <div className="inline-flex rounded-xl border border-white/10 p-0.5 text-[11px]">
@@ -68,8 +128,9 @@ function AccessModeToggle({ mode, onChange }) {
     );
 }
 
-function CompetitionAccessEditor({ competitions, sections, value, onToggle }) {
+function CompetitionAccessEditor({ competitions, sections, value, onToggle, auditorium = null, onGateChange }) {
     const [query, setQuery] = useState('');
+    const competitionCount = value.filter((a) => !isGateEntry(a)).length;
     const granted = useMemo(() => new Map(value.map((a) => [a.competitionId, new Set(a.sections)])), [value]);
     const visible = useMemo(() => {
         const q = query.trim().toLowerCase();
@@ -77,11 +138,12 @@ function CompetitionAccessEditor({ competitions, sections, value, onToggle }) {
         return [...list].sort((a, b) => Number(granted.has(b.id)) - Number(granted.has(a.id)));
     }, [competitions, query, granted]);
 
-    if (!competitions.length) {
+    if (!competitions.length && !auditorium) {
         return <p className="text-xs text-gray-500">No competitions in this fest yet.</p>;
     }
     return (
         <div className="space-y-2">
+            <AuditoriumGateEditor auditorium={auditorium} value={value} onChange={onGateChange} />
             <input
                 className={inputClass()}
                 placeholder="Search competitions"
@@ -114,7 +176,7 @@ function CompetitionAccessEditor({ competitions, sections, value, onToggle }) {
                 })}
             </div>
             <p className="text-[11px] text-gray-500">
-                {value.length} competition{value.length === 1 ? '' : 's'} selected. They only see data for these.
+                {competitionCount} competition{competitionCount === 1 ? '' : 's'} selected. They only see data for these.
             </p>
         </div>
     );
@@ -128,6 +190,7 @@ export default function FestOrganizerAccessPage() {
     const [members, setMembers] = useState([]);
     const [pages, setPages] = useState(GRANTABLE);
     const [competitions, setCompetitions] = useState([]);
+    const [auditorium, setAuditorium] = useState(null);
     const [sections, setSections] = useState(DEFAULT_SECTIONS);
     const [modeById, setModeById] = useState({});
     const [error, setError] = useState('');
@@ -143,6 +206,7 @@ export default function FestOrganizerAccessPage() {
             setMembers(data.members || []);
             if (Array.isArray(data.pages) && data.pages.length) setPages(data.pages);
             setCompetitions(Array.isArray(data.competitions) ? data.competitions : []);
+            setAuditorium(data.auditorium?.id ? data.auditorium : null);
             if (Array.isArray(data.sections) && data.sections.length) setSections(data.sections);
         } catch (e) {
             setError(e.message || 'Failed to load access');
@@ -249,6 +313,14 @@ export default function FestOrganizerAccessPage() {
 
     const toggleMemberSection = (member, competitionId, sectionKey) => {
         const next = toggleSection(member.competitionAccess || [], competitionId, sectionKey);
+        if (!next.length) {
+            toast('Keep at least one competition section, or switch to whole pages');
+            return;
+        }
+        saveMemberAccess(member, { competitionAccess: next });
+    };
+
+    const changeMemberGate = (member, next) => {
         if (!next.length) {
             toast('Keep at least one competition section, or switch to whole pages');
             return;
@@ -388,6 +460,8 @@ export default function FestOrganizerAccessPage() {
                                     sections={sections}
                                     value={member.competitionAccess || []}
                                     onToggle={(competitionId, key) => toggleMemberSection(member, competitionId, key)}
+                                    auditorium={auditorium}
+                                    onGateChange={(next) => changeMemberGate(member, next)}
                                 />
                             ) : (
                                 <div className="flex flex-wrap gap-2">
@@ -454,6 +528,8 @@ export default function FestOrganizerAccessPage() {
                                         ...prev,
                                         competitionAccess: toggleSection(prev.competitionAccess, competitionId, key),
                                     }))}
+                                    auditorium={auditorium}
+                                    onGateChange={(next) => setInvite((prev) => ({ ...prev, competitionAccess: next }))}
                                 />
                             ) : (
                                 <div className="flex flex-wrap gap-2">

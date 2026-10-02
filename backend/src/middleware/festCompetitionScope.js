@@ -154,14 +154,52 @@ async function enforceCompetitionScope(req, res, next) {
             return next();
         }
 
+        if (/\/auditorium\/gate$/.test(path)) {
+            const [gateId] = [...scope.gate];
+            if (!gateId) return deny(res, 'You do not have auditorium gate access');
+            const allowedCats = scope.gateCategories.get(gateId);
+            filterJson(res, (b) => {
+                if (String(b.competitionId) !== gateId) {
+                    res.status(403);
+                    return { success: false, message: 'You do not have auditorium gate access' };
+                }
+                const categories = Array.isArray(b.categories) ? b.categories : [];
+                return { ...b, categories: allowedCats ? categories.filter((c) => allowedCats.has(c.id)) : categories };
+            });
+            return next();
+        }
+        if (/\/auditorium\/lookup$/.test(path)) {
+            if (!scope.gate.size) return deny(res, 'You do not have auditorium gate access');
+            filterJson(res, (b) => {
+                const ticket = b.ticket;
+                const compId = idOf(ticket?.competitionId);
+                const allowedCats = scope.gateCategories.get(compId);
+                const ok = ticket && scope.gate.has(compId)
+                    && (allowedCats === null || allowedCats?.has(String(ticket.categoryId || '')));
+                if (ok) return b;
+                res.status(404);
+                return { success: false, message: 'No ticket for this phone in your categories' };
+            });
+            return next();
+        }
+
         if (/\/checkin$/.test(path) && method === 'POST') {
             const competitionId = String(body.competitionId || '');
             if (body.proShowOnly || body.proShow) return deny(res);
+            if (scope.gate.has(competitionId)) {
+                const allowedCats = scope.gateCategories.get(competitionId);
+                req.auditoriumCategoryIds = allowedCats ? [...allowedCats] : null;
+                req.auditoriumGateOnly = true;
+                return next();
+            }
             if (!scope.scanner.has(competitionId)) return deny(res, 'Pick one of your competitions to scan');
             return next();
         }
         if (/\/checkin\/stats$/.test(path)) {
-            return scope.scanner.has(String(query.competitionId || '')) ? next() : deny(res, 'Pick one of your competitions');
+            const competitionId = String(query.competitionId || '');
+            return scope.scanner.has(competitionId) || scope.gate.has(competitionId)
+                ? next()
+                : deny(res, 'Pick one of your competitions');
         }
 
         if (/\/fest-day-desk$/.test(path) && method === 'GET') {

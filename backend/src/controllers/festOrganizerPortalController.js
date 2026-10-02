@@ -2222,6 +2222,8 @@ exports.checkin = async (req, res) => {
             competitionId: proShowOnly ? null : competitionId,
             proShowOnly,
             confirmYear,
+            auditoriumOnly: req.auditoriumGateOnly === true,
+            auditoriumCategoryIds: req.auditoriumCategoryIds || null,
             allowTrek: false,
             allowSports: false,
             scannedBy: `fest_organizer:${req.organizer.username || req.organizer.name}`,

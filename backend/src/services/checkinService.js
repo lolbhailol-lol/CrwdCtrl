@@ -105,6 +105,9 @@ async function performCheckinFromRaw(raw, options = {}) {
     proShowOnly = false,
     /** Gate volunteer confirmed year matches college ID (auditorium) */
     confirmYear = false,
+    /** Gate-scoped scanner: only auditorium passes, optionally only these category ids */
+    auditoriumOnly = false,
+    auditoriumCategoryIds = null,
     allowTrek = true,
     allowSports = true,
     scannedBy = 'Admin',
@@ -709,6 +712,23 @@ async function performCheckinFromRaw(raw, options = {}) {
         },
       };
     }
+  }
+
+  if (auditoriumOnly && !isAuditoriumTicket) {
+    return {
+      status: 403,
+      body: { success: false, status: 'invalid', message: 'This scanner only accepts auditorium passes.' },
+    };
+  }
+  if (auditoriumOnly && Array.isArray(auditoriumCategoryIds) && !auditoriumCategoryIds.includes(auditoriumCategoryId)) {
+    return {
+      status: 403,
+      body: {
+        success: false,
+        status: 'invalid',
+        message: `This pass is for ${auditoriumCategory || 'another category'}. Your gate is not set for it.`,
+      },
+    };
   }
 
   if (registration.checkedIn) {
