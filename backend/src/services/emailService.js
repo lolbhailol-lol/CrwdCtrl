@@ -619,6 +619,8 @@ ${qrSrc ? `<table role="presentation" cellspacing="0" cellpadding="0" style="mar
 <div style="font-family:${body};font-size:11px;line-height:1.55;color:#7a8086;max-width:250px;margin:14px auto 0;">Show this pass at the gate. If your ID and face don&rsquo;t match, entry may be restricted.</div>
 </td></tr>
 
+<tr><td align="center" style="padding:12px 20px 14px;border-top:1px solid #1c2023;font-family:${body};font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:#5d6368;">Powered by <span style="color:#0ECCEE;font-weight:800;letter-spacing:0.18em;">CrwdCtrl</span></td></tr>
+
 </table>
 </td></tr>
 

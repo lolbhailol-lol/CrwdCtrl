@@ -1302,7 +1302,11 @@ exports.getDashboard = async (req, res) => {
             cashfreeLockRevenue = locked.cashfreeRevenue;
             const shares = await mindSparkScaledCompetitionAmounts(festId, revenue);
             for (const row of competitionStats) {
-                if (!row.id) continue;
+                if (!row.id) {
+                    row.revenue = 0;
+                    row.grossCollected = 0;
+                    continue;
+                }
                 const amount = shares.totals.get(String(row.id));
                 if (amount == null) continue;
                 row.revenue = amount;
@@ -1763,11 +1767,13 @@ exports.listParticipants = async (req, res) => {
             active: s.active || 0,
             totalParticipants: Number(s.totalParticipants) || Number(s.approved) || 0,
         };
+        const participants = rows.map(formatParticipant);
+        await applyMindSparkNetAmounts(festId, rows, participants);
 
         res.json({
             success: true,
             summary,
-            participants: rows.map(formatParticipant),
+            participants,
             competitions: competitions.map((c) => ({ id: c._id, name: c.name || 'Competition' })),
             pagination: {
                 page,
@@ -1860,55 +1866,85 @@ exports.getParticipant = async (req, res) => {
             .populate('competitionId', 'competitionName name teamSizeMax registration')
             .lean();
         if (!reg) return res.status(404).json({ success: false, message: 'Participant not found' });
-        res.json({ success: true, participant: formatParticipant(reg) });
+        const participant = formatParticipant(reg);
+        await applyMindSparkNetAmounts(req.festId, [reg], [participant]);
+        res.json({ success: true, participant });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to load participant' });
     }
 };
 
-/** Per-competition amountPaid sums must equal the dashboard competition revenue. */
-async function applyMindSparkExportAmounts(festId, rows, participants, { complete = false } = {}) {
-    const hasBundle = { $gt: [{ $strLenCP: { $ifNull: ['$responses.mindspark_bundle_id', ''] } }, 0] };
-    const [{ totals, bundles }, soloGroups] = await Promise.all([
-        mindSparkScaledCompetitionAmounts(festId),
-        Registration.aggregate([
-            { $match: { fest: new mongoose.Types.ObjectId(String(festId)), isProShow: { $ne: true }, status: 'approved', ...NOT_AUDITORIUM_REG } },
-            { $group: { _id: '$competitionId', solo: { $sum: { $cond: [hasBundle, 0, { $ifNull: ['$amountPaid', 0] }] } } } },
-        ]),
-    ]);
+const mindsparkNetAmountCache = new Map();
+
+/** Net amount per approved registration id; each competition's amounts sum exactly to its dashboard revenue. */
+async function computeMindSparkNetAmounts(festId) {
     const round2 = (n) => Math.round(n * 100) / 100;
-    const isBundle = (reg) => Boolean(responsesToObject(reg.responses).mindspark_bundle_id);
-    const soloRaw = new Map(soloGroups.map((g) => [String(g._id || ''), Number(g.solo) || 0]));
-    const soloIndexes = new Map();
-    rows.forEach((reg, index) => {
-        const id = String(reg.competitionId?._id || reg.competitionId || '');
+    const [{ totals, bundles }, regs] = await Promise.all([
+        mindSparkScaledCompetitionAmounts(festId, readMindSparkMoney(festId)?.revenue ?? null),
+        Registration.find({ fest: festId, isProShow: { $ne: true }, status: 'approved', ...NOT_AUDITORIUM_REG })
+            .select('competitionId amountPaid responses.mindspark_bundle_id')
+            .lean(),
+    ]);
+    const net = new Map();
+    const soloByCompetition = new Map();
+    for (const reg of regs) {
         const raw = Number(reg.amountPaid) || 0;
+        if (responsesToObject(reg.responses).mindspark_bundle_id) {
+            net.set(String(reg._id), round2(raw));
+            continue;
+        }
+        const id = String(reg.competitionId || '');
+        if (!soloByCompetition.has(id)) soloByCompetition.set(id, []);
+        soloByCompetition.get(id).push({ key: String(reg._id), raw });
+    }
+    for (const [id, list] of soloByCompetition) {
+        const soloTarget = Math.max(0, round2((totals.get(id) || 0) - (bundles.get(id) || 0)));
+        const base = list.reduce((s, r) => s + r.raw, 0);
+        let sum = 0;
+        for (const r of list) {
+            const amount = base > 0 ? round2(r.raw * (soloTarget / base)) : 0;
+            net.set(r.key, amount);
+            sum += amount;
+        }
+        const drift = round2(soloTarget - sum);
+        if (drift && base > 0) {
+            const top = list.reduce((a, b) => (b.raw > a.raw || (b.raw === a.raw && b.key > a.key) ? b : a));
+            net.set(top.key, round2(net.get(top.key) + drift));
+        }
+    }
+    return net;
+}
+
+async function mindSparkNetAmounts(festId) {
+    const key = String(festId);
+    const hit = mindsparkNetAmountCache.get(key);
+    if (hit?.promise) return hit.promise;
+    if (hit && Date.now() - hit.at < MINDSPARK_MONEY_TTL_MS) return hit.net;
+    const promise = computeMindSparkNetAmounts(festId);
+    mindsparkNetAmountCache.set(key, { promise });
+    try {
+        const net = await promise;
+        mindsparkNetAmountCache.set(key, { net, at: Date.now() });
+        return net;
+    } catch (error) {
+        mindsparkNetAmountCache.delete(key);
+        throw error;
+    }
+}
+
+/** Organizer-facing amounts: per-competition sums equal the dashboard competition revenue. */
+async function applyMindSparkNetAmounts(festId, rows, participants) {
+    if (!isMindSparkFestId(festId) || !rows.length) return;
+    const net = await mindSparkNetAmounts(festId);
+    rows.forEach((reg, index) => {
+        if (reg.isProShow || responsesToObject(reg.responses).auditorium_category_id) return;
         if (reg.status !== 'approved') {
             participants[index].amountPaid = 0;
             return;
         }
-        if (isBundle(reg)) {
-            participants[index].amountPaid = round2(raw);
-            return;
-        }
-        const soloTarget = Math.max(0, (totals.get(id) || 0) - (bundles.get(id) || 0));
-        const base = soloRaw.get(id) || 0;
-        participants[index].amountPaid = base > 0 ? round2(raw * (soloTarget / base)) : 0;
-        if (raw > 0) {
-            if (!soloIndexes.has(id)) soloIndexes.set(id, []);
-            soloIndexes.get(id).push(index);
-        }
+        const amount = net.get(String(reg._id));
+        if (amount != null) participants[index].amountPaid = amount;
     });
-    if (!complete) return;
-    for (const [id, indexes] of soloIndexes) {
-        const soloTarget = Math.max(0, (totals.get(id) || 0) - (bundles.get(id) || 0));
-        const sum = indexes.reduce((s, i) => s + participants[i].amountPaid, 0);
-        const drift = round2(soloTarget - sum);
-        if (drift) {
-            const top = indexes.reduce((a, b) => (participants[b].amountPaid > participants[a].amountPaid ? b : a));
-            participants[top].amountPaid = round2(participants[top].amountPaid + drift);
-        }
-    }
 }
 
 exports.exportParticipants = async (req, res) => {
@@ -1960,8 +1996,7 @@ exports.exportParticipants = async (req, res) => {
         const participants = rows.map(formatParticipant);
         const exportOptions = {};
         if (isMindSparkFestId(req.festId)) {
-            const complete = !paymentStatus && !checkInStatus && !whatsappGroup && (!status || status === 'approved');
-            await applyMindSparkExportAmounts(req.festId, rows, participants, { complete });
+            await applyMindSparkNetAmounts(req.festId, rows, participants);
             exportOptions.amountLabel = 'Net amount';
         }
         if (req.competitionScope) {
@@ -2500,6 +2535,7 @@ exports.getCompetitionOps = async (req, res) => {
         ]);
 
         const participants = activeRows.map(formatParticipant);
+        await applyMindSparkNetAmounts(festId, activeRows, participants);
         const pending = participants.filter((row) => row.status === 'pending');
 
         const bundleIdStrings = [...new Set(

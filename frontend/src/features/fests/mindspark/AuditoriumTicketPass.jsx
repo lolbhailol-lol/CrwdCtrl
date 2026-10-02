@@ -186,6 +186,10 @@ export default function AuditoriumTicketPass({
           <p className="text-xs text-white/40">QR loading…</p>
         )}
       </div>
+
+      <p className="border-t border-white/5 py-3 text-center text-[10px] uppercase tracking-[0.22em] text-white/35">
+        Powered by <span className="font-extrabold tracking-[0.18em] text-[#0ECCEE]">CrwdCtrl</span>
+      </p>
     </article>
   );
 }

@@ -1,23 +1,18 @@
-import { useDialog } from '../../../context/DialogContext';
+import { Link, useParams } from 'react-router-dom';
+import { CalendarDays } from 'lucide-react';
 
-/**
- * Live-updates chip on the public MindSpark page.
- * Looks closed until the organizer feed is wired in.
- */
+/** Schedule chip on the public MindSpark page — opens the full event schedule. */
 export default function MindSparkLiveBadge({ className = '' }) {
-  const { toast } = useDialog();
+  const { eventId } = useParams();
 
   return (
-    <button
-      type="button"
-      onClick={() => toast('Upcoming')}
-      className={`inline-flex items-center gap-2 shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 opacity-55 hover:opacity-70 transition ${className}`}
-      aria-label="Live updates — upcoming"
+    <Link
+      to={`/view-details/${eventId}/schedule`}
+      className={`inline-flex items-center gap-2 shrink-0 rounded-xl border border-[#0ECCEE]/30 bg-[#0ECCEE]/10 px-3 py-2 transition hover:bg-[#0ECCEE]/20 ${className}`}
+      aria-label="MindSpark schedule"
     >
-      <span className="size-2 rounded-full bg-red-500/70" />
-      <span className="text-[11px] font-semibold tracking-wide text-gray-400">
-        Live updates
-      </span>
-    </button>
+      <CalendarDays size={14} className="text-[#0ECCEE]" />
+      <span className="text-[11px] font-semibold tracking-wide text-[#7DE8F7]">Schedule</span>
+    </Link>
   );
 }

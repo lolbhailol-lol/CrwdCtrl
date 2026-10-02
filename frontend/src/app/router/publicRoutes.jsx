@@ -9,6 +9,7 @@ import {
   SportsFestPage,
   SportsCategoryPage,
   ViewDetailsPage,
+  MindSparkSchedulePage,
   FavoritesPage,
   EditProfile,
   HelpCenter,
@@ -106,6 +107,7 @@ export const publicRoutes = (
       <Route path="/trek/:id/book" element={<TrekBookingPage />} />
       <Route path="/favorites" element={<FavoritesPage />} />
       <Route path="/view-details/:eventId" element={<ViewDetailsPage />} />
+      <Route path="/view-details/:eventId/schedule" element={<MindSparkSchedulePage />} />
       <Route path="/view-details" element={<ViewDetailsPage />} />
       <Route path="/competitions-view-details/:competitionId" element={<CompetitionsViewDetails />} />
       <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />

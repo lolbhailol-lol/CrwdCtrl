@@ -1,6 +1,7 @@
 import { lazyWithRetry } from '../../utils/lazyWithRetry';
 
 export const ViewDetailsPage = lazyWithRetry(() => import('../../features/fests/pages/view-details'));
+export const MindSparkSchedulePage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkSchedulePage'));
 export const CompetitionsViewDetails = lazyWithRetry(
   () => import('../../features/fests/pages/competitions/Competitions-view-details'),
 );

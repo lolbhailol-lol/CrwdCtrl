@@ -142,17 +142,22 @@ function normalizeMobile(value) {
   return /^[6-9]\d{9}$/.test(digits) ? digits : '';
 }
 
-function passAccessToken(registrationId) {
+function passAccessDigest(registrationId) {
   return crypto
     .createHmac('sha256', getJwtSecret())
     .update(`auditorium-pass:${registrationId}`)
-    .digest('hex')
-    .slice(0, 32);
+    .digest('hex');
 }
 
+function passAccessToken(registrationId) {
+  return passAccessDigest(registrationId).slice(0, 32);
+}
+
+/** Accepts the short 32-char token and the full 64-char digest (used in final confirmation emails). */
 function isValidPassAccess(registrationId, token) {
-  const expected = Buffer.from(passAccessToken(registrationId));
   const given = Buffer.from(String(token || ''));
+  const full = passAccessDigest(registrationId);
+  const expected = Buffer.from(given.length === full.length ? full : full.slice(0, 32));
   return given.length === expected.length && crypto.timingSafeEqual(given, expected);
 }
 
