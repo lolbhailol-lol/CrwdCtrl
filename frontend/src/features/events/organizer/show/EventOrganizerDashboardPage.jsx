@@ -43,6 +43,11 @@ function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
             icon: 'bg-teal-500/15 text-teal-300',
             value: 'text-teal-200',
         },
+        warn: {
+            card: 'border-amber-500/20 bg-linear-to-br from-amber-500/15 to-amber-500/5',
+            icon: 'bg-amber-500/15 text-amber-300',
+            value: 'text-amber-100',
+        },
     };
     const t = tones[tone] || tones.default;
     const className = `rounded-2xl border p-4 min-h-24 text-left transition-all duration-200 ${t.card} ${
@@ -202,6 +207,160 @@ export default function EventOrganizerDashboardPage() {
             setActionBusy(false);
         }
     };
+
+    if (isGarba) {
+        const payments = stats.payments || {};
+        const totalRegs = ['free', 'pending', 'paid', 'failed', 'unknown']
+            .reduce((s, k) => s + (Number(payments[k]) || 0), 0);
+        const paidCount = Number(payments.paid) || 0;
+        const pendingCount = Number(payments.pending) || 0;
+        const refreshAll = () => {
+            load({ silent: true });
+            setParticipantsRefreshKey((k) => k + 1);
+        };
+
+        return (
+            <div className="space-y-4 max-w-5xl mx-auto pb-6">
+                {/* Header */}
+                <SectionCard className="p-4 sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1.5">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-fuchsia-300">
+                                <Sparkles size={11} /> Garba dashboard
+                            </div>
+                            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">{event.title || 'Event'}</h1>
+                            <p className="text-[13px] text-gray-500 flex flex-wrap items-center gap-x-2">
+                                {city || venue ? (
+                                    <span className="inline-flex items-center gap-1">
+                                        <MapPin size={12} className="text-[#0ECCEE]" />
+                                        {[venue, city].filter(Boolean).join(' · ')}
+                                    </span>
+                                ) : null}
+                                {dateLabel && dateLabel !== 'Date TBA' ? <span>· {dateLabel}</span> : null}
+                            </p>
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border ${isOpen
+                                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25'
+                                    : 'bg-red-500/10 text-red-300 border-red-500/25'}`}
+                                >
+                                    Booking {isOpen ? 'open' : 'closed'}
+                                </span>
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-gray-300">
+                                    {isOffline ? 'Pay on delivery' : 'Online pay'}
+                                </span>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={refreshAll}
+                            disabled={refreshing}
+                            className="shrink-0 p-2.5 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white disabled:opacity-50"
+                            aria-label="Refresh"
+                        >
+                            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
+                </SectionCard>
+
+                {actionNotice ? (
+                    <div className="rounded-xl border border-[#0ECCEE]/20 bg-[#0ECCEE]/10 px-3.5 py-2.5 text-xs text-[#9BE8F7]">
+                        {actionNotice}
+                    </div>
+                ) : null}
+
+                {isOffline && offlinePending > 0 ? (
+                    <div className="flex items-center gap-2 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-sm font-semibold text-amber-100">
+                        <Hourglass size={16} className="shrink-0" />
+                        {offlinePending} pass request{offlinePending === 1 ? '' : 's'} not registered yet — call and mark registered below
+                    </div>
+                ) : null}
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <StatTile label="Registrations" value={totalRegs} hint={`${checkedIn} checked in`} icon={Users} />
+                    <StatTile
+                        label={isOffline ? 'Registered' : 'Paid'}
+                        value={paidCount}
+                        hint={`${totalRegs ? Math.round((paidCount / totalRegs) * 100) : 0}% converted`}
+                        icon={UserCheck}
+                        tone="ok"
+                    />
+                    <StatTile
+                        label={isOffline ? 'Not registered' : 'Pending'}
+                        value={pendingCount}
+                        hint={isOffline ? 'awaiting call' : 'payment awaited'}
+                        icon={Hourglass}
+                        tone="warn"
+                    />
+                    <StatTile
+                        label="Revenue"
+                        value={`₹${revenue.toLocaleString('en-IN')}`}
+                        hint={`${stats.todayRegistrations ?? 0} bookings today`}
+                        icon={IndianRupee}
+                        tone="money"
+                    />
+                </div>
+
+                {isOffline ? (
+                    <GarbaCommissionCard revenue={revenue} percent={event.registration?.commissionPercent} />
+                ) : null}
+
+                <GarbaCategoryBreakdown tiers={garbaTiers} />
+
+                <GarbaParticipantsPanel
+                    eventId={eventId}
+                    tiers={garbaTiers}
+                    refreshKey={participantsRefreshKey}
+                    offline={isOffline}
+                    onStatusChange={() => load({ silent: true })}
+                />
+
+                {/* Actions */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {[
+                        { label: 'Guests', icon: Users, onClick: () => navigate(guestsPath) },
+                        { label: 'Scan', icon: QrCode, onClick: () => navigate(scanPath) },
+                        { label: 'Notify', icon: Bell, onClick: () => navigate(notifyPath) },
+                        {
+                            label: copyNotice || 'Share link',
+                            icon: Copy,
+                            onClick: copyLink,
+                            hidden: !publicUrl || String(status).toLowerCase() !== 'published',
+                        },
+                    ].filter((a) => !a.hidden).map((action) => (
+                        <button
+                            key={action.label}
+                            type="button"
+                            onClick={action.onClick}
+                            className="rounded-xl border border-white/10 bg-[#1a1b1d] p-3 text-center hover:border-[#0ECCEE]/35 active:scale-[0.98] transition-all"
+                        >
+                            <action.icon size={18} className="mx-auto text-[#0ECCEE] mb-1.5" />
+                            <p className="text-xs font-semibold">{action.label}</p>
+                        </button>
+                    ))}
+                </div>
+
+                <SectionCard className="p-4 flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-sm font-semibold">Booking</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            {isOpen ? 'Guests can book now.' : 'Booking is closed.'}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={toggleRegistration}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-50 ${isOpen
+                            ? 'border border-red-500/30 text-red-300'
+                            : 'bg-[#0ECCEE] text-black'}`}
+                    >
+                        {actionBusy ? '…' : isOpen ? 'Close' : 'Open'}
+                    </button>
+                </SectionCard>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-4 max-w-3xl mx-auto pb-6">
@@ -453,9 +612,7 @@ export default function EventOrganizerDashboardPage() {
                 <GarbaCommissionCard revenue={revenue} percent={event.registration?.commissionPercent} />
             ) : null}
 
-            {isGarba ? (
-                <GarbaCategoryBreakdown tiers={garbaTiers} />
-            ) : packages.length > 0 ? (
+            {packages.length > 0 ? (
                 <SectionCard className="p-4 space-y-3">
                     <p className="text-sm font-semibold">{multiClass ? 'Classes / tickets' : 'Packages'}</p>
                     <div className="space-y-2">
@@ -494,16 +651,6 @@ export default function EventOrganizerDashboardPage() {
                     </button>
                 ))}
             </div>
-
-            {isGarba ? (
-                <GarbaParticipantsPanel
-                    eventId={eventId}
-                    tiers={garbaTiers}
-                    refreshKey={participantsRefreshKey}
-                    offline={isOffline}
-                    onStatusChange={() => load({ silent: true })}
-                />
-            ) : null}
         </div>
     );
 }
