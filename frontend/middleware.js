@@ -236,19 +236,34 @@ const ROUTES = [
     test: /^\/events\/([^/]+)\/?$/,
     api: (id) => `/events/${id}`,
     pick: (j) => j?.show || j?.data || j,
-    build: (e, path) => buildEvent(
-      e.displayName || e.title,
-      e.description || e.about,
-      toOgImageUrl(pickShareImage(e)),
-      e.venue || e.city,
-      e.ticketPrice,
-      e.organizer,
-      path,
-      'Events',
-      '/events',
-    ),
+    build: (e, path) => {
+      const portrait = isGarbaShow(e);
+      return buildEvent(
+        e.displayName || e.title,
+        e.description || e.about,
+        portrait
+          ? toOgImageUrl(pickShareImage(e, { preferPortrait: true }), {
+            contain: true,
+            portrait: true,
+            padColor: 'rgb:0B0C0D',
+          })
+          : toOgImageUrl(pickShareImage(e)),
+        e.venue || e.city,
+        e.ticketPrice,
+        e.organizer,
+        path,
+        'Events',
+        '/events',
+        { portrait },
+      );
+    },
   },
 ];
+
+/** Garba / Dandiya posters are tall — share them as the portrait card instead of a padded wide frame. */
+function isGarbaShow(e = {}) {
+  return /garba|jalsa|navratri|dandiya/i.test([e.title, e.displayName, e.eventHeading].filter(Boolean).join(' '));
+}
 
 function buildEvent(name, description, image, location, price, organizer, path, parentName, parentPath, opts = {}) {
   const safeName = name || 'CrwdCtrl';

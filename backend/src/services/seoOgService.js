@@ -97,6 +97,11 @@ function absoluteUrl(pathOrUrl) {
   return `${SITE_URL}${path}`;
 }
 
+/** Garba / Dandiya posters are tall — share them as the portrait card instead of a padded wide frame. */
+function isGarbaShow(show = {}) {
+  return /garba|jalsa|navratri|dandiya/i.test([show.title, show.displayName, show.eventHeading].filter(Boolean).join(' '));
+}
+
 function isBrandLogoFest(fest) {
   const name = String(fest?.festName || fest?.title || '').toLowerCase();
   const slug = String(fest?.slug || '').toLowerCase();
@@ -202,10 +207,14 @@ const ROUTES = [
         lean: true,
       });
       if (!show) return null;
+      const portrait = isGarbaShow(show);
       return {
         title: show.displayName || show.title,
         description: show.description || show.about,
-        image: pickShareImage(show, { preferPortrait: false }),
+        image: pickShareImage(show, { preferPortrait: portrait }),
+        ...(portrait
+          ? { containShareImage: true, portraitShareImage: true, padColor: 'rgb:0B0C0D' }
+          : {}),
       };
     },
   },
