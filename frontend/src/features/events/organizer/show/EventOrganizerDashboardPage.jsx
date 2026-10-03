@@ -11,6 +11,12 @@ import {
 import { eventShowPath } from '../../../../utils/slugRoutes';
 import { formatEventShowDate } from '../../../../constants/eventsPage';
 import DetailPageLoader from '../../../../components/DetailPageLoader';
+import {
+    GarbaCategoryBreakdown,
+    GarbaParticipantsPanel,
+    buildGarbaTiers,
+    isGarbaEvent,
+} from '../../../garba/GarbaSections';
 
 function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
     const navigate = useNavigate();
@@ -82,6 +88,7 @@ export default function EventOrganizerDashboardPage() {
     const [copyNotice, setCopyNotice] = useState('');
     const [actionBusy, setActionBusy] = useState(false);
     const [actionNotice, setActionNotice] = useState('');
+    const [participantsRefreshKey, setParticipantsRefreshKey] = useState(0);
 
     const load = useCallback(async ({ silent = false } = {}) => {
         if (!eventId) return;
@@ -158,6 +165,8 @@ export default function EventOrganizerDashboardPage() {
     const venue = String(event.venue || '').trim();
     const city = String(event.city || '').trim();
     const packages = Array.isArray(data.tiers) ? data.tiers : [];
+    const isGarba = isGarbaEvent(event);
+    const garbaTiers = isGarba ? buildGarbaTiers(event, data.tiers) : [];
     const priceLabel = String(event.priceLabel || '').trim();
     const guestsPath = `/event-organizer/events/${eventId}/participants`;
     const scanPath = `/event-organizer/events/${eventId}/scan`;
@@ -244,7 +253,10 @@ export default function EventOrganizerDashboardPage() {
                         </div>
                         <button
                             type="button"
-                            onClick={() => load({ silent: true })}
+                            onClick={() => {
+                                load({ silent: true });
+                                setParticipantsRefreshKey((k) => k + 1);
+                            }}
                             disabled={refreshing}
                             className="shrink-0 p-2.5 rounded-xl border border-white/10 bg-white/5 text-gray-400 hover:text-white disabled:opacity-50"
                             aria-label="Refresh"
@@ -426,7 +438,9 @@ export default function EventOrganizerDashboardPage() {
                 ) : null}
             </SectionCard>
 
-            {packages.length > 0 ? (
+            {isGarba ? (
+                <GarbaCategoryBreakdown tiers={garbaTiers} />
+            ) : packages.length > 0 ? (
                 <SectionCard className="p-4 space-y-3">
                     <p className="text-sm font-semibold">{multiClass ? 'Classes / tickets' : 'Packages'}</p>
                     <div className="space-y-2">
@@ -465,6 +479,14 @@ export default function EventOrganizerDashboardPage() {
                     </button>
                 ))}
             </div>
+
+            {isGarba ? (
+                <GarbaParticipantsPanel
+                    eventId={eventId}
+                    tiers={garbaTiers}
+                    refreshKey={participantsRefreshKey}
+                />
+            ) : null}
         </div>
     );
 }
