@@ -208,7 +208,7 @@ export default function EventOrganizerDashboardPage() {
         }
     };
 
-    if (isGarba) {
+    if (isGarba && isOffline) {
         const payments = stats.payments || {};
         const totalRegs = ['free', 'pending', 'paid', 'failed', 'unknown']
             .reduce((s, k) => s + (Number(payments[k]) || 0), 0);
