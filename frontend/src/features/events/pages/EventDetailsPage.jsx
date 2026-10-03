@@ -127,7 +127,7 @@ function parseDressCodeLines(text) {
 
 function usesInAppEventRegistration(reg = {}) {
   const mode = String(reg?.mode || '').toLowerCase();
-  if (['internal_form', 'organizer_qr'].includes(mode)) return true;
+  if (['internal_form', 'organizer_qr', 'offline_cod'].includes(mode)) return true;
   if (reg?.formType === 'MULTI_STEP' && Array.isArray(reg?.steps) && reg.steps.length > 0) return true;
   if (Array.isArray(reg?.formSchema) && reg.formSchema.length > 0) return true;
   return false;

@@ -307,8 +307,9 @@ export default function EventRegistrationPage() {
     }, [event, navigate, location.state]);
 
     const reg = event?.registration || {};
-    const couponsEnabled = reg.allowCoupons !== false;
     const isOrganizerQr = reg.mode === 'organizer_qr';
+    const isOfflineCod = reg.mode === 'offline_cod';
+    const couponsEnabled = reg.allowCoupons !== false && !isOfflineCod;
     const packages = useMemo(() => {
         if (!event) return [];
         // Prefer explicit tiers mode; also accept docs that have tiers[] even if mode was lost in client state
@@ -355,7 +356,7 @@ export default function EventRegistrationPage() {
         ? 0
         : selectedAddOns.reduce((sum, addOn) => sum + addOn.fee, 0);
     const ticketPrice = packagePrice + addOnTotal;
-    const platformFeePercent = isOrganizerQr ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2);
+    const platformFeePercent = isOrganizerQr || isOfflineCod ? 0 : resolveTrekPlatformFeePercent(event?.platformFeePercent, 2);
     const breakdown = useMemo(
         () => buildEventPriceBreakdown(ticketPrice, platformFeePercent),
         [ticketPrice, platformFeePercent],
@@ -1230,6 +1231,19 @@ export default function EventRegistrationPage() {
             return;
         }
 
+        if (isOfflineCod) {
+            setPaying(true);
+            try {
+                await submitRegistration({ amountPaid: ticketPrice });
+                setDone(true);
+            } catch (e) {
+                setError(e.message || 'Could not submit your pass request');
+            } finally {
+                setPaying(false);
+            }
+            return;
+        }
+
         if (isOrganizerQr) {
             if (payableAmount > 0) {
                 if (!paymentScreenshotUrl) {
@@ -1592,12 +1606,40 @@ export default function EventRegistrationPage() {
     const regMode = String(reg.mode || '').toLowerCase();
     const hasInAppForm = (reg.formType === 'MULTI_STEP' && Array.isArray(reg.steps) && reg.steps.length > 0)
         || (Array.isArray(reg.formSchema) && reg.formSchema.length > 0);
-    const registrationModeOk = ['internal_form', 'organizer_qr'].includes(regMode) || hasInAppForm;
+    const registrationModeOk = ['internal_form', 'organizer_qr', 'offline_cod'].includes(regMode) || hasInAppForm;
     if (regStatus === 'closed' || !registrationModeOk) {
         return (
             <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Registration is not open for this event.</p>
                 <button type="button" onClick={() => navigate(`/events/${eventId}`)} className="text-[#0ECCEE] text-sm font-semibold">Back to event</button>
+            </div>
+        );
+    }
+
+    if (done && isOfflineCod && ticketPrice > 0) {
+        return (
+            <div className="crwdctrl-page crwdctrl-page--flat min-h-screen flex items-center justify-center px-4 animate-detail-enter">
+                <div className="text-center max-w-md mx-auto p-8 w-full">
+                    <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                    <h1 className={`text-3xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        Pass Request Submitted!
+                    </h1>
+                    <p className={`mb-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                        {reg.offlineSuccessMessage
+                            || `You will get a call from the ${title} team for cash on delivery and offline pass delivery.`}
+                    </p>
+                    <p className={`text-sm mb-6 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                        {selectedTier?.name ? `${selectedTier.name} · ` : ''}{formatInr(ticketPrice)} — pay when your pass is delivered.
+                    </p>
+                    <div className="flex flex-col gap-3 animate-step-enter">
+                        <button type="button" onClick={() => goToBookings(navigate)} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 active:scale-[0.98] transition-all duration-200">
+                            View My Bookings
+                        </button>
+                        <button type="button" onClick={() => navigate('/events')} className={`w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                            Browse more events
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -2057,7 +2099,28 @@ export default function EventRegistrationPage() {
 
                     {/* Payment / confirm step */}
                     {isPaymentStep && (
-                        ticketPrice > 0 ? (
+                        ticketPrice > 0 && isOfflineCod ? (
+                            <div className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
+                                <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Pass delivered to your address</p>
+                                </div>
+                                <div className={`px-4 py-4 border-t space-y-2 ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
+                                    {selectedTier?.name ? (
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Ticket</span>
+                                            <span className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{selectedTier.name}</span>
+                                        </div>
+                                    ) : null}
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className={isDark ? 'text-gray-400' : 'text-gray-500'}>Pay on delivery</span>
+                                        <span className="font-semibold text-[#0ECCEE]">{formatInr(ticketPrice)}</span>
+                                    </div>
+                                    <p className={`text-xs pt-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                        No online payment. After you submit, the organiser team will call you to confirm and deliver your pass (cash on delivery).
+                                    </p>
+                                </div>
+                            </div>
+                        ) : ticketPrice > 0 ? (
                             <RunCheckoutPanel
                                 mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
                                 isDark={isDark}
@@ -2170,7 +2233,9 @@ export default function EventRegistrationPage() {
                                 disabled={paying}
                                 className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60"
                             >
-                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0
+                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0 && isOfflineCod
+                                    ? 'Request Pass · Pay on Delivery'
+                                    : ticketPrice > 0
                                     ? (isOrganizerQr
                                         ? (payableAmount <= 0
                                             ? 'Confirm Registration'

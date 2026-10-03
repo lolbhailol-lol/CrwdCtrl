@@ -60,8 +60,13 @@ const eventRegistrationSchema = new mongoose.Schema(
          * internal_form = built-in multi-step form + Cashfree payment
          * external_link = redirect to a URL
          * organizer_qr = in-app form + organizer QR/UPI + screenshot proof
+         * offline_cod = in-app form, no online payment; organizer calls back and delivers the pass (cash on delivery)
          */
-        mode: { type: String, enum: ['internal_form', 'external_link', 'organizer_qr'], default: 'external_link' },
+        mode: { type: String, enum: ['internal_form', 'external_link', 'organizer_qr', 'offline_cod'], default: 'external_link' },
+        /** offline_cod: message shown to the guest after submitting a pass request */
+        offlineSuccessMessage: { type: String, trim: true, default: '' },
+        /** CrwdCtrl commission % on confirmed offline pass value — organizer dashboard only, never shown to guests */
+        commissionPercent: { type: Number, default: 0, min: 0, max: 100 },
         formType: { type: String, enum: ['SINGLE_STEP', 'MULTI_STEP'], default: 'SINGLE_STEP' },
         formSchema: { type: [eventFormFieldSchema], default: [] },
         steps: { type: [eventFormStepSchema], default: [] },

@@ -13,9 +13,11 @@ import { formatEventShowDate } from '../../../../constants/eventsPage';
 import DetailPageLoader from '../../../../components/DetailPageLoader';
 import {
     GarbaCategoryBreakdown,
+    GarbaCommissionCard,
     GarbaParticipantsPanel,
     buildGarbaTiers,
     isGarbaEvent,
+    isOfflineCodEvent,
 } from '../../../garba/GarbaSections';
 
 function StatTile({ label, value, tone = 'default', icon: Icon, to, hint }) {
@@ -166,6 +168,8 @@ export default function EventOrganizerDashboardPage() {
     const city = String(event.city || '').trim();
     const packages = Array.isArray(data.tiers) ? data.tiers : [];
     const isGarba = isGarbaEvent(event);
+    const isOffline = isOfflineCodEvent(event);
+    const offlinePending = Number(stats.payments?.pending || 0);
     const garbaTiers = isGarba ? buildGarbaTiers(event, data.tiers) : [];
     const priceLabel = String(event.priceLabel || '').trim();
     const guestsPath = `/event-organizer/events/${eventId}/participants`;
@@ -241,7 +245,7 @@ export default function EventOrganizerDashboardPage() {
                                 </span>
                                 {isCashfree ? (
                                     <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-emerald-500/25 bg-emerald-500/10 text-emerald-200">
-                                        Cashfree
+                                        Online pay
                                     </span>
                                 ) : null}
                                 {multiClass ? (
@@ -273,6 +277,13 @@ export default function EventOrganizerDashboardPage() {
                 </div>
             ) : null}
 
+            {isOffline && offlinePending > 0 ? (
+                <div className="w-full flex items-center gap-2 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-sm font-semibold text-amber-100">
+                    <Hourglass size={16} />
+                    {offlinePending} pass request{offlinePending === 1 ? '' : 's'} not registered yet — call and mark registered below
+                </div>
+            ) : null}
+
             {pendingReview > 0 && isOrganizerQr ? (
                 <button
                     type="button"
@@ -301,7 +312,7 @@ export default function EventOrganizerDashboardPage() {
                     value={isPaid ? `₹${revenue.toLocaleString('en-IN')}` : 'Free'}
                     tone={isPaid ? 'money' : 'default'}
                     icon={IndianRupee}
-                    hint={isOrganizerQr && isPaid ? 'UPI received' : isCashfree && isPaid ? 'Cashfree collected' : isPaid ? 'Paid bookings' : undefined}
+                    hint={isOffline && isPaid ? 'Registered passes (COD)' : isOrganizerQr && isPaid ? 'UPI received' : isCashfree && isPaid ? 'Collected online' : isPaid ? 'Paid bookings' : undefined}
                 />
                 <StatTile
                     label="Checked in"
@@ -395,11 +406,11 @@ export default function EventOrganizerDashboardPage() {
 
                 {isCashfree ? (
                     <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-3.5 py-3">
-                        <p className="text-sm font-medium text-emerald-100">Cashfree online payments</p>
+                        <p className="text-sm font-medium text-emerald-100">Online payments</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">
                             {multiClass
-                                ? 'Participants pick classes (₹10,000 each). Spectators register free. Paid bookings settle via Cashfree.'
-                                : 'Guests pay online via Cashfree during registration.'}
+                                ? 'Participants pick classes (₹10,000 each). Spectators register free. Paid bookings are collected online.'
+                                : 'Guests pay online (UPI / card) during registration.'}
                         </p>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <button
@@ -437,6 +448,10 @@ export default function EventOrganizerDashboardPage() {
                     </div>
                 ) : null}
             </SectionCard>
+
+            {isOffline ? (
+                <GarbaCommissionCard revenue={revenue} percent={event.registration?.commissionPercent} />
+            ) : null}
 
             {isGarba ? (
                 <GarbaCategoryBreakdown tiers={garbaTiers} />
@@ -485,6 +500,8 @@ export default function EventOrganizerDashboardPage() {
                     eventId={eventId}
                     tiers={garbaTiers}
                     refreshKey={participantsRefreshKey}
+                    offline={isOffline}
+                    onStatusChange={() => load({ silent: true })}
                 />
             ) : null}
         </div>

@@ -18,6 +18,7 @@ function stripRegistrationSecrets(registration) {
     organizerEmail: _oe,
     googleSheetsUrl: _gs,
     confirmationEmail: _ce,
+    commissionPercent: _cp,
     ...rest
   } = registration;
   return rest;

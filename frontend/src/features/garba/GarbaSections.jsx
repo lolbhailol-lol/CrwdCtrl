@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Search, Ticket, BadgeCheck, Clock3, XCircle } from 'lucide-react';
-import { fetchEventOrganizerParticipants } from '../../services/api/eventShowOrganizer.api';
+import { Search, Ticket, BadgeCheck, Clock3, XCircle, Phone, MapPin, Percent } from 'lucide-react';
+import {
+    fetchEventOrganizerParticipants,
+    updateEventOrganizerParticipantStatus,
+} from '../../services/api/eventShowOrganizer.api';
 
 const GARBA_RE = /garba|jalsa|navratri|dandiya/i;
 const PAGE_SIZE = 50;
@@ -12,6 +15,15 @@ const STATUS_TABS = [
     { id: 'pending', label: 'Pending' },
     { id: 'failed', label: 'Failed' },
 ];
+
+const OFFLINE_STATUS_TABS = [
+    { id: '', label: 'All' },
+    { id: 'pending', label: 'Not registered' },
+    { id: 'paid', label: 'Registered' },
+    { id: 'failed', label: 'Cancelled' },
+];
+
+export const isOfflineCodEvent = (e = {}) => (e.registrationMode || e.registration?.mode) === 'offline_cod';
 
 export const formatINR = (amount) => `₹${Number(amount || 0).toLocaleString('en-IN')}`;
 
@@ -51,18 +63,18 @@ export function buildGarbaTiers(event = {}, dashboardTiers = []) {
     return merged;
 }
 
-function StatusPill({ status }) {
+function StatusPill({ status, offline = false }) {
     if (status === 'paid') {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-medium px-2.5 py-1">
-                <BadgeCheck size={12} /> Paid
+                <BadgeCheck size={12} /> {offline ? 'Registered' : 'Paid'}
             </span>
         );
     }
     if (status === 'failed') {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 text-red-300 text-[11px] font-medium px-2.5 py-1">
-                <XCircle size={12} /> Failed
+                <XCircle size={12} /> {offline ? 'Cancelled' : 'Failed'}
             </span>
         );
     }
@@ -75,8 +87,26 @@ function StatusPill({ status }) {
     }
     return (
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-300 text-[11px] font-medium px-2.5 py-1">
-            <Clock3 size={12} /> Pending
+            <Clock3 size={12} /> {offline ? 'Not registered' : 'Pending'}
         </span>
+    );
+}
+
+export function GarbaCommissionCard({ revenue, percent, className = '' }) {
+    const pct = Number(percent) || 0;
+    if (pct <= 0) return null;
+    const commission = Math.round((Number(revenue) || 0) * pct) / 100;
+    return (
+        <div className={`rounded-2xl border border-violet-500/25 bg-violet-500/8 p-4 flex items-center justify-between gap-3 ${className}`}>
+            <div className="min-w-0">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-violet-300/80 font-medium">CrwdCtrl commission ({pct}%)</p>
+                <p className="text-[1.35rem] leading-none font-semibold mt-2 tabular-nums text-white">{formatINR(commission)}</p>
+                <p className="text-[11px] text-gray-500 mt-1.5">on {formatINR(revenue)} registered pass value</p>
+            </div>
+            <div className="size-9 rounded-xl flex items-center justify-center shrink-0 bg-violet-500/15 text-violet-300">
+                <Percent size={16} strokeWidth={2.25} />
+            </div>
+        </div>
     );
 }
 
@@ -115,7 +145,10 @@ export function GarbaCategoryBreakdown({ tiers, className = '' }) {
     );
 }
 
-export function GarbaParticipantsPanel({ eventId, tiers, refreshKey = 0, className = '' }) {
+export function GarbaParticipantsPanel({
+    eventId, tiers, refreshKey = 0, offline = false, onStatusChange, className = '',
+}) {
+    const [busyId, setBusyId] = useState('');
     const [query, setQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [tierFilter, setTierFilter] = useState('');
@@ -163,10 +196,27 @@ export function GarbaParticipantsPanel({ eventId, tiers, refreshKey = 0, classNa
     useEffect(() => { load(1); }, [load, refreshKey]);
 
     const tierColor = (p) => tiers.find((t) => t.id === p.tierId || t.label === p.tierName)?.color;
+    const tabs = offline ? OFFLINE_STATUS_TABS : STATUS_TABS;
+
+    const setStatus = async (p, status) => {
+        setBusyId(p.id);
+        setError('');
+        try {
+            const res = await updateEventOrganizerParticipantStatus(eventId, p.id, status);
+            if (res?.participant) {
+                setParticipants((prev) => prev.map((row) => (row.id === p.id ? res.participant : row)));
+            }
+            onStatusChange?.();
+        } catch (e) {
+            setError(e.message || 'Could not update request');
+        } finally {
+            setBusyId('');
+        }
+    };
 
     return (
         <div className={`rounded-2xl border border-white/10 bg-[#161718]/95 p-4 ${className}`}>
-            <h2 className="text-[15px] font-semibold mb-3">Participants</h2>
+            <h2 className="text-[15px] font-semibold mb-3">{offline ? 'Pass requests' : 'Participants'}</h2>
 
             <div className="relative mb-3">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -190,7 +240,7 @@ export function GarbaParticipantsPanel({ eventId, tiers, refreshKey = 0, classNa
                     ))}
                 </select>
                 <div className="flex gap-1.5">
-                    {STATUS_TABS.map((t) => (
+                    {tabs.map((t) => (
                         <button
                             key={t.id || 'all'}
                             type="button"
@@ -209,19 +259,64 @@ export function GarbaParticipantsPanel({ eventId, tiers, refreshKey = 0, classNa
             {error ? <p className="text-[13px] text-red-300 py-3">{error}</p> : null}
 
             <div className="divide-y divide-white/5">
-                {participants.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between gap-3 py-3">
-                        <div className="min-w-0">
-                            <p className="text-[13.5px] font-medium truncate">{p.userName || 'Guest'}</p>
-                            <p className="text-[11.5px] text-gray-500 mt-0.5 truncate">
-                                {p.userPhone || p.userEmail || ''}
-                                {p.tierName ? <> · <span style={{ color: tierColor(p) }}>{p.tierName}</span></> : null}
-                                {' · '}{formatINR(p.amountPaid)}
-                            </p>
+                {participants.map((p) => {
+                    const address = String(p.responses?.address || p.responses?.delivery_address || '').trim();
+                    return (
+                        <div key={p.id} className="py-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-[13.5px] font-medium truncate">{p.userName || 'Guest'}</p>
+                                    <p className="text-[11.5px] text-gray-500 mt-0.5 truncate">
+                                        {p.userPhone || p.userEmail || ''}
+                                        {p.tierName ? <> · <span style={{ color: tierColor(p) }}>{p.tierName}</span></> : null}
+                                        {' · '}{formatINR(p.amountPaid)}
+                                    </p>
+                                </div>
+                                <StatusPill status={p.paymentStatus} offline={offline} />
+                            </div>
+                            {offline ? (
+                                <>
+                                    {address ? (
+                                        <p className="mt-1.5 flex items-start gap-1.5 text-[11.5px] text-gray-400">
+                                            <MapPin size={12} className="mt-0.5 shrink-0 text-gray-500" />
+                                            <span className="wrap-break-word">{address}</span>
+                                        </p>
+                                    ) : null}
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {p.userPhone ? (
+                                            <a
+                                                href={`tel:${String(p.userPhone).replace(/[^\d+]/g, '')}`}
+                                                className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] font-medium text-[#0ECCEE]"
+                                            >
+                                                <Phone size={12} /> Call
+                                            </a>
+                                        ) : null}
+                                        {p.paymentStatus !== 'paid' ? (
+                                            <button
+                                                type="button"
+                                                disabled={busyId === p.id}
+                                                onClick={() => setStatus(p, 'approved')}
+                                                className="rounded-lg bg-emerald-500/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-black disabled:opacity-50"
+                                            >
+                                                Mark registered
+                                            </button>
+                                        ) : null}
+                                        {p.paymentStatus === 'pending' ? (
+                                            <button
+                                                type="button"
+                                                disabled={busyId === p.id}
+                                                onClick={() => setStatus(p, 'rejected')}
+                                                className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-[11.5px] font-medium text-red-300 disabled:opacity-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                        ) : null}
+                                    </div>
+                                </>
+                            ) : null}
                         </div>
-                        <StatusPill status={p.paymentStatus} />
-                    </div>
-                ))}
+                    );
+                })}
                 {!loading && participants.length === 0 && !error ? (
                     <p className="text-[13px] text-gray-500 text-center py-8">No participants match the filters.</p>
                 ) : null}

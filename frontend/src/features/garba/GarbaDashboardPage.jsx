@@ -11,10 +11,12 @@ import { formatEventShowDate } from '../../constants/eventsPage';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
 import {
     GarbaCategoryBreakdown,
+    GarbaCommissionCard,
     GarbaParticipantsPanel,
     buildGarbaTiers,
     formatINR,
     isGarbaEvent,
+    isOfflineCodEvent,
 } from './GarbaSections';
 
 function StatTile({ label, value, hint, icon: Icon, tone = 'default' }) {
@@ -189,8 +191,18 @@ export default function GarbaDashboardPage() {
                             <StatTile label="Revenue" value={formatINR(stats.revenue)} hint={`${stats.todayRegistrations ?? 0} bookings today`} icon={IndianRupee} tone="money" />
                         </div>
 
+                        {isOfflineCodEvent(event) ? (
+                            <GarbaCommissionCard revenue={stats.revenue} percent={event.registration?.commissionPercent} className="mt-5" />
+                        ) : null}
                         <GarbaCategoryBreakdown tiers={tiers} className="mt-5" />
-                        <GarbaParticipantsPanel eventId={eventId} tiers={tiers} refreshKey={refreshKey} className="mt-5" />
+                        <GarbaParticipantsPanel
+                            eventId={eventId}
+                            tiers={tiers}
+                            refreshKey={refreshKey}
+                            offline={isOfflineCodEvent(event)}
+                            onStatusChange={loadDashboard}
+                            className="mt-5"
+                        />
                     </>
                 ) : null}
             </div>

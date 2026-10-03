@@ -35,7 +35,7 @@ const submitEventShowRegistration = async (req, res) => {
     if (!eventShow) return res.status(404).json({ error: 'Event not found' });
 
     const reg = eventShow.registration || {};
-    if (reg.status !== 'open' || !['internal_form', 'organizer_qr'].includes(reg.mode)) {
+    if (reg.status !== 'open' || !['internal_form', 'organizer_qr', 'offline_cod'].includes(reg.mode)) {
       return res.status(400).json({ error: 'Registration is not open for this event.' });
     }
 
@@ -153,7 +153,8 @@ const submitEventShowRegistration = async (req, res) => {
 
     const regMode = eventShow.registration?.mode || 'internal_form';
     const isOrganizerQr = regMode === 'organizer_qr';
-    const platformFeePercent = isOrganizerQr
+    const isOfflineCod = regMode === 'offline_cod';
+    const platformFeePercent = isOrganizerQr || isOfflineCod
       ? 0
       : resolveTrekPlatformFeePercent(eventShow.platformFeePercent, 2.5);
     const baseTotalAmount = buildEventPriceBreakdown(ticketPrice, platformFeePercent).totalAmount;
@@ -167,7 +168,11 @@ const submitEventShowRegistration = async (req, res) => {
     let totalAmount = baseTotalAmount;
 
     if (ticketPrice > 0) {
-      if (isOrganizerQr) {
+      if (isOfflineCod) {
+        // Pass request only: organizer calls back, delivers the pass and collects cash.
+        paymentStatus = 'pending';
+        registrationStatus = 'pending';
+      } else if (isOrganizerQr) {
         const rawCoupon = eventShow.registration?.allowCoupons === false
           ? ''
           : String(req.body.couponCode || responses.coupon_code || '').trim();
@@ -277,9 +282,11 @@ const submitEventShowRegistration = async (req, res) => {
       responses.coupon_code = appliedCouponCode;
     }
 
-    const paymentGateway = isOrganizerQr && totalAmount > 0
-      ? 'organizer_qr'
-      : (paymentStatus === 'paid' ? 'cashfree' : (appliedCouponCode && isOrganizerQr ? 'organizer_qr' : null));
+    const paymentGateway = isOfflineCod && totalAmount > 0
+      ? 'offline_cod'
+      : isOrganizerQr && totalAmount > 0
+        ? 'organizer_qr'
+        : (paymentStatus === 'paid' ? 'cashfree' : (appliedCouponCode && isOrganizerQr ? 'organizer_qr' : null));
     const entryAmount = totalAmount > 0 ? totalAmount : 0;
     const now = new Date();
 
@@ -378,13 +385,20 @@ const submitEventShowRegistration = async (req, res) => {
       amountPaid: registration.amountPaid,
       addedToExisting,
       reRegistrationCount: registration.reRegistrationCount || 0,
+      offlineRequest: isOfflineCod && paymentStatus === 'pending',
     });
 
+    const offlineRequest = isOfflineCod && paymentStatus === 'pending';
     scheduleRegistrationNotification(userId, {
-      title: addedToExisting ? 'Registration Updated!' : 'Registration Confirmed!',
-      message: addedToExisting
-        ? `Another package was added to your booking for ${eventShow.title}.`
-        : `You've successfully registered for ${eventShow.title}.`,
+      title: offlineRequest
+        ? 'Pass request received!'
+        : (addedToExisting ? 'Registration Updated!' : 'Registration Confirmed!'),
+      message: offlineRequest
+        ? (eventShow.registration?.offlineSuccessMessage
+          || `The ${eventShow.title} team will call you for cash-on-delivery and offline pass delivery.`)
+        : addedToExisting
+          ? `Another package was added to your booking for ${eventShow.title}.`
+          : `You've successfully registered for ${eventShow.title}.`,
       body: addedToExisting
         ? `Extra registration added for ${eventShow.title}`
         : `You've registered for ${eventShow.title}`,
