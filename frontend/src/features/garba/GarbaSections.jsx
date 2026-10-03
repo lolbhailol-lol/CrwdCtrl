@@ -18,9 +18,9 @@ const STATUS_TABS = [
 
 const OFFLINE_STATUS_TABS = [
     { id: '', label: 'All' },
-    { id: 'pending', label: 'Not registered' },
-    { id: 'paid', label: 'Registered' },
-    { id: 'failed', label: 'Cancelled' },
+    { id: 'pending', label: 'To deliver' },
+    { id: 'paid', label: 'Delivered' },
+    { id: 'failed', label: 'Backed out' },
 ];
 
 export const isOfflineCodEvent = (e = {}) => (e.registrationMode || e.registration?.mode) === 'offline_cod';
@@ -67,14 +67,14 @@ function StatusPill({ status, offline = false }) {
     if (status === 'paid') {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-300 text-[11px] font-medium px-2.5 py-1">
-                <BadgeCheck size={12} /> {offline ? 'Registered' : 'Paid'}
+                <BadgeCheck size={12} /> {offline ? 'Delivered' : 'Paid'}
             </span>
         );
     }
     if (status === 'failed') {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 text-red-300 text-[11px] font-medium px-2.5 py-1">
-                <XCircle size={12} /> {offline ? 'Cancelled' : 'Failed'}
+                <XCircle size={12} /> {offline ? 'Backed out' : 'Failed'}
             </span>
         );
     }
@@ -87,7 +87,7 @@ function StatusPill({ status, offline = false }) {
     }
     return (
         <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-300 text-[11px] font-medium px-2.5 py-1">
-            <Clock3 size={12} /> {offline ? 'Not registered' : 'Pending'}
+            <Clock3 size={12} /> {offline ? 'To deliver' : 'Pending'}
         </span>
     );
 }
@@ -101,7 +101,7 @@ export function GarbaCommissionCard({ revenue, percent, className = '' }) {
             <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.08em] text-violet-300/80 font-medium">CrwdCtrl commission ({pct}%)</p>
                 <p className="text-[1.35rem] leading-none font-semibold mt-2 tabular-nums text-white">{formatINR(commission)}</p>
-                <p className="text-[11px] text-gray-500 mt-1.5">on {formatINR(revenue)} registered pass value</p>
+                <p className="text-[11px] text-gray-500 mt-1.5">on {formatINR(revenue)} delivered pass value</p>
             </div>
             <div className="size-9 rounded-xl flex items-center justify-center shrink-0 bg-violet-500/15 text-violet-300">
                 <Percent size={16} strokeWidth={2.25} />
@@ -216,7 +216,7 @@ export function GarbaParticipantsPanel({
 
     return (
         <div className={`rounded-2xl border border-white/10 bg-[#161718]/95 p-4 ${className}`}>
-            <h2 className="text-[15px] font-semibold mb-3">{offline ? 'Pass requests' : 'Participants'}</h2>
+            <h2 className="text-[15px] font-semibold mb-3">{offline ? 'Guests' : 'Participants'}</h2>
 
             <div className="relative mb-3">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -260,7 +260,58 @@ export function GarbaParticipantsPanel({
 
             <div className="divide-y divide-white/5">
                 {participants.map((p) => {
-                    const address = String(p.responses?.address || p.responses?.delivery_address || '').trim();
+                    if (offline) {
+                        const address = String(p.responses?.address || p.responses?.delivery_address || '').trim();
+                        const phone = String(p.userPhone || '').trim();
+                        const busy = busyId === p.id;
+                        return (
+                            <div key={p.id} className="py-3.5 space-y-2">
+                                <div className="flex items-start justify-between gap-3">
+                                    <p className="text-[14px] font-semibold truncate">{p.userName || 'Guest'}</p>
+                                    <StatusPill status={p.paymentStatus} offline />
+                                </div>
+                                {phone ? (
+                                    <a
+                                        href={`tel:${phone.replace(/[^\d+]/g, '')}`}
+                                        className="flex items-center gap-1.5 text-[13px] text-[#0ECCEE] font-medium w-fit"
+                                    >
+                                        <Phone size={13} /> {phone}
+                                    </a>
+                                ) : null}
+                                <p className="flex items-start gap-1.5 text-[12.5px] text-gray-300">
+                                    <MapPin size={13} className="mt-0.5 shrink-0 text-gray-500" />
+                                    <span className="wrap-break-word">{address || 'No address given'}</span>
+                                </p>
+                                <p className="text-[11.5px] text-gray-500">
+                                    {p.tierName ? <span style={{ color: tierColor(p) }}>{p.tierName}</span> : 'Pass'}
+                                    {' · '}{formatINR(p.amountPaid)}
+                                </p>
+                                <div className="flex items-center gap-2 pt-0.5">
+                                    <span className="text-[11.5px] text-gray-500 mr-1">Pass delivered?</span>
+                                    <button
+                                        type="button"
+                                        disabled={busy || p.paymentStatus === 'paid'}
+                                        onClick={() => setStatus(p, 'approved')}
+                                        className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold disabled:cursor-default ${p.paymentStatus === 'paid'
+                                            ? 'bg-emerald-500 text-black'
+                                            : 'border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50'}`}
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={busy || p.paymentStatus === 'failed'}
+                                        onClick={() => setStatus(p, 'rejected')}
+                                        className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold disabled:cursor-default ${p.paymentStatus === 'failed'
+                                            ? 'bg-red-500 text-white'
+                                            : 'border border-red-500/40 text-red-300 hover:bg-red-500/10 disabled:opacity-50'}`}
+                                    >
+                                        No, backed out
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    }
                     return (
                         <div key={p.id} className="py-3">
                             <div className="flex items-center justify-between gap-3">
@@ -272,48 +323,8 @@ export function GarbaParticipantsPanel({
                                         {' · '}{formatINR(p.amountPaid)}
                                     </p>
                                 </div>
-                                <StatusPill status={p.paymentStatus} offline={offline} />
+                                <StatusPill status={p.paymentStatus} />
                             </div>
-                            {offline ? (
-                                <>
-                                    {address ? (
-                                        <p className="mt-1.5 flex items-start gap-1.5 text-[11.5px] text-gray-400">
-                                            <MapPin size={12} className="mt-0.5 shrink-0 text-gray-500" />
-                                            <span className="wrap-break-word">{address}</span>
-                                        </p>
-                                    ) : null}
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                        {p.userPhone ? (
-                                            <a
-                                                href={`tel:${String(p.userPhone).replace(/[^\d+]/g, '')}`}
-                                                className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11.5px] font-medium text-[#0ECCEE]"
-                                            >
-                                                <Phone size={12} /> Call
-                                            </a>
-                                        ) : null}
-                                        {p.paymentStatus !== 'paid' ? (
-                                            <button
-                                                type="button"
-                                                disabled={busyId === p.id}
-                                                onClick={() => setStatus(p, 'approved')}
-                                                className="rounded-lg bg-emerald-500/90 px-2.5 py-1.5 text-[11.5px] font-semibold text-black disabled:opacity-50"
-                                            >
-                                                Mark registered
-                                            </button>
-                                        ) : null}
-                                        {p.paymentStatus === 'pending' ? (
-                                            <button
-                                                type="button"
-                                                disabled={busyId === p.id}
-                                                onClick={() => setStatus(p, 'rejected')}
-                                                className="rounded-lg border border-red-500/30 px-2.5 py-1.5 text-[11.5px] font-medium text-red-300 disabled:opacity-50"
-                                            >
-                                                Cancel
-                                            </button>
-                                        ) : null}
-                                    </div>
-                                </>
-                            ) : null}
                         </div>
                     );
                 })}

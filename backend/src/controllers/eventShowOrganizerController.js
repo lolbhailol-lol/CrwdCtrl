@@ -1219,11 +1219,16 @@ exports.updateParticipantStatus = async (req, res) => {
             syncParentPaymentStatus(reg);
         } else {
             reg.status = status;
-            if (status === 'approved' && reg.paymentStatus === 'pending') {
-                reg.paymentStatus = 'paid';
-            }
-            if (status === 'rejected' && reg.paymentStatus === 'pending') {
-                reg.paymentStatus = 'failed';
+            if (reg.payment_gateway === 'offline_cod') {
+                // Offline pass: organizer can correct delivered ↔ backed out ↔ pending at any time.
+                reg.paymentStatus = status === 'approved' ? 'paid' : status === 'rejected' ? 'failed' : 'pending';
+            } else {
+                if (status === 'approved' && reg.paymentStatus === 'pending') {
+                    reg.paymentStatus = 'paid';
+                }
+                if (status === 'rejected' && reg.paymentStatus === 'pending') {
+                    reg.paymentStatus = 'failed';
+                }
             }
         }
 

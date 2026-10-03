@@ -271,7 +271,7 @@ export default function EventOrganizerDashboardPage() {
                 {isOffline && offlinePending > 0 ? (
                     <div className="flex items-center gap-2 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-sm font-semibold text-amber-100">
                         <Hourglass size={16} className="shrink-0" />
-                        {offlinePending} pass request{offlinePending === 1 ? '' : 's'} not registered yet — call and mark registered below
+                        {offlinePending} pass{offlinePending === 1 ? '' : 'es'} to deliver — call, then mark Yes / No in Guests below
                     </div>
                 ) : null}
 
@@ -279,16 +279,16 @@ export default function EventOrganizerDashboardPage() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <StatTile label="Registrations" value={totalRegs} hint={`${checkedIn} checked in`} icon={Users} />
                     <StatTile
-                        label={isOffline ? 'Registered' : 'Paid'}
+                        label={isOffline ? 'Delivered' : 'Paid'}
                         value={paidCount}
                         hint={`${totalRegs ? Math.round((paidCount / totalRegs) * 100) : 0}% converted`}
                         icon={UserCheck}
                         tone="ok"
                     />
                     <StatTile
-                        label={isOffline ? 'Not registered' : 'Pending'}
+                        label={isOffline ? 'To deliver' : 'Pending'}
                         value={pendingCount}
-                        hint={isOffline ? 'awaiting call' : 'payment awaited'}
+                        hint={isOffline ? `${Number(payments.failed) || 0} backed out` : 'payment awaited'}
                         icon={Hourglass}
                         tone="warn"
                     />
@@ -307,18 +307,24 @@ export default function EventOrganizerDashboardPage() {
 
                 <GarbaCategoryBreakdown tiers={garbaTiers} />
 
-                <GarbaParticipantsPanel
-                    eventId={eventId}
-                    tiers={garbaTiers}
-                    refreshKey={participantsRefreshKey}
-                    offline={isOffline}
-                    onStatusChange={() => load({ silent: true })}
-                />
+                <div id="garba-guests" className="scroll-mt-4">
+                    <GarbaParticipantsPanel
+                        eventId={eventId}
+                        tiers={garbaTiers}
+                        refreshKey={participantsRefreshKey}
+                        offline={isOffline}
+                        onStatusChange={() => load({ silent: true })}
+                    />
+                </div>
 
                 {/* Actions */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {[
-                        { label: 'Guests', icon: Users, onClick: () => navigate(guestsPath) },
+                        {
+                            label: 'Guests',
+                            icon: Users,
+                            onClick: () => document.getElementById('garba-guests')?.scrollIntoView({ behavior: 'smooth' }),
+                        },
                         { label: 'Scan', icon: QrCode, onClick: () => navigate(scanPath) },
                         { label: 'Notify', icon: Bell, onClick: () => navigate(notifyPath) },
                         {
@@ -439,7 +445,7 @@ export default function EventOrganizerDashboardPage() {
             {isOffline && offlinePending > 0 ? (
                 <div className="w-full flex items-center gap-2 rounded-2xl border border-amber-500/35 bg-amber-500/10 px-4 py-3.5 text-sm font-semibold text-amber-100">
                     <Hourglass size={16} />
-                    {offlinePending} pass request{offlinePending === 1 ? '' : 's'} not registered yet — call and mark registered below
+                    {offlinePending} pass{offlinePending === 1 ? '' : 'es'} to deliver — open Guests and mark Yes / No
                 </div>
             ) : null}
 
@@ -471,7 +477,7 @@ export default function EventOrganizerDashboardPage() {
                     value={isPaid ? `₹${revenue.toLocaleString('en-IN')}` : 'Free'}
                     tone={isPaid ? 'money' : 'default'}
                     icon={IndianRupee}
-                    hint={isOffline && isPaid ? 'Registered passes (COD)' : isOrganizerQr && isPaid ? 'UPI received' : isCashfree && isPaid ? 'Collected online' : isPaid ? 'Paid bookings' : undefined}
+                    hint={isOffline && isPaid ? 'Delivered passes (COD)' : isOrganizerQr && isPaid ? 'UPI received' : isCashfree && isPaid ? 'Collected online' : isPaid ? 'Paid bookings' : undefined}
                 />
                 <StatTile
                     label="Checked in"
