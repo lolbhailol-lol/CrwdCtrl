@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Search, Ticket, BadgeCheck, Clock3, XCircle, Phone, MapPin, Percent } from 'lucide-react';
+import { Search, Ticket, BadgeCheck, Clock3, XCircle, Phone, MapPin, Percent, Mail } from 'lucide-react';
 import {
     fetchEventOrganizerParticipants,
     updateEventOrganizerParticipantStatus,
@@ -13,7 +13,7 @@ const STATUS_TABS = [
     { id: '', label: 'All' },
     { id: 'paid', label: 'Paid' },
     { id: 'pending', label: 'Pending' },
-    { id: 'failed', label: 'Failed' },
+    { id: 'checked_in', label: 'Checked in' },
 ];
 
 const OFFLINE_STATUS_TABS = [
@@ -146,7 +146,7 @@ export function GarbaCategoryBreakdown({ tiers, className = '' }) {
 }
 
 export function GarbaParticipantsPanel({
-    eventId, tiers, refreshKey = 0, offline = false, onStatusChange, className = '',
+    eventId, tiers, refreshKey = 0, offline = false, onStatusChange, hideTitle = false, className = '',
 }) {
     const [busyId, setBusyId] = useState('');
     const [query, setQuery] = useState('');
@@ -180,7 +180,8 @@ export function GarbaParticipantsPanel({
                 page,
                 limit: PAGE_SIZE,
                 search: debouncedQuery,
-                paymentStatus: statusFilter,
+                paymentStatus: statusFilter === 'checked_in' ? '' : statusFilter,
+                checkInStatus: statusFilter === 'checked_in' ? 'checked_in' : '',
                 tierId: tierFilter,
             });
             const rows = data.participants || [];
@@ -216,7 +217,7 @@ export function GarbaParticipantsPanel({
 
     return (
         <div className={`rounded-2xl border border-white/10 bg-[#161718]/95 p-4 ${className}`}>
-            <h2 className="text-[15px] font-semibold mb-3">{offline ? 'Guests' : 'Participants'}</h2>
+            {hideTitle ? null : <h2 className="text-[15px] font-semibold mb-3">Guests</h2>}
 
             <div className="relative mb-3">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -313,23 +314,35 @@ export function GarbaParticipantsPanel({
                         );
                     }
                     return (
-                        <div key={p.id} className="py-3">
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                    <p className="text-[13.5px] font-medium truncate">{p.userName || 'Guest'}</p>
-                                    <p className="text-[11.5px] text-gray-500 mt-0.5 truncate">
-                                        {p.userPhone || p.userEmail || ''}
-                                        {p.tierName ? <> · <span style={{ color: tierColor(p) }}>{p.tierName}</span></> : null}
-                                        {' · '}{formatINR(p.amountPaid)}
-                                    </p>
-                                </div>
+                        <div key={p.id} className="py-3.5 space-y-1.5">
+                            <div className="flex items-start justify-between gap-3">
+                                <p className="text-[14px] font-semibold truncate">{p.userName || 'Guest'}</p>
                                 <StatusPill status={p.paymentStatus} />
                             </div>
+                            {p.userPhone ? (
+                                <a
+                                    href={`tel:${String(p.userPhone).replace(/[^\d+]/g, '')}`}
+                                    className="flex items-center gap-1.5 text-[13px] text-[#0ECCEE] font-medium w-fit"
+                                >
+                                    <Phone size={13} /> {p.userPhone}
+                                </a>
+                            ) : null}
+                            {p.userEmail ? (
+                                <p className="flex items-center gap-1.5 text-[12.5px] text-gray-300 min-w-0">
+                                    <Mail size={13} className="shrink-0 text-gray-500" />
+                                    <span className="truncate">{p.userEmail}</span>
+                                </p>
+                            ) : null}
+                            <p className="text-[11.5px] text-gray-500 flex flex-wrap items-center gap-x-1.5">
+                                {p.tierName ? <span style={{ color: tierColor(p) }}>{p.tierName}</span> : <span>Ticket</span>}
+                                <span>· {formatINR(p.amountPaid)}</span>
+                                {p.checkedIn ? <span className="text-emerald-400 font-medium">· Checked in</span> : null}
+                            </p>
                         </div>
                     );
                 })}
                 {!loading && participants.length === 0 && !error ? (
-                    <p className="text-[13px] text-gray-500 text-center py-8">No participants match the filters.</p>
+                    <p className="text-[13px] text-gray-500 text-center py-8">No guests match the filters.</p>
                 ) : null}
             </div>
 
@@ -344,7 +357,7 @@ export function GarbaParticipantsPanel({
                 </button>
             ) : null}
             <p className="text-[11px] text-gray-600 mt-3">
-                Showing {participants.length} of {pagination.total} participants
+                Showing {participants.length} of {pagination.total} guests
             </p>
         </div>
     );

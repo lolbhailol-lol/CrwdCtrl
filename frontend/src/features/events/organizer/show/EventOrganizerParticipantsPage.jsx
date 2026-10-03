@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ChevronRight, Download, Loader, Plus, Search, Trash2 } from 'lucide-react';
 import {
+    fetchEventOrganizerEvent,
     fetchEventOrganizerParticipants,
     updateEventOrganizerParticipantStatus,
     deleteEventOrganizerParticipant,
     downloadEventOrganizerExport,
 } from '../../../../services/api/eventShowOrganizer.api';
+import {
+    GarbaParticipantsPanel,
+    buildGarbaTiers,
+    isGarbaEvent,
+    isOfflineCodEvent,
+} from '../../../garba/GarbaSections';
 import { useDialog } from '../../../../context/DialogContext';
 import EventOrganizerManualAddModal from './EventOrganizerManualAddModal';
 import { InlinePageLoader } from '../../../../components/DetailPageLoader';
@@ -94,6 +101,70 @@ function DriversBlock({ drivers, title = 'Drivers' }) {
 }
 
 export default function EventOrganizerParticipantsPage() {
+    const { eventId } = useParams();
+    const [event, setEvent] = useState(null);
+    const [eventChecked, setEventChecked] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        setEventChecked(false);
+        fetchEventOrganizerEvent(eventId)
+            .then((data) => { if (!cancelled) setEvent(data?.event || null); })
+            .catch(() => { if (!cancelled) setEvent(null); })
+            .finally(() => { if (!cancelled) setEventChecked(true); });
+        return () => { cancelled = true; };
+    }, [eventId]);
+
+    if (!eventChecked) return <InlinePageLoader variant="event" minHeight={false} />;
+    if (event && isGarbaEvent(event)) return <GarbaGuestsView eventId={eventId} event={event} />;
+    return <StandardParticipantsPage />;
+}
+
+function GarbaGuestsView({ eventId, event }) {
+    const { toast } = useDialog();
+    const [exporting, setExporting] = useState(false);
+    const tiers = useMemo(() => buildGarbaTiers(event, []), [event]);
+
+    const onExport = async () => {
+        setExporting(true);
+        try {
+            await downloadEventOrganizerExport(eventId, { format: 'xlsx' });
+            toast('Excel sheet downloaded');
+        } catch (e) {
+            toast(e.message || 'Export failed');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-4 max-w-3xl mx-auto">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-bold">Guests</h1>
+                    <p className="text-sm text-gray-500 truncate">{event.title}</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={onExport}
+                    disabled={exporting}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-60"
+                >
+                    {exporting ? <Loader className="animate-spin" size={14} /> : <Download size={14} />}
+                    Export Excel
+                </button>
+            </div>
+            <GarbaParticipantsPanel
+                eventId={eventId}
+                tiers={tiers}
+                offline={isOfflineCodEvent(event)}
+                hideTitle
+            />
+        </div>
+    );
+}
+
+function StandardParticipantsPage() {
     const { eventId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const { toast, confirm } = useDialog();
