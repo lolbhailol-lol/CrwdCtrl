@@ -4,7 +4,7 @@
  */
 import { useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
-import { needsParticipantCountStep, buildTeamSizeLabel, getRosterBounds } from '../../../utils/teamSize';
+import { needsParticipantCountStep, buildTeamSizeLabel, getRosterBounds, isLeaderOnlyRegistration } from '../../../utils/teamSize';
 import { getCompetitionFeeTiers } from '../../../utils/competitionFeeTiers';
 
 export const PERSON_FIELD_TYPES = [
@@ -142,16 +142,16 @@ export function teamFieldMissingLabel(value, field) {
   return null;
 }
 
-export function validateTeamName(formData) {
+export function validateTeamName(formData, competition = null) {
   const chosen = Math.max(0, Number(formData?.team_size) || 0);
-  if (chosen <= 1) return null;
+  if (chosen <= 1 && !isLeaderOnlyRegistration(competition)) return null;
   const teamName = String(formData?.team_name || '').trim();
   if (teamName.length < 2) return 'Team name (required)';
   return null;
 }
 
 export function validateTeamDetails(formData, competition) {
-  const nameErr = validateTeamName(formData);
+  const nameErr = validateTeamName(formData, competition);
   if (nameErr) return nameErr;
   const teamResponses = formData?.team_responses && typeof formData.team_responses === 'object'
     ? formData.team_responses
@@ -483,7 +483,11 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
     normalizeTeamMember(m, personFields),
   );
   const person = members[personIndex] || emptyTeamMember(personFields);
-  const label = chosen === 1
+  const leaderOnly = isLeaderOnlyRegistration(competition);
+  const leaderOnlyNote = String(competition?.registration?.leaderOnlyNote || '').trim();
+  const label = leaderOnly
+    ? 'Team leader'
+    : chosen === 1
     ? 'Your details'
     : personIndex === 0
       ? 'Team leader'
@@ -516,7 +520,7 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
 
   const Req = () => <span className="text-red-400 ml-0.5">*</span>;
   const showInlineTeamName =
-    personIndex === 0 && chosen > 1 && !needsParticipantCountStep(competition);
+    personIndex === 0 && (leaderOnly || (chosen > 1 && !needsParticipantCountStep(competition)));
 
   return (
     <div className={`rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-200 shadow-sm'}`}>
@@ -525,7 +529,9 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
           {label}
         </p>
         <p className={`text-sm font-semibold mt-0.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          {chosen === 1
+          {leaderOnly
+            ? 'Team leader details'
+            : chosen === 1
             ? 'Your information'
             : personIndex === 0
               ? 'Team leader details'
@@ -535,6 +541,11 @@ export function RosterPersonStep({ personIndex, competition, formData, setFormDa
           Fields marked <span className="text-red-400">*</span> are compulsory
           {chosen > 1 ? ` · Team of ${chosen}` : ''}
         </p>
+        {leaderOnly && leaderOnlyNote ? (
+          <p className={`text-xs mt-2 rounded-lg px-3 py-2 ${isDark ? 'bg-amber-500/10 text-amber-300' : 'bg-amber-50 text-amber-800'}`}>
+            {leaderOnlyNote}
+          </p>
+        ) : null}
       </div>
       <div className="px-4 py-4 md:px-6 md:py-5 space-y-3 md:grid md:grid-cols-2 md:gap-x-4 md:gap-y-3 md:space-y-0">
         {showInlineTeamName ? (

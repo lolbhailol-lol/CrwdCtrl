@@ -36,7 +36,7 @@ import {
 } from '../../../../utils/authToken';
 import { parseTicketPrice } from '../../../../utils/platformFee';
 import { fetchPaymentQuote as fetchPaymentQuoteApi } from '../../../../services/api/payment.api';
-import { getRosterBounds, needsParticipantCountStep, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../../../utils/teamSize';
+import { getRosterBounds, needsParticipantCountStep, isLeaderOnlyRegistration, isCompetitionSoldOut, isCompetitionRegistrationClosed } from '../../../../utils/teamSize';
 import {
   teamMemberMissingLabel,
   normalizeTeamMember,
@@ -947,7 +947,7 @@ export default function useFestRegistration() {
       setError(`Select between ${min} and ${max} participant${max === 1 ? '' : 's'}`);
       return false;
     }
-    const nameErr = validateTeamName(formData);
+    const nameErr = validateTeamName(formData, competition);
     if (nameErr) {
       setError(nameErr);
       return false;
@@ -960,8 +960,8 @@ export default function useFestRegistration() {
     const idx = getPersonIndex();
     if (idx < 0) return true;
     // Fixed-size teams collect team name on person 1 (no size-picker step)
-    if (idx === 0 && getPeopleCount() > 1 && !needsTeamSizePicker()) {
-      const nameErr = validateTeamName({ ...formData, team_size: getPeopleCount() });
+    if (idx === 0 && (isLeaderOnlyRegistration(competition) || (getPeopleCount() > 1 && !needsTeamSizePicker()))) {
+      const nameErr = validateTeamName({ ...formData, team_size: getPeopleCount() }, competition);
       if (nameErr) {
         setError(nameErr);
         return false;

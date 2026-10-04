@@ -49,14 +49,21 @@ export function requiresTeamRosterGate({ teamSizeMin, teamSizeMax } = {}) {
  * Competition registration step: pick count only when the range is flexible.
  * Fixed sizes (solo, or exactly N e.g. FIFA team-of-2) skip the stepper.
  */
-export function needsParticipantCountStep({ teamSizeMin, teamSizeMax } = {}) {
+export function needsParticipantCountStep({ teamSizeMin, teamSizeMax, registration } = {}) {
+    if (registration?.leaderOnly) return false;
     const lo = clampTeam(teamSizeMin);
     const hi = clampTeam(teamSizeMax, lo);
     return hi >= 2 && lo < hi;
 }
 
+/** Team competition where only the leader registers; the full roster is sent separately. */
+export function isLeaderOnlyRegistration(comp) {
+    return Boolean(comp?.registration?.leaderOnly);
+}
+
 /** Effective min/max for roster UI — respects organizer teamSizeMin/teamSizeMax as saved */
-export function getRosterBounds({ teamSizeMin, teamSizeMax } = {}) {
+export function getRosterBounds({ teamSizeMin, teamSizeMax, registration } = {}) {
+    if (registration?.leaderOnly) return { min: 1, max: 1 };
     const lo = clampTeam(teamSizeMin);
     const hi = clampTeam(teamSizeMax, lo);
     return { min: lo, max: hi };

@@ -290,6 +290,9 @@ const competitionSchema = new mongoose.Schema(
       placeholder: String,
       required: { type: Boolean, default: true },
     }],
+    /** Team competition where only the leader registers; full roster is emailed separately. */
+    leaderOnly: { type: Boolean, default: false },
+    leaderOnlyNote: { type: String, default: '' },
     steps: [{
       stepNumber: Number,
       stepTitle: String,

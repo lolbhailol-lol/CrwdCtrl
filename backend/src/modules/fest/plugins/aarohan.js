@@ -1,12 +1,16 @@
 const AAROHAN_FEST_ID = '6a6f9708884bbe0ca158dba8';
 const AAROHAN_SLUG = 'aarohan-2027';
+const AAROHAN_MUMBAI_MULTICITY_FEST_ID = '6ac22157ec8160dfd660d0d4';
+const AAROHAN_MUMBAI_MULTICITY_SLUG = 'aarohan-multicity-2026';
+const AAROHAN_FEST_IDS = new Set([AAROHAN_FEST_ID, AAROHAN_MUMBAI_MULTICITY_FEST_ID]);
+const AAROHAN_SLUGS = new Set([AAROHAN_SLUG, AAROHAN_MUMBAI_MULTICITY_SLUG]);
 
 function isAarohanFest(festOrId) {
   if (!festOrId) return false;
   const id = typeof festOrId === 'object' ? (festOrId._id || festOrId.id || festOrId) : festOrId;
-  if (String(id || '') === AAROHAN_FEST_ID) return true;
+  if (AAROHAN_FEST_IDS.has(String(id || ''))) return true;
   if (typeof festOrId !== 'object') return false;
-  return String(festOrId.slug || '').trim().toLowerCase() === AAROHAN_SLUG;
+  return AAROHAN_SLUGS.has(String(festOrId.slug || '').trim().toLowerCase());
 }
 
 /**
@@ -26,6 +30,7 @@ const aarohanPlugin = {
 module.exports = {
   AAROHAN_FEST_ID,
   AAROHAN_SLUG,
+  AAROHAN_MUMBAI_MULTICITY_FEST_ID,
   isAarohanFest,
   aarohanPlugin,
 };
