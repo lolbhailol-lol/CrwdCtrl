@@ -17,6 +17,7 @@ const LEGACY_SLUGS = ['aarohan-mumbai-multicity-2027'];
 const VENUE = 'Mithibai College, Vile Parle (W), Mumbai';
 const TBA = 'To Be Announced';
 const TEAM_LIST_EMAIL = 'aarohan.competitions2027@gmail.com';
+const PERKS_LINE = 'Qualifiers get travel to the AAROHAN finale, accommodation assistance and free entry passes to the Pronite artist concert.';
 const LEADER_ONLY_NOTE = `Only the team leader registers here. After registering, email your full team list (each member's name and phone number) with your team name to ${TEAM_LIST_EMAIL}.`;
 
 const COMPETITIONS = [
@@ -88,7 +89,7 @@ async function main() {
     ticketPrice: TBA,
     feeAmount: 0,
     platformFeePercent: 0,
-    description: 'AAROHAN is coming to Mumbai!\n\nThe cultural fest of MIT World Peace University brings its multicity edition to Mithibai College, Mumbai, with offline elimination rounds for four flagship performing-arts competitions: group dance, band wars, solo singing and solo dance. Qualifiers move on to the AAROHAN finale and compete for the full prize pool.',
+    description: 'AAROHAN is coming to Mumbai!\n\nThe cultural fest of MIT World Peace University brings its multicity edition to Mithibai College, Mumbai, with offline elimination rounds for four flagship performing-arts competitions: group dance, band wars, solo singing and solo dance. Qualifiers move on to the AAROHAN finale and compete for the full prize pool.\n\nPerks for qualifiers:\n• Travel to the AAROHAN finale will be provided\n• Assistance with accommodation\n• Free entry passes to the Pronite artist concert',
     coverImage: source.coverImage,
     coverImages: source.coverImages,
     contacts: source.contacts,
@@ -121,7 +122,7 @@ async function main() {
     const doc = {
       ...Object.fromEntries(COPY_FIELDS.filter((k) => src[k] !== undefined).map((k) => [k, src[k]])),
       category: String(src.category || '').toUpperCase(),
-      description: item.description,
+      description: `${item.description}\n\n${PERKS_LINE}`,
       dateTime: TBA,
       venue: VENUE,
       rounds: buildRounds(src.rounds, { leaderOnly: Boolean(item.leaderOnly) }),
