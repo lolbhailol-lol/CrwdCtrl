@@ -80,6 +80,8 @@ test('settlement status and date are unknown unless Cashfree provided them', () 
   assert.equal(settlementDateOf({ transferTime: 'not-a-date' }), null);
   assert.equal(settlementStatusOf({ status: 'SUCCESS' }), 'success');
   assert.equal(settlementStatusOf({ status: 'PENDING' }), 'pending');
+  assert.equal(settlementStatusOf({ status: 'NOT_FOUND' }), 'not_found');
+  assert.equal(settlementStatusOf({ status: 'ORDER_MISSING' }), 'order_missing');
   assert.equal(settlementStatusOf({ cfSettlementId: '612' }), 'success');
   assert.ok(settlementDateOf({ transferTime: '2026-08-01T10:00:00+05:30' }));
 });
@@ -108,6 +110,37 @@ test('links by order id / payment id and never by amount', () => {
   assert.equal(amountOnly.length, 0);
 });
 
+test('links bundle regs by base Cashfree order id', () => {
+  const { rows, duplicateOrderIds } = linkOrdersToRegistrations(
+    [{ orderId: 'order_bundleabc123', paymentId: 'pay_b', totalAmount: 537, entityType: 'competition_bundle' }],
+    [
+      {
+        id: 'b1',
+        payment_order_id: 'order_bundleabc123:aaaaaaaaaaaaaaaaaaaaaaaa',
+        payment_id: 'pay_b',
+        amountPaid: 179,
+        bundleCashfreeOrderId: 'order_bundleabc123',
+      },
+      {
+        id: 'b2',
+        payment_order_id: 'order_bundleabc123:bbbbbbbbbbbbbbbbbbbbbbbb',
+        payment_id: 'pay_b',
+        amountPaid: 179,
+        bundleCashfreeOrderId: 'order_bundleabc123',
+      },
+      {
+        id: 'b3',
+        payment_order_id: 'order_bundleabc123:cccccccccccccccccccccccc',
+        payment_id: 'pay_b',
+        amountPaid: 179,
+        bundleCashfreeOrderId: 'order_bundleabc123',
+      },
+    ],
+  );
+  assert.deepEqual(duplicateOrderIds, ['order_bundleabc123']);
+  assert.equal(rows.filter((row) => !row.unmatched).length, 3);
+});
+
 test('duplicate registrations for the same order id are flagged', () => {
   const { rows, duplicateOrderIds } = linkOrdersToRegistrations(
     [{ orderId: 'order_dup', paymentId: 'p1' }],
@@ -124,7 +157,136 @@ test('razorpay gateway is excluded from Cashfree dashboard', () => {
   assert.equal(isCashfreeGateway('razorpay'), false);
   assert.equal(isCashfreeGateway('organizer_qr'), false);
   assert.equal(isCashfreeGateway('cashfree'), true);
+  assert.equal(isCashfreeGateway('cashfree_bundle'), true);
   assert.equal(isCashfreeGateway(null), true);
+});
+
+test('bundle derived payment_order_id maps to Cashfree order id', () => {
+  const { cashfreeOrderIdOf } = require('../src/services/paymentSettlementMath');
+  assert.equal(
+    cashfreeOrderIdOf('order_abc123def456:68f0aa11bb22cc33dd44ee55'),
+    'order_abc123def456',
+  );
+  assert.equal(cashfreeOrderIdOf('order_abc123def456'), 'order_abc123def456');
+});
+
+test('Cashfree-missing orders are excluded from the dashboard', () => {
+  const { isDashboardRow, isCashfreeMissingOrder } = require('../src/services/paymentSettlementMath');
+  assert.equal(isCashfreeMissingOrder({ settlementStatus: 'order_missing' }), true);
+  assert.equal(isDashboardRow({
+    bucket: BUCKET_MINDSPARK,
+    unmatched: false,
+    amountPaid: 199,
+    paymentStatus: 'PAID',
+    settlementStatus: 'order_missing',
+  }), false);
+});
+
+test('summary counts each Cashfree order once for bundles', () => {
+  const money = computeFinancials(537, 0);
+  const summary = summarizeRows([
+    {
+      bucket: BUCKET_MINDSPARK,
+      orderId: 'order_bundle_1',
+      orderAmount: 537,
+      hasSettlementRecord: true,
+      eventId: 'fest1',
+      eventName: 'Mindspark',
+      organizerType: 'fest',
+      organizerId: 'fest1',
+      organizerName: 'Mindspark',
+      unmatched: false,
+      ...computeFinancials(179, 0),
+      settlementStatus: 'pending',
+      payoutStatus: 'pending',
+    },
+    {
+      bucket: BUCKET_MINDSPARK,
+      orderId: 'order_bundle_1',
+      orderAmount: 537,
+      hasSettlementRecord: true,
+      eventId: 'fest1',
+      eventName: 'Mindspark',
+      organizerType: 'fest',
+      organizerId: 'fest1',
+      organizerName: 'Mindspark',
+      unmatched: false,
+      ...computeFinancials(179, 0),
+      settlementStatus: 'pending',
+      payoutStatus: 'pending',
+    },
+    {
+      bucket: BUCKET_MINDSPARK,
+      orderId: 'order_bundle_1',
+      orderAmount: 537,
+      hasSettlementRecord: true,
+      eventId: 'fest1',
+      eventName: 'Mindspark',
+      organizerType: 'fest',
+      organizerId: 'fest1',
+      organizerName: 'Mindspark',
+      unmatched: false,
+      ...computeFinancials(179, 0),
+      settlementStatus: 'pending',
+      payoutStatus: 'pending',
+    },
+  ]);
+  assert.equal(summary.totals.totalCollected, 537);
+  assert.equal(summary.totals.successfulPayments, 1);
+  assert.equal(summary.buckets[0].registrations, 3);
+  assert.equal(summary.totals.crwdctrlFee, money.fee);
+});
+
+test('summary excludes not_found and snapshot-less pending from collected', () => {
+  const summary = summarizeRows([
+    {
+      bucket: BUCKET_MINDSPARK,
+      orderId: 'order_ok',
+      orderAmount: 199,
+      hasSettlementRecord: true,
+      eventId: 'fest1',
+      eventName: 'Mindspark',
+      organizerType: 'fest',
+      organizerId: 'fest1',
+      organizerName: 'Mindspark',
+      unmatched: false,
+      ...computeFinancials(199, 0),
+      settlementStatus: 'success',
+      payoutStatus: 'ready',
+    },
+    {
+      bucket: BUCKET_MINDSPARK,
+      orderId: 'order_ghost',
+      orderAmount: 150,
+      hasSettlementRecord: true,
+      eventId: 'fest1',
+      eventName: 'Mindspark',
+      organizerType: 'fest',
+      organizerId: 'fest1',
+      organizerName: 'Mindspark',
+      unmatched: false,
+      ...computeFinancials(150, 0),
+      settlementStatus: 'not_found',
+      payoutStatus: 'pending',
+    },
+    {
+      bucket: BUCKET_MINDSPARK,
+      orderId: 'order_nosnap',
+      orderAmount: 99,
+      hasSettlementRecord: false,
+      eventId: 'fest1',
+      eventName: 'Mindspark',
+      organizerType: 'fest',
+      organizerId: 'fest1',
+      organizerName: 'Mindspark',
+      unmatched: false,
+      ...computeFinancials(99, 0),
+      settlementStatus: 'pending',
+      payoutStatus: 'pending',
+    },
+  ]);
+  assert.equal(summary.totals.totalCollected, 199);
+  assert.equal(summary.totals.successfulPayments, 1);
 });
 
 test('summary totals use backend-computed fee rows', () => {

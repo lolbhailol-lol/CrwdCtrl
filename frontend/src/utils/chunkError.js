@@ -226,6 +226,15 @@ export function initGlobalErrorHandlers() {
             event.preventDefault();
             return;
         }
+        // Offline Hunt: Firebase Auth token refresh fails without Wi‑Fi — ignore.
+        try {
+            const msg = String(event.reason?.code || event.reason?.message || event.reason || '');
+            const onHunt = String(window.location?.pathname || '').startsWith('/campus-hunt/offline');
+            if (onHunt && /auth\/network-request-failed|network-request-failed/i.test(msg)) {
+                event.preventDefault();
+                return;
+            }
+        } catch { /* ignore */ }
         if (!isChunkLoadError(event.reason)) return;
         event.preventDefault();
         reloadOnceForChunkError();

@@ -177,6 +177,7 @@ export default function CheckinScannerPage({
   const videoWatchdogRef = useRef(null);
   const lastScanRef = useRef({ value: null, at: 0 });
   const resumeTimerRef = useRef(null);
+  const pendingYearConfirmRawRef = useRef(null);
   const startScanLoopRef = useRef(null);
 
   const useNativeScanner = isNativeApp() && nativeScanAvailable;
@@ -298,7 +299,7 @@ export default function CheckinScannerPage({
     fetchCheckinStats();
   }, [fetchCheckinStats]);
 
-  const verifyQrPayload = useCallback(async (rawData) => {
+  const verifyQrPayload = useCallback(async (rawData, extra = {}) => {
     const trimmed = String(rawData || '').trim();
     if (!trimmed) {
       setScanResult({ status: 'error', message: 'Empty QR code' });
@@ -333,6 +334,7 @@ export default function CheckinScannerPage({
           qrData: trimmed,
           ...(competitionId ? { competitionId } : {}),
           ...(checkinExtraBody && typeof checkinExtraBody === 'object' ? checkinExtraBody : {}),
+          ...(extra && typeof extra === 'object' ? extra : {}),
         }),
       });
 
@@ -355,7 +357,7 @@ export default function CheckinScannerPage({
         const serverMsg = data.message || data.error || '';
         const isTicketScopeReject =
           data.status === 'invalid' ||
-          /ticket|different (sports )?event|different fest|different trek|correct scanner|not for (this|event|fest|trek|sports)/i.test(
+          /ticket|different (sports )?event|different fest|different trek|correct scanner|not for (this|event|fest|trek|sports)|college ID|desk/i.test(
             serverMsg,
           );
         setScanResult({
@@ -363,11 +365,17 @@ export default function CheckinScannerPage({
           message: isTicketScopeReject
             ? serverMsg || 'This ticket is not valid on this scanner.'
             : authErrorMessage || serverMsg || 'Access denied or session expired — please sign in again',
+          data: data.data,
         });
         return 'error';
       }
 
       const outcome = data.status || (data.success ? 'checked_in' : 'error');
+      if (outcome === 'needs_year_confirm') {
+        pendingYearConfirmRawRef.current = trimmed;
+      } else {
+        pendingYearConfirmRawRef.current = null;
+      }
       setScanResult({
         status: outcome,
         message: data.message || data.error || 'Check-in failed',
@@ -393,6 +401,16 @@ export default function CheckinScannerPage({
       scanLockRef.current = false;
     }
   }, [resolvedGetToken, resolvedCheckinUrl, mode, fetchCheckinStats, competitionId, checkinExtraBody, sessionExpiredMessage, authErrorMessage, isVolunteerScanner]);
+
+  const confirmYearAndCheckin = useCallback(async () => {
+    const raw = pendingYearConfirmRawRef.current
+      || (scanResult?.data?.registrationId
+        ? JSON.stringify({ registrationId: String(scanResult.data.registrationId), type: 'fest' })
+        : '');
+    if (!raw || isProcessing) return;
+    scanLockRef.current = true;
+    await verifyQrPayload(raw, { confirmYear: true });
+  }, [scanResult, isProcessing, verifyQrPayload]);
 
   const handleQRData = useCallback(async (rawData) => {
     if (scanLockRef.current) return;
@@ -666,6 +684,7 @@ export default function CheckinScannerPage({
   const scanAnother = async () => {
     setScanResult(null);
     setManualHash('');
+    pendingYearConfirmRawRef.current = null;
     scanLockRef.current = false;
     await releaseCamera();
     await startScanning();
@@ -771,13 +790,35 @@ export default function CheckinScannerPage({
                     ? 'bg-green-600/95'
                     : scanResult.status === 'already_checked_in'
                       ? 'bg-amber-500/95'
-                      : 'bg-red-600/95'
+                      : scanResult.status === 'needs_year_confirm'
+                        ? 'bg-sky-600/95'
+                        : 'bg-red-600/95'
                 }`}
               >
                 <p className="text-white font-bold text-sm">{scanResult.message}</p>
+                {(scanResult.data?.ticketPhotoUrl || scanResult.data?.userProfilePic) ? (
+                  <img
+                    src={scanResult.data.ticketPhotoUrl || scanResult.data.userProfilePic}
+                    alt=""
+                    className="mx-auto mt-2 w-20 h-20 rounded-xl object-cover border border-white/30"
+                  />
+                ) : null}
                 {scanResult.data?.userName && (
                   <p className="text-white font-medium text-sm mt-1">{scanResult.data.userName}</p>
                 )}
+                {scanResult.data?.auditoriumCategory ? (
+                  <p className="text-white/90 text-xs mt-0.5">{scanResult.data.auditoriumCategory}</p>
+                ) : null}
+                {scanResult.status === 'needs_year_confirm' ? (
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={confirmYearAndCheckin}
+                    className="mt-2 w-full min-h-[44px] px-4 py-2.5 bg-white text-sky-900 rounded-xl text-sm font-bold"
+                  >
+                    Year matches ID — allow entry
+                  </button>
+                ) : null}
                 {(scanResult.data?.userPhone || scanResult.data?.userEmail) && (
                   <p className="text-white/85 text-xs mt-0.5">
                     {[scanResult.data.userPhone, scanResult.data.userEmail].filter(Boolean).join(' · ')}
@@ -805,7 +846,7 @@ export default function CheckinScannerPage({
                     ) : null}
                   </div>
                 )}
-                {scanResult.status !== 'checked_in' && (
+                {scanResult.status !== 'checked_in' && scanResult.status !== 'needs_year_confirm' && (
                   <button
                     type="button"
                     onClick={resumeScanning}
@@ -1024,7 +1065,9 @@ export default function CheckinScannerPage({
                   ? 'bg-green-500/10 border border-green-500/25'
                   : scanResult.status === 'already_checked_in'
                     ? 'bg-amber-500/10 border border-amber-500/25'
-                    : 'bg-red-500/10 border border-red-500/25'
+                    : scanResult.status === 'needs_year_confirm'
+                      ? 'bg-sky-500/10 border border-sky-500/25'
+                      : 'bg-red-500/10 border border-red-500/25'
               }`}
             >
               <div className="mb-3">
@@ -1033,6 +1076,9 @@ export default function CheckinScannerPage({
                 )}
                 {scanResult.status === 'already_checked_in' && (
                   <AlertTriangle size={48} className="text-yellow-400 mx-auto" />
+                )}
+                {scanResult.status === 'needs_year_confirm' && (
+                  <AlertTriangle size={48} className="text-sky-400 mx-auto" />
                 )}
                 {(scanResult.status === 'invalid' || scanResult.status === 'error') && (
                   <XCircle size={48} className="text-red-400 mx-auto" />
@@ -1045,17 +1091,42 @@ export default function CheckinScannerPage({
                     ? 'text-green-400'
                     : scanResult.status === 'already_checked_in'
                       ? 'text-yellow-400'
-                      : 'text-red-400'
+                      : scanResult.status === 'needs_year_confirm'
+                        ? 'text-sky-300'
+                        : 'text-red-400'
                 }`}
               >
                 {scanResult.message}
               </h3>
 
               {scanResult.data && (
-                <div className="mt-3 space-y-1 text-sm">
+                <div className="mt-3 space-y-2 text-sm">
+                  {(scanResult.data.ticketPhotoUrl || scanResult.data.userProfilePic) ? (
+                    <img
+                      src={scanResult.data.ticketPhotoUrl || scanResult.data.userProfilePic}
+                      alt=""
+                      className="mx-auto w-36 h-36 sm:w-44 sm:h-44 rounded-2xl object-cover border border-white/20 shadow-lg"
+                    />
+                  ) : null}
+                  {scanResult.data.idCardPhotoUrl ? (
+                    <div className="mt-2">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">College ID</p>
+                      <img
+                        src={scanResult.data.idCardPhotoUrl}
+                        alt="ID card"
+                        className="mx-auto w-full max-h-40 object-contain rounded-xl bg-black/40 border border-white/15"
+                      />
+                    </div>
+                  ) : null}
                   {scanResult.data.userName && (
                     <p className="text-white font-medium">{scanResult.data.userName}</p>
                   )}
+                  {scanResult.data.auditoriumCategory ? (
+                    <p className="text-[#0ECCEE] text-xs font-semibold">{scanResult.data.auditoriumCategory}</p>
+                  ) : null}
+                  {scanResult.data.college ? (
+                    <p className="text-gray-400 text-xs">{scanResult.data.college}</p>
+                  ) : null}
                   {(scanResult.data.userPhone || scanResult.data.userEmail) && (
                     <p className="text-gray-300 text-xs">
                       {[scanResult.data.userPhone, scanResult.data.userEmail].filter(Boolean).join(' · ')}
@@ -1090,10 +1161,21 @@ export default function CheckinScannerPage({
                 </div>
               )}
 
+              {scanResult.status === 'needs_year_confirm' ? (
+                <button
+                  type="button"
+                  disabled={isProcessing}
+                  onClick={confirmYearAndCheckin}
+                  className="mt-4 w-full min-h-[48px] inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-400 text-black rounded-xl text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                >
+                  Year matches ID — allow entry
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={scanAnother}
-                className="mt-6 w-full min-h-[48px] inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-[#0ECCEE] text-black rounded-xl text-sm font-semibold hover:opacity-90"
+                className="mt-3 w-full min-h-[48px] inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-[#0ECCEE] text-black rounded-xl text-sm font-semibold hover:opacity-90"
               >
                 <RefreshCw size={16} />
                 Scan next ticket

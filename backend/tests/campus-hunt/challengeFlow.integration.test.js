@@ -1,6 +1,6 @@
 /**
  * Pure-logic integration of Round 1 scoring path (no Mongo).
- * start 100 → c1 50 → c2 50 → c3 50 → c4 75 → hint −15 = 310
+ * start 100 → c1 50 → c2 50 → c3 65 → c4 50 → c5 75 → c6 30 = 420
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -38,16 +38,10 @@ test('full happy-path score and stages without hints', () => {
   stage = team.currentStage;
   assert.equal(stage, 'CLUE_2_ACTIVE');
 
-  const t0 = new Date('2026-01-01T10:00:00Z');
-  const t1 = new Date('2026-01-01T10:01:00Z');
   const c2 = computeChallengeAward({
     challengeNumber: 2,
-    basePoints: 0,
-    awardMode: 'time_bands_total',
-    timerSeconds: 180,
-    speedBonusBands: DEFAULT_SCORING_CONFIG.clue2.speedBonusBands,
-    startedAt: t0,
-    submittedAt: t1,
+    basePoints: DEFAULT_SCORING_CONFIG.clue2.basePoints,
+    awardMode: 'flat_base',
   });
   score = applyAward(score, c2.total);
   assert.equal(c2.total, 50);
@@ -59,51 +53,76 @@ test('full happy-path score and stages without hints', () => {
 
   const c3 = computeChallengeAward({
     challengeNumber: 3,
-    basePoints: 50,
+    basePoints: DEFAULT_SCORING_CONFIG.clue3.basePoints,
     awardMode: 'flat_base',
   });
   score = applyAward(score, c3.total);
-  assert.equal(score, 250);
+  assert.equal(score, 265);
   team.currentStage = 'CLUE_3_COMPLETED';
   applyCheckpointCompletionCascade(team, '3');
   assert.equal(team.currentStage, 'CLUE_4_ACTIVE');
 
   const c4 = computeChallengeAward({
     challengeNumber: 4,
-    basePoints: 50,
-    awardMode: 'base_plus_speed',
-    timerSeconds: 300,
-    speedBonusBands: DEFAULT_SCORING_CONFIG.clue4.speedBonusBands,
-    startedAt: t0,
-    submittedAt: new Date('2026-01-01T10:02:00Z'),
+    basePoints: DEFAULT_SCORING_CONFIG.clue4.basePoints,
+    awardMode: 'flat_base',
   });
   score = applyAward(score, c4.total);
-  assert.equal(c4.total, 75);
-  assert.equal(score, 325);
+  assert.equal(c4.total, 50);
+  assert.equal(score, 315);
   team.currentStage = 'CLUE_4_COMPLETED';
+  applyCheckpointCompletionCascade(team, '4');
+  assert.equal(team.currentStage, 'CLUE_5_ACTIVE');
+
+  const t0 = new Date('2026-01-01T10:00:00Z');
+  const c5 = computeChallengeAward({
+    challengeNumber: 5,
+    basePoints: DEFAULT_SCORING_CONFIG.clue5.basePoints,
+    awardMode: 'base_plus_speed',
+    timerSeconds: 240,
+    speedBonusBands: DEFAULT_SCORING_CONFIG.clue5.speedBonusBands,
+    startedAt: t0,
+    submittedAt: new Date('2026-01-01T10:01:00Z'),
+  });
+  score = applyAward(score, c5.total);
+  assert.equal(c5.total, 75);
+  assert.equal(score, 390);
+  team.currentStage = 'CLUE_5_COMPLETED';
+  applyCheckpointCompletionCascade(team, '5');
+  assert.equal(team.currentStage, 'CLUE_6_ACTIVE');
+
+  const c6 = computeChallengeAward({
+    challengeNumber: 6,
+    basePoints: DEFAULT_SCORING_CONFIG.clue6.basePoints,
+    awardMode: 'flat_base',
+  });
+  score = applyAward(score, c6.total);
+  assert.equal(c6.total, 30);
+  assert.equal(score, 420);
+  team.currentStage = 'CLUE_6_COMPLETED';
   applyCheckpointCompletionCascade(team, 'FINISH');
   assert.equal(team.currentStage, 'SCORE_LOCKED');
 });
 
 test('late clue still awards 0 but path continues', () => {
   const startedAt = new Date('2026-01-01T10:00:00Z');
-  const late = new Date('2026-01-01T10:06:00Z');
-  const c4 = computeChallengeAward({
-    challengeNumber: 4,
-    basePoints: 50,
+  const late = new Date('2026-01-01T10:05:00Z');
+  const c5 = computeChallengeAward({
+    challengeNumber: 5,
+    basePoints: DEFAULT_SCORING_CONFIG.clue5.basePoints,
     awardMode: 'base_plus_speed',
-    timerSeconds: 300,
+    timerSeconds: 240,
     allowLateSubmit: true,
-    speedBonusBands: DEFAULT_SCORING_CONFIG.clue4.speedBonusBands,
+    speedBonusBands: DEFAULT_SCORING_CONFIG.clue5.speedBonusBands,
     startedAt,
     submittedAt: late,
   });
-  assert.equal(c4.total, 0);
-  assert.equal(c4.late, true);
+  assert.equal(c5.total, 0);
+  assert.equal(c5.late, true);
 });
 
-test('one hint path yields 310 from max 325', () => {
-  let score = 325;
-  score = applyHintDeduction(score, 15);
-  assert.equal(score, 310);
+test('one hint path yields 400 from max 420', () => {
+  let score = 420;
+  score = applyHintDeduction(score, 20);
+  assert.equal(score, 400);
 });

@@ -31,8 +31,12 @@ const STAGE_TRANSITIONS = {
   CLUE_4_TIMEOUT: ['CHECKPOINT_4_COMPLETED'],
   CHECKPOINT_4_COMPLETED: ['CLUE_5_ACTIVE'],
   CLUE_5_ACTIVE: ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'],
-  CLUE_5_COMPLETED: ['FINISH_COMPLETED'],
-  CLUE_5_FAILED: ['FINISH_COMPLETED'],
+  CLUE_5_COMPLETED: ['CHECKPOINT_5_COMPLETED'],
+  CLUE_5_FAILED: ['CHECKPOINT_5_COMPLETED'],
+  CHECKPOINT_5_COMPLETED: ['CLUE_6_ACTIVE'],
+  CLUE_6_ACTIVE: ['CLUE_6_COMPLETED', 'CLUE_6_FAILED'],
+  CLUE_6_COMPLETED: ['FINISH_COMPLETED'],
+  CLUE_6_FAILED: ['FINISH_COMPLETED'],
   FINISH_COMPLETED: ['SCORE_LOCKED'],
   SCORE_LOCKED: [],
 };
@@ -43,6 +47,7 @@ const RESOLVED = {
   3: { completed: 'CLUE_3_COMPLETED', failed: 'CLUE_3_FAILED' },
   4: { completed: 'CLUE_4_COMPLETED', failed: 'CLUE_4_FAILED', timeout: 'CLUE_4_TIMEOUT' },
   5: { completed: 'CLUE_5_COMPLETED', failed: 'CLUE_5_FAILED' },
+  6: { completed: 'CLUE_6_COMPLETED', failed: 'CLUE_6_FAILED' },
 };
 
 const CHECKPOINT_UNLOCK = {
@@ -50,6 +55,7 @@ const CHECKPOINT_UNLOCK = {
   2: ['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'],
   3: ['CLUE_3_COMPLETED', 'CLUE_3_FAILED'],
   4: ['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'],
+  5: ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'],
 };
 
 const CHECKPOINT_NEXT = {
@@ -57,6 +63,7 @@ const CHECKPOINT_NEXT = {
   2: 'CHECKPOINT_2_COMPLETED',
   3: 'CHECKPOINT_3_COMPLETED',
   4: 'CHECKPOINT_4_COMPLETED',
+  5: 'CHECKPOINT_5_COMPLETED',
 };
 
 const AUTO_AFTER_CHECKPOINT = {
@@ -64,16 +71,28 @@ const AUTO_AFTER_CHECKPOINT = {
   CHECKPOINT_2_COMPLETED: 'CLUE_3_ACTIVE',
   CHECKPOINT_3_COMPLETED: 'CLUE_4_ACTIVE',
   CHECKPOINT_4_COMPLETED: 'CLUE_5_ACTIVE',
+  CHECKPOINT_5_COMPLETED: 'CLUE_6_ACTIVE',
   FINISH_COMPLETED: 'SCORE_LOCKED',
 };
 
-const ROUTE_BY_KEY = { 1: 'orange', 2: 'green', 3: 'blue', 4: 'purple' };
+const ROUTE_BY_KEY = { 1: 'orange', 2: 'green', 3: 'blue', 4: 'purple', 5: 'red' };
 
 function huntError(message, status = 400, code = 'OFFLINE') {
   const err = new Error(message);
   err.status = status;
   err.code = code;
   return err;
+}
+
+/** Match backend normalizeTeamCode — CC1 / 1 → CC001. */
+function normalizeOfflineTeamCode(raw) {
+  let s = String(raw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!s) return '';
+  if (['LOGIN', 'PLAY', 'TEAM', 'ADMIN', 'LEADERBOARD'].includes(s)) return '';
+  if (/^\d+$/.test(s)) return `CC${s.padStart(3, '0')}`;
+  const match = s.match(/^CC(\d+)$/);
+  if (match) return `CC${match[1].padStart(3, '0')}`;
+  return s;
 }
 
 function clone(value) {
@@ -99,7 +118,7 @@ function roster(bundle) {
 export function teamSize(bundle) {
   const fromEvent = Number(bundle?.event?.teamSize);
   const fromRoster = roster(bundle).length;
-  return Math.max(2, Math.min(8, fromRoster || fromEvent || 4));
+  return Math.max(2, Math.min(12, fromRoster || fromEvent || 4));
 }
 
 function emptyClue() {
@@ -131,16 +150,38 @@ export function createInitialTeamState(bundle) {
       3: emptyClue(),
       4: emptyClue(),
       5: emptyClue(),
+      6: emptyClue(),
     },
     checkpoints: {
       1: { scans: {}, confirmed: false },
       2: { scans: {}, confirmed: false },
       3: { scans: {}, confirmed: false },
       4: { scans: {}, confirmed: false },
+      5: { scans: {}, confirmed: false },
     },
     finishedAt: null,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Fill missing clue/checkpoint slots when loading an older offline save. */
+export function hydrateTeamState(state) {
+  if (!state || typeof state !== 'object') return createInitialTeamState({});
+  const next = clone(state);
+  next.clueProgress = next.clueProgress || {};
+  next.checkpoints = next.checkpoints || {};
+  for (const n of [1, 2, 3, 4, 5, 6]) {
+    if (!next.clueProgress[n]) next.clueProgress[n] = emptyClue();
+  }
+  for (const n of [1, 2, 3, 4, 5]) {
+    if (!next.checkpoints[n]) next.checkpoints[n] = { scans: {}, confirmed: false };
+  }
+  // Migrate pre–Clue-6 saves that jumped Clue 5 → finish.
+  if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(next.currentStage)
+    && !next.checkpoints[5]?.confirmed) {
+    /* leave as-is — pendingCheckpointKey now routes them to red scan */
+  }
+  return next;
 }
 
 function clue1NeverPlayed(state) {
@@ -154,21 +195,65 @@ export function hydrateState(bundle, state) {
   if (!state || !state.clueProgress?.[1] || String(state.currentStage || '').includes('CLUE1_')) {
     return createInitialTeamState(bundle);
   }
-  if (!state.huntStartedAt && clue1NeverPlayed(state)) {
-    const next = clone(state);
+  let next = hydrateTeamState(state);
+  if (!next.huntStartedAt && clue1NeverPlayed(next)) {
+    next = clone(next);
     next.currentStage = 'WAITING';
     next.clueProgress[1] = emptyClue();
     next.huntStartedAt = null;
-    return next;
   }
-  return state;
+  return next;
 }
 
 export function isHuntWaiting(state) {
   return String(state?.currentStage || 'WAITING') === 'WAITING';
 }
 
-export function startHunt(bundle, session, state, now = new Date()) {
+/**
+ * Offline start — one secret code only.
+ * Organizer says the word at the gather point; leaders type it; hunt starts.
+ */
+export function getHuntStartGate(bundle, now = new Date(), { goCode = '' } = {}) {
+  void now;
+  const expected = String(bundle?.event?.organizerStartCode || 'GO').trim().toUpperCase();
+  const got = String(goCode || '').trim().toUpperCase();
+
+  if (!expected) {
+    return {
+      open: true,
+      reason: 'OPEN',
+      openAt: null,
+      remainingMs: 0,
+      timeReached: true,
+      needsGoCode: false,
+      message: '',
+    };
+  }
+
+  if (got === expected) {
+    return {
+      open: true,
+      reason: 'OPEN',
+      openAt: null,
+      remainingMs: 0,
+      timeReached: true,
+      needsGoCode: true,
+      message: '',
+    };
+  }
+
+  return {
+    open: false,
+    reason: 'NEED_GO_CODE',
+    openAt: null,
+    remainingMs: 0,
+    timeReached: true,
+    needsGoCode: true,
+    message: 'Wait at the gather point. When the organizer says the start code, type it here.',
+  };
+}
+
+export function startHunt(bundle, session, state, now = new Date(), { goCode = '' } = {}) {
   assertLeader(session);
   let next = clone(state);
   if (next.currentStage === 'SCORE_LOCKED') {
@@ -178,8 +263,12 @@ export function startHunt(bundle, session, state, now = new Date()) {
     next = ensureClueActive(bundle, next, now);
     return {
       state: next,
-      meta: { alreadyStarted: true, message: 'Hunt already started — show Team QR to teammates.' },
+      meta: { alreadyStarted: true, message: 'Hunt already started — continue on this leader phone.' },
     };
+  }
+  const gate = getHuntStartGate(bundle, now, { goCode });
+  if (!gate.open) {
+    throw huntError(gate.message, 403, gate.reason);
   }
   if (!canTransition(next.currentStage, 'CLUE_1_ACTIVE')) {
     throw huntError('Cannot start the hunt from this stage', 409, 'WRONG_STAGE');
@@ -190,12 +279,54 @@ export function startHunt(bundle, session, state, now = new Date()) {
   next = ensureClueActive(bundle, next, now);
   return {
     state: next,
-    meta: { message: 'Hunt started — show Team QR so teammates unlock Clue 1.' },
+    meta: { message: 'Hunt started — solve Clue 1 on this leader phone.' },
   };
 }
 
 export function getClue(bundle, n) {
-  return bundle?.clues?.[`clue${n}`] || null;
+  const key = `clue${n}`;
+  return bundle?.clues?.[key] || bundle?.challenges?.[key] || null;
+}
+
+/** Canonical accepted answers for offline grading (digits / letters / lockbox). */
+function acceptedAnswersForClue(bundle, n, clue) {
+  const raw = [clue?.answer, ...(clue?.acceptedAnswers || [])].filter(Boolean);
+  if (n === 2) {
+    const digits = [];
+    for (const row of raw) {
+      const d = String(row || '').replace(/\D/g, '');
+      if (d.length >= 3) digits.push(d.slice(0, 3));
+    }
+    // Only use green plant if challenge has no digit answer yet (legacy packs).
+    if (!digits.length) {
+      const plant = String(bundle?.route?.green?.joinedWord || '').replace(/\D/g, '');
+      if (plant.length >= 3) digits.push(plant.slice(0, 3));
+      const frags = Array.isArray(bundle?.route?.green?.plantFragments)
+        ? bundle.route.green.plantFragments.map((f) => String(f || '').replace(/\D/g, '')).join('')
+        : '';
+      if (frags.length >= 3) digits.push(frags.slice(0, 3));
+    }
+    return [...new Set(digits)];
+  }
+  if (n === 5) {
+    const words = [];
+    for (const row of raw) {
+      const w = String(row || '').replace(/[^A-Za-z]/g, '').toUpperCase();
+      if (w.length >= 3) words.push(w);
+    }
+    return [...new Set(words)];
+  }
+  if (n === 3) {
+    const codes = [];
+    for (const row of raw) {
+      const s = String(row || '').trim();
+      const d = s.replace(/\D/g, '');
+      if (d.length >= 3) codes.push(d);
+      else if (s.length >= 3) codes.push(s.toUpperCase());
+    }
+    return [...new Set(codes)];
+  }
+  return raw.map((v) => String(v || '').trim()).filter(Boolean);
 }
 
 export function checkpointForKey(bundle, key) {
@@ -210,6 +341,7 @@ export function pendingCheckpointKey(stage) {
   if (['CLUE_2_COMPLETED', 'CLUE_2_FAILED', 'CLUE_2_TIMEOUT'].includes(stage)) return 2;
   if (['CLUE_3_COMPLETED', 'CLUE_3_FAILED'].includes(stage)) return 3;
   if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(stage)) return 4;
+  if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(stage)) return 5;
   return null;
 }
 
@@ -233,18 +365,30 @@ export function ensureClueActive(bundle, state, now = new Date()) {
   const row = next.clueProgress[n] || emptyClue();
   if (row.state === 'LOCKED' || !row.startedAt) {
     const cfg = scoring(bundle, n);
-    const timerSeconds = n === 2 || n === 4
-      ? Number(cfg.timerSeconds || 180)
-      : n === 5
-        ? Number(cfg.timerSeconds || 300)
-        : Number(cfg.timerSeconds || 0);
-    const delay = n === 2 ? Number(cfg.timerStartDelaySeconds ?? 20)
-      : n === 4 ? Number(cfg.timerStartDelaySeconds ?? 15)
-        : 0;
+    // Physical clues + Zip: no hunt countdown on blue (3) / red (5) either.
+    const timerSeconds = [2, 3, 4, 5, 6].includes(n)
+      ? 0
+      : Number(cfg.timerSeconds || 0);
+    const delay = 0;
     const window = buildWindow(timerSeconds, now, delay);
     row.state = 'ACTIVE';
     row.startedAt = window.startedAt;
     row.expiresAt = window.expiresAt;
+    next.clueProgress[n] = row;
+    bump(next);
+  } else if (n === 4 && row.expiresAt) {
+    row.expiresAt = null;
+    if (row.failureReason === 'TIMEOUT' || row.failureReason === 'REVEALED_ZERO_POINTS') {
+      row.failureReason = null;
+    }
+    next.clueProgress[n] = row;
+    bump(next);
+  } else if ((n === 3 || n === 5) && row.expiresAt) {
+    // Drop any legacy countdown left on blue/red after pack soft-update.
+    row.expiresAt = null;
+    if (row.failureReason === 'TIMEOUT' || row.failureReason === 'REVEALED_ZERO_POINTS') {
+      row.failureReason = null;
+    }
     next.clueProgress[n] = row;
     bump(next);
   }
@@ -252,25 +396,8 @@ export function ensureClueActive(bundle, state, now = new Date()) {
 }
 
 export function tickTimers(bundle, state, now = new Date()) {
-  let next = ensureClueActive(bundle, state, now);
-  const match = String(next.currentStage || '').match(/^CLUE_(\d)_ACTIVE$/);
-  if (!match) return next;
-  const n = Number(match[1]);
-  const row = next.clueProgress[n];
-  if (!row || row.state !== 'ACTIVE' || !row.expiresAt) return next;
-  if (now.getTime() < new Date(row.expiresAt).getTime()) return next;
-  if (![2, 4, 5].includes(n)) return next;
-  row.state = 'COMPLETED';
-  row.failureReason = 'REVEALED_ZERO_POINTS';
-  row.awardedPoints = 0;
-  row.completedAt = now.toISOString();
-  next.clueProgress[n] = row;
-  const dest = RESOLVED[n]?.completed;
-  if (dest && canTransition(next.currentStage, dest)) {
-    next.currentStage = dest;
-  }
-  bump(next);
-  return next;
+  // No hunt countdown soft-reveal — blue (3) and red (5) are untimed.
+  return ensureClueActive(bundle, state, now);
 }
 
 function assertLeader(session) {
@@ -296,28 +423,29 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   if (['COMPLETED', 'FAILED', 'TIMED_OUT'].includes(row.state)) {
     throw huntError('Challenge already resolved', 409, 'ALREADY_RESOLVED');
   }
-  if ((n === 2 || n === 4) && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
+  if (n === 2 && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
     const secs = Math.ceil((new Date(row.startedAt).getTime() - now.getTime()) / 1000);
     throw huntError(`Read the instructions first — timer starts in ${secs}s`, 409, 'TIMER_NOT_STARTED');
   }
 
   const expired = Boolean(row.expiresAt && now.getTime() >= new Date(row.expiresAt).getTime());
   const allowLate = cfg.allowLateSubmit !== false || n === 2 || n === 4 || n === 5;
-  const accepted = [clue.answer, ...(clue.acceptedAnswers || [])].filter(Boolean);
-  const correct = matchesAnyAccepted(answer, accepted);
+  const accepted = acceptedAnswersForClue(bundle, n, clue);
+  const correct = matchesAnyAccepted(answer, accepted, n);
   const nextAttempts = (row.attempts || 0) + 1;
   const maxAttempts = clue.maxAttempts || cfg.maxAttempts || 3;
 
   if (!correct) {
     row.attempts = nextAttempts;
     const failed = nextAttempts >= maxAttempts;
-    const clue1Reveal = failed && n === 1 && cfg.revealOnMaxAttempts !== false;
-    if (clue1Reveal) {
-      row.state = 'COMPLETED';
+    // Typed clues: 3 fails → show answer (0 pts), stay ACTIVE so they type it.
+    const revealAndType = failed
+      && [1, 2, 3, 5].includes(n)
+      && cfg.revealOnMaxAttempts !== false;
+    if (revealAndType) {
       row.failureReason = 'REVEALED_ZERO_POINTS';
       row.awardedPoints = 0;
-      row.completedAt = now.toISOString();
-      next.currentStage = RESOLVED[1].completed;
+      // Keep ACTIVE — must type revealed answer to continue.
     } else if (failed) {
       row.state = 'FAILED';
       row.failureReason = 'MAX_ATTEMPTS';
@@ -328,19 +456,25 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
     }
     next.clueProgress[n] = row;
     bump(next);
+    const answerText = String(clue.answer || '').trim();
     return {
       state: next,
       meta: {
         correct: false,
         revealed: row.failureReason === 'REVEALED_ZERO_POINTS',
         revealedLocation: row.failureReason === 'REVEALED_ZERO_POINTS' && n === 1
-          ? (clue.answer || clue.destinationInstruction || null)
+          ? (answerText || clue.destinationInstruction || null)
+          : undefined,
+        revealedAnswer: row.failureReason === 'REVEALED_ZERO_POINTS'
+          ? (answerText || null)
           : undefined,
         attemptsLeft: Math.max(0, maxAttempts - nextAttempts),
         awardedPoints: 0,
-        message: failed
-          ? (clue1Reveal ? 'Location revealed — go scan orange.' : 'Out of attempts — continue.')
-          : `Incorrect. Attempts left: ${Math.max(0, maxAttempts - nextAttempts)}`,
+        message: revealAndType
+          ? 'Out of attempts (0 pts). Answer shown — type it exactly to continue.'
+          : failed
+            ? 'Out of attempts — continue.'
+            : `Incorrect. ${Math.max(0, maxAttempts - nextAttempts)} of ${maxAttempts} attempts left`,
       },
     };
   }
@@ -362,30 +496,55 @@ export function submitAnswer(bundle, session, state, challengeNumber, answer, no
   row.state = 'COMPLETED';
   row.awardedPoints = award.total;
   row.completedAt = now.toISOString();
-  next.score = (Number(next.score) || 0) + (Number(award.total) || 0);
+  if (award.late || row.failureReason === 'REVEALED_ZERO_POINTS') {
+    row.awardedPoints = 0;
+    row.failureReason = row.failureReason === 'REVEALED_ZERO_POINTS'
+      ? 'REVEALED_ZERO_POINTS'
+      : 'LATE_ZERO_POINTS';
+  } else {
+    row.failureReason = undefined;
+  }
+  next.score = (Number(next.score) || 0) + (Number(row.awardedPoints) || 0);
   const dest = RESOLVED[n]?.completed;
   if (dest && canTransition(next.currentStage, dest)) next.currentStage = dest;
   next.clueProgress[n] = row;
+
+  // Clue 6 finish code → lock score at Mindspark Lobby
+  if (n === 6) {
+    if (canTransition(next.currentStage, 'FINISH_COMPLETED')) {
+      next.currentStage = 'FINISH_COMPLETED';
+    }
+    if (canTransition(next.currentStage, 'SCORE_LOCKED')) {
+      next.currentStage = 'SCORE_LOCKED';
+    }
+    next.finishedAt = now.toISOString();
+  }
   bump(next);
 
   const destHint = n === 1
-    ? 'Go to that place — find the written clues, join the word, type it, then scan orange once.'
+    ? 'Go to that place — leader scans the orange FIRST SCAN QR once.'
     : n === 2
-      ? 'Green stop — join the word, type it, scan once.'
+      ? 'Green stop — leader scans the green SECOND SCAN QR once.'
       : n === 3
-        ? 'Blue stop — join the word, type it, scan once.'
+        ? 'Blue stop — leader scans the blue THIRD SCAN QR once.'
         : n === 4
-          ? 'Purple stop — join the word, type it, scan once.'
-          : 'Report to your start desk.';
+          ? 'Purple stop — leader scans the purple FOURTH SCAN QR once → Clue 5.'
+          : n === 5
+            ? 'Red FIFTH SCAN — scan once → Clue 6 at Mindspark Lobby.'
+            : 'Score locked at Mindspark Lobby. Export results for the desk.';
 
   return {
     state: next,
     meta: {
       correct: true,
-      late: Boolean(award.late),
-      awardedPoints: award.total,
+      late: Boolean(award.late || row.failureReason === 'REVEALED_ZERO_POINTS' || row.failureReason === 'LATE_ZERO_POINTS'),
+      awardedPoints: Number(row.awardedPoints) || 0,
       destinationInstruction: clue.destinationInstruction || destHint,
-      message: destHint,
+      message: n === 6
+        ? 'Finish code accepted — score locked at Mindspark Lobby.'
+        : destHint,
+      scoreLocked: next.currentStage === 'SCORE_LOCKED',
+      finalScore: next.score,
     },
   };
 }
@@ -403,7 +562,7 @@ export function requestHint(bundle, session, state, challengeNumber, now = new D
   if (row.hintUsed) {
     return { state: next, meta: { hint: clue?.hintText || '', alreadyUsed: true } };
   }
-  if ((n === 2 || n === 4) && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
+  if (n === 2 && row.startedAt && now.getTime() < new Date(row.startedAt).getTime()) {
     throw huntError('Hints unlock when the hunt timer starts', 409, 'TIMER_NOT_STARTED');
   }
   const cost = Number(clue?.hintCost ?? scoring(bundle, n).hintCost) || 15;
@@ -436,7 +595,7 @@ export function parseStationQr(raw) {
 
 function allBundleCheckpoints(bundle) {
   const list = [];
-  for (const color of ['orange', 'green', 'blue', 'purple']) {
+  for (const color of ['orange', 'green', 'blue', 'purple', 'red']) {
     if (bundle?.route?.[color]) list.push(bundle.route[color]);
   }
   if (Array.isArray(bundle?.checkpoints)) list.push(...bundle.checkpoints);
@@ -524,7 +683,8 @@ export function submitStopJoinWord(bundle, session, state, answer, now = new Dat
   assertLeader(session);
   const next = tickTimers(bundle, state, now);
   const key = pendingCheckpointKey(next.currentStage);
-  if (!key) throw huntError('No stop join-word needed right now', 409, 'WRONG_STAGE');
+  // Plant join-word is only at the second stop (after Clue 2), not first scan.
+  if (Number(key) !== 2) throw huntError('No stop join-word needed right now', 409, 'WRONG_STAGE');
   const expected = checkpointForKey(bundle, key);
   const want = String(expected?.joinedWord || '').trim();
   if (!want) {
@@ -568,18 +728,17 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
   const next = tickTimers(bundle, state, now);
   const key = pendingCheckpointKey(next.currentStage);
   if (!key) {
-    throw huntError('No station scan needed right now', 409, 'WRONG_STAGE');
+    if (/CLUE_\d_ACTIVE/.test(String(next.currentStage || ''))) {
+      throw huntError('Type your clue answer first — then scan the poster', 409, 'WRONG_STAGE');
+    }
+    throw huntError('No station scan needed right now — follow the instruction on your phone', 409, 'WRONG_STAGE');
   }
   const allowed = CHECKPOINT_UNLOCK[key] || [];
   if (!allowed.includes(next.currentStage)) {
-    throw huntError('Wrong stage for this poster', 409, 'WRONG_STAGE');
+    throw huntError('Wrong stage for this poster — finish the current clue first', 409, 'WRONG_STAGE');
   }
   const expected = checkpointForKey(bundle, key);
-  const needJoin = Boolean(String(expected?.joinedWord || '').trim());
   const cpRow = next.checkpoints[key] || { scans: {}, confirmed: false };
-  if (needJoin && !cpRow.joinWordOk) {
-    throw huntError('Type the joined word from the plant fragments first', 409, 'JOIN_WORD_REQUIRED');
-  }
   const parsed = parseStationQr(raw);
   matchExpectedCheckpoint(bundle, key, parsed);
   const memberKey = session.memberKey || 'leader';
@@ -587,17 +746,20 @@ export function scanStation(bundle, session, state, raw, now = new Date()) {
   cp.scans = { ...cp.scans, [memberKey]: { at: now.toISOString(), name: session.name } };
   next.checkpoints[key] = cp;
   bump(next);
+
+  // Leader-only: one scan clears the stop (no separate team-code step).
+  const claimed = confirmStation(bundle, session, next, bundle.team.teamCode, now);
   return {
-    state: next,
+    state: claimed.state,
     localScanKey: String(key),
     meta: {
-      message: 'Poster scanned — enter your team code to continue',
-      verifiedCount: Object.keys(cp.scans || {}).length,
+      message: 'Checkpoint passed',
+      verifiedCount: 1,
       requiredCount: 1,
-      checkpointStatus: null,
-      checkpointId: expected.id,
+      awaitingTeamCodeConfirm: false,
+      unlockedNext: true,
+      checkpointId: expected?.id,
       checkpointKey: String(key),
-      awaitingTeamCodeConfirm: !cp.confirmed,
     },
   };
 }
@@ -629,7 +791,7 @@ export async function collectMemberProof(bundle, session, state, raw) {
   };
   next.checkpoints[key] = cp;
   bump(next);
-  const required = teamSize(bundle);
+  const required = 1;
   const verifiedCount = Object.keys(cp.scans).length;
   return {
     state: next,
@@ -637,7 +799,7 @@ export async function collectMemberProof(bundle, session, state, raw) {
       message: `${payload.name || payload.slot} collected (${verifiedCount}/${required})`,
       verifiedCount,
       requiredCount: required,
-      awaitingTeamCodeConfirm: verifiedCount >= required && !cp.confirmed,
+      awaitingTeamCodeConfirm: false,
     },
   };
 }
@@ -647,14 +809,15 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
   const next = clone(state);
   const key = pendingCheckpointKey(next.currentStage);
   if (!key) throw huntError('No checkpoint to confirm', 409, 'WRONG_STAGE');
-  const expectedCode = String(bundle.team.teamCode || '').trim().toUpperCase();
-  if (String(teamCode || '').trim().toUpperCase() !== expectedCode) {
+  const expectedCode = normalizeOfflineTeamCode(bundle.team.teamCode);
+  const providedCode = normalizeOfflineTeamCode(teamCode);
+  if (!providedCode || providedCode !== expectedCode) {
     throw huntError('Wrong team code', 403, 'BAD_TEAM_CODE');
   }
   const required = 1;
   const cp = next.checkpoints[key] || { scans: {}, confirmed: false };
   if (Object.keys(cp.scans || {}).length < required) {
-    throw huntError('Scan the poster first, then enter your team code', 409, 'SCANS_INCOMPLETE');
+    throw huntError('Scan the poster first', 409, 'SCANS_INCOMPLETE');
   }
   cp.confirmed = true;
   cp.confirmedAt = now.toISOString();
@@ -669,18 +832,60 @@ export function confirmStation(bundle, session, state, teamCode, now = new Date(
     state: activated,
     meta: {
       unlockedNext: true,
-      message: auto
-        ? 'Checkpoint complete — next clue unlocked.'
-        : 'Checkpoint complete.',
+      message: 'Checkpoint passed',
     },
   };
 }
 
-export function markReachedStart(bundle, session, state, now = new Date()) {
+/**
+ * One-phone heal: scan was recorded but confirm never finished (older saves / interrupted).
+ * Auto-confirms with the pack team code — no second UI step.
+ */
+export function healOnePhoneStation(bundle, session, state, now = new Date()) {
+  if (!bundle || !session || session.role !== 'leader' || !state) {
+    return { state, healed: false };
+  }
+  const key = pendingCheckpointKey(state.currentStage);
+  if (!key) return { state, healed: false };
+  const cp = state.checkpoints?.[key];
+  if (!cp || cp.confirmed) return { state, healed: false };
+  if (Object.keys(cp.scans || {}).length < 1) return { state, healed: false };
+  try {
+    const claimed = confirmStation(bundle, session, state, bundle.team.teamCode, now);
+    return { state: claimed.state, healed: true, meta: claimed.meta };
+  } catch {
+    return { state, healed: false };
+  }
+}
+
+export function markReachedStart(bundle, session, state, finishCode = '', now = new Date()) {
   assertLeader(session);
   const next = clone(state);
-  if (!['CLUE_5_COMPLETED', 'CLUE_5_FAILED', 'FINISH_COMPLETED'].includes(next.currentStage)) {
-    throw huntError('Finish Clue 5 before reporting to start', 409, 'WRONG_STAGE');
+  if (!['CLUE_6_ACTIVE', 'CLUE_6_COMPLETED', 'CLUE_6_FAILED', 'FINISH_COMPLETED'].includes(next.currentStage)) {
+    throw huntError('Go to Mindspark Lobby after the red scan, then enter the finish code', 409, 'WRONG_STAGE');
+  }
+  const code = String(finishCode || '').trim();
+  if (code) {
+    const clue6 = getClue(bundle, 6);
+    const accepted = [
+      clue6?.answer,
+      ...(clue6?.acceptedAnswers || []),
+      bundle.event?.organizerFinishCode,
+    ].filter(Boolean);
+    if (!matchesAnyAccepted(code, accepted)) {
+      throw huntError('Wrong finish code — ask the organizer at Mindspark Lobby', 400, 'BAD_FINISH_CODE');
+    }
+  } else if (next.currentStage === 'CLUE_6_ACTIVE') {
+    throw huntError('Enter the organizer finish code', 400, 'NO_FINISH_CODE');
+  }
+  if (next.currentStage === 'CLUE_6_ACTIVE' && canTransition(next.currentStage, 'CLUE_6_COMPLETED')) {
+    next.currentStage = 'CLUE_6_COMPLETED';
+    const row = next.clueProgress[6] || emptyClue();
+    row.state = 'COMPLETED';
+    row.awardedPoints = Number(scoring(bundle, 6).basePoints || 30) || 0;
+    row.completedAt = now.toISOString();
+    next.clueProgress[6] = row;
+    next.score = (Number(next.score) || 0) + (Number(row.awardedPoints) || 0);
   }
   if (next.currentStage !== 'FINISH_COMPLETED' && canTransition(next.currentStage, 'FINISH_COMPLETED')) {
     next.currentStage = 'FINISH_COMPLETED';
@@ -692,7 +897,11 @@ export function markReachedStart(bundle, session, state, now = new Date()) {
   bump(next);
   return {
     state: next,
-    meta: { message: 'Score locked. Export results for the desk.' },
+    meta: {
+      message: 'Score locked at Mindspark Lobby. Export results for the desk.',
+      finalScore: next.score,
+      scoreLocked: true,
+    },
   };
 }
 

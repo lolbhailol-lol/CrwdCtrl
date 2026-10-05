@@ -2,50 +2,46 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import PlayerPlayScreen from '../../player/PlayerPlayScreen';
 import OfflineHandoffDock from '../components/OfflineHandoffDock';
-import OfflineScoreBoard from '../components/OfflineScoreBoard';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import {
   loadOfflineBundle,
   loadOfflineSession,
   loadOfflineTeamState,
-  resetOfflineHuntLocal,
+  saveOfflineBundle,
   saveOfflineSession,
   saveOfflineTeamState,
   appendOfflinePlayLog,
 } from '../offlineDb';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntBriefing from '../components/OfflineHuntBriefing';
+import { startOverHunt, applyServerStartOverIfNeeded } from '../startOverHunt';
 import {
-  applyTeamSync,
-  collectMemberProof,
   confirmStation,
   ensureClueActive,
+  healOnePhoneStation,
   hydrateState,
   isHuntWaiting,
   markReachedStart,
-  pendingCheckpointKey,
   requestHint,
   scanStation,
   startHunt,
   submitAnswer,
-  submitStopJoinWord,
   tickTimers,
 } from '../offlineEngine';
 import { buildPlayData } from '../buildPlayData';
 import {
-  buildMemberProofPayload,
   buildPhoneBackupPayload,
   buildResultsPayload,
-  buildTeamSyncPayload,
   isPhoneBackup,
   parseQrJson,
   verifyPayload,
 } from '../offlineQr';
 import {
   enqueueOfflineProgress,
-  flushOfflineProgressQueue,
   offlineBoardPendingCount,
+  isOfflineBoardSyncPaused,
   rotateOfflineDeviceIdForTakeover,
+  ensureOfflineGridKey,
 } from '../offlineBoardSync';
 
 function downloadJson(filename, data) {
@@ -65,17 +61,14 @@ export default function OfflineHuntPlayPage() {
   const [state, setState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [playData, setPlayData] = useState(null);
-  const [proofPayload, setProofPayload] = useState('');
-  const [teamSyncPayload, setTeamSyncPayload] = useState('');
   const [resultsPayload, setResultsPayload] = useState('');
   const [startError, setStartError] = useState('');
   const [starting, setStarting] = useState(false);
   const [boardPending, setBoardPending] = useState(0);
-  const [joinWord, setJoinWord] = useState('');
-  const [joinMsg, setJoinMsg] = useState('');
   const [backupPayload, setBackupPayload] = useState('');
   const [restoreMsg, setRestoreMsg] = useState('');
   const [deviceBound, setDeviceBound] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const stateRef = useRef(null);
   const sessionRef = useRef(null);
   const bundleRef = useRef(null);
@@ -84,25 +77,41 @@ export default function OfflineHuntPlayPage() {
   useEffect(() => { sessionRef.current = session; }, [session]);
   useEffect(() => { bundleRef.current = bundle; }, [bundle]);
 
-  const persistState = useCallback(async (nextState, nextSession = sessionRef.current) => {
+  const persistState = useCallback(async (nextState, nextSession = sessionRef.current, opts = {}) => {
     if (!nextState || !nextSession) return nextState;
+    const prev = stateRef.current;
+    const stageChanged = !prev || prev.currentStage !== nextState.currentStage;
+    const scoreChanged = !prev || Number(prev.score) !== Number(nextState.score);
+    const shouldBoardSync = opts.syncBoard !== false && (stageChanged || scoreChanged);
+
     await saveOfflineTeamState(nextSession.teamCode, nextState);
     stateRef.current = nextState;
     setState(nextState);
     const pack = bundleRef.current;
     if (pack) setPlayData(buildPlayData(pack, nextSession, nextState));
-    void appendOfflinePlayLog({
-      teamCode: nextSession.teamCode,
-      action: 'state',
-      payload: { stage: nextState.currentStage, score: nextState.score, seq: nextState.seq },
-    });
-    if (pack && nextSession.role === 'leader') {
-      void enqueueOfflineProgress(pack, nextState).then((r) => {
+
+    if (stageChanged || scoreChanged) {
+      void appendOfflinePlayLog({
+        teamCode: nextSession.teamCode,
+        action: 'state',
+        payload: { stage: nextState.currentStage, score: nextState.score, seq: nextState.seq },
+      });
+    }
+
+    if (pack && nextSession.role === 'leader' && shouldBoardSync) {
+      void enqueueOfflineProgress(pack, nextState).then(async (r) => {
         setBoardPending(offlineBoardPendingCount());
         if (r?.deviceBound) setDeviceBound(true);
         else if (r?.syncedOk) {
           setDeviceBound(false);
           setBoardPending(offlineBoardPendingCount());
+          // Keep local seq aligned after STALE recovery so future pushes stay ahead.
+          if (r?.seqRecovered && stateRef.current) {
+            const aligned = { ...stateRef.current, seq: Number(r.seqRecovered) };
+            stateRef.current = aligned;
+            setState(aligned);
+            await saveOfflineTeamState(nextSession.teamCode, aligned);
+          }
         }
       });
     }
@@ -120,35 +129,62 @@ export default function OfflineHuntPlayPage() {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!bundle || !session || !state) return null;
-    let next = isHuntWaiting(state)
-      ? state
-      : tickTimers(bundle, ensureClueActive(bundle, state), new Date());
-    if (next.seq !== state.seq || next.currentStage !== state.currentStage) {
-      await persistState(next, session);
-    } else {
-      setPlayData(buildPlayData(bundle, session, next));
+    const pack = bundleRef.current;
+    const sess = sessionRef.current;
+    const st = stateRef.current;
+    if (!pack || !sess || !st) return null;
+    let next = isHuntWaiting(st)
+      ? st
+      : tickTimers(pack, ensureClueActive(pack, st), new Date());
+    if (!isHuntWaiting(next)) {
+      const healed = healOnePhoneStation(pack, sess, next);
+      if (healed.healed) next = healed.state;
     }
-    return buildPlayData(bundle, session, next);
-  }, [bundle, session, state, persistState]);
+    // Never rebuild from a stale React closure — that rewound clues after solve/scan.
+    if (next.seq !== st.seq || next.currentStage !== st.currentStage) {
+      const stageOrScore = next.currentStage !== st.currentStage
+        || Number(next.score) !== Number(st.score);
+      // Timer soft-reveal: no board push. One-phone heal that unlocks: push.
+      await persistState(next, sess, { syncBoard: stageOrScore });
+    } else {
+      setPlayData(buildPlayData(pack, sess, next));
+    }
+    return buildPlayData(pack, sess, next);
+  }, [persistState]);
 
   useEffect(() => {
     const disarm = armOfflineNetworkGuard();
     setBoardPending(offlineBoardPendingCount());
-    const onOnline = () => {
+
+    const pushBoard = () => {
+      if (isOfflineBoardSyncPaused()) return;
       const pack = bundleRef.current;
-      if (pack) {
-        void flushOfflineProgressQueue(pack).then((r) => {
-          setBoardPending(offlineBoardPendingCount());
-          if (r?.deviceBound) setDeviceBound(true);
-          else if (r?.syncedOk) setDeviceBound(false);
-        });
-      }
+      const sess = sessionRef.current;
+      const st = stateRef.current;
+      if (!pack || !sess || sess.role !== 'leader' || !st) return;
+      void enqueueOfflineProgress(pack, st).then((r) => {
+        setBoardPending(offlineBoardPendingCount());
+        if (r?.deviceBound) setDeviceBound(true);
+        else if (r?.syncedOk) setDeviceBound(false);
+      });
     };
+
+    const onOnline = () => {
+      // Network back — push latest score/stage so live ranking updates.
+      pushBoard();
+    };
+
     window.addEventListener('online', onOnline);
+    // Also retry while the hunt screen is open and briefly online.
+    const interval = window.setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      if (offlineBoardPendingCount() > 0 || bundleRef.current) pushBoard();
+    }, 20000);
+
     return () => {
       disarm();
       window.removeEventListener('online', onOnline);
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -156,7 +192,7 @@ export default function OfflineHuntPlayPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [pack, sess] = await Promise.all([
+        let [pack, sess] = await Promise.all([
           loadOfflineBundle(),
           loadOfflineSession(),
         ]);
@@ -165,10 +201,19 @@ export default function OfflineHuntPlayPage() {
           setLoading(false);
           return;
         }
+
+        // Admin Start over + release time from Live (Wi‑Fi).
+        const sync = await applyServerStartOverIfNeeded(pack).catch(() => null);
+        if (sync?.bundle) {
+          pack = sync.bundle;
+        }
+
         let teamState = await loadOfflineTeamState(sess.teamCode);
         teamState = hydrateState(pack, teamState);
         if (!isHuntWaiting(teamState)) {
           teamState = tickTimers(pack, ensureClueActive(pack, teamState), new Date());
+          const healed = healOnePhoneStation(pack, sess, teamState);
+          if (healed.healed) teamState = healed.state;
         }
         await saveOfflineTeamState(sess.teamCode, teamState);
         if (cancelled) return;
@@ -185,49 +230,82 @@ export default function OfflineHuntPlayPage() {
 
   useEffect(() => {
     if (!bundle || !session || !state) return undefined;
+    // Only rebuild export QR when stage/score settle — cuts lag mid-clue.
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      (async () => {
+        try {
+          const results = await buildResultsPayload({ bundle, state });
+          const backup = session.role === 'leader'
+            ? await buildPhoneBackupPayload({ bundle, state, session })
+            : null;
+          if (cancelled) return;
+          setResultsPayload(JSON.stringify(results));
+          if (backup) setBackupPayload(JSON.stringify(backup));
+          else setBackupPayload('');
+        } catch {
+          /* QR draw is best-effort */
+        }
+      })();
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [bundle, session, state?.currentStage, state?.score, state?.seq]);
+
+  // Clue 4: mint device key if pack is old / missing (needs brief Wi‑Fi).
+  useEffect(() => {
+    if (!bundle || !session || !state) return undefined;
+    if (state.currentStage !== 'CLUE_4_ACTIVE') return undefined;
+    if (bundle.clues?.clue4?.gridAccessCode && !bundle.gridResetPending) return undefined;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return undefined;
     let cancelled = false;
     (async () => {
-      try {
-        const sync = await buildTeamSyncPayload({ bundle, state });
-        const results = await buildResultsPayload({ bundle, state });
-        const backup = session.role === 'leader'
-          ? await buildPhoneBackupPayload({ bundle, state, session })
-          : null;
-        if (cancelled) return;
-        setTeamSyncPayload(JSON.stringify(sync));
-        setResultsPayload(JSON.stringify(results));
-        if (backup) setBackupPayload(JSON.stringify(backup));
-        else setBackupPayload('');
-        const key = pendingCheckpointKey(state.currentStage);
-        const youScanned = Boolean(
-          state.checkpoints?.[key]?.scans?.[session.memberKey]
-          || state.checkpoints?.[key]?.scans?.leader
-          || session.localPosterScans?.[String(key)],
-        );
-        if (key && youScanned && session.role !== 'leader') {
-          const expected = bundle.route?.[
-            { 1: 'orange', 2: 'green', 3: 'blue', 4: 'purple' }[key]
-          ];
-          const proof = await buildMemberProofPayload({
-            bundle,
-            session,
-            checkpointKey: key,
-            checkpointId: expected?.id,
-          });
-          if (!cancelled) setProofPayload(JSON.stringify(proof));
-        } else if (!cancelled) {
-          setProofPayload('');
-        }
-      } catch {
-        /* QR draw is best-effort */
-      }
+      const data = await ensureOfflineGridKey(bundle, { forceReset: Boolean(bundle.gridResetPending) });
+      if (cancelled || !data?.gridAccessCode) return;
+      const nextPack = {
+        ...bundle,
+        gridResetPending: false,
+        clues: {
+          ...bundle.clues,
+          clue4: {
+            ...(bundle.clues?.clue4 || {}),
+            gridAccessCode: data.gridAccessCode,
+            gridGameUrl: data.gridGameUrl || '/campus-hunt/grid',
+          },
+        },
+        team: {
+          ...bundle.team,
+          gridAccessCode: data.gridAccessCode,
+        },
+      };
+      await saveOfflineBundle(nextPack);
+      if (cancelled) return;
+      setBundle(nextPack);
+      setPlayData(buildPlayData(nextPack, session, state));
     })();
     return () => { cancelled = true; };
-  }, [bundle, session, state]);
+  }, [bundle, session, state?.currentStage]);
 
   const applyResult = useCallback((resData) => {
-    if (!resData?.team) return false;
-    setPlayData((prev) => ({ ...prev, ...resData }));
+    if (!resData) return false;
+    if (!(resData.team || Array.isArray(resData.challenges))) return false;
+    setPlayData((prev) => {
+      let checkpointStatus = resData.checkpointStatus;
+      if (
+        checkpointStatus == null
+        && prev?.checkpointStatus?.checkpointId
+        && String(prev?.team?.currentStage || '') === String(resData.team?.currentStage || '')
+      ) {
+        checkpointStatus = prev.checkpointStatus;
+      }
+      return {
+        ...prev,
+        ...resData,
+        checkpointStatus: checkpointStatus ?? null,
+      };
+    });
     return true;
   }, []);
 
@@ -278,39 +356,58 @@ export default function OfflineHuntPlayPage() {
     confirmStationCheckpoint: async (_teamId, body) => (
       wrapEngine((pack, sess, st) => confirmStation(pack, sess, st, body?.teamCode))
     ),
+    revealTimedChallenge: async (_teamId, challengeNumber) => {
+      const pack = bundleRef.current;
+      const sess = sessionRef.current;
+      const n = Number(challengeNumber);
+      let next = tickTimers(pack, ensureClueActive(pack, stateRef.current), new Date());
+      await persistState(next, sess);
+      const data = buildPlayData(pack, sess, next);
+      const ch = data.challenges?.find((c) => Number(c.challengeNumber) === n);
+      return {
+        data: {
+          ...data,
+          revealed: Boolean(ch?.revealedAnswer),
+          revealedAnswer: ch?.revealedAnswer || null,
+          awardedPoints: 0,
+          message: ch?.revealedAnswer
+            ? `Time's up — answer revealed (0 pts): ${ch.revealedAnswer}. Type it to continue.`
+            : "Time's up — 0 points. Type the revealed answer to continue.",
+          awaitSubmit: true,
+        },
+      };
+    },
+    submitFinishCode: async (_teamId, finishCode) => {
+      const pack = bundleRef.current;
+      const sess = sessionRef.current;
+      const result = markReachedStart(pack, sess, stateRef.current, finishCode);
+      await persistState(result.state, sess);
+      return {
+        data: {
+          ...buildPlayData(pack, sess, result.state),
+          ...result.meta,
+        },
+      };
+    },
   }), [wrapEngine, persistState, persistSession]);
 
-  const onCollectProof = async (raw) => {
-    const result = await collectMemberProof(
-      bundleRef.current,
-      sessionRef.current,
-      stateRef.current,
-      raw,
-    );
-    await persistState(result.state, sessionRef.current);
-  };
-
-  const onScanTeamSync = async (raw) => {
-    const result = await applyTeamSync(bundleRef.current, stateRef.current, raw);
-    await persistState(result.state, sessionRef.current);
-  };
-
-  const onStartHunt = async () => {
+  const onStartHunt = async (goCode = '') => {
     setStartError('');
     setStarting(true);
     try {
-      const result = startHunt(bundleRef.current, sessionRef.current, stateRef.current);
+      const result = startHunt(
+        bundleRef.current,
+        sessionRef.current,
+        stateRef.current,
+        new Date(),
+        { goCode },
+      );
       await persistState(result.state, sessionRef.current);
     } catch (err) {
       setStartError(err.message || 'Could not start the hunt');
     } finally {
       setStarting(false);
     }
-  };
-
-  const onMarkReached = async () => {
-    const result = markReachedStart(bundleRef.current, sessionRef.current, stateRef.current);
-    await persistState(result.state, sessionRef.current);
   };
 
   const onDownloadResults = async () => {
@@ -323,29 +420,40 @@ export default function OfflineHuntPlayPage() {
     );
   };
 
-  const onSubmitJoinWord = async () => {
-    setJoinMsg('');
-    try {
-      const result = submitStopJoinWord(
-        bundleRef.current,
-        sessionRef.current,
-        stateRef.current,
-        joinWord,
-      );
-      await persistState(result.state, sessionRef.current);
-      setJoinMsg(result.meta?.message || '');
-      if (result.meta?.correct) setJoinWord('');
-    } catch (err) {
-      setJoinMsg(err.message || 'Could not submit word');
-    }
-  };
-
   const onResetHunt = async () => {
-    if (!window.confirm('Reset this team’s hunt progress on this phone? (Pack stays installed.)')) {
-      return;
+    const ok = window.confirm(
+      'START OVER?\n\n'
+      + '• Clears this phone’s hunt progress\n'
+      + '• You will need the start code again\n'
+      + '• Live ranking may reset (needs Wi‑Fi)\n'
+      + '• Zip Grid progress resets\n\n'
+      + 'Only use for a retest / dry run — not after a real finish unless organizers say so.',
+    );
+    if (!ok) return;
+    setResetting(true);
+    try {
+      const result = await startOverHunt({
+        teamCode: session.teamCode,
+        reloadAppIfWaiting: false,
+        clearSession: false,
+      });
+      if (result.bundle) {
+        setBundle(result.bundle);
+        bundleRef.current = result.bundle;
+      }
+      if (result.state) {
+        await saveOfflineTeamState(session.teamCode, result.state);
+        setState(result.state);
+        stateRef.current = result.state;
+        setPlayData(buildPlayData(result.bundle || bundle, session, result.state));
+      }
+      window.alert(result.message || 'Started over.');
+      // Stay on play route — briefing shows because stage is WAITING.
+    } catch (err) {
+      window.alert(err.message || 'Start over failed');
+    } finally {
+      setResetting(false);
     }
-    await resetOfflineHuntLocal(session.teamCode);
-    navigate(CAMPUS_HUNT_PATHS.offlineLogin);
   };
 
   const onRestoreBackup = async (raw) => {
@@ -385,186 +493,134 @@ export default function OfflineHuntPlayPage() {
     return <Navigate to={CAMPUS_HUNT_PATHS.offlineLogin} replace />;
   }
 
-  const cp = playData.checkpointStatus;
   const stage = state.currentStage;
   const waiting = isHuntWaiting(state);
-  const atStartReport = stage === 'CLUE_5_COMPLETED' || stage === 'CLUE_5_FAILED';
   const locked = stage === 'SCORE_LOCKED' || stage === 'FINISH_COMPLETED';
 
   if (waiting) {
     return (
-      <>
-        <OfflineHuntBriefing
-          bundle={bundle}
-          session={session}
-          state={state}
-          onStartHunt={onStartHunt}
-          starting={starting}
-          error={startError}
-          onBackToRounds={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
-          onSwitchPerson={() => navigate(CAMPUS_HUNT_PATHS.offlineTeam)}
-        />
-        <OfflineHandoffDock
-          isLeader={session.role === 'leader'}
-          waiting
-          atCheckpoint={false}
-          youScanned={false}
-          awaitingConfirm={false}
-          atStartReport={false}
-          locked={false}
-          proofPayload=""
-          teamSyncPayload={teamSyncPayload}
-          resultsPayload=""
-          onCollectProof={onCollectProof}
-          onScanTeamSync={onScanTeamSync}
-          onMarkReached={onMarkReached}
-          onDownloadResults={onDownloadResults}
-          onePhoneMode
-        />
-      </>
+      <OfflineHuntBriefing
+        bundle={bundle}
+        session={session}
+        state={state}
+        onStartHunt={onStartHunt}
+        starting={starting}
+        error={startError}
+        onBackToRounds={() => navigate(CAMPUS_HUNT_PATHS.offline)}
+      />
     );
   }
 
   return (
-    <div className="pb-28">
+    <div className={locked ? 'pb-28' : 'pb-8'}>
       <PlayerPlayScreen
         data={playData}
         onRefresh={refresh}
         onActionResult={applyResult}
         eventSlug={bundle.event.slug}
-        onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offlineRounds)}
+        eventId={bundle.event.id}
+        offlineBundle={bundle}
+        onLeaveRound={() => navigate(CAMPUS_HUNT_PATHS.offline)}
         actions={actions}
         offlineMode
-        roundLabel="Offline Round 1 · airplane mode"
-        backTo={CAMPUS_HUNT_PATHS.offlineRounds}
-        backLabel="← Rounds"
-        checkpointExtra={
-          session.role === 'leader' && cp?.needJoinWord ? (
-            <div className="mt-3 space-y-2 rounded-xl border border-[#0ECCEE]/30 bg-[#0a1218] p-3 text-left">
-              <p className="text-xs font-semibold text-[#0ECCEE]">Join the word</p>
-              <p className="text-[11px] text-white/60">
-                Find
-                {' '}
-                {cp.plantFragmentCount || 'the'}
-                {' '}
-                written clues at this stop, join them into one word, then type it.
-                Scan unlocks after a correct word.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  value={joinWord}
-                  onChange={(e) => setJoinWord(e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
-                  placeholder="Joined word"
-                />
-                <button
-                  type="button"
-                  onClick={onSubmitJoinWord}
-                  className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-xs font-bold text-black"
-                >
-                  Submit
-                </button>
-              </div>
-              {joinMsg ? <p className="text-[11px] text-emerald-300">{joinMsg}</p> : null}
-            </div>
-          ) : session.role === 'leader' && cp && !cp.awaitingTeamCodeConfirm ? (
-            <p className="text-center text-xs text-white/55">
-              Scan the place QR once, then enter your team code.
-            </p>
-          ) : null
-        }
+        roundLabel="Campus Hunt Challenge"
+        backTo={CAMPUS_HUNT_PATHS.offline}
+        backLabel="← Home"
+        onStartOver={session.role === 'leader' ? onResetHunt : null}
+        startOverBusy={resetting}
+        checkpointExtra={null}
       />
-      {(boardPending > 0 || session.role === 'leader') && (
-        <div className="mx-auto flex max-w-lg flex-wrap items-center justify-between gap-2 px-4 py-2 text-[11px] text-white/70">
-          <span>
-            {boardPending > 0
-              ? `Board pending · ${boardPending}`
-              : 'Board sync ready'}
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="rounded bg-white/10 px-2 py-1 font-semibold"
-              onClick={() => {
-                void flushOfflineProgressQueue(bundle).then((r) => {
-                  setBoardPending(offlineBoardPendingCount());
-                  if (r?.deviceBound) setDeviceBound(true);
-                  else setDeviceBound(false);
-                });
-              }}
-            >
-              Retry sync
-            </button>
-            {deviceBound ? (
+
+      {session.role === 'leader' ? (
+        <details className="mx-auto max-w-lg px-4 pb-2 text-white">
+          <summary className="cursor-pointer py-2 text-xs text-white/40">
+            Tools
+            {boardPending > 0 ? ` · ${boardPending} pending to live board` : ''}
+            {deviceBound ? ' · phone conflict' : ''}
+          </summary>
+          <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <p className="text-[11px] text-white/45">
+              Live ranking needs Wi‑Fi. If points look stuck, stay online and keep playing — sync retries automatically.
+              {boardPending > 0 ? ` (${boardPending} waiting to send)` : ''}
+            </p>
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                className="rounded bg-amber-400/20 px-2 py-1 font-semibold text-amber-100"
+                className="rounded-lg bg-[#0ECCEE]/20 px-3 py-1.5 text-xs font-semibold text-[#0ECCEE]"
                 onClick={() => {
-                  rotateOfflineDeviceIdForTakeover();
-                  setDeviceBound(false);
-                  void flushOfflineProgressQueue(bundle).then((r) => {
-                    setBoardPending(offlineBoardPendingCount());
-                    if (r?.deviceBound) setDeviceBound(true);
-                    else setDeviceBound(false);
-                  });
+                  const pack = bundleRef.current;
+                  const st = stateRef.current;
+                  if (pack && st) {
+                    void enqueueOfflineProgress(pack, st).then((r) => {
+                      setBoardPending(offlineBoardPendingCount());
+                      if (r?.deviceBound) setDeviceBound(true);
+                      else if (r?.syncedOk) setDeviceBound(false);
+                    });
+                  }
                 }}
               >
-                Take over phone
+                Push score to live board
               </button>
+              {deviceBound ? (
+                <button
+                  type="button"
+                  className="rounded-lg bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-100"
+                  onClick={() => {
+                    rotateOfflineDeviceIdForTakeover();
+                    setDeviceBound(false);
+                    const pack = bundleRef.current;
+                    const st = stateRef.current;
+                    if (pack && st) {
+                      void enqueueOfflineProgress(pack, st).then((r) => {
+                        setBoardPending(offlineBoardPendingCount());
+                        if (r?.deviceBound) setDeviceBound(true);
+                        else if (r?.syncedOk) setDeviceBound(false);
+                      });
+                    }
+                  }}
+                >
+                  Take over this phone
+                </button>
+              ) : null}
+            </div>
+
+            {backupPayload ? (
+              <div>
+                <p className="text-[11px] text-white/50">Phone backup — paste below to restore</p>
+                <textarea
+                  readOnly
+                  value={backupPayload}
+                  className="mt-1 h-14 w-full rounded-lg bg-black/40 p-2 font-mono text-[9px] text-white/60"
+                />
+                <textarea
+                  className="mt-2 h-12 w-full rounded-lg border border-white/15 bg-black/40 p-2 font-mono text-[10px]"
+                  placeholder="Paste backup JSON…"
+                  onBlur={(e) => {
+                    const text = e.target.value.trim();
+                    if (text) onRestoreBackup(text);
+                  }}
+                />
+                {restoreMsg ? <p className="mt-1 text-[11px] text-[#0ECCEE]">{restoreMsg}</p> : null}
+              </div>
             ) : null}
+
             <button
               type="button"
-              className="rounded bg-white/10 px-2 py-1 font-semibold"
+              disabled={resetting}
+              className="mt-2 w-full rounded-lg border border-white/10 py-2 text-xs text-white/45 disabled:opacity-40"
               onClick={onResetHunt}
             >
-              Reset hunt
+              {resetting ? 'Starting over…' : 'Start over'}
             </button>
           </div>
-        </div>
-      )}
-      {session.role === 'leader' && backupPayload ? (
-        <details className="mx-auto max-w-lg px-4 pb-2 text-white">
-          <summary className="cursor-pointer text-xs font-semibold text-white/80">
-            Phone dies? Backup / restore
-          </summary>
-          <textarea
-            readOnly
-            value={backupPayload}
-            className="mt-2 h-16 w-full rounded bg-black/40 p-2 font-mono text-[9px] text-white/70"
-          />
-          <textarea
-            className="mt-2 h-14 w-full rounded border border-white/15 bg-black/40 p-2 font-mono text-[10px]"
-            placeholder="Paste backup JSON to restore…"
-            onBlur={(e) => {
-              const text = e.target.value.trim();
-              if (text) onRestoreBackup(text);
-            }}
-          />
-          {restoreMsg ? <p className="mt-1 text-[11px] text-[#0ECCEE]">{restoreMsg}</p> : null}
         </details>
       ) : null}
-      <div className="mx-auto max-w-lg px-4 pb-4">
-        <OfflineScoreBoard
-          state={state}
-          teamCode={bundle.team.teamCode}
-          teamName={bundle.team.teamName}
-        />
-      </div>
+
       <OfflineHandoffDock
         isLeader={session.role === 'leader'}
-        atCheckpoint={Boolean(cp)}
-        youScanned={Boolean(cp?.youScanned)}
-        awaitingConfirm={Boolean(cp?.awaitingTeamCodeConfirm)}
-        atStartReport={atStartReport}
         locked={locked}
-        proofPayload={proofPayload}
-        teamSyncPayload={teamSyncPayload}
         resultsPayload={resultsPayload}
-        onCollectProof={onCollectProof}
-        onScanTeamSync={onScanTeamSync}
-        onMarkReached={onMarkReached}
         onDownloadResults={onDownloadResults}
-        onePhoneMode
       />
     </div>
   );

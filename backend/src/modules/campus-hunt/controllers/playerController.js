@@ -7,6 +7,7 @@ const {
   requestHint,
   rewindPreviousStep,
   buildPlayerProgress,
+  revealTimedChallengeAfterExpiry,
 } = require('../services/challengeService');
 const { buildLeaderboard } = require('../services/leaderboardService');
 const {
@@ -35,16 +36,19 @@ async function getStatus(req, res) {
 }
 
 /**
- * Public: colleges with events marked live for Profile leaderboard only.
+ * Public: colleges with events marked live for hunt login and/or leaderboard.
  * Does not advertise Campus Hunt on the main website.
  */
 async function listColleges(req, res, next) {
   try {
     const events = await CampusHuntEvent.find({
-      publicLeaderboardLive: true,
       status: { $nin: ['draft'] },
+      $or: [
+        { publicLeaderboardLive: true },
+        { publicLoginLive: true },
+      ],
     })
-      .select('name college slug status date teamCapacity publicLeaderboardLive')
+      .select('name college slug status date teamCapacity publicLeaderboardLive publicLoginLive')
       .sort({ college: 1, date: -1 })
       .lean();
 
@@ -64,6 +68,8 @@ async function listColleges(req, res, next) {
         status: ev.status,
         date: ev.date,
         teamCapacity: ev.teamCapacity,
+        loginLive: Boolean(ev.publicLoginLive),
+        leaderboardLive: Boolean(ev.publicLeaderboardLive),
       });
     }
 
@@ -255,6 +261,7 @@ async function getTeamProgress(req, res, next) {
         team: publicTeamView(progress.team, { isLeader, start: progress.start, userId, teamSize: progress.teamSize }),
         challenges: progress.challenges,
         checkpointStatus: progress.checkpointStatus || null,
+        finishDestination: progress.finishDestination || 'Mindspark Lobby',
         serverTime: progress.serverTime,
         event: publicEventView(event, hub.access),
         rounds: hub.cards,
@@ -324,6 +331,8 @@ async function confirmStation(req, res, next) {
         checkpointId = req.huntTeam.thirdCheckpointId;
       } else if (['CLUE_4_COMPLETED', 'CLUE_4_FAILED', 'CLUE_4_TIMEOUT'].includes(stage)) {
         checkpointId = req.huntTeam.fourthCheckpointId;
+      } else if (['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(stage)) {
+        checkpointId = req.huntTeam.fifthCheckpointId;
       }
     }
     if (!checkpointId) {
@@ -463,6 +472,45 @@ async function requestChallengeHint(req, res, next) {
   }
 }
 
+/** Clue 2/4/5: timer hit 0 → reveal answer at 0 pts and advance to scan. */
+async function revealTimedChallenge(req, res, next) {
+  try {
+    const challengeNumber = parseChallengeNumber(req.params.n);
+    const result = await revealTimedChallengeAfterExpiry({
+      team: req.huntTeam,
+      userId: req.user.userId,
+      isLeader: req.isHuntLeader,
+      challengeNumber,
+    });
+    const team = await CampusHuntTeam.findById(req.huntTeam._id);
+    const progress = await buildPlayerProgress(team, req.user.userId, req.isHuntLeader);
+    return res.json({
+      success: true,
+      data: {
+        ...result,
+        team: publicTeamView(progress.team, {
+          isLeader: req.isHuntLeader,
+          start: progress.start,
+          userId: req.user.userId,
+          teamSize: progress.teamSize,
+        }),
+        challenges: progress.challenges,
+        checkpointStatus: progress.checkpointStatus || null,
+        serverTime: progress.serverTime,
+      },
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+      });
+    }
+    return next(err);
+  }
+}
+
 async function getLeaderboard(req, res, next) {
   try {
     const { eventId } = req.params;
@@ -567,7 +615,7 @@ async function getTeamLoginCard(req, res, next) {
 }
 
 function buildPublicRosterMembers(teamDoc, teamSize = 4) {
-  const size = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const size = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const scannersNeeded = Math.max(1, size - 1);
   const pack = teamDoc.accessPack || {};
   const scanners = (teamDoc.memberNames || []).map((name, idx) => {
@@ -655,7 +703,7 @@ async function unlockTeamRoster(req, res, next) {
           playPath: `/campus-hunt/${event.slug}/play`,
           loginPath: `/campus-hunt/${event.slug}/team/${team.teamCode}`,
           members: buildPublicRosterMembers(team, event.teamSize),
-          teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
+          teamSize: Math.max(2, Math.min(12, Number(event.teamSize) || 4)),
           roles: {
             leader: 'Sees Clue 1 and submits all answers. Everyone still scans.',
             player: 'Helps on Clue 2–4. Scans station cards. No Clue 1 text.',
@@ -987,6 +1035,159 @@ async function postOfflineProgress(req, res, next) {
   }
 }
 
+async function postOfflinePull(req, res, next) {
+  try {
+    const { pullOfflineBoardState } = require('../services/offlineExportService');
+    const eventId = req.params.eventId || req.body?.event;
+    const data = await pullOfflineBoardState(eventId, req.body);
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
+async function postOfflineGridEnsure(req, res, next) {
+  try {
+    const { ensureOfflineGridAccess } = require('../services/offlineExportService');
+    const eventId = req.params.eventId || req.body?.event;
+    const data = await ensureOfflineGridAccess(eventId, req.body);
+    return res.json({ success: true, data });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+      });
+    }
+    return next(err);
+  }
+}
+
+/** Same start as offline: organizer shouts the code, leader types it, Clue 1 opens. */
+async function startHuntWithCode(req, res, next) {
+  try {
+    if (!req.isHuntLeader) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only the leader phone can start',
+        code: 'LEADER_ONLY',
+      });
+    }
+    const team = req.huntTeam;
+    if (String(team.currentStage || '') !== 'WAITING') {
+      const progress = await buildPlayerProgress(team, req.user.userId, true);
+      return res.json({
+        success: true,
+        data: {
+          alreadyStarted: true,
+          team: publicTeamView(progress.team, {
+            isLeader: true,
+            start: progress.start,
+            userId: req.user.userId,
+            teamSize: progress.teamSize,
+          }),
+          challenges: progress.challenges,
+          checkpointStatus: progress.checkpointStatus || null,
+          serverTime: progress.serverTime,
+        },
+      });
+    }
+    const event = await CampusHuntEvent.findById(team.eventId).select('organizerStartCode');
+    const expected = String(event?.organizerStartCode || 'GO').trim().toUpperCase();
+    const got = String(req.body?.code || req.body?.goCode || '').trim().toUpperCase();
+    if (!got || got !== expected) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not the right start code',
+        code: 'BAD_START_CODE',
+      });
+    }
+    const updated = await CampusHuntTeam.findOneAndUpdate(
+      { _id: team._id, currentStage: 'WAITING' },
+      {
+        $set: {
+          currentStage: 'CLUE_1_ACTIVE',
+          startStatus: 'RELEASED',
+          actualStartAt: new Date(),
+          status: 'active',
+        },
+      },
+      { new: true },
+    );
+    const fresh = updated || await CampusHuntTeam.findById(team._id);
+    try {
+      const { publishTeamProgress } = require('../services/teamProgressBus');
+      publishTeamProgress(fresh._id);
+    } catch { /* poll still works */ }
+    const progress = await buildPlayerProgress(fresh, req.user.userId, true);
+    return res.json({
+      success: true,
+      data: {
+        alreadyStarted: false,
+        message: 'Hunt started — solve Clue 1 on this leader phone.',
+        team: publicTeamView(progress.team, {
+          isLeader: true,
+          start: progress.start,
+          userId: req.user.userId,
+          teamSize: progress.teamSize,
+        }),
+        challenges: progress.challenges,
+        checkpointStatus: progress.checkpointStatus || null,
+        serverTime: progress.serverTime,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function submitFinishCode(req, res, next) {
+  try {
+    const { submitOrganizerFinishCode } = require('../services/finishService');
+    const finishCode = String(req.body?.finishCode || req.body?.code || '').trim();
+    if (!finishCode) {
+      return res.status(400).json({ success: false, message: 'Finish code required' });
+    }
+    const result = await submitOrganizerFinishCode({
+      team: req.huntTeam,
+      userId: req.user.userId,
+      isLeader: req.isHuntLeader,
+      finishCode,
+    });
+    const team = await CampusHuntTeam.findById(req.huntTeam._id);
+    const progress = await buildPlayerProgress(team, req.user.userId, req.isHuntLeader);
+    return res.json({
+      success: true,
+      data: {
+        ...result,
+        team: publicTeamView(progress.team, {
+          isLeader: req.isHuntLeader,
+          start: progress.start,
+          userId: req.user.userId,
+          teamSize: progress.teamSize,
+        }),
+        challenges: progress.challenges,
+        checkpointStatus: progress.checkpointStatus || null,
+        finishDestination: progress.finishDestination,
+        serverTime: progress.serverTime,
+      },
+    });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+      });
+    }
+    return next(err);
+  }
+}
+
 module.exports = {
   getStatus,
   listColleges,
@@ -995,12 +1196,17 @@ module.exports = {
   getOfflineInstallPack,
   ackOfflineInstall,
   postOfflineProgress,
+  postOfflinePull,
+  postOfflineGridEnsure,
   getMyTeam,
   getTeamProgress,
   streamTeamProgress,
   submitChallengeAnswer,
   submitClue1,
+  submitFinishCode,
+  startHuntWithCode,
   requestChallengeHint,
+  revealTimedChallenge,
   getLeaderboard,
   getEventBySlug,
   getTeamLoginCard,

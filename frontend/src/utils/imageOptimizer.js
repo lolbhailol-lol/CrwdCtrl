@@ -17,6 +17,16 @@ export const IMAGE_PRESETS = {
     cardPortrait: { width: 360, height: 468, crop: 'fill', quality: 'eco', gravity: 'auto' },
     /** Wide activity cards — .card-wide-image ~320×224 CSS */
     cardWide: { width: 720, height: 504, crop: 'fill', quality: 'eco' },
+    /** Wide cards — full poster fit, no crop (upcoming runs / activities) */
+    cardWideFit: { width: 720, height: 504, crop: 'fit', quality: 'eco' },
+    /** Wide cards — full poster + colour-matched pads (10:7) */
+    cardWidePad: {
+        width: 720,
+        height: 504,
+        crop: 'pad',
+        quality: 'eco',
+        background: 'auto:predominant',
+    },
     /** Full-width community row — aspect 5:3 */
     cardLandscape: { width: 720, height: 432, crop: 'fill', quality: 'eco' },
     /** 16:9 carousel / video-style cards — matches fest listing covers */
@@ -31,7 +41,9 @@ export const IMAGE_PRESETS = {
     cardLg: { width: 560, height: 728, crop: 'fill', quality: 'eco' },
     /** Home / hub hero — mobile-first; still sharp on desktop via dpr_2 */
     hero: { width: 960, height: 448, crop: 'fill', quality: 'good' },
-    /** Event detail page top image (5:4) */
+    /** Competition detail heroes for landscape event photos (Kshitij etc.) — keep subject with g_auto */
+    competitionHeroWide: { width: 960, height: 540, crop: 'fill', quality: 'eco', gravity: 'auto' },
+    /** Fest detail hero — landscape frame; logos/photos pad to fill, never crop subject */
     eventPage: { width: 960, height: 768, crop: 'fill', quality: 'good' },
     /** Community detail header */
     communityBanner: { width: 786, height: 792, crop: 'fill', quality: 'good' },
@@ -44,6 +56,15 @@ export const IMAGE_PRESETS = {
     eventHeroPad: {
         width: 720,
         height: 960,
+        crop: 'pad',
+        quality: 'good',
+        background: 'auto:predominant',
+    },
+    /** Fest detail hero — landscape frame; logos/photos pad to fill, never crop subject */
+    festHeroFit: { width: 1200, height: 630, crop: 'fit', quality: 'good' },
+    festHeroPad: {
+        width: 1200,
+        height: 630,
         crop: 'pad',
         quality: 'good',
         background: 'auto:predominant',
@@ -67,6 +88,8 @@ export const IMAGE_PRESET_SIZES = {
     square: '180px',
     cardPortrait: '(min-width: 1024px) 160px, 42vw',
     cardWide: '(min-width: 1024px) 360px, 84vw',
+    cardWideFit: '(min-width: 1024px) 360px, 84vw',
+    cardWidePad: '(min-width: 1024px) 360px, 84vw',
     cardLandscape: '100vw',
     cardVideo: '(min-width: 1024px) 320px, 80vw',
     cardTrending: '(min-width: 1024px) 300px, 78vw',
@@ -75,10 +98,13 @@ export const IMAGE_PRESET_SIZES = {
     card: '(min-width: 1024px) 200px, 50vw',
     cardLg: '(min-width: 1024px) 280px, 70vw',
     hero: '(min-width: 1024px) 960px, 100vw',
+    competitionHeroWide: '(min-width: 768px) 560px, 100vw',
     eventPage: '(min-width: 768px) 672px, 100vw',
     communityBanner: '100vw',
     eventHeroFit: '(min-width: 768px) 672px, 100vw',
     eventHeroPad: '(min-width: 768px) 672px, 100vw',
+    festHeroFit: '(min-width: 768px) 672px, 100vw',
+    festHeroPad: '(min-width: 768px) 672px, 100vw',
     cardPortraitFit: '(min-width: 1024px) 160px, 42vw',
     cardPortraitPad: '(min-width: 1024px) 160px, 42vw',
     detail: '(min-width: 1024px) 1200px, 100vw',

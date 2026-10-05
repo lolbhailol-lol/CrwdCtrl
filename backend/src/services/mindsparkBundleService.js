@@ -63,6 +63,9 @@ async function deliverMindSparkBundleConfirmationEmail(bundle, user, { resend = 
   if (!bundle.items?.every((item) => item.registrationId)) {
     return { sent: false, reason: 'incomplete_registrations' };
   }
+  const fest = await FestOrganizer.findById(bundle.fest)
+    .select('festName stallBrand stallDiscountPercent')
+    .lean();
   const { sendMindSparkBundleConfirmationEmail } = require('./emailService');
   await sendMindSparkBundleConfirmationEmail({
     email,
@@ -71,6 +74,8 @@ async function deliverMindSparkBundleConfirmationEmail(bundle, user, { resend = 
     paymentToken: bundle.paymentToken,
     items: await buildMindSparkBundleEmailItems(bundle),
     resend,
+    userId: user?._id || user?.id,
+    fest,
   });
   return { sent: true, email };
 }
@@ -184,7 +189,14 @@ async function fulfillMindSparkBundle(paymentOrder) {
               fest: lockedBundle.fest,
               user: lockedBundle.user,
               competitionId: item.competitionId,
-              responses: { ...item.roster, mindspark_bundle_id: String(lockedBundle._id), bundle_cashfree_order_id: paymentOrder.orderId, bundle_original_amount: item.originalAmount, bundle_discount_percent: 70 },
+              responses: {
+                ...item.roster,
+                mindspark_bundle_id: String(lockedBundle._id),
+                mindspark_bundle_source: lockedBundle.source || 'public',
+                bundle_cashfree_order_id: paymentOrder.orderId,
+                bundle_original_amount: item.originalAmount,
+                bundle_discount_percent: Number(lockedBundle.discountPercent) || 65,
+              },
               status: 'approved',
               payment_order_id: derivedOrderId,
               payment_id: paymentOrder.paymentId,

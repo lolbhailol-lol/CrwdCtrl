@@ -292,10 +292,34 @@ export async function submitChallengeAnswer(teamId, challengeNumber, answer, req
   });
 }
 
+/** Leader types the shouted organizer start code — same gate as offline. */
+export async function startHuntWithCode(teamId, code) {
+  return huntJson(`${BASE}/teams/${teamId}/start`, {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
+/** Leader types organizer finish code at Mindspark Lobby (after Clue 6). */
+export async function submitFinishCode(teamId, finishCode) {
+  return huntJson(`${BASE}/teams/${teamId}/finish`, {
+    method: 'POST',
+    body: JSON.stringify({ finishCode }),
+  });
+}
+
 export async function requestChallengeHint(teamId, challengeNumber, requestId) {
   return huntJson(`${BASE}/teams/${teamId}/challenges/${challengeNumber}/hint`, {
     method: 'POST',
     body: JSON.stringify({ confirm: true, requestId }),
+  });
+}
+
+/** Clue 2/4/5: timer ended → reveal answer at 0 pts and advance to scan. */
+export async function revealTimedChallenge(teamId, challengeNumber) {
+  return huntJson(`${BASE}/teams/${teamId}/challenges/${challengeNumber}/timer-reveal`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }
 
@@ -546,7 +570,7 @@ export async function adminDeleteEvent(eventId) {
 }
 
 export async function adminGetOverview(eventId) {
-  return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`);
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`, { timeout: 60000 });
 }
 
 export async function adminUpdateCampusStations(eventId, campusStationsOrPayload, reason = '') {
@@ -561,6 +585,13 @@ export async function adminUpdateCampusStations(eventId, campusStationsOrPayload
 
 export async function adminBootstrapRound1(eventId, body = {}) {
   return adminFetchJSON(`${BASE}/admin/events/${eventId}/bootstrap-round1`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function adminPruneExcessTeams(eventId, body = {}) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams/prune-excess`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -941,7 +972,7 @@ export async function adminListStationQr(eventId) {
 
 /** Offline hunt packs — one JSON bundle per team for airplane-mode play. */
 export async function adminExportOfflinePacks(eventId) {
-  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-export`);
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/offline-export`, { timeout: 120000 });
 }
 
 /** Import a leader's offline results JSON after the fest. */

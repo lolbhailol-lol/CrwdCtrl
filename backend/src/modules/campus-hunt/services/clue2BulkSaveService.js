@@ -10,20 +10,19 @@ const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const { DEFAULT_SCORING_CONFIG } = require('../constants');
-const { resolveCampusStations } = require('./stationCatalogService');
+const { resolveCampusStations, DEFAULT_STATION_JOINED_WORDS, splitDigitSlips } = require('./stationCatalogService');
 const { persistClueScoring } = require('./clueScoringPersistService');
 const { resyncClue1TeamBindings } = require('./startScheduleService');
 const { writeAudit } = require('./auditService');
 const {
   stationForLocalTeam,
-  threeDigitCodeForTeam,
   WAIT_POINTS,
   syncSharedStationQrs,
 } = require('./round1BootstrapService');
 
 const SHARED_PROMPT =
-  'A staff mark hides in plain sight nearby. '
-  + 'Scan the area at eye level — find your team’s 3-digit number.';
+  'At the green stop: find the shared plant slips written nearby. '
+  + 'Join them into one word and type it (leader), then scan the green poster.';
 
 function waitIndexFromCode(code) {
   const upper = String(code || '').toUpperCase().trim();
@@ -116,9 +115,9 @@ async function bulkSaveClue2({
         errors.push({ row, message: 'Invalid startCode or waveId' });
         continue;
       }
-      const answer = String(row.answer || '').trim();
-      if (!/^\d{3}$/.test(answer)) {
-        errors.push({ startCode, waveId, message: 'Answer must be a 3-digit code' });
+      const answer = String(row.answer || '').replace(/\D/g, '').slice(0, 3);
+      if (answer.length < 3) {
+        errors.push({ startCode, waveId, message: 'Answer must be a 3-digit plant number' });
         continue;
       }
 
@@ -153,7 +152,9 @@ async function bulkSaveClue2({
             stationCode,
             publicInstruction:
               `Green SECOND SCAN at ${place}. One shared QR for this place. `
-              + 'All 4 team members scan, then enter your team code to unlock Clue 3.',
+              + 'After the digit answer is typed on the leader phone, scan once to unlock Clue 3.',
+            joinedWord: answer,
+            plantFragments: splitDigitSlips(answer, 3),
             sequence: 2,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -191,18 +192,18 @@ async function bulkSaveClue2({
             startingPointId: point._id,
             secondCheckpointId: secondCheckpoint._id,
             challengeNumber: 2,
-            type: 'timed_search',
+            type: 'decode',
             prompt: cluePrompt,
             answer,
             acceptedAnswers: [answer],
             destinationInstruction:
-              `Go to ${place} now. Find the shared green SECOND SCAN QR. `
-              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 3.`,
-            hintText: 'Check posts, pillars, and notice boards at eye level.',
-            basePoints: 0,
+              `At ${place}: find the numbered digit slips nearby, join in order, type the answer, `
+              + 'then scan the shared green SECOND SCAN QR once to unlock Clue 3.',
+            hintText: 'Eye level on posts and boards — join the digits in order.',
+            basePoints: clue2Scoring.basePoints ?? 50,
             maxAttempts: clue2Scoring.maxAttempts,
-            timerSeconds: clue2Scoring.timerSeconds,
-            speedBonusBands: clue2Scoring.speedBonusBands,
+            timerSeconds: 0,
+            speedBonusBands: [],
             hintCost: clue2Scoring.hintCost,
             difficulty: 'medium',
             variantKey,
@@ -218,6 +219,34 @@ async function bulkSaveClue2({
         waveId: row.waveId,
         message: error.message || 'Save failed',
       });
+    }
+  }
+
+  // Keep Places digit catalog in sync with saved Clue 2 answers (per station).
+  const plantByStation = new Map();
+  for (const row of variants) {
+    const code = String(row.stationCode || '').toUpperCase().trim();
+    const digits = String(row.answer || '').replace(/\D/g, '').slice(0, 3);
+    if (code && digits.length >= 3) plantByStation.set(code, digits);
+  }
+  if (plantByStation.size && event) {
+    const catalog = Array.isArray(event.campusStations) ? [...event.campusStations] : [];
+    let catalogChanged = false;
+    for (const [code, digits] of plantByStation.entries()) {
+      const idx = catalog.findIndex((r) => String(r.code || '').toUpperCase() === code);
+      const plantFragments = splitDigitSlips(digits, 3);
+      if (idx >= 0) {
+        catalog[idx] = { ...catalog[idx], joinedWord: digits, plantFragments };
+        catalogChanged = true;
+      } else {
+        catalog.push({ code, joinedWord: digits, plantFragments });
+        catalogChanged = true;
+      }
+    }
+    if (catalogChanged) {
+      event.campusStations = catalog;
+      event.markModified?.('campusStations');
+      await event.save();
     }
   }
 
@@ -266,18 +295,22 @@ async function bulkSaveClue2({
   };
 }
 
-/** Build default 40 variant rows (for admin UI / bootstrap helpers). */
+/** Build default variant rows — shared plant join-word per second stop. */
 function defaultClue2VariantRows(stations = null) {
   const list = stations?.length ? stations : resolveCampusStations(null);
   const rows = [];
   WAIT_POINTS.forEach((start, waitIndex) => {
     for (let local = 1; local <= 10; local += 1) {
       const station = stationForLocalTeam(local, waitIndex, list, 1);
+      const code = String(station?.code || '').toUpperCase();
+      const answer = String(
+        station?.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '847',
+      ).replace(/\D/g, '').slice(0, 3) || '847';
       rows.push({
         startCode: start.code,
         waveId: `T${local}`,
         localTeamNumber: local,
-        answer: threeDigitCodeForTeam(waitIndex, local),
+        answer,
         place: station.name,
         stationCode: station.code,
       });

@@ -10,7 +10,7 @@ function clampInt(value, min, max, fallback) {
 
 /** Suggest finale size from Round 1 team capacity. */
 function suggestFinaleScale(teamCapacity) {
-  const cap = clampInt(teamCapacity, 2, 40, 40);
+  const cap = clampInt(teamCapacity, 2, 200, 20);
   if (cap <= 12) {
     const finaleCapacity = cap;
     const directFromR1 = Math.min(finaleCapacity, Math.max(1, Math.ceil(finaleCapacity * 0.4)));
@@ -35,9 +35,9 @@ function suggestFinaleScale(teamCapacity) {
 function resolveDemoScale(event = {}, overrides = {}) {
   const teamCapacity = clampInt(
     overrides.teamCapacity ?? event.teamCapacity,
-    4,
+    2,
     200,
-    40,
+    20,
   );
   const teamSize = clampInt(
     overrides.teamSize ?? event.teamSize,

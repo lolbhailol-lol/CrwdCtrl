@@ -14,6 +14,7 @@ import {
   adminListChallenges,
   adminListCheckpoints,
   adminBootstrapRound1,
+  adminPruneExcessTeams,
   adminRepairTeamRosters,
   adminMarkTeamStartReached,
 } from '../services/campusHunt.api';
@@ -71,7 +72,7 @@ function buildTeamStampSheets(stamps, { eventName = '' } = {}) {
           <li>Open <strong>CrwdCtrl</strong></li>
           <li>Go to <strong>My Profile</strong></li>
           <li>Tap <strong>Campus Hunt login</strong></li>
-          <li>Enter this team code + password, then tap your name</li>
+          <li>Enter this team code + password on the <strong>leader phone only</strong></li>
         </ol>
       </article>`;
   }).join('');
@@ -276,9 +277,6 @@ function TeamDetailCard({
         memberNames: namesOnly,
         routeId: editForm.routeId || undefined,
         startingPointId: editForm.startingPointId || null,
-        scheduledStartAt: editForm.scheduledStartAt
-          ? new Date(editForm.scheduledStartAt).toISOString()
-          : null,
         clue1ChallengeId: editForm.clue1ChallengeId || null,
         firstCheckpointId: editForm.firstCheckpointId || null,
         confirm: true,
@@ -320,20 +318,26 @@ function TeamDetailCard({
   const copyTeamPack = async () => {
     const pass = teamPass || await ensurePassReady();
     if (!pass) return;
+    const leaderName = access.leader?.name || team.leaderName || 'Leader';
+    const walkers = (access.scanners?.length
+      ? access.scanners.map((s) => s.name)
+      : (team.memberNames || [])
+    ).filter(Boolean);
     const lines = [
       `Team ${team.teamCode}${team.teamName && !/^team\s*\d+$/i.test(team.teamName) ? ` — ${team.teamName}` : ''}`,
       '',
-      '=== SHARE THIS LINK WITH THE WHOLE TEAM ===',
+      '=== SEND TO LEADER ONLY (1 pack / 1 phone) ===',
       teamUrl,
       '',
       `Password: ${pass}`,
+      `Leader: ${leaderName}`,
+      walkers.length ? `Walkers (no phones): ${walkers.join(', ')}` : '',
       '',
-      'Open link → type password → tap your name:',
-      `  ${pass} · Leader · ${access.leader?.name || team.leaderName || ''}`,
-      ...(access.scanners || []).map((s, i) => `  ${pass} · Player ${i + 1} · ${s.name}`),
-    ];
+      'Leader opens the link on their phone → password → play.',
+      'Whole team walks with that one phone. Do not share with every member.',
+    ].filter((line) => line !== '');
     copyText(lines.join('\n'));
-    onCopied?.(`Copied ${team.teamCode} pack`);
+    onCopied?.(`Copied ${team.teamCode} leader pack`);
   };
 
   const printTeamSlip = async () => {
@@ -344,9 +348,14 @@ function TeamDetailCard({
       onCopied?.('Allow popups to print the team slip');
       return;
     }
-    const playerNames = (access.scanners || []).map((scanner) => (
-      `<li><strong>${pass}</strong> · <strong>${scanner.name}</strong> — tap this name after password</li>`
-    )).join('');
+    const leaderName = access.leader?.name || team.leaderName || 'Leader';
+    const walkers = (access.scanners?.length
+      ? access.scanners.map((s) => s.name)
+      : (team.memberNames || [])
+    ).filter(Boolean);
+    const walkerList = walkers.length
+      ? `<ul>${walkers.map((n) => `<li>${n}</li>`).join('')}</ul>`
+      : '<p style="color:#666">Walkers not listed yet</p>';
     popup.document.write(`<!doctype html><html><head><title>${team.teamCode} access</title>
       <style>
         body{font:16px system-ui;padding:28px;line-height:1.45;color:#111}
@@ -361,21 +370,22 @@ function TeamDetailCard({
       </head><body>
       <h1>${team.teamCode}${team.teamName ? ` — ${team.teamName}` : ''}</h1>
       <div class="box">
-        <strong>Where to log in</strong>
+        <strong>Leader phone only — one pack</strong>
         <ol class="steps">
-          <li>Open <strong>CrwdCtrl</strong></li>
-          <li>Go to <strong>My Profile</strong></li>
-          <li>Tap <strong>Campus Hunt login</strong></li>
+          <li>Send this slip / link to the <strong>leader only</strong></li>
+          <li>Open <strong>CrwdCtrl</strong> on the leader phone</li>
+          <li>Go to <strong>My Profile</strong> → <strong>Campus Hunt login</strong></li>
           <li>Team code: <span class="code">${team.teamCode}</span></li>
           <li>Password: <span class="pass">${pass}</span></li>
-          <li>Tap your name</li>
+          <li>Whole team walks with that one phone — no member phones</li>
         </ol>
-        <p style="margin:14px 0 0;font-size:13px;color:#555">Or open this direct link:</p>
+        <p style="margin:14px 0 0;font-size:13px;color:#555">Or open this direct link on the leader phone:</p>
         <code>${teamUrl}</code>
       </div>
-      <h2>Who to tap (same password)</h2>
-      <p><span class="pass">${pass}</span> · <strong>Leader:</strong> ${access.leader?.name || team.leaderName || ''} — tap Leader</p>
-      <ol>${playerNames}</ol>
+      <h2>Leader</h2>
+      <p><span class="pass">${pass}</span> · <strong>${leaderName}</strong></p>
+      <h2>Walkers (no login)</h2>
+      ${walkerList}
       <script>window.print()</script></body></html>`);
     popup.document.close();
   };
@@ -409,8 +419,6 @@ function TeamDetailCard({
           </p>
           <p className="mt-1 text-xs text-white/40">
             {team.currentStage} · score {team.currentScore} · route {assignedRoute?.routeKey || 'unassigned'}
-            {' · start '}
-            {team.startStatus || 'WAITING'}
           </p>
           <span className="mt-1 inline-block text-xs text-white/50">
             {open ? 'Hide details' : 'Show details'}
@@ -510,16 +518,6 @@ function TeamDetailCard({
                       </option>
                     ))}
                   </select>
-                  <input
-                    type="datetime-local"
-                    value={editForm.scheduledStartAt}
-                    onChange={(e) => setEditForm((f) => ({
-                      ...f,
-                      scheduledStartAt: e.target.value,
-                    }))}
-                    aria-label="Scheduled start time"
-                    className="w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm"
-                  />
                   <select
                     value={editForm.clue1ChallengeId}
                     onChange={(e) => setEditForm((f) => ({
@@ -579,7 +577,7 @@ function TeamDetailCard({
                   ...f,
                   teamPassword: e.target.value,
                 }))}
-                placeholder={`Shared team password (all ${teamSize} people)`}
+                placeholder="Shared password (leader phone)"
                 className="w-full rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono text-sm"
               />
               <p className="text-[11px] text-white/45">
@@ -614,28 +612,16 @@ function TeamDetailCard({
                 || 'unassigned'}
             </p>
             <p>
-              <span className="text-white/45">Scheduled:</span>{' '}
-              {team.scheduledStartAt ? new Date(team.scheduledStartAt).toLocaleString() : 'unscheduled'}
-            </p>
-            <p>
-              <span className="text-white/45">Start status:</span>{' '}
-              {team.startStatus || 'WAITING'}
-            </p>
-            <p>
-              <span className="text-white/45">Actual start:</span>{' '}
-              {team.actualStartAt ? new Date(team.actualStartAt).toLocaleString() : '—'}
+              <span className="text-white/45">Stage:</span>{' '}
+              {team.currentStage || '—'}
             </p>
           </div>
 
-          {['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(team.currentStage) && (
+          {['CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(team.currentStage) && (
             <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-3">
-              <p className="text-sm font-semibold text-red-100">Waiting at start</p>
+              <p className="text-sm font-semibold text-red-100">Waiting at Mindspark Lobby</p>
               <p className="mt-1 text-xs text-white/65">
-                Team finished Clue 5 / Final. When they arrive at{' '}
-                {team.startingPoint?.name
-                  || startingPoints.find((point) => id(point) === id(team.startingPointId))?.name
-                  || 'their start'}
-                , mark them reached to lock score.
+                Team finished Clue 6. When they arrive at Mindspark Lobby, mark them reached to lock score.
               </p>
               <button
                 type="button"
@@ -656,7 +642,7 @@ function TeamDetailCard({
                 }}
                 className="mt-3 w-full rounded-lg bg-red-500 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
               >
-                Mark reached at start · lock score
+                Mark reached · Mindspark Lobby · lock score
               </button>
             </div>
           )}
@@ -676,7 +662,7 @@ function TeamDetailCard({
               </p>
             )}
             <p className="mt-1 text-[11px] text-white/50">
-              Share this one link. All {teamSize} people: password → tap their name.
+              One link for the leader phone only. Teammates walk along — no member phones.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -702,14 +688,14 @@ function TeamDetailCard({
                 onClick={copyTeamPack}
                 className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs text-emerald-200"
               >
-                Copy slip
+                Copy leader pack
               </button>
               <button
                 type="button"
                 onClick={printTeamSlip}
                 className="rounded-lg bg-white/10 px-3 py-1.5 text-xs"
               >
-                Print slip
+                Print leader slip
               </button>
               <button
                 type="button"
@@ -726,13 +712,11 @@ function TeamDetailCard({
               This team · hub locks
             </p>
             <p className="mt-1 text-[11px] text-white/40">
-              Force-lock a round for this team only (even if overall is open).
+              Force-lock the hunt for this team only (even if overall is open).
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {[
-                ['round1', 'R1'],
-                ['survival', 'Surv'],
-                ['finale', 'Finals'],
+                ['round1', 'Hunt'],
               ].map(([key, label]) => {
                 const locked = Boolean(team.playerRoundLocks?.[key]);
                 return (
@@ -777,9 +761,9 @@ function TeamDetailCard({
           </div>
 
           <div className="rounded-lg bg-black/30 px-3 py-2">
-            <p className="text-xs uppercase tracking-wide text-white/45">Who taps what</p>
+            <p className="text-xs uppercase tracking-wide text-white/45">Leader pack · roster</p>
             <p className="mt-1 text-[11px] text-white/45">
-              Same shared password for everyone — shown in front of each name for organizers.
+              One pack / one phone for the leader. Walkers just come along — no separate logins.
             </p>
             <p className="mt-2 font-medium">
               <span className="font-mono text-[#0ECCEE]">{displayPass}</span>
@@ -792,13 +776,11 @@ function TeamDetailCard({
                 : (team.memberNames || []).map((name) => ({ name }))
               ).map((s, i) => (
                 <li key={s.loginEmail || s.name || i} className="text-sm text-white/80">
-                  <span className="font-mono text-[#0ECCEE]">{displayPass}</span>
-                  {' · '}
-                  Player {i + 1} · {s.name || '—'}
+                  Walker {i + 1} · {s.name || '—'}
                 </li>
               ))}
               {!access.scanners?.length && !(team.memberNames || []).length && (
-                <p className="text-xs text-white/45">No players listed yet.</p>
+                <p className="text-xs text-white/45">No walkers listed yet.</p>
               )}
             </ul>
           </div>
@@ -813,16 +795,17 @@ function CredentialsCard({ credentials, teamCode, teamLoginPath }) {
   const { leader, scanners, sharedScannerPassword, teamPassword, allMemberNames } = credentials;
   const teamUrl = absoluteUrl(teamLoginPath);
   const pass = teamPassword || sharedScannerPassword || leader?.password || '';
+  const walkers = (scanners || []).map((s) => s.name).filter(Boolean);
 
   const copyAll = () => {
     const lines = [
       `Team ${teamCode}`,
-      teamUrl ? `Login link: ${teamUrl}` : '',
+      teamUrl ? `Login link (leader phone only): ${teamUrl}` : '',
       `Password: ${pass}`,
+      `Leader: ${leader?.name || ''}`,
+      walkers.length ? `Walkers (no phones): ${walkers.join(', ')}` : '',
       '',
-      'Open link → type password → tap your name:',
-      `  ${pass} · Leader · ${leader?.name || ''}`,
-      ...(scanners || []).map((s, i) => `  ${pass} · Player ${i + 1} · ${s.name}`),
+      'Send this pack to the LEADER only. One phone for the whole team.',
     ].filter(Boolean);
     copyText(lines.join('\n'));
   };
@@ -830,37 +813,33 @@ function CredentialsCard({ credentials, teamCode, teamLoginPath }) {
   return (
     <div className="space-y-3 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-semibold text-emerald-200">New team access — save / share now</p>
+        <p className="font-semibold text-emerald-200">Leader pack — send to leader only</p>
         <button type="button" onClick={copyAll} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs">
-          Copy all
+          Copy leader pack
         </button>
       </div>
 
       {teamUrl && (
         <div className="rounded-lg bg-black/20 px-3 py-2">
-          <p className="text-xs uppercase tracking-wide text-white/50">Login URL</p>
+          <p className="text-xs uppercase tracking-wide text-white/50">Leader login URL</p>
           <p className="break-all font-mono text-xs text-[#0ECCEE]">{teamUrl}</p>
         </div>
       )}
 
       <div className="rounded-lg bg-black/20 px-3 py-2">
-        <p className="text-xs uppercase tracking-wide text-white/50">Shared password</p>
+        <p className="text-xs uppercase tracking-wide text-white/50">Password (leader phone)</p>
         <p className="font-mono text-sm text-white">{pass || '—'}</p>
       </div>
 
       <div className="rounded-lg bg-black/20 px-3 py-2">
-        <p className="text-xs uppercase tracking-wide text-white/50">Who taps what</p>
+        <p className="text-xs uppercase tracking-wide text-white/50">Roster</p>
         <p className="mt-2 font-medium">
-          <span className="font-mono text-[#0ECCEE]">{pass || '—'}</span>
-          {' · '}
           Leader · {leader?.name || '—'}
         </p>
         <ul className="mt-2 space-y-1">
           {(scanners || []).map((s, i) => (
             <li key={s.loginEmail || s.name || i} className="text-sm text-white/80">
-              <span className="font-mono text-[#0ECCEE]">{pass || '—'}</span>
-              {' · '}
-              Player {i + 1} · {s.name}
+              Walker {i + 1} · {s.name}
             </li>
           ))}
         </ul>
@@ -905,11 +884,12 @@ export default function TeamManagerPanel({
   const [bulkTeamPassword, setBulkTeamPassword] = useState('');
   const [routeDraft, setRouteDraft] = useState({ routeKey: '', name: '', teamSlots: 10 });
 
-  const capacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
-  const teamSize = Math.max(2, Math.min(8, Number(eventMeta?.teamSize) || 4));
-  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
+  const capacity = Math.max(2, Number(eventMeta?.teamCapacity) || 20);
+  const teamSize = Math.max(2, Math.min(12, Number(eventMeta?.teamSize) || 4));
+  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 1));
   const teamsPerWait = Math.max(1, Math.ceil(capacity / startCount));
   const scannersNeeded = Math.max(1, teamSize - 1);
+  const excessTeams = Math.max(0, teams.length - capacity);
 
   const activeStarts = useMemo(() => {
     const active = (startingPoints || []).filter((p) => p.active !== false);
@@ -1026,7 +1006,7 @@ export default function TeamManagerPanel({
     }
     if (!window.confirm(
       `Set password "${password}" for ALL ${teams.length} teams?\n\n`
-      + 'Share each team’s /team/CC00x link. Everyone types this password, then taps their name.',
+      + 'Send ONE link + password to each team’s LEADER only (one phone per team).',
     )) {
       return;
     }
@@ -1105,12 +1085,12 @@ export default function TeamManagerPanel({
         && t.access.scanners.every((s) => s.loginEmail)
       )).length;
     if (incomplete <= 0) {
-      setMsg('All team rosters already have player accounts');
+      setMsg('All leader packs already have accounts');
       return;
     }
     const ok = window.confirm(
-      `Create leader + 3 player accounts for ${incomplete} team(s)?\n\n`
-      + 'Required before Round 1 can start. Safe to re-run.',
+      `Repair leader + walker names for ${incomplete} team(s)?\n\n`
+      + 'Leader phone only — walkers do not get separate logins. Safe to re-run.',
     );
     if (!ok) return;
 
@@ -1133,16 +1113,36 @@ export default function TeamManagerPanel({
   };
 
   const createDemoTeams = async () => {
-    if (teams.length >= capacity) {
-      setMsg(`Already have ${teams.length}/${capacity} teams.`);
+    if (excessTeams > 0) {
+      const trim = window.confirm(
+        `Found ${teams.length} teams but capacity is ${capacity}.\n\n`
+        + `Remove the extra ${excessTeams} team(s) (keep CC001–CC${String(capacity).padStart(3, '0')}), then create any missing?`,
+      );
+      if (!trim) return;
+      setBusy(true);
+      setMsg('');
+      try {
+        const pruned = await adminPruneExcessTeams(eventId);
+        setMsg(`Trimmed ${pruned.data?.removed || 0} leftover team(s).`);
+        await refresh();
+      } catch (err) {
+        setMsg(err.message || 'Could not trim leftover teams');
+        setBusy(false);
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    const currentCount = Math.min(teams.length, capacity);
+    if (currentCount >= capacity && excessTeams === 0) {
+      setMsg(`Already have ${capacity}/${capacity} teams.`);
       return;
     }
     const ok = window.confirm(
-      `Create demo Team 1–${capacity} (codes CC001–CC${String(capacity).padStart(3, '0')})?\n\n`
-      + `${teamSize} people/team · ${startCount} start(s) · ~${teamsPerWait} teams per start.\n\n`
-      + 'Does NOT set one shared password for all teams.\n'
-      + 'After create: set a unique password per team (or run unique-campus-hunt-team-passwords.js).\n\n'
-      + 'Skips teams that already exist.',
+      `Create demo teams up to ${capacity} (codes CC001–CC${String(capacity).padStart(3, '0')})?\n\n`
+      + `${teamSize} people/team · ${startCount} start(s).\n\n`
+      + 'Skips teams that already exist. Set a unique password per leader pack before links.',
     );
     if (!ok) return;
 
@@ -1155,14 +1155,10 @@ export default function TeamManagerPanel({
       });
       const created = result.data?.teams?.created ?? 0;
       const skipped = result.data?.teams?.skipped ?? 0;
-      const rosterRepair = result.data?.teams?.rosterRepair;
+      const removed = result.data?.pruned?.removed ?? 0;
       let successMsg = `Demo teams ready · created ${created}, already had ${skipped}.`;
-      if (rosterRepair?.repaired) {
-        successMsg += ` Repaired ${rosterRepair.repaired} rosters.`;
-      } else if (rosterRepair?.stillIncomplete) {
-        successMsg += ` ${rosterRepair.stillIncomplete} rosters still need repair — tap Repair rosters below.`;
-      }
-      successMsg += ' Set UNIQUE passwords per team before sharing links (do not use one password for all).';
+      if (removed) successMsg += ` Trimmed ${removed} leftover(s).`;
+      successMsg += ' Set UNIQUE passwords on each leader pack before sharing.';
       setMsg(successMsg);
       setLastCredentials(null);
       setLastTeamCode('CC001');
@@ -1173,6 +1169,30 @@ export default function TeamManagerPanel({
       onChanged?.();
     } catch (err) {
       setMsg(err.message || 'Could not create demo teams');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const trimToCapacity = async () => {
+    if (excessTeams <= 0) {
+      setMsg(`Already at capacity (${teams.length}/${capacity}).`);
+      return;
+    }
+    const ok = window.confirm(
+      `Remove ${excessTeams} leftover team(s) beyond capacity ${capacity}?\n\n`
+      + 'Keeps the first teams by code (usually CC001…).',
+    );
+    if (!ok) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = await adminPruneExcessTeams(eventId);
+      setMsg(`Trimmed ${result.data?.removed || 0} team(s). Now ${result.data?.kept || capacity}/${capacity}.`);
+      await refresh();
+      onChanged?.();
+    } catch (err) {
+      setMsg(err.message || 'Could not trim teams');
     } finally {
       setBusy(false);
     }
@@ -1274,7 +1294,7 @@ export default function TeamManagerPanel({
             <p className="mt-1 text-xs text-white/60">
               Creates CC001–CC{String(capacity).padStart(3, '0')} with placeholder names
               ({teamSize}/team · {startCount} start{startCount === 1 ? '' : 's'} · ~{teamsPerWait}/start).
-              Each team gets its own login link — set a unique password per team before hunt day.
+              Each team gets one login link for the leader phone — set a unique password per team before hunt day.
             </p>
             {demoReady ? (
               <p className="mt-2 text-sm text-emerald-200">
@@ -1288,7 +1308,7 @@ export default function TeamManagerPanel({
             )}
             {teams.length > 0 && rostersIncomplete > 0 && (
               <p className="mt-2 text-sm text-amber-100">
-                {rostersIncomplete} team(s) missing player accounts — repair rosters before start.
+                {rostersIncomplete} team(s) missing leader pack accounts — repair before start.
               </p>
             )}
           </div>
@@ -1301,6 +1321,16 @@ export default function TeamManagerPanel({
             >
               {busy ? 'Creating…' : demoReady ? `${capacity} teams ready` : `Create ${capacity} demo teams`}
             </button>
+            {leftoverTeams > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={trimToCapacity}
+                className="rounded-xl border border-amber-300/50 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-100 disabled:opacity-40"
+              >
+                Trim {leftoverTeams} leftover{leftoverTeams === 1 ? '' : 's'}
+              </button>
+            )}
             {teams.length > 0 && rostersIncomplete > 0 && (
               <button
                 type="button"
@@ -1308,7 +1338,7 @@ export default function TeamManagerPanel({
                 onClick={repairAllRosters}
                 className="rounded-xl border border-amber-300/50 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-100 disabled:opacity-40"
               >
-                {busy ? 'Repairing…' : `Repair rosters (${rostersIncomplete})`}
+                {busy ? 'Repairing…' : `Repair leader packs (${rostersIncomplete})`}
               </button>
             )}
           </div>
@@ -1328,12 +1358,12 @@ export default function TeamManagerPanel({
               onClick={() => {
                 const lines = layoutTeams
                   .map((t) => `${t.teamCode}\t${absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/${t.teamCode}`)}`);
-                copyText(`One link per team — use that team’s unique password\n\n${lines.join('\n')}`);
-                setMsg(`Copied all ${lines.length} team URLs`);
+                copyText(`ONE pack per team → send to LEADER only (one phone)\n\n${lines.join('\n')}`);
+                setMsg(`Copied ${lines.length} leader links`);
               }}
               className="rounded-lg bg-[#0ECCEE]/20 px-3 py-2 text-xs font-semibold text-[#0ECCEE]"
             >
-              Copy all {teamsForSchedule || capacity} URLs
+              Copy all {teamsForSchedule || capacity} leader links
             </button>
           </div>
         )}
@@ -1353,16 +1383,20 @@ export default function TeamManagerPanel({
         </p>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-white/55">
           <li>
-            Print stamps below — each card has team code + password
+            Print stamps below — each card has team code + password for the leader
           </li>
           <li>
-            Tell players: open <strong className="text-white/70">CrwdCtrl</strong>
+            Give each stamp / link to that team’s <strong className="text-white/70">leader only</strong>
+            {' '}(one pack · one phone)
+          </li>
+          <li>
+            Leader opens <strong className="text-white/70">CrwdCtrl</strong>
             {' → '}
             <strong className="text-white/70">My Profile</strong>
             {' → '}
             <strong className="text-white/70">Campus Hunt login</strong>
+            {' → code + password'}
           </li>
-          <li>Enter team code + password → tap their name</li>
         </ol>
         {activeStarts.length > 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1399,17 +1433,18 @@ export default function TeamManagerPanel({
               type="button"
               onClick={() => {
                 const lines = [
-                  'Share ONE link per team. Players only type the password and tap their name.',
+                  'ONE pack per team → send to the LEADER only (one phone).',
+                  'Walkers do not need a link or password.',
                   '',
                   ...layoutTeams
                     .map((t) => `${t.teamCode}\t${absoluteUrl(`/campus-hunt/${eventMeta.slug}/team/${t.teamCode}`)}`),
                 ];
                 copyText(lines.join('\n'));
-                setMsg(`Copied ${layoutTeams.length} team login URLs`);
+                setMsg(`Copied ${layoutTeams.length} leader links`);
               }}
               className="rounded-lg bg-[#0ECCEE]/20 px-3 py-1.5 text-xs font-semibold text-[#0ECCEE]"
             >
-              Copy all team URLs
+              Copy all leader links
             </button>
           )}
         </div>
@@ -1516,9 +1551,9 @@ export default function TeamManagerPanel({
         <div>
           <h3 className="font-semibold">1. Add team and login access</h3>
           <p className="mt-1 text-xs text-white/50">
-            {teamSize} people/team (leader + {scannersNeeded} member{scannersNeeded === 1 ? '' : 's'}).
-            One shared password for the whole team. Share each team&apos;s URL —
-            players only type the password and tap their name.
+            {teamSize} people walk together · leader phone only (leader + {scannersNeeded} walker name
+            {scannersNeeded === 1 ? '' : 's'} for roster).
+            One password · one pack · send to the leader only. Walkers do not log in.
           </p>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
@@ -1558,7 +1593,7 @@ export default function TeamManagerPanel({
               setLeaderPassword(e.target.value);
               setScannerPassword(e.target.value);
             }}
-            placeholder={`Shared team password (all ${teamSize} people)`}
+            placeholder="Shared password (leader phone)"
             className="rounded-lg border border-[#0ECCEE]/40 bg-[#161718] px-3 py-2 font-mono md:col-span-2"
             required
           />

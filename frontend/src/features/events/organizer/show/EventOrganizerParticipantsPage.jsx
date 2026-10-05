@@ -15,8 +15,16 @@ import { InlinePageLoader } from '../../../../components/DetailPageLoader';
 const HIDDEN_RESPONSE_KEYS = new Set([
     'name', 'full_name', 'leader_name', 'email', 'phone', 'mobile', 'contact_no',
     'blood_group', 'vehicle_details', 'vehicle', 'driver_count', 'package_name',
-    'registration_type', 'join_drive', 'join_independence_day_drive', 'independence_day_drive',
+    'registration_type', 'entry_type', 'join_drive', 'join_independence_day_drive', 'independence_day_drive',
     'payment_screenshot_url', 'transaction_id', 'coupon_code',
+    'selected_classes', 'class_count',
+    'city', 'emergency_contact_name', 'emergency_contact_number',
+    'driver_name', 'age_group', 'gender', 'driving_licence_number',
+    'vehicle_make', 'vehicle_model', 'vehicle_registration_number',
+    'fuel_type', 'engine_capacity', 'drive_configuration', 'wheelbase_classification',
+    'car_insured', 'car_insurance_company', 'car_insurance_policy_number', 'car_insurance_valid_until',
+    'pa_insured', 'pa_insurance_company', 'pa_insurance_policy_number', 'pa_insurance_valid_until',
+    'manual_entry', 'added_by_organizer', 'organizer_note',
 ]);
 
 function isHiddenResponseKey(key) {
@@ -215,7 +223,7 @@ export default function EventOrganizerParticipantsPage() {
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search name, phone, email, package…"
+                        placeholder="Search name, phone, email, class…"
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#161718] border border-gray-800 text-sm focus:outline-none focus:border-[#0ECCEE]/50"
                     />
                 </div>
@@ -225,20 +233,52 @@ export default function EventOrganizerParticipantsPage() {
             <div className="flex flex-wrap gap-2">
                 {[
                     { key: 'status', value: '', label: 'All' },
+                    { key: 'category', value: 'participant', label: 'Participants' },
+                    { key: 'category', value: 'spectator', label: 'Spectators' },
                     { key: 'status', value: 'pending', label: 'To review' },
                     { key: 'status', value: 'approved', label: 'Approved' },
-                    { key: 'paymentStatus', value: 'paid', label: 'Paid' },
+                    { key: 'paymentStatus', value: 'paid', label: 'Paid (Cashfree)' },
                     { key: 'paymentStatus', value: 'pending', label: 'Pay pending' },
+                    { key: 'paymentStatus', value: 'free', label: 'Free' },
                     { key: 'checkInStatus', value: 'checked_in', label: 'Checked in' },
                 ].map((f) => {
-                    const active = (searchParams.get(f.key) || '') === f.value;
+                    const isAll = f.key === 'status' && f.value === '';
+                    const allActive = isAll && !status && !paymentStatus && !checkInStatus && !category;
+                    const chipActive = isAll ? allActive : (
+                        f.key === 'category'
+                            ? category === f.value
+                            : f.key === 'paymentStatus'
+                                ? paymentStatus === f.value
+                                : f.key === 'checkInStatus'
+                                    ? checkInStatus === f.value
+                                    : status === f.value && !category
+                    );
                     return (
                         <button
                             key={`${f.key}-${f.value || 'all'}`}
                             type="button"
-                            onClick={() => setFilter(f.key, f.value)}
+                            onClick={() => {
+                                if (isAll) {
+                                    const next = new URLSearchParams();
+                                    if (search.trim()) next.set('search', search.trim());
+                                    setSearchParams(next);
+                                    return;
+                                }
+                                if (f.key === 'category') {
+                                    const next = new URLSearchParams(searchParams);
+                                    next.delete('status');
+                                    next.delete('paymentStatus');
+                                    next.delete('checkInStatus');
+                                    next.delete('page');
+                                    if (category === f.value) next.delete('category');
+                                    else next.set('category', f.value);
+                                    setSearchParams(next);
+                                    return;
+                                }
+                                setFilter(f.key, f.value);
+                            }}
                             className={`px-3 py-1.5 rounded-full text-xs border ${
-                                active
+                                chipActive
                                     ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
                                     : 'border-gray-700 text-gray-400'
                             }`}
@@ -262,8 +302,13 @@ export default function EventOrganizerParticipantsPage() {
                         const drivers = Array.isArray(p.drivers) ? p.drivers : [];
                         const driverCount = Number(p.driverCount) || drivers.length || 1;
                         const extras = Array.isArray(p.additionalEntries) ? p.additionalEntries : [];
+                        const classes = Array.isArray(p.allClasses) && p.allClasses.length
+                            ? p.allClasses
+                            : (p.tierName ? [p.tierName] : []);
+                        const isCashfree = String(p.payment_gateway || '').toLowerCase() === 'cashfree'
+                            || (!p.paymentScreenshotUrl && (p.payment_order_id || p.payment_id));
                         const responseEntries = Object.entries(p.responses || {})
-                            .filter(([k]) => !isHiddenResponseKey(k));
+                            .filter(([k]) => !isHiddenResponseKey(k) && !/^decl_/i.test(k));
 
                         return (
                             <div key={p.id} className="rounded-xl border border-gray-800 bg-[#161718] p-4">
@@ -279,6 +324,15 @@ export default function EventOrganizerParticipantsPage() {
                                                 className={`shrink-0 text-gray-500 transition-transform ${open ? 'rotate-90' : ''}`}
                                             />
                                             <p className="font-semibold truncate">{p.userName || 'Guest'}</p>
+                                            {p.categoryLabel ? (
+                                                <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                                    p.isSpectator
+                                                        ? 'border-violet-500/35 bg-violet-500/10 text-violet-200'
+                                                        : 'border-[#0ECCEE]/35 bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                                                }`}>
+                                                    {p.categoryLabel}
+                                                </span>
+                                            ) : null}
                                             {driverCount > 1 ? (
                                                 <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-gray-300">
                                                     {driverCount} people
@@ -291,11 +345,13 @@ export default function EventOrganizerParticipantsPage() {
                                             ) : null}
                                         </div>
                                         <p className="text-xs text-gray-500 truncate pl-5">
-                                            {[p.userPhone, p.userEmail].filter(Boolean).join(' · ') || 'No contact'}
+                                            {[p.userPhone, p.userEmail, p.city].filter(Boolean).join(' · ') || 'No contact'}
                                         </p>
                                         <p className="text-xs text-gray-400 mt-1 pl-5">
                                             {[
-                                                p.tierName,
+                                                classes.length > 1
+                                                    ? `${classes.length} classes`
+                                                    : (classes[0] || null),
                                                 money(p.amountPaid),
                                                 p.status,
                                                 p.checkedIn ? 'checked in' : null,
@@ -303,9 +359,15 @@ export default function EventOrganizerParticipantsPage() {
                                                 .filter(Boolean)
                                                 .join(' · ')}
                                         </p>
+                                        {classes.length > 1 ? (
+                                            <p className="text-[11px] text-gray-500 mt-1 pl-5 line-clamp-2">
+                                                {classes.join(' · ')}
+                                            </p>
+                                        ) : null}
                                         <div className="pl-5 mt-2 flex flex-wrap items-center gap-1.5">
                                             <span className={`px-2 py-0.5 rounded-full text-[10px] border ${paymentTone(p.paymentStatus)}`}>
                                                 {p.paymentStatus || 'free'}
+                                                {isCashfree && p.paymentStatus === 'paid' ? ' · Cashfree' : ''}
                                             </span>
                                             {p.bloodGroup ? (
                                                 <span className="px-2 py-0.5 rounded-full text-[10px] border border-white/10 text-gray-400">
@@ -329,6 +391,10 @@ export default function EventOrganizerParticipantsPage() {
                                                 className="h-14 w-14 rounded-lg object-cover border border-gray-700"
                                             />
                                         </a>
+                                    ) : isCashfree ? (
+                                        <div className="h-14 min-w-14 max-w-24 px-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-[10px] text-emerald-200 flex items-center justify-center shrink-0 text-center leading-tight">
+                                            Cashfree
+                                        </div>
                                     ) : (
                                         <div className="h-14 w-14 rounded-lg border border-dashed border-gray-700 text-[10px] text-gray-500 flex items-center justify-center shrink-0">
                                             No proof
@@ -351,20 +417,78 @@ export default function EventOrganizerParticipantsPage() {
                                 {open ? (
                                     <div className="mt-3 ml-5 rounded-lg border border-gray-800 bg-[#111213] p-3 space-y-3">
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                                            <div className="flex justify-between gap-2">
-                                                <span className="text-gray-500">Package</span>
-                                                <span className="text-gray-200 text-right">{p.tierName || '—'}</span>
+                                            <div className="flex justify-between gap-2 sm:col-span-2">
+                                                <span className="text-gray-500">Classes</span>
+                                                <span className="text-gray-200 text-right">{classes.length ? classes.join(' · ') : '—'}</span>
                                             </div>
-                                            {p.vehicleDetails ? (
-                                                <div className="flex justify-between gap-2">
-                                                    <span className="text-gray-500">Vehicle</span>
-                                                    <span className="text-gray-200 text-right">{p.vehicleDetails}</span>
-                                                </div>
-                                            ) : null}
+                                            <div className="flex justify-between gap-2">
+                                                <span className="text-gray-500">Type</span>
+                                                <span className="text-gray-200 text-right">{p.categoryLabel || p.entryType || '—'}</span>
+                                            </div>
                                             <div className="flex justify-between gap-2">
                                                 <span className="text-gray-500">Paid</span>
                                                 <span className="text-gray-200 text-right">{money(p.amountPaid)}</span>
                                             </div>
+                                            {p.vehicleDetails ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Vehicle</span>
+                                                    <span className="text-gray-200 text-right">{p.vehicleDetails}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.fuelType || p.engineCapacity || p.driveConfiguration ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Specs</span>
+                                                    <span className="text-gray-200 text-right">
+                                                        {[p.fuelType, p.engineCapacity, p.driveConfiguration, p.wheelbaseClassification].filter(Boolean).join(' · ')}
+                                                    </span>
+                                                </div>
+                                            ) : null}
+                                            {p.driverName || p.drivingLicenceNumber ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Driver</span>
+                                                    <span className="text-gray-200 text-right">
+                                                        {[p.driverName, p.ageGroup, p.gender, p.drivingLicenceNumber].filter(Boolean).join(' · ')}
+                                                    </span>
+                                                </div>
+                                            ) : null}
+                                            {p.carInsured || p.paInsured ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Insurance</span>
+                                                    <span className="text-gray-200 text-right">
+                                                        {[
+                                                            p.carInsured ? `Car: ${p.carInsured}` : null,
+                                                            p.carInsuranceCompany || null,
+                                                            p.paInsured ? `PA: ${p.paInsured}` : null,
+                                                        ].filter(Boolean).join(' · ')}
+                                                    </span>
+                                                </div>
+                                            ) : null}
+                                            {p.emergencyContactName || p.emergencyContactNumber ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Emergency</span>
+                                                    <span className="text-gray-200 text-right">
+                                                        {[p.emergencyContactName, p.emergencyContactNumber].filter(Boolean).join(' · ')}
+                                                    </span>
+                                                </div>
+                                            ) : null}
+                                            {p.payment_gateway ? (
+                                                <div className="flex justify-between gap-2">
+                                                    <span className="text-gray-500">Gateway</span>
+                                                    <span className="text-gray-200 text-right">{p.payment_gateway}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.payment_order_id ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Cashfree order</span>
+                                                    <span className="text-gray-200 text-right break-all">{p.payment_order_id}</span>
+                                                </div>
+                                            ) : null}
+                                            {p.payment_id ? (
+                                                <div className="flex justify-between gap-2 sm:col-span-2">
+                                                    <span className="text-gray-500">Payment ID</span>
+                                                    <span className="text-gray-200 text-right break-all">{p.payment_id}</span>
+                                                </div>
+                                            ) : null}
                                             {p.transactionId ? (
                                                 <div className="flex justify-between gap-2 sm:col-span-2">
                                                     <span className="text-gray-500">Txn ID</span>

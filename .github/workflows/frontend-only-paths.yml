@@ -1,0 +1,45 @@
+# Restrict non-owner PRs to frontend/ only.
+# Owners always get a green check so master can still require this status.
+name: Frontend-only path check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  frontend-only:
+    name: Only frontend/ changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        if: ${{ !contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject non-frontend paths
+        if: ${{ !contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          CHANGED=$(git diff --name-only "$BASE...$HEAD" || true)
+          if [ -z "$CHANGED" ]; then
+            echo "No file changes detected."
+            exit 0
+          fi
+          echo "Changed files:"
+          echo "$CHANGED"
+          BAD=$(echo "$CHANGED" | grep -vE '^frontend/' || true)
+          if [ -n "$BAD" ]; then
+            echo ""
+            echo "::error::This PR changes files outside frontend/. You may only edit frontend/."
+            echo "$BAD"
+            exit 1
+          fi
+          echo "OK — all changes are under frontend/."
+
+      - name: Owner exempt
+        if: ${{ contains(fromJSON('["lolbhailol-lol"]'), github.event.pull_request.user.login) }}
+        run: echo "Owner PR — path check skipped."

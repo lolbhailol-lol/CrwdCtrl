@@ -33,9 +33,9 @@ function paymentIdentityKey(req) {
 function paymentRateLimitMax(req) {
   const userId = bearerUserId(req);
   if (userId) {
-    return isDev ? 500 : Number(process.env.PAYMENT_RATE_LIMIT_MAX) || 120;
+    return isDev ? 500 : Number(process.env.PAYMENT_RATE_LIMIT_MAX) || 240;
   }
-  return isDev ? 500 : Number(process.env.PAYMENT_IP_RATE_LIMIT_MAX) || 300;
+  return isDev ? 500 : Number(process.env.PAYMENT_IP_RATE_LIMIT_MAX) || 600;
 }
 
 function registrationIdentityKey(req) {
@@ -45,9 +45,9 @@ function registrationIdentityKey(req) {
 function registrationRateLimitMax(req) {
   const userId = bearerUserId(req);
   if (userId) {
-    return isDev ? 300 : Number(process.env.REGISTRATION_RATE_LIMIT_MAX) || 60;
+    return isDev ? 300 : Number(process.env.REGISTRATION_RATE_LIMIT_MAX) || 120;
   }
-  return isDev ? 300 : Number(process.env.REGISTRATION_IP_RATE_LIMIT_MAX) || 150;
+  return isDev ? 300 : Number(process.env.REGISTRATION_IP_RATE_LIMIT_MAX) || 300;
 }
 
 /**
@@ -77,17 +77,24 @@ const apiLimiter = rateLimit({
     if (req.method === 'GET') {
       // Social crawler OG HTML — WhatsApp/Facebook prefetch must not 429
       if (/^\/seo\/og/.test(path)) return true;
+      // Aggregated homepage — every visitor hits this; never burn the shared IP budget
+      if (path === '/home' || path === '/home/' || path.startsWith('/home/')) return true;
       if (/^\/sports\/[^/]+$/.test(path)) return true;
       if (/^\/treks\/[^/]+$/.test(path)) return true;
       // MindSpark / fest browse — college NAT + WhatsApp blast must not 429 the brochure
       if (/^\/fests\/(all|upcoming|search)$/.test(path)) return true;
       if (/^\/fests\/[^/]+\/public$/.test(path)) return true;
       if (/^\/fests\/competitions\/[^/]+\/public$/.test(path)) return true;
+      // Auditorium ticket brochure + seat meta — venue WiFi loads this together
+      if (path.startsWith('/mindspark/auditorium')) return true;
       // Stall form meta — many phones load this at once on shared WiFi
       if (/^\/fests\/[^/]+\/stall$/.test(path)) return true;
       // Ticket QR fetch — the whole gate queue loads this at once from one venue IP,
       // and a 429 here means an attendee cannot show their QR at all. Already auth-scoped per user.
       if (/^\/qr\/[^/]+\/[^/]+\/qr$/.test(path)) return true;
+      // Public catalog hubs — sports/treks/run-clubs/events lists
+      if (/^\/(sports|treks|trek-communities|run-clubs|events)\/?$/.test(path)) return true;
+      if (path === '/config/public' || path.startsWith('/config/public/')) return true;
     }
     // Stall lead POSTs have their own high ceiling limiter
     if (req.method === 'POST' && /^\/fests\/[^/]+\/stall-leads$/.test(path)) return true;
@@ -176,7 +183,7 @@ const bundleQuoteLimiter = rateLimit({
 
 const bundlePaymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 1000 : Number(process.env.BUNDLE_PAYMENT_RATE_LIMIT_MAX) || 400,
+  max: isDev ? 1000 : Number(process.env.BUNDLE_PAYMENT_RATE_LIMIT_MAX) || 800,
   keyGenerator: (req) => `bundle:${String(req.params?.token || ipKeyGenerator(req.ip)).slice(0, 100)}`,
   standardHeaders: true,
   legacyHeaders: false,

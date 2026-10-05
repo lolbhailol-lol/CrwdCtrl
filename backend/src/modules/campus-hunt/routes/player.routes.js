@@ -20,17 +20,22 @@ const {
   getOfflineInstallPack,
   ackOfflineInstall,
   postOfflineProgress,
+  postOfflinePull,
+  postOfflineGridEnsure,
   getMyTeam,
   getTeamProgress,
   streamTeamProgress,
   submitClue1,
   submitChallengeAnswer,
   requestChallengeHint,
+  revealTimedChallenge,
   getLeaderboard,
   scanStation,
   confirmStation,
   rewindStep,
   forceUnlockClue2,
+  submitFinishCode,
+  startHuntWithCode,
 } = require('../controllers/playerController');
 
 const router = express.Router();
@@ -38,6 +43,8 @@ const router = express.Router();
 router.get('/offline-install/:token', campusHuntLoginLimiter, getOfflineInstallPack);
 router.post('/offline-install/:token/ack', campusHuntLoginLimiter, ackOfflineInstall);
 router.post('/events/:eventId/offline-progress', campusHuntLoginLimiter, postOfflineProgress);
+router.post('/events/:eventId/offline-pull', campusHuntLoginLimiter, postOfflinePull);
+router.post('/events/:eventId/offline-grid-ensure', campusHuntLoginLimiter, postOfflineGridEnsure);
 router.get('/colleges', listColleges);
 router.get('/profile-entries', optionalAuthenticateToken, listProfileEntries);
 router.get('/events/:eventId/leaderboard/public', getPublicLeaderboard);
@@ -96,6 +103,30 @@ router.post(
   requireTeamLeader,
   campusHuntHintLimiter,
   requestChallengeHint,
+);
+router.post(
+  '/teams/:teamId/challenges/:n/timer-reveal',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  campusHuntAnswerLimiter,
+  revealTimedChallenge,
+);
+router.post(
+  '/teams/:teamId/start',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  campusHuntAnswerLimiter,
+  startHuntWithCode,
+);
+router.post(
+  '/teams/:teamId/finish',
+  authenticateToken,
+  requireTeamMember,
+  requireTeamLeader,
+  campusHuntAnswerLimiter,
+  submitFinishCode,
 );
 router.post(
   '/teams/:teamId/checkpoints/scan',

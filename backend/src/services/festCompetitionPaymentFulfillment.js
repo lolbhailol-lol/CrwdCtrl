@@ -19,6 +19,7 @@ const {
 const { normalizeLeadIdentityFromRoster } = require('../utils/rosterResponses');
 const { saveRegistrationIdempotent } = require('../utils/registrationIdempotency');
 const { cashfreeSettlementFields } = require('../utils/cashfreeGatewayFee');
+const { assignStallCouponIfEligible } = require('../utils/assignStallCoupon');
 const {
   findApprovedCompetitionDuplicate,
   identityFromDraft,
@@ -131,7 +132,16 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
         })
       : null;
     if (alreadyPaid) {
-      return { ok: true, registrationId: alreadyPaid._id, alreadyExists: true };
+      const stallCoupon = await assignStallCouponIfEligible({
+        fest: competition.fest,
+        userId,
+      });
+      return {
+        ok: true,
+        registrationId: alreadyPaid._id,
+        alreadyExists: true,
+        stallCoupon: stallCoupon || null,
+      };
     }
 
     const user = await User.findById(userId);
@@ -257,9 +267,23 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       await releaseCompetitionSlot(paymentOrder.orderTags.slotReservationToken).catch(() => {});
     }
     if (!saved.created) {
-      return { ok: true, registrationId: saved.registration._id, alreadyExists: true };
+      const stallCoupon = await assignStallCouponIfEligible({
+        fest: competition.fest,
+        userId,
+      });
+      return {
+        ok: true,
+        registrationId: saved.registration._id,
+        alreadyExists: true,
+        stallCoupon: stallCoupon || null,
+      };
     }
     logger.debug('✅ Competition registration fulfilled from payment:', payment_order_id, saved.registration._id);
+
+    const stallCoupon = await assignStallCouponIfEligible({
+      fest: competition.fest,
+      userId,
+    });
 
     setImmediate(async () => {
       try {
@@ -296,6 +320,7 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
           fest: competition.fest,
           competition,
           registration: persistedRegistration,
+          extras: { stallCoupon: stallCoupon || null },
         }).catch(() => {});
         const sheetsUrl = competition.fest?.registration?.googleSheetsUrl
           || competition.registration?.googleSheetsUrl;
@@ -315,7 +340,11 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       }
     });
 
-    return { ok: true, registrationId: registration._id };
+    return {
+      ok: true,
+      registrationId: registration._id,
+      stallCoupon: stallCoupon || null,
+    };
   }
 
   const festId = paymentOrder.entityId || draft.festId;
@@ -332,7 +361,13 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       })
     : null;
   if (alreadyPaid) {
-    return { ok: true, registrationId: alreadyPaid._id, alreadyExists: true };
+    const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
+    return {
+      ok: true,
+      registrationId: alreadyPaid._id,
+      alreadyExists: true,
+      stallCoupon: stallCoupon || null,
+    };
   }
 
   const user = await User.findById(userId);
@@ -369,9 +404,17 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
       competitionId: null,
     });
     if (!savedFest.created) {
-      return { ok: true, registrationId: savedFest.registration._id, alreadyExists: true };
+      const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
+      return {
+        ok: true,
+        registrationId: savedFest.registration._id,
+        alreadyExists: true,
+        stallCoupon: stallCoupon || null,
+      };
     }
     logger.debug('✅ Fest registration fulfilled from payment:', payment_order_id, savedFest.registration._id);
+
+  const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
 
   setImmediate(async () => {
     try {
@@ -409,7 +452,15 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
         null,
         registration._id.toString(),
         new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-        { status: 'paid', method: 'cashfree', type: 'fest', ticketLink },
+        {
+          status: 'paid',
+          method: 'cashfree',
+          type: 'fest',
+          ticketLink,
+          qrHash: registration.qrCodeData || '',
+          venue: fest.venue || '',
+          stallCoupon: stallCoupon || null,
+        },
       ).catch(() => {});
       const sheetsUrl = fest.registration?.googleSheetsUrl;
       if (sheetsUrl) {
@@ -428,7 +479,11 @@ async function fulfillFestCompetitionFromPaidOrder(paymentOrderInput, overrides 
     }
   });
 
-  return { ok: true, registrationId: registration._id };
+  return {
+    ok: true,
+    registrationId: registration._id,
+    stallCoupon: stallCoupon || null,
+  };
 }
 
 module.exports = {

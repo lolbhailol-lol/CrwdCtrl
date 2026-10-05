@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useFavorites } from '../../../context/FavoritesContext';
 import { useNotifications } from '../../../context/NotificationsContext';
-import { getImageUrl } from '../../../utils/imageImports';
 import { getCoverImageUrl } from '../../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { toCardText } from '../../../utils/cardText';
@@ -19,13 +18,13 @@ import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
 import AppLogo from '../../../components/AppLogo';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
 import CardShareButton from '../../../components/CardShareButton';
-import PosterFitImage from '../../../components/PosterFitImage';
+import HomeEventCard from '../../../components/HomeEventCard';
+import ContentImage from '../../../components/ContentImage';
 import CarouselDotPagination from '../../../components/CarouselDotPagination';
 import HeroBanner from '../../../components/HeroBanner';
 import {
     HeroBannerSkeleton,
     CompactPortraitCardsRowSkeleton,
-    WideActivityCardsRowSkeleton,
 } from '../../../components/HomeEventCardSkeleton';
 import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRenderer';
 import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
@@ -64,134 +63,66 @@ const writeEventsCache = (payload) => {
 
 function SpotlightCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
-            onClick={onClick}
-        >
-            <div className={`card-portrait-image relative overflow-hidden ${isDark ? 'bg-[#1A1B1D]' : 'bg-gray-100'}`}>
-                {show.image ? (
-                    <PosterFitImage
-                        src={show.image}
-                        alt={show.title}
-                        preset="cardPortraitPad"
-                        fallbackW={160}
-                        fallbackH={208}
-                        fallbackBg="#5c0a12"
-                    />
-                ) : (
-                    <div className="w-full h-full bg-linear-to-br from-purple-800 to-indigo-600 flex items-center justify-center">
-                        <span className="text-5xl">🎭</span>
-                    </div>
-                )}
-                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
-            </div>
-            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full">
-                <div className="flex-1 min-w-0 pr-1">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {toCardText(show.title)}
-                    </p>
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(show.basedIn)}
-                    </p>
-                </div>
-                <CardShareButton
-                    isDark={isDark}
-                    className="mt-0.5 shrink-0"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        shareContent({ title: show.title, url: window.location.origin + '/events' });
-                    }}
-                />
-            </div>
-        </div>
+        <HomeEventCard
+            event={{
+                id: show.id || show._id,
+                title: show.title,
+                subtitle: show.basedIn || show.city,
+                communityName: show.basedIn || show.city || 'Event',
+                image: show.image,
+                tagline: show.type,
+                displayDate: show.date,
+                category: show.type,
+            }}
+            isDark={isDark}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onViewDetails={onClick}
+            shareUrl={`${window.location.origin}/events`}
+        />
     );
 }
 
 function UpcomingShowCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div
-            className="card-surface card-wide rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200"
-            onClick={onClick}
-        >
-            <div className="card-wide-image relative">
-                {show.image ? (
-                    <img
-                        src={getCoverImageUrl(show, 'cardWide') || getImageUrl(show.image, { preset: 'cardWide' })}
-                        alt={show.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 320, 224, '#2a1a3a', show.title || 'Event')}
-                    />
-                ) : (
-                    <div className="w-full h-full bg-linear-to-br from-slate-700 to-slate-900 flex items-center justify-center">
-                        <span className="text-6xl">🎭</span>
-                    </div>
-                )}
-                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
-            </div>
-            <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex-1 min-w-0">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {toCardText(show.title)}
-                    </p>
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(show.type)}
-                    </p>
-                </div>
-                <CardShareButton
-                    isDark={isDark}
-                    className="ml-3"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        shareContent({ title: show.title, url: window.location.origin + '/events' });
-                    }}
-                />
-            </div>
-        </div>
+        <HomeEventCard
+            event={{
+                id: show.id || show._id,
+                title: show.title,
+                subtitle: show.type ? `${show.type}${show.feeLabel ? ` · ${show.feeLabel}` : ''}` : show.basedIn,
+                communityName: show.basedIn || show.type || 'Show',
+                image: show.image,
+                tagline: show.type,
+                displayDate: show.date,
+            }}
+            isDark={isDark}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onViewDetails={onClick}
+            shareUrl={`${window.location.origin}/events`}
+        />
     );
 }
 
 function CommunityEventCard({ show, isDark, isFavorite, onToggleFavorite, onClick }) {
     return (
-        <div
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
-            onClick={onClick}
-        >
-            <div className={`card-portrait-image relative overflow-hidden ${isDark ? 'bg-[#1A1B1D]' : 'bg-gray-100'}`}>
-                {show.image ? (
-                    <PosterFitImage
-                        src={show.image}
-                        alt={show.title}
-                        preset="cardPortraitPad"
-                        fallbackW={160}
-                        fallbackH={208}
-                        fallbackBg="#5c0a12"
-                    />
-                ) : (
-                    <div className="w-full h-full bg-linear-to-br from-purple-800 to-indigo-600 flex items-center justify-center">
-                        <span className="text-5xl">🎭</span>
-                    </div>
-                )}
-                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
-            </div>
-            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full">
-                <div className="flex-1 min-w-0 pr-1">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {toCardText(show.title)}
-                    </p>
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(show.basedIn || show.date || show.subtitle)}
-                    </p>
-                </div>
-                <CardShareButton
-                    isDark={isDark}
-                    className="mt-0.5 shrink-0"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        shareContent({ title: show.title, url: window.location.origin + '/events' });
-                    }}
-                />
-            </div>
-        </div>
+        <HomeEventCard
+            event={{
+                id: show.id || show._id,
+                title: show.title,
+                subtitle: show.basedIn || show.date || show.subtitle,
+                communityName: show.basedIn || show.subtitle || 'Community',
+                image: show.image,
+                displayDate: show.eventDate || show.date,
+                isCommunity: true,
+                _type: 'community',
+            }}
+            isDark={isDark}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onViewDetails={onClick}
+            shareUrl={`${window.location.origin}/events`}
+        />
     );
 }
 
@@ -413,6 +344,21 @@ export default function EventsPage() {
             .sort((a, b) => (a.pagePriority || 999) - (b.pagePriority || 999));
     }, [eventCommunityCards, communityEventCards, communityShows]);
 
+    // Prefetch community event detail chunk so Touch Grass / Mafia open without waiting on JS
+    useEffect(() => {
+        if (!communityEventCards.length) return undefined;
+        const idle = typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function'
+            ? window.requestIdleCallback
+            : (cb) => setTimeout(cb, 400);
+        const cancel = typeof window !== 'undefined' && typeof window.cancelIdleCallback === 'function'
+            ? window.cancelIdleCallback
+            : clearTimeout;
+        const handle = idle(() => {
+            import('./EventCommunityEventPage').catch(() => {});
+        });
+        return () => cancel(handle);
+    }, [communityEventCards.length]);
+
     const heroBannerEvents = useMemo(
         () => heroShows.map((show) => ({
             id: show.id,
@@ -595,7 +541,7 @@ export default function EventsPage() {
                         </h2>
                         {loading ? (
                             <div className="carousel-scroll-gutter overflow-x-auto scrollbar-hide">
-                                <WideActivityCardsRowSkeleton count={2} className="" />
+                                <CompactPortraitCardsRowSkeleton count={3} className="" />
                             </div>
                         ) : upcomingShows.length === 0 ? (
                             <EmptyState label={publicConfig.emptyStates.events.upcoming} />
@@ -605,7 +551,7 @@ export default function EventsPage() {
                                     ref={upcomingScrollRef}
                                     className="carousel-scroll-gutter overflow-x-auto scrollbar-hide"
                                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-                                    onScroll={(e) => setUpcomingPg(Math.round(e.target.scrollLeft / 328))}
+                                    onScroll={(e) => setUpcomingPg(Math.round(e.target.scrollLeft / 176))}
                                 >
                                     <div className="flex gap-4 pb-1">
                                         {upcomingShows.map((show) => (

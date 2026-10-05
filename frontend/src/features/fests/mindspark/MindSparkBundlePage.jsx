@@ -15,7 +15,9 @@ const STEPS = ['Your details', 'Choose events', 'Participants', 'Pay'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const emptyMember = () => ({ name: '', email: '' });
 
-/** Normalize legacy string names or {name,email} rows into member objects. */
+/** Normalize legacy string names or {name,email} rows into member objects.
+ *  Keeps blank rows so “Add participant” can open an empty slot before the user types.
+ */
 function normalizeMembers(value) {
   if (!Array.isArray(value)) {
     return String(value || '')
@@ -38,12 +40,27 @@ function normalizeMembers(value) {
       }
       return null;
     })
-    .filter((row) => row && (row.name || row.email));
+    .filter((row) => row != null);
 }
 
 function membersComplete(members, min, max) {
   if (members.length < min || members.length > max) return false;
   return members.every((m) => m.name.trim() && EMAIL_RE.test(m.email.trim()));
+}
+
+/** FLASH / FANDOM (and similar) once-per-registration subcategory from personFields. */
+function getSubcategoryField(competition) {
+  const fields = competition?.registration?.personFields || competition?.personFields || [];
+  if (!Array.isArray(fields)) return null;
+  return fields.find((f) => String(f.key || '').toLowerCase() === 'subcategory')
+    || fields.find((f) => /sub\s*categor/i.test(String(f.label || '')))
+    || null;
+}
+
+function subcategoryComplete(competition, form) {
+  const field = getSubcategoryField(competition);
+  if (!field || field.required === false) return true;
+  return Boolean(String(form?.subcategory || '').trim());
 }
 
 function fieldClass(isDark) {
@@ -104,14 +121,15 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
       } catch {
         /* keep polling */
       }
-    }, 3000);
+    }, 5000);
     return () => window.clearInterval(timer);
   }, [desk, deskPay?.paymentToken, deskPay?.status]);
   useEffect(() => {
     if (!isAuthenticated || !user) return;
+    const accountPhone = String(user.phoneNumber || user.phone || '').replace(/\D/g, '').slice(-10);
     setCustomer(current => ({
       name: current.name || user.name || '',
-      phone: current.phone || user.phoneNumber || user.phone || '',
+      phone: current.phone || (accountPhone && accountPhone !== '9999999999' ? accountPhone : '') || '',
       email: current.email || user.email || '',
     }));
     setShowLogin(false);
@@ -131,23 +149,31 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
   const items = useMemo(() => selected.map((competitionId, i) => ({
     competitionId,
     feeTierId: forms[i].feeTierId || '',
+    subcategory: forms[i].subcategory || '',
     roster: {
       full_name: customer.name,
       phone: customer.phone,
       email: customer.email,
       team_name: forms[i].teamName || '',
       team_members: normalizeMembers(forms[i].members || forms[i].memberNames),
+      subcategory: forms[i].subcategory || '',
+      team_responses: forms[i].subcategory
+        ? { subcategory: forms[i].subcategory }
+        : undefined,
     },
   })), [selected, forms, customer]);
   const detailsValid = Boolean(customer.name.trim())
     && customer.phone.replace(/\D/g, '').length === 10
+    && customer.phone.replace(/\D/g, '').slice(-10) !== '9999999999'
     && EMAIL_RE.test(customer.email.trim());
   const selectionValid = selected.every(Boolean) && new Set(selected).size === 3;
   const formsValid = selectionValid && comps.every((c, i) => {
     const members = normalizeMembers(forms[i].members || forms[i].memberNames);
     const min = Math.max(1, Number(c?.teamSizeMin) || 1);
     const max = Math.max(min, Number(c?.teamSizeMax) || min);
-    return membersComplete(members, min, max) && (!c?.feeTiers?.length || Boolean(forms[i].feeTierId));
+    return membersComplete(members, min, max)
+      && (!c?.feeTiers?.length || Boolean(forms[i].feeTierId))
+      && subcategoryComplete(c, forms[i]);
   });
   const currentFormValid = (() => {
     const competition = comps[formIndex];
@@ -155,12 +181,27 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
     const members = normalizeMembers(forms[formIndex]?.members || forms[formIndex]?.memberNames);
     const min = Math.max(1, Number(competition.teamSizeMin) || 1);
     const max = Math.max(min, Number(competition.teamSizeMax) || min);
-    return membersComplete(members, min, max) && (!competition.feeTiers?.length || Boolean(forms[formIndex]?.feeTierId));
+    return membersComplete(members, min, max)
+      && (!competition.feeTiers?.length || Boolean(forms[formIndex]?.feeTierId))
+      && subcategoryComplete(competition, forms[formIndex]);
   })();
 
   useEffect(() => {
-    if (!detailsValid || !formsValid) { setQuote(null); return; }
-    quoteMindSparkBundle(items).then(data => { setQuote(data); setError(''); }).catch(e => { setQuote(null); setError(e.message); });
+    if (!detailsValid || !formsValid) { setQuote(null); return undefined; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      quoteMindSparkBundle(items)
+        .then((data) => {
+          if (!cancelled) { setQuote(data); setError(''); }
+        })
+        .catch((e) => {
+          if (!cancelled) { setQuote(null); setError(e.message); }
+        });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [detailsValid, formsValid, items]);
 
   const setForm = (i, field, value) => setForms(all => all.map((form, index) => index === i ? { ...form, [field]: value } : form));
@@ -183,7 +224,13 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
       while (existing.length < min) existing.push(emptyMember());
       return { ...form, members: existing.slice(0, Math.max(min, existing.length)), memberNames: undefined };
     }));
-    if (step === 3 && !currentFormValid) return setError('Every participant needs a full name and a valid email.');
+    if (step === 3 && !currentFormValid) {
+      const field = getSubcategoryField(comps[formIndex]);
+      if (field && !subcategoryComplete(comps[formIndex], forms[formIndex])) {
+        return setError(`Select a subcategory for ${comps[formIndex]?.name || 'this competition'}.`);
+      }
+      return setError('Every participant needs a full name and a valid email.');
+    }
     if (step === 3 && formIndex < 2) { setFormIndex(index => index + 1); return; }
     if (step === 3 && !formsValid) return setError('Complete the required participant details for every competition.');
     setStep(current => Math.min(4, current + 1));
@@ -443,7 +490,13 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                       <select
                         aria-label={`Select competition ${i + 1}`}
                         value={selected[i]}
-                        onChange={e => setSelected(all => all.map((id, index) => index === i ? e.target.value : id))}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setSelected((all) => all.map((id, index) => (index === i ? nextId : id)));
+                          setForms((all) => all.map((form, index) => (
+                            index === i ? { ...form, subcategory: '', feeTierId: '' } : form
+                          )));
+                        }}
                         className={inputCls}
                       >
                         <option value="">Select competition</option>
@@ -535,12 +588,19 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                   {activeNames.length < activeMax ? (
                     <button
                       type="button"
-                      onClick={() => setForm(formIndex, 'members', [...activeNames, emptyMember()])}
-                      className="w-full rounded-xl border border-dashed border-[#0ECCEE]/40 py-3 text-sm font-semibold text-[#0ECCEE]"
+                      onClick={() => {
+                        setError('');
+                        setForm(formIndex, 'members', [...activeNames, emptyMember()]);
+                      }}
+                      className="relative z-10 w-full rounded-xl border border-dashed border-[#0ECCEE]/50 bg-[#0ECCEE]/5 py-3.5 text-sm font-semibold text-[#0ECCEE] hover:bg-[#0ECCEE]/10 active:scale-[0.99] cursor-pointer transition"
                     >
                       + Add participant
                     </button>
-                  ) : null}
+                  ) : (
+                    <p className={`text-center text-xs ${muted}`}>
+                      Max {activeMax} participant{activeMax === 1 ? '' : 's'} for this event
+                    </p>
+                  )}
                   {activeCompetition.feeTiers?.length ? (
                     <label className="block">
                       <span className={labelCls}>Category <span className="text-red-400">*</span></span>
@@ -550,6 +610,28 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                       </select>
                     </label>
                   ) : null}
+                  {(() => {
+                    const subField = getSubcategoryField(activeCompetition);
+                    if (!subField?.options?.length) return null;
+                    return (
+                      <label className="block">
+                        <span className={labelCls}>
+                          {subField.label || 'Subcategory'}
+                          {subField.required === false ? null : <span className="text-red-400"> *</span>}
+                        </span>
+                        <select
+                          value={forms[formIndex].subcategory || ''}
+                          onChange={(e) => setForm(formIndex, 'subcategory', e.target.value)}
+                          className={inputCls}
+                        >
+                          <option value="">{subField.placeholder || 'Select subcategory'}</option>
+                          {subField.options.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -571,6 +653,9 @@ export default function MindSparkBundlePage({ embedded = false, onClose }) {
                         <p className={`truncate font-semibold ${titleCls}`}>{c.name}</p>
                         <p className={`mt-1 text-xs ${muted}`}>{forms[i].teamName || members.map((m) => m.name).filter(Boolean).join(', ')}</p>
                         <p className={`text-xs ${muted}`}>{members.length} participant{members.length === 1 ? '' : 's'}</p>
+                        {forms[i].subcategory ? (
+                          <p className={`text-xs ${muted}`}>{forms[i].subcategory}</p>
+                        ) : null}
                       </div>
                       <span className={`shrink-0 text-sm ${titleCls}`}>₹{Number(priced?.amount || 0).toLocaleString('en-IN')}</span>
                     </div>

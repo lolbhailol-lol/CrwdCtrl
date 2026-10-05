@@ -24,7 +24,7 @@ import {
     ScrollReveal,
 } from '../../../motion';
 import Seo from '../../../components/Seo';
-import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
+import { breadcrumbSchema, itemListSchema, toOgShareImageUrl } from '../../../utils/seo';
 
 import {
     fetchRunClub,
@@ -178,11 +178,11 @@ function RunCard({ run, isDark, isFav, onFav, onClick }) {
             onClick={onClick}
         >
             <div className="card-portrait-image">
-                {getCoverImageUrl(run, 'cardPortrait') ? (
+                {getCoverImageUrl(run, 'cardPortraitFit') ? (
                     <img
-                        src={getCoverImageUrl(run, 'cardPortrait')}
+                        src={getCoverImageUrl(run, 'cardPortraitFit')}
                         alt={run.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain object-center bg-[#0B0C0D]"
                         loading="lazy"
                         decoding="async"
                         onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', run.title)}
@@ -487,7 +487,12 @@ export default function RunClubDetailPage() {
                 title={`${name} — Running Club`}
                 description={description}
                 canonical={canonicalPath}
-                image={club?.coverImage || club?.image}
+                image={toOgShareImageUrl(
+                    resolveCoverImage(club, 'cardPortrait')
+                        || club?.coverImage
+                        || club?.image,
+                    { contain: true, portrait: true },
+                )}
                 jsonLd={[
                     breadcrumbSchema([
                         { name: 'Home', path: '/' },

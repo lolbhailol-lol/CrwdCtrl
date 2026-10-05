@@ -25,7 +25,10 @@ export async function payAndRegisterCompetition(competitionId, verifiedFields, t
     if (!regRes.ok) {
         throw new Error(regData.error || regData.message || 'Registration failed after payment.');
     }
-    return regData._id || regData.registration?._id || regData.registrationId || null;
+    return {
+        regId: regData._id || regData.registration?._id || regData.registrationId || null,
+        stallCoupon: regData.stallCoupon || null,
+    };
 }
 
 /**
@@ -41,8 +44,17 @@ export async function finalizeCompetitionAfterPayment({
 }) {
     if (typeof tryFormSubmit === 'function') {
         try {
-            const regId = await tryFormSubmit();
-            if (regId) return { regId, via: 'form' };
+            const formResult = await tryFormSubmit();
+            const regId = typeof formResult === 'object' && formResult !== null
+                ? formResult.regId || formResult.registrationId || null
+                : formResult;
+            if (regId) {
+                return {
+                    regId,
+                    via: 'form',
+                    stallCoupon: typeof formResult === 'object' ? formResult.stallCoupon || null : null,
+                };
+            }
         } catch (err) {
             console.warn(
                 '[finalizeCompetitionAfterPayment] form submit failed, using pay-and-register:',
@@ -51,6 +63,6 @@ export async function finalizeCompetitionAfterPayment({
         }
     }
 
-    const regId = await payAndRegisterCompetition(competitionId, verifiedFields, token, draft);
-    return { regId, via: 'pay-and-register' };
+    const paid = await payAndRegisterCompetition(competitionId, verifiedFields, token, draft);
+    return { regId: paid.regId, via: 'pay-and-register', stallCoupon: paid.stallCoupon || null };
 }

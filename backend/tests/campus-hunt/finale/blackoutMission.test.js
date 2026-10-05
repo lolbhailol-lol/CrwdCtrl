@@ -48,103 +48,69 @@ const baseConfig = {
   },
 };
 
-function seatForRole(state, role) {
-  const map = state.seatByRole || {};
-  return Number(map[role]);
-}
+const leader = { seat: 0, isLeader: true };
 
-test('Blackout: deterministic roles and sequential Scout→Controller', () => {
+test('Blackout: leader-only phone sequential Scout→Controller', () => {
   const { state } = blackout.startRun(entry, baseConfig, { teamId });
   assert.equal(state.step, 'scout');
   assert.ok(state.pendingToken);
   assert.ok(state.pendingRoute);
   assert.equal(Object.keys(state.roleBySeat).length, 4);
 
-  const scoutSeat = seatForRole(state, 'scout');
-  const crackerSeat = seatForRole(state, 'cracker');
-  const navSeat = seatForRole(state, 'navigator');
-  const ctrlSeat = seatForRole(state, 'controller');
-
   const run = { state };
-  const wrong = blackout.submitStep(entry, run, { answer: 'NOPE' }, baseConfig, { seat: scoutSeat });
+  const wrong = blackout.submitStep(entry, run, { answer: 'NOPE' }, baseConfig, leader);
   assert.equal(wrong.ok, false);
   assert.equal(wrong.penalty, 10);
   run.state = wrong.state;
 
-  const scoutOk = blackout.submitStep(entry, run, { answer: 'ORBIT' }, baseConfig, { seat: scoutSeat });
+  const scoutOk = blackout.submitStep(entry, run, { answer: 'ORBIT' }, baseConfig, leader);
   assert.equal(scoutOk.ok, true);
   assert.equal(scoutOk.state.step, 'cracker');
   assert.ok(scoutOk.state.accessToken);
+  assert.equal(scoutOk.state.crackerUnlocked, true);
   assert.doesNotMatch(JSON.stringify(scoutOk.playerView), /pendingToken/i);
   run.state = scoutOk.state;
 
-  // Wrong role cannot advance cracker
-  const wrongRole = blackout.submitStep(
-    entry,
-    run,
-    { answer: run.state.accessToken },
-    baseConfig,
-    { seat: scoutSeat },
-  );
-  assert.equal(wrongRole.ok, false);
-
-  const unlock = blackout.submitStep(
-    entry,
-    run,
-    { answer: run.state.accessToken },
-    baseConfig,
-    { seat: crackerSeat },
-  );
-  assert.equal(unlock.ok, true);
-  assert.equal(unlock.state.crackerUnlocked, true);
-  run.state = unlock.state;
-
-  const crack = blackout.submitStep(entry, run, { answer: 'LOCK' }, baseConfig, { seat: crackerSeat });
+  const crack = blackout.submitStep(entry, run, { answer: 'LOCK' }, baseConfig, leader);
   assert.equal(crack.ok, true);
   assert.equal(crack.state.step, 'navigator');
   assert.ok(crack.state.route);
+  assert.equal(crack.state.navigatorUnlocked, true);
   run.state = crack.state;
 
-  const routeOk = blackout.submitStep(
-    entry,
-    run,
-    { answer: run.state.route },
-    baseConfig,
-    { seat: navSeat },
-  );
-  assert.equal(routeOk.ok, true);
-  assert.equal(routeOk.state.navigatorUnlocked, true);
-  run.state = routeOk.state;
-
-  const freqOk = blackout.submitStep(entry, run, { answer: '88.1' }, baseConfig, { seat: navSeat });
+  // Leader phone auto-unlocks navigator — go straight to frequency.
+  const freqOk = blackout.submitStep(entry, run, { answer: '88.1' }, baseConfig, leader);
   assert.equal(freqOk.ok, true);
   assert.equal(freqOk.state.step, 'controller');
   run.state = freqOk.state;
 
   const expected = blackout.buildDerivedActivation(run.state);
-  const done = blackout.submitStep(entry, run, { answer: expected }, baseConfig, { seat: ctrlSeat });
+  const done = blackout.submitStep(entry, run, { answer: expected }, baseConfig, leader);
   assert.equal(done.ok, true);
   assert.equal(done.complete, true);
   assert.equal(done.points, 200);
 });
 
-test('Blackout: role views hide other operators secrets until earned', () => {
+test('Blackout: non-leader cannot submit; leader view keeps token on phone', () => {
   const { state } = blackout.startRun(entry, baseConfig, { teamId });
-  const scoutSeat = seatForRole(state, 'scout');
-  const crackerSeat = seatForRole(state, 'cracker');
   const run = { state };
 
-  const after = blackout.submitStep(entry, run, { answer: 'ORBIT' }, baseConfig, { seat: scoutSeat });
-  run.state = after.state;
+  const blocked = blackout.submitStep(entry, run, { answer: 'ORBIT' }, baseConfig, {
+    seat: 1,
+    isLeader: false,
+  });
+  assert.equal(blocked.ok, false);
+  assert.match(String(blocked.playerView?.message || ''), /Team Leader/i);
 
-  const scoutView = blackout.rebuildPlayerView(run, baseConfig, { seat: scoutSeat });
-  assert.equal(scoutView.accessToken, run.state.accessToken);
+  const scoutOk = blackout.submitStep(entry, run, { answer: 'ORBIT' }, baseConfig, leader);
+  run.state = scoutOk.state;
 
-  const crackerView = blackout.rebuildPlayerView(run, baseConfig, { seat: crackerSeat });
-  assert.equal(crackerView.canSubmit, true);
-  assert.equal(crackerView.subStep, 'token');
-  // Token not auto-shown to cracker — must receive verbally
-  assert.equal(crackerView.accessToken, null);
+  const leaderView = blackout.rebuildPlayerView(run, baseConfig, leader);
+  assert.equal(leaderView.accessToken, run.state.accessToken);
+
+  const memberView = blackout.rebuildPlayerView(run, baseConfig, { seat: 1, isLeader: false });
+  assert.equal(memberView.canSubmit, false);
+  assert.equal(memberView.accessToken, undefined);
 });
 
 test('sanitizePublicMissionState never leaks blackout pending secrets', () => {
@@ -157,11 +123,10 @@ test('sanitizePublicMissionState never leaks blackout pending secrets', () => {
   assert.equal(pub.roleBySeat, undefined);
 });
 
-test('Blackout: unknown seat cannot submit', () => {
+test('Blackout: unknown seat without leader flag cannot submit', () => {
   const { state } = blackout.startRun(entry, baseConfig, { teamId });
   const res = blackout.submitStep(entry, { state }, { answer: 'ORBIT' }, baseConfig, { seat: -1 });
   assert.equal(res.ok, false);
-  assert.ok(res.playerView.rosterError);
 });
 
 test('Blackout: playtestForceAdvance walks Scout→Controller', () => {

@@ -8,8 +8,12 @@ const { scheduleRegistrationNotification } = require('./helpers');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { resolveFestCompetitionId, extractCompetitionChoice } = require('../../utils/festCompetitionAssignment');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
+
 const StallCoupon = require('../../model/stall_coupon_model');
 const { generateUniqueStallCouponCode } = require('../../utils/generateStallCouponCode');
+
+const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
+
 
 // Submit registration for a fest
 // Submit registration for a fest with file uploads
@@ -272,6 +276,7 @@ const submitRegistration = async (req, res) => {
     await registration.save();
     logger.debug('✅ Registration saved:', registration._id);
 
+
     // 🎟️ Fest ka brand configured hai to coupon assign karo (college se koi matlab nahi)
     let stallCoupon = null;
     if (fest.stallBrand) {
@@ -304,6 +309,9 @@ const submitRegistration = async (req, res) => {
       }
     }
 
+    const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
+
+
     // Get user details for Google Sheets
     const user = await User.findById(userId).select('name email phoneNumber');
 
@@ -321,9 +329,13 @@ const submitRegistration = async (req, res) => {
         status: registration.status,
         submittedAt: registration.submittedAt
       },
+
       stallCoupon: stallCoupon
         ? { code: stallCoupon.code, brand: stallCoupon.brand }
         : null,
+
+      stallCoupon: stallCoupon || null,
+
     });
 
     scheduleRegistrationNotification(userId, {
@@ -476,7 +488,10 @@ const submitRegistration = async (req, res) => {
               status: registration.paymentStatus || 'free',
               method: registration.paymentStatus === 'paid' ? 'cashfree' : '',
               type: 'fest',
-              ticketLink: `/registration-details/${registration._id}`,
+              ticketLink: `/qr-ticket/${registration._id}`,
+              qrHash: registration.qrCodeData || '',
+              venue: fest.venue || '',
+              stallCoupon: stallCoupon || null,
             },
           );
 

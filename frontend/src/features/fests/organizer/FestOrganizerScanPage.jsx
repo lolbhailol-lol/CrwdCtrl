@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import CheckinScannerPage from '../../../components/admin/CheckinScannerPage';
 import OrganizerGateCheckinPanel from '../../../components/organizer/OrganizerGateCheckinPanel';
 import { getApiBaseUrl } from '../../../config/apiBase';
@@ -10,7 +10,6 @@ import {
     festOrganizerCheckin,
 } from '../../../services/api/festOrganizer.api';
 import { useDialog } from '../../../context/DialogContext';
-import { getFestPlugin } from '../plugins/registry';
 
 function normalizeFestRow(p) {
     if (!p) return null;
@@ -125,9 +124,5 @@ function FestOrganizerScanPageContent() {
 }
 
 export default function FestOrganizerScanPage() {
-    const { festId } = useParams();
-    if (getFestPlugin(festId).simpleOrganizerPortal) {
-        return <Navigate to={`/fest-organizer/fests/${festId}/competitions`} replace />;
-    }
     return <FestOrganizerScanPageContent />;
 }

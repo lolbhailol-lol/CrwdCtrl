@@ -5,9 +5,14 @@ const PaymentOrder = require('../model/payment_order_model');
 const User = require('../model/usermodel');
 const { FEST_ID, BUNDLE_COMPETITION_IDS, DISCOUNT_PERCENT, BUNDLE_SIZE, BUNDLE_GROUP, isBundleEligible, groupFor } = require('../modules/fest/plugins/mindsparkBundle');
 const { resolveCompetitionTicketPrice } = require('../utils/competitionFeeTiers');
-const { assertCompetitionAcceptsRegistration } = require('../utils/competitionSlots');
+const { assertCompetitionsAcceptRegistration } = require('../utils/competitionSlots');
 const { acquireCompetitionSlot, attachReservationToOrder, releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
-const { createCashfreeOrder, verifyCashfreePayment, getCashfreeClientMode } = require('../services/cashfreeService');
+const {
+  createCashfreeOrder,
+  verifyCashfreePayment,
+  getCashfreeClientMode,
+  firstValidCustomerPhone,
+} = require('../services/cashfreeService');
 const { fulfillMindSparkBundle } = require('../services/mindsparkBundleService');
 
 const TTL = 30 * 60 * 1000;
@@ -19,9 +24,32 @@ const FRONTEND = () => String(
 ).replace(/\/$/, '');
 const PAYABLE_RATIO = (100 - DISCOUNT_PERCENT) / 100;
 const ORDER_NOTE = `MindSpark Any ${BUNDLE_SIZE} Bundle (${DISCOUNT_PERCENT}% off)`;
+const PLACEHOLDER_PHONE = '9999999999';
 const clean = (v, n = 180) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, n);
 const phone = v => String(v || '').replace(/\D/g, '').slice(-10);
 const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(v).toLowerCase());
+const isRealPhone = (v) => {
+  const digits = phone(v);
+  return digits.length === 10 && digits !== PLACEHOLDER_PHONE;
+};
+
+/** Prefer form / roster WhatsApp over account placeholder (9999999999). */
+function resolveBundlePhone(bundle, user, extraPhone = '') {
+  const rosterPhones = (bundle?.items || []).flatMap((item) => {
+    const roster = item?.roster && typeof item.roster === 'object' ? item.roster : {};
+    const members = Array.isArray(roster.team_members) ? roster.team_members : [];
+    return [
+      roster.phone,
+      roster.mobile,
+      ...members.map((m) => m?.phone || m?.mobile),
+    ];
+  });
+  return firstValidCustomerPhone([
+    extraPhone,
+    ...rosterPhones,
+    user?.phoneNumber,
+  ]);
+}
 
 function serialize(bundle, order) {
   return {
@@ -56,13 +84,55 @@ async function serializeWithTickets(bundle, order) {
 }
 
 async function competitions() {
-  return Competition.find({ _id: { $in: BUNDLE_COMPETITION_IDS }, fest: FEST_ID }).select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax personFields slotsAllotted registrationsOpen').lean();
+  const list = await Competition.find({ _id: { $in: BUNDLE_COMPETITION_IDS }, fest: FEST_ID })
+    .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration.personFields slotsAllotted registrationsOpen')
+    .lean();
+  return list.map((c) => ({
+    ...c,
+    personFields: Array.isArray(c.registration?.personFields) ? c.registration.personFields : [],
+  }));
+}
+
+const offerCache = { at: 0, payload: null };
+const OFFER_TTL_MS = 30_000;
+
+function subcategoryFieldOf(competition) {
+  const fields = Array.isArray(competition?.registration?.personFields)
+    ? competition.registration.personFields
+    : (Array.isArray(competition?.personFields) ? competition.personFields : []);
+  return fields.find((f) => String(f.key || '').toLowerCase() === 'subcategory')
+    || fields.find((f) => /sub\s*categor/i.test(String(f.label || '')))
+    || null;
+}
+
+function resolveSubcategory(competition, rawValue) {
+  const field = subcategoryFieldOf(competition);
+  if (!field) return '';
+  const options = Array.isArray(field.options) ? field.options.map((o) => String(o || '').trim()).filter(Boolean) : [];
+  const wanted = clean(rawValue, 80);
+  if (!wanted) {
+    if (field.required === false) return '';
+    const e = new Error(`${competition.name}: select a subcategory.`);
+    e.status = 400;
+    throw e;
+  }
+  const hit = options.find((opt) => opt.toLowerCase() === wanted.toLowerCase());
+  if (!hit) {
+    const e = new Error(`${competition.name}: choose a valid subcategory (${options.join(', ')}).`);
+    e.status = 400;
+    throw e;
+  }
+  return hit;
 }
 
 exports.offer = async (_req, res) => {
+  if (offerCache.payload && Date.now() - offerCache.at < OFFER_TTL_MS) {
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+    return res.json(offerCache.payload);
+  }
   const list = await competitions();
   const shaped = list.map(c => ({ ...c, group: groupFor(c._id) }));
-  res.json({
+  const payload = {
     success: true,
     festId: FEST_ID,
     discountPercent: DISCOUNT_PERCENT,
@@ -71,10 +141,19 @@ exports.offer = async (_req, res) => {
     // Back-compat for older clients
     technical: shaped,
     nonTechnical: shaped,
-  });
+  };
+  offerCache.at = Date.now();
+  offerCache.payload = payload;
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  res.json(payload);
 };
 
-async function validateItems(rawItems) {
+/**
+ * @param {object[]} rawItems
+ * @param {{ checkSlots?: boolean }} [opts] — quote is display-only; skip slot DB work under rush.
+ */
+async function validateItems(rawItems, opts = {}) {
+  const checkSlots = opts.checkSlots !== false;
   if (!Array.isArray(rawItems) || rawItems.length !== BUNDLE_SIZE) {
     const e = new Error(`Select exactly ${BUNDLE_SIZE} different competitions from the bundle list.`);
     e.status = 400;
@@ -86,11 +165,17 @@ async function validateItems(rawItems) {
     e.status = 400;
     throw e;
   }
-  const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID }).populate('fest');
+  // No fest populate — pricing/slots only need competition fields (avoids N+1 under quote spam).
+  const docs = await Competition.find({ _id: { $in: ids }, fest: FEST_ID })
+    .select('name feeAmount feeTiers registrationFee teamSizeMin teamSizeMax registration slotsAllotted registrationsOpen')
+    .lean();
   if (docs.length !== BUNDLE_SIZE) { const e = new Error('One or more competitions are unavailable.'); e.status = 404; throw e; }
+  if (checkSlots) {
+    await assertCompetitionsAcceptRegistration(docs);
+  }
   const byId = new Map(docs.map(c => [String(c._id), c]));
-  return Promise.all(rawItems.map(async raw => {
-    const competition = byId.get(String(raw.competitionId)); await assertCompetitionAcceptsRegistration(competition);
+  return rawItems.map(raw => {
+    const competition = byId.get(String(raw.competitionId));
     const roster = raw.roster && typeof raw.roster === 'object' ? raw.roster : {};
     if (!clean(roster.full_name, 100) || phone(roster.phone).length !== 10 || !validEmail(roster.email)) { const e = new Error(`${competition.name}: team leader name, valid WhatsApp number, and email are required.`); e.status = 400; throw e; }
     const members = Array.isArray(roster.team_members)
@@ -123,13 +208,37 @@ async function validateItems(rawItems) {
       throw e;
     }
     const priced = resolveCompetitionTicketPrice(competition, clean(raw.feeTierId, 80));
-    return { competition, group: BUNDLE_GROUP, feeTierId: priced.tier?.id || '', roster: { ...roster, team_members: members, team_size: members.length, feeTierId: priced.tier?.id || '' }, originalAmount: priced.ticketPrice };
-  }));
+    const subcategory = resolveSubcategory(
+      competition,
+      raw.subcategory || roster.subcategory || roster.team_responses?.subcategory,
+    );
+    const rosterOut = {
+      ...roster,
+      team_members: members,
+      team_size: members.length,
+      feeTierId: priced.tier?.id || '',
+    };
+    if (subcategory) {
+      rosterOut.subcategory = subcategory;
+      rosterOut.team_responses = {
+        ...(roster.team_responses && typeof roster.team_responses === 'object' ? roster.team_responses : {}),
+        subcategory,
+      };
+    }
+    return {
+      competition,
+      group: BUNDLE_GROUP,
+      feeTierId: priced.tier?.id || '',
+      subcategory,
+      roster: rosterOut,
+      originalAmount: priced.ticketPrice,
+    };
+  });
 }
 
 exports.quote = async (req, res) => {
   try {
-    const items = await validateItems(req.body.items);
+    const items = await validateItems(req.body.items, { checkSlots: false });
     const subtotal = items.reduce((s, x) => s + x.originalAmount, 0);
     const totalAmount = Math.round(subtotal * PAYABLE_RATIO);
     res.json({
@@ -144,11 +253,68 @@ exports.quote = async (req, res) => {
 };
 
 async function resolveCustomer(req, source) {
-  if (source === 'public') return User.findById(req.user.userId);
-  const name = clean(req.body.customer?.name, 100), mobile = phone(req.body.customer?.phone), email = clean(req.body.customer?.email).toLowerCase();
-  if (!name || mobile.length !== 10 || !validEmail(email)) { const e = new Error('Team leader name, valid WhatsApp number, and email are required.'); e.status = 400; throw e; }
-  let user = await User.findOne({ $or: [{ phoneNumber: mobile }, ...(email ? [{ email }] : [])] });
-  if (!user) user = await User.create({ name, phoneNumber: mobile, email, password: crypto.randomBytes(24).toString('hex'), isVerified: true, signupMethod: 'password' });
+  const name = clean(req.body.customer?.name, 100);
+  const mobile = phone(req.body.customer?.phone);
+  const email = clean(req.body.customer?.email).toLowerCase();
+
+  if (source === 'public') {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      const e = new Error('Please sign in again.');
+      e.status = 401;
+      throw e;
+    }
+    // Form WhatsApp wins over account placeholder / empty phone.
+    if (!isRealPhone(mobile) && !isRealPhone(user.phoneNumber)) {
+      const e = new Error('Team leader name, valid WhatsApp number, and email are required.');
+      e.status = 400;
+      throw e;
+    }
+    let dirty = false;
+    if (isRealPhone(mobile) && phone(user.phoneNumber) !== mobile) {
+      user.phoneNumber = mobile;
+      dirty = true;
+    }
+    if (name && user.name !== name) {
+      user.name = name;
+      dirty = true;
+    }
+    if (email && validEmail(email) && String(user.email || '').toLowerCase() !== email) {
+      user.email = email;
+      dirty = true;
+    }
+    if (dirty) await user.save();
+    return user;
+  }
+
+  if (!name || !isRealPhone(mobile) || !validEmail(email)) {
+    const e = new Error('Team leader name, valid WhatsApp number, and email are required.');
+    e.status = 400;
+    throw e;
+  }
+  let user = await User.findOne({ $or: [{ phoneNumber: mobile }, { email }] });
+  if (!user) {
+    user = await User.create({
+      name,
+      phoneNumber: mobile,
+      email,
+      password: crypto.randomBytes(24).toString('hex'),
+      isVerified: true,
+      signupMethod: 'password',
+    });
+    return user;
+  }
+  let dirty = false;
+  if (name && user.name !== name) {
+    user.name = name;
+    dirty = true;
+  }
+  // Email match can pull an old account still stuck on Cashfree placeholder phone.
+  if (!isRealPhone(user.phoneNumber) || phone(user.phoneNumber) !== mobile) {
+    user.phoneNumber = mobile;
+    dirty = true;
+  }
+  if (dirty) await user.save();
   return user;
 }
 
@@ -172,18 +338,50 @@ async function restoreBundleReservations(bundle) {
 }
 
 async function createOrderForBundle(bundle, user) {
+  const customerPhone = resolveBundlePhone(bundle, user);
+  if (!customerPhone) {
+    const e = new Error('A valid 10-digit WhatsApp number is required for Cashfree payment.');
+    e.status = 400;
+    throw e;
+  }
   let order;
   if (Number(bundle.totalAmount) <= 0) {
     order = await PaymentOrder.create({
       orderId: `msb_free_${bundle._id}`,
       entityType: 'competition_bundle', entityId: bundle._id, userId: user._id,
       ticketPrice: 0, amountBeforeDiscount: 0, amountAfterDiscount: 0, totalAmount: 0,
-      status: 'PAID', gateway: 'cashfree', customerEmail: user.email, customerPhone: user.phoneNumber,
+      status: 'PAID', gateway: 'cashfree', customerEmail: user.email, customerPhone,
       orderTags: { bundleId: String(bundle._id), festId: FEST_ID, zeroFee: true },
     });
   } else {
-    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` }, orderNote: ORDER_NOTE, orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
-    order = await PaymentOrder.create({ orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id, entityType: 'competition_bundle', entityId: bundle._id, userId: user._id, ticketPrice: bundle.subtotal, couponDiscount: bundle.discountAmount, amountBeforeDiscount: bundle.subtotal, amountAfterDiscount: bundle.totalAmount, totalAmount: bundle.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber, orderTags: { bundleId: String(bundle._id), festId: FEST_ID } });
+    const cashfree = await createCashfreeOrder({
+      orderAmount: bundle.totalAmount,
+      customerDetails: {
+        customerId: String(user._id),
+        customerName: user.name,
+        customerEmail: user.email,
+        customerPhone,
+      },
+      orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${bundle.paymentToken}?returned=1` },
+      orderNote: ORDER_NOTE,
+      orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+    });
+    order = await PaymentOrder.create({
+      orderId: cashfree.order_id,
+      paymentSessionId: cashfree.payment_session_id,
+      entityType: 'competition_bundle',
+      entityId: bundle._id,
+      userId: user._id,
+      ticketPrice: bundle.subtotal,
+      couponDiscount: bundle.discountAmount,
+      amountBeforeDiscount: bundle.subtotal,
+      amountAfterDiscount: bundle.totalAmount,
+      totalAmount: bundle.totalAmount,
+      status: 'PENDING',
+      customerEmail: user.email,
+      customerPhone,
+      orderTags: { bundleId: String(bundle._id), festId: FEST_ID },
+    });
   }
   bundle.activeOrderId = order.orderId;
   if (!bundle.orderIds.includes(order.orderId)) bundle.orderIds.push(order.orderId);
@@ -335,12 +533,42 @@ exports.reissue = async (req, res) => {
     const byId = new Map(docs.map(c => [String(c._id), c]));
     for (const item of bundle.items) reservations.push(await acquireCompetitionSlot({ competition: byId.get(String(item.competitionId)), userId: bundle.user }));
     const user = await User.findById(bundle.user); const token = bundle.paymentToken;
-    const cashfree = await createCashfreeOrder({ orderAmount: bundle.totalAmount, customerDetails: { customerId: String(user._id), customerName: user.name, customerEmail: user.email, customerPhone: user.phoneNumber }, orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` }, orderNote: ORDER_NOTE, orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) } });
-    const replacement = await PaymentOrder.create({ orderId: cashfree.order_id, paymentSessionId: cashfree.payment_session_id, entityType: 'competition_bundle', entityId: bundle._id, userId: bundle.user, ticketPrice: bundle.subtotal, couponDiscount: bundle.discountAmount, amountBeforeDiscount: bundle.subtotal, amountAfterDiscount: bundle.totalAmount, totalAmount: bundle.totalAmount, status: 'PENDING', customerEmail: user.email, customerPhone: user.phoneNumber, orderTags: { bundleId: String(bundle._id), festId: FEST_ID } });
+    const customerPhone = resolveBundlePhone(bundle, user);
+    if (!customerPhone) {
+      return res.status(400).json({ success: false, message: 'A valid 10-digit WhatsApp number is required for Cashfree payment.' });
+    }
+    const cashfree = await createCashfreeOrder({
+      orderAmount: bundle.totalAmount,
+      customerDetails: {
+        customerId: String(user._id),
+        customerName: user.name,
+        customerEmail: user.email,
+        customerPhone,
+      },
+      orderMeta: { return_url: `${FRONTEND()}/mindspark/bundle-pay/${token}?returned=1` },
+      orderNote: ORDER_NOTE,
+      orderTags: { entityType: 'competition_bundle', bundleId: String(bundle._id) },
+    });
+    const replacement = await PaymentOrder.create({
+      orderId: cashfree.order_id,
+      paymentSessionId: cashfree.payment_session_id,
+      entityType: 'competition_bundle',
+      entityId: bundle._id,
+      userId: bundle.user,
+      ticketPrice: bundle.subtotal,
+      couponDiscount: bundle.discountAmount,
+      amountBeforeDiscount: bundle.subtotal,
+      amountAfterDiscount: bundle.totalAmount,
+      totalAmount: bundle.totalAmount,
+      status: 'PENDING',
+      customerEmail: user.email,
+      customerPhone,
+      orderTags: { bundleId: String(bundle._id), festId: FEST_ID },
+    });
     bundle.items.forEach((item, i) => { item.reservationToken = reservations[i]?.token || ''; }); bundle.activeOrderId = replacement.orderId; bundle.orderIds.push(replacement.orderId); bundle.status = 'pending'; bundle.expiresAt = new Date(Date.now() + TTL); await bundle.save();
     await Promise.all(reservations.filter(Boolean).map(r => attachReservationToOrder(r.token, replacement.orderId)));
     res.json({ success: true, ...await serializeWithTickets(bundle, replacement) });
   } catch (e) { await Promise.all(reservations.filter(Boolean).map(r => releaseCompetitionSlot(r.token).catch(() => {}))); res.status(e.status || 500).json({ success: false, message: e.message || 'Could not create replacement payment.' }); }
 };
 
-exports._test = { validateItems, serialize };
+exports._test = { validateItems, serialize, resolveBundlePhone, isRealPhone };

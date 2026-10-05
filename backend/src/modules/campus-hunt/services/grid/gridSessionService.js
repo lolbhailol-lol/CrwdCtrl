@@ -34,10 +34,120 @@ function randomCompletionCode() {
   return `GRID-${suffix}`;
 }
 
+/** Round 1 Field Terminal — long window; Zip Grid has no hunt timer. */
+const ROUND1_GRID_DURATION_MINUTES = 24 * 60;
+
+function sessionTimedOut(session) {
+  if (!session) return true;
+  if (session.status === 'expired') return true;
+  if (session.status === 'completed') return false;
+  return Boolean(session.expiresAt && new Date(session.expiresAt).getTime() < Date.now());
+}
+
+function anyLevelCleared(session) {
+  return (session.levelProgress || []).some((lp) => lp?.completed || lp?.failed || lp?.timedOut);
+}
+
+/** True when session is missing any of the current Zip rounds (legacy 2/3 packs). */
+function hasFullZipPack(session) {
+  if (!session || !Array.isArray(session.puzzles) || session.puzzles.length !== TOTAL_LEVELS) {
+    return false;
+  }
+  for (let i = 0; i < TOTAL_LEVELS; i += 1) {
+    const p = session.puzzles[i];
+    if (!p || !p.rows || !p.cols || !Array.isArray(p.numbers) || !p.numbers.length) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Always write a fresh 4-round Zip pack. Uses set() so Mongoose Mixed arrays
+ * cannot keep a stale shorter DocumentArray after Start over.
+ */
+function applyFreshZipPuzzles(session, now = new Date()) {
+  const puzzles = generateAllLevels();
+  session.set('puzzles', puzzles);
+  session.set('levelProgress', puzzles.map((_, i) => ({
+    levelIndex: i,
+    completed: false,
+    failed: false,
+    timedOut: false,
+    moves: 0,
+    pointsAwarded: 0,
+    hintsUsed: 0,
+    startedAt: i === 0 ? now : undefined,
+  })));
+  session.currentLevelIndex = 0;
+  session.scoreEarned = 0;
+  session.hintsUsed = 0;
+  session.score = 0;
+  session.sessionToken = crypto.randomBytes(16).toString('hex');
+  session.status = 'active';
+  session.markModified('puzzles');
+  session.markModified('levelProgress');
+  return puzzles;
+}
+
+/**
+ * Keep the same accessCode (printed on phone/pack) and reopen play time.
+ * forceReset: Start over — wipe completed Zip Grid too, keep device key.
+ */
+async function reviveRound1GridSession(session, {
+  durationMinutes = ROUND1_GRID_DURATION_MINUTES,
+  preferredCompletionCode = '',
+  forceReset = false,
+} = {}) {
+  if (!session) throw gridError('Session not found', 'SESSION_NOT_FOUND', 404);
+  if (session.status === 'completed' && !forceReset && hasFullZipPack(session)) {
+    return session;
+  }
+
+  const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
+  const shortPack = !hasFullZipPack(session);
+  const resetProgress = forceReset
+    || shortPack
+    || !anyLevelCleared(session)
+    || sessionTimedOut(session)
+    || session.status === 'completed'
+    || session.status === 'expired';
+  const now = new Date();
+
+  session.status = 'active';
+  session.expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
+  session.completionCodeUsed = false;
+  session.completionCodeUsedAt = undefined;
+
+  if (resetProgress) {
+    applyFreshZipPuzzles(session, now);
+  } else {
+    // Mid-session revive: stamp a fresh startedAt on the current open level so
+    // an old clock does not instantly fail and flash prior level results.
+    ensureLevelStarted(session, session.currentLevelIndex || 0);
+    const lp = session.levelProgress?.[session.currentLevelIndex || 0];
+    if (lp && !lp.completed && !lp.failed) {
+      lp.startedAt = now;
+      session.markModified('levelProgress');
+    }
+  }
+
+  if (preferred.startsWith('GRID-')) {
+    session.completionCode = preferred;
+  } else if (!session.completionCode || forceReset || shortPack) {
+    // Keep planted GRID code when present; only mint if missing.
+    if (!session.completionCode) session.completionCode = randomCompletionCode();
+  }
+
+  await session.save();
+  return session;
+}
+
 function getLevelStartedAt(session, levelIndex) {
   const progress = session.levelProgress?.[levelIndex];
   if (progress?.startedAt) return new Date(progress.startedAt);
-  if (session.createdAt) return new Date(session.createdAt);
+  // Never fall back to session.createdAt — that instantly times out later levels
+  // and resurfaces old failed/completed entries mid-play.
   return new Date();
 }
 
@@ -60,11 +170,12 @@ function recomputeScore(session) {
 }
 
 function levelBreakdown(session) {
-  return (session.levelProgress || []).map((lp, i) => {
-    const template = LEVEL_TEMPLATES[i] || {};
+  return LEVEL_TEMPLATES.map((template, i) => {
+    const lp = session.levelProgress?.[i] || {};
     return {
       level: i + 1,
-      label: template.label || `Level ${i + 1}`,
+      label: template.label || `Round ${i + 1}`,
+      difficulty: template.difficulty || template.label || `R${i + 1}`,
       maxPoints: Number(template.points) || 0,
       pointsAwarded: Number(lp.pointsAwarded) || 0,
       completed: Boolean(lp.completed),
@@ -104,13 +215,49 @@ function finishSession(session) {
 }
 
 function advanceAfterLevel(session, fromIndex) {
-  if (fromIndex + 1 >= TOTAL_LEVELS) {
+  const nextIndex = fromIndex + 1;
+  // Always play the current Zip length (4). Never end early on a short legacy pack.
+  if (nextIndex >= TOTAL_LEVELS) {
     finishSession(session);
     return { allDone: true };
   }
-  session.currentLevelIndex = fromIndex + 1;
-  session.levelProgress[fromIndex + 1] = {
-    levelIndex: fromIndex + 1,
+  if (!hasFullZipPack(session) || !session.puzzles?.[nextIndex]) {
+    // Repair mid-run: rebuild full 4-round pack and continue at nextIndex.
+    const now = new Date();
+    const puzzles = generateAllLevels();
+    const prior = Array.isArray(session.levelProgress) ? [...session.levelProgress] : [];
+    session.set('puzzles', puzzles);
+    session.set('levelProgress', puzzles.map((_, i) => {
+      if (i < nextIndex && prior[i]) {
+        return {
+          levelIndex: i,
+          completed: Boolean(prior[i].completed),
+          failed: Boolean(prior[i].failed || prior[i].timedOut),
+          timedOut: Boolean(prior[i].timedOut),
+          moves: Number(prior[i].moves) || 0,
+          pointsAwarded: Number(prior[i].pointsAwarded) || 0,
+          hintsUsed: Number(prior[i].hintsUsed) || 0,
+          startedAt: prior[i].startedAt,
+          completedAt: prior[i].completedAt,
+        };
+      }
+      return {
+        levelIndex: i,
+        completed: false,
+        failed: false,
+        timedOut: false,
+        moves: 0,
+        pointsAwarded: 0,
+        hintsUsed: 0,
+        startedAt: i === nextIndex ? now : undefined,
+      };
+    }));
+    session.markModified('puzzles');
+    session.markModified('levelProgress');
+  }
+  session.currentLevelIndex = nextIndex;
+  session.levelProgress[nextIndex] = {
+    levelIndex: nextIndex,
     completed: false,
     failed: false,
     timedOut: false,
@@ -159,6 +306,7 @@ async function createGridSession({
   entryId,
   missionRunId,
   durationMinutes = 45,
+  preferredCompletionCode = '',
 }) {
   const team = await CampusHuntTeam.findById(teamId).select('teamCode teamName');
   if (!team) throw gridError('Team not found', 'TEAM_NOT_FOUND', 404);
@@ -177,6 +325,7 @@ async function createGridSession({
     attempts += 1;
   }
 
+  const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
   const sessionToken = crypto.randomBytes(16).toString('hex');
   const session = await CampusHuntGridSession.create({
     eventId,
@@ -204,18 +353,28 @@ async function createGridSession({
     score: 0,
     status: 'active',
     expiresAt,
+    // Round 1 / offline: finish Zip Grid with the team's planted GRID code.
+    ...(preferred.startsWith('GRID-') ? { completionCode: preferred } : {}),
   });
+
+  // Guarantee Mixed array length after create (defensive against driver quirks).
+  if (!hasFullZipPack(session)) {
+    applyFreshZipPuzzles(session, now);
+    if (preferred.startsWith('GRID-')) session.completionCode = preferred;
+    await session.save();
+  }
 
   return session;
 }
 
 function assertSessionActive(session) {
   if (!session) throw gridError('Session not found', 'SESSION_NOT_FOUND', 404);
-  if (session.status === 'expired' || session.expiresAt < new Date()) {
-    throw gridError('Session expired', 'SESSION_EXPIRED', 410);
-  }
+  // Completed Zip Grid must still show GRID-XXXX after wall-clock expiry.
   if (session.status === 'completed') {
     return { completed: true };
+  }
+  if (session.status === 'expired' || sessionTimedOut(session)) {
+    throw gridError('Session expired', 'SESSION_EXPIRED', 410);
   }
   return { completed: false };
 }
@@ -258,10 +417,21 @@ function sessionPublicView(session) {
 }
 
 async function loadActiveSession(sessionToken) {
-  const session = await CampusHuntGridSession.findOne({ sessionToken });
+  let session = await CampusHuntGridSession.findOne({ sessionToken });
   assertSessionActive(session);
-  if (session.status === 'active' && applyTimeoutIfNeeded(session)) {
-    await session.save();
+  // Stale laptop token after Start over may still hit an active short pack — upgrade in place.
+  if (
+    session.status === 'active'
+    && isRound1GridSession(session)
+    && !hasFullZipPack(session)
+  ) {
+    session = await reviveRound1GridSession(session, { forceReset: true });
+  }
+  if (session.status === 'active') {
+    ensureLevelStarted(session, session.currentLevelIndex);
+    if (applyTimeoutIfNeeded(session)) {
+      await session.save();
+    }
   }
   return session;
 }
@@ -270,17 +440,48 @@ async function joinByAccessCode(accessCode) {
   const normalized = String(accessCode || '').trim().toUpperCase();
   if (!normalized) throw gridError('Enter your team access code', 'NO_CODE', 400);
 
-  const session = await CampusHuntGridSession.findOne({
+  let session = await CampusHuntGridSession.findOne({
     accessCode: normalized,
-    status: { $in: ['active', 'completed'] },
-  });
+    status: { $in: ['active', 'completed', 'expired'] },
+  }).sort({ createdAt: -1 });
+
+  if (!session) {
+    throw gridError('Unknown access code — check the device key on the leader phone', 'SESSION_NOT_FOUND', 404);
+  }
+
+  // Round 1: packs mint keys early — auto-revive so fest-day join still works.
+  // Also upgrade legacy 2/3-round completed sessions so Start over / re-join always gets 4.
+  if (isRound1GridSession(session)) {
+    const shortPack = !hasFullZipPack(session);
+    if (
+      shortPack
+      || (
+        session.status !== 'completed'
+        && (session.status === 'expired' || sessionTimedOut(session))
+      )
+    ) {
+      session = await reviveRound1GridSession(session, {
+        forceReset: shortPack,
+      });
+    }
+  }
 
   assertSessionActive(session);
-  if (session.status === 'active' && applyTimeoutIfNeeded(session)) {
-    await session.save();
-  } else {
+  if (session.status === 'active') {
     ensureLevelStarted(session, session.currentLevelIndex);
-    await session.save();
+    if (applyTimeoutIfNeeded(session)) {
+      await session.save();
+    } else {
+      if (isRound1GridSession(session)) {
+        const remainingMs = session.expiresAt
+          ? new Date(session.expiresAt).getTime() - Date.now()
+          : 0;
+        if (remainingMs < 60 * 60 * 1000) {
+          session.expiresAt = new Date(Date.now() + ROUND1_GRID_DURATION_MINUTES * 60 * 1000);
+        }
+      }
+      await session.save();
+    }
   }
   return sessionPublicView(session);
 }
@@ -536,6 +737,89 @@ async function getSessionForRun(missionRunId) {
   return CampusHuntGridSession.findOne({ missionRunId, status: { $in: ['active', 'completed'] } });
 }
 
+/**
+ * Round 1 Clue 4 Field Terminal — Zip Grid session without a Finale mission run.
+ * Reuses the team's latest open round-1 session (no missionRunId / entryId).
+ * Auto-revives expired sessions so the same device key on the pack still works.
+ */
+async function ensureRound1FieldTerminalGrid(team, {
+  durationMinutes = ROUND1_GRID_DURATION_MINUTES,
+  preferredCompletionCode = '',
+  forceReset = false,
+} = {}) {
+  if (!team?._id || !team?.eventId) {
+    throw gridError('Team required for Field Terminal grid', 'TEAM_REQUIRED', 400);
+  }
+
+  const preferred = String(preferredCompletionCode || '').trim().toUpperCase();
+
+  const existing = await CampusHuntGridSession.findOne({
+    teamId: team._id,
+    eventId: team.eventId,
+    status: { $in: ['active', 'completed', 'expired'] },
+    missionRunId: null,
+    entryId: null,
+  }).sort({ createdAt: -1 });
+
+  if (existing) {
+    if (forceReset) {
+      return reviveRound1GridSession(existing, {
+        durationMinutes,
+        preferredCompletionCode: preferred,
+        forceReset: true,
+      });
+    }
+
+    if (existing.status === 'completed') {
+      if (preferred.startsWith('GRID-') && !existing.completionCode) {
+        existing.completionCode = preferred;
+        await existing.save();
+      }
+      return existing;
+    }
+
+    if (existing.status === 'expired' || sessionTimedOut(existing)) {
+      return reviveRound1GridSession(existing, {
+        durationMinutes,
+        preferredCompletionCode: preferred,
+      });
+    }
+
+    if (preferred.startsWith('GRID-') && existing.completionCode !== preferred) {
+      existing.completionCode = preferred;
+    }
+    // Upgrade legacy 2/3-round (or corrupt) sessions to the current 4-round Zip pack.
+    if (!hasFullZipPack(existing)) {
+      return reviveRound1GridSession(existing, {
+        durationMinutes,
+        preferredCompletionCode: preferred,
+        forceReset: true,
+      });
+    }
+    const remainingMs = existing.expiresAt
+      ? new Date(existing.expiresAt).getTime() - Date.now()
+      : 0;
+    if (remainingMs < 2 * 60 * 60 * 1000) {
+      existing.expiresAt = new Date(Date.now() + durationMinutes * 60 * 1000);
+    }
+    await existing.save();
+    return existing;
+  }
+
+  return createGridSession({
+    eventId: team.eventId,
+    teamId: team._id,
+    durationMinutes,
+    preferredCompletionCode: preferred,
+  });
+}
+
+/** True when session is Round 1 Field Terminal (not Finale). */
+function isRound1GridSession(session) {
+  if (!session) return false;
+  return !session.missionRunId && !session.entryId;
+}
+
 module.exports = {
   createGridSession,
   joinByAccessCode,
@@ -548,6 +832,8 @@ module.exports = {
   expireGridSessionForRun,
   listGridSessionsForEvent,
   getSessionForRun,
+  ensureRound1FieldTerminalGrid,
+  isRound1GridSession,
   sessionPublicView,
   randomAccessCode,
   levelTimeRemainingSeconds,

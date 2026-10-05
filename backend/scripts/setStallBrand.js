@@ -1,4 +1,8 @@
+﻿
 ﻿const dns = require('dns');
+
+const dns = require('dns');
+
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 require('dotenv').config();
@@ -19,10 +23,18 @@ console.log('Saare fests:', allFests.map(f => f.festName));
 
   console.log('Mila:', fest.festName, '| Current stallBrand:', fest.stallBrand || '(empty)');
 
+
   fest.stallBrand = 'Jio';
   await fest.save();
 
   console.log('Updated! Naya stallBrand:', fest.stallBrand);
+
+  fest.stallBrand = 'Svvad Pro';
+  fest.stallDiscountPercent = 20;
+  await fest.save();
+
+  console.log('Updated! Naya stallBrand:', fest.stallBrand, '|', fest.stallDiscountPercent + '% OFF');
+
   process.exit(0);
 }
 

@@ -286,6 +286,19 @@ exports.updateFest = async (req, res) => {
         updateData.coverImages,
         coverInBody ? (coverImage || '') : (updateData.coverImage || existingFest.coverImage),
       );
+    } else if (coverInBody) {
+      // Admin uploaded a single cover — keep hero/wide slots in sync so festHeroUrl
+      // does not keep serving a stale coverImages.hero / .wide URL.
+      const nextCover = updateData.coverImage || '';
+      const prev = sanitizeCoverImages(existingFest.coverImages);
+      updateData.coverImages = {
+        ...prev,
+        page: nextCover,
+        wide: nextCover,
+        landscape: nextCover,
+        hero: nextCover,
+        portrait: prev.portrait || nextCover,
+      };
     }
 
     // 4. Update the database

@@ -5,50 +5,45 @@ export const CLUE1_DEFAULT_SETTINGS = {
 };
 
 export const CLUE2_DEFAULT_SETTINGS = {
-  timerStartDelaySeconds: 20,
-  timerSeconds: 180,
+  timerStartDelaySeconds: 0,
+  timerSeconds: 0,
   maxAttempts: 3,
-  hintCost: 15,
-  allowLateSubmit: true,
-  awardMode: 'time_bands_total',
-  basePoints: 0,
-  speedBonusBands: [
-    { maxSeconds: 60, bonus: 50 },
-    { maxSeconds: 120, bonus: 30 },
-    { maxSeconds: 180, bonus: 10 },
-  ],
+  hintCost: 20,
+  awardMode: 'flat_base',
+  basePoints: 50,
+  speedBonusBands: [],
 };
 
 export const CLUE3_DEFAULT_SETTINGS = {
-  maxAttempts: 3,
-  hintCost: 15,
-  basePoints: 50,
+  maxAttempts: 2,
+  hintCost: 25,
+  basePoints: 65,
+  timerSeconds: 0,
+  awardMode: 'flat_base',
+  speedBonusBands: [],
 };
 
 export const CLUE4_DEFAULT_SETTINGS = {
-  timerStartDelaySeconds: 15,
-  timerSeconds: 180,
+  timerStartDelaySeconds: 0,
+  timerSeconds: 0,
   maxAttempts: 3,
-  hintCost: 15,
+  hintCost: 20,
   allowLateSubmit: true,
-  basePoints: 0,
-  speedBonusBands: [
-    { maxSeconds: 60, bonus: 50 },
-    { maxSeconds: 120, bonus: 30 },
-    { maxSeconds: 180, bonus: 10 },
-  ],
+  basePoints: 50,
+  speedBonusBands: [],
 };
 
 export const CLUE5_DEFAULT_SETTINGS = {
-  timerSeconds: 300,
-  maxAttempts: 3,
-  hintCost: 15,
-  basePoints: 50,
+  timerSeconds: 240,
+  maxAttempts: 2,
+  hintCost: 30,
+  basePoints: 45,
   allowLateSubmit: true,
+  awardMode: 'base_plus_speed',
   speedBonusBands: [
-    { maxSeconds: 120, bonus: 25 },
-    { maxSeconds: 210, bonus: 15 },
-    { maxSeconds: 300, bonus: 5 },
+    { maxSeconds: 90, bonus: 30 },
+    { maxSeconds: 150, bonus: 15 },
+    { maxSeconds: 240, bonus: 5 },
   ],
 };
 

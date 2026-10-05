@@ -14,47 +14,68 @@ const { selectCompetitionTeams } = require('./startScheduleService');
 const { buildStationQrPayload } = require('./checkpointService');
 const { CLUE_HOW_TO, DEFAULT_SCORING_CONFIG } = require('../constants');
 
-/** Offline Round 1 — one phone, join-word at stops, then one scan. */
+/** Offline — one phone; digit join-answer = Clue 2 only (not a scan gate). */
 const OFFLINE_CLUE_HOW_TO = {
   1: {
     title: 'How to play — Clue 1',
     steps: [
       'All teammates walk together. One phone (leader).',
       'Read the sentence and type the campus location.',
-      'Go there. Find the written clues nearby, join them into one word, type it.',
-      'Scan the place QR once → team code → Clue 2.',
+      'Go there. Leader scans the orange FIRST SCAN QR once → Clue 2.',
     ],
   },
   2: {
     title: 'How to play — Clue 2',
     steps: [
-      'Find the written clues at the stop, join the word, type it.',
-      'Leader scans the place QR once → team code → Clue 3.',
+      'At green: find numbered digit slips (1, 2, 3…), join into one number, type it.',
+      'Leader scans the green SECOND SCAN QR once → Clue 3.',
     ],
   },
   3: {
-    title: 'How to play — Clue 3',
+    title: 'How to play — Lockbox',
     steps: [
-      'Decode the Caesar riddle (leader submits).',
-      'At that place: find written clues, join the word, type it.',
-      'Scan the place QR once → team code.',
+      'Find the physical lockbox nearby.',
+      'Type the code written on it → scan blue THIRD SCAN once.',
     ],
   },
   4: {
-    title: 'How to play — Clue 4',
+    title: 'How to play — Field Terminal',
     steps: [
-      'At the stop: find written clues / prop tags, join the word, type it.',
-      'Scan the place QR once → team code → Final.',
+      'Borrow a laptop · Zip Grid · device key from this phone · 4 rounds.',
+      'Type GRID-XXXX here → scan purple once.',
     ],
   },
   5: {
-    title: 'How to play — Final clue',
+    title: 'How to play — Clue 5',
     steps: [
-      'Fragments are on this phone — read aloud in order and rebuild the word.',
-      'Leader types it. Report to your start desk.',
+      'At red: find numbered letter slips (letters — not digits).',
+      'Join in order into one word.',
+      'Scan red FIFTH SCAN once → Clue 6 at Mindspark Lobby.',
+    ],
+  },
+  6: {
+    title: 'How to play — Mindspark Lobby',
+    steps: [
+      'Go to Mindspark Lobby as a full team.',
+      'Ask the organizer for the finish code.',
+      'Leader types it to lock your score, then export results for the desk.',
     ],
   },
 };
+
+/** Short prompts frozen into packs (must match frontend offlineHowTo). */
+const OFFLINE_CLUE_PROMPTS = {
+  2:
+    'At the green stop: find the numbered digit slips nearby.\n'
+    + 'Join them in order into one number. Leader types it.',
+  3:
+    'Find the physical lockbox nearby.\n'
+    + 'Type the code written on it.',
+  5:
+    'At the red stop: find the letter slips planted nearby (letters only — not digits).\n'
+    + 'Join them in order into one word. Leader submits.',
+};
+
 const {
   OFFLINE_BUNDLE_VERSION,
   OFFLINE_BUNDLE_TYPE,
@@ -110,30 +131,70 @@ function buildRoster(team) {
     memberKey: 'leader',
   }];
   const memberNames = team.memberNames || [];
-  for (let i = 0; i < Math.max(memberNames.length, scanners.length, 3); i += 1) {
-    if (i >= 3) break;
+  const walkerCount = Math.max(memberNames.length, scanners.length);
+  for (let i = 0; i < walkerCount; i += 1) {
+    const name = scanners[i]?.name || memberNames[i];
+    if (!name) continue;
     roster.push({
       slot: i + 1,
-      role: 'member',
-      name: scanners[i]?.name || memberNames[i] || `Player ${i + 1}`,
+      role: 'walker',
+      name,
       memberKey: `member${i + 1}`,
     });
   }
-  return roster.slice(0, 4);
+  return roster;
 }
 
-function serializeChallenge(ch) {
+function serializeChallenge(ch, extra = {}) {
   if (!ch) return null;
+  const n = Number(ch.challengeNumber) || 0;
+  const forcedPrompt = OFFLINE_CLUE_PROMPTS[n] || null;
+  let answer = String(ch.answer || '').trim();
+  let memberPrompts = Array.isArray(ch.memberPrompts) ? ch.memberPrompts : [];
+  let type = ch.type;
+  let prompt = forcedPrompt || ch.prompt || '';
+  let acceptedAnswers = Array.isArray(ch.acceptedAnswers)
+    ? ch.acceptedAnswers.map((a) => String(a || '').trim()).filter(Boolean)
+    : (answer ? [answer] : []);
+
+  if (n === 2) {
+    answer = answer.replace(/\D/g, '').slice(0, 3);
+    // Fall back to plant digits when challenge still has a letter leftover.
+    if (answer.length < 3) {
+      const plant = String(extra.plantDigits || '').replace(/\D/g, '').slice(0, 3);
+      if (plant.length >= 3) answer = plant;
+    }
+    memberPrompts = [];
+    type = 'decode';
+    acceptedAnswers = answer ? [answer] : [];
+  }
+  if (n === 3) {
+    memberPrompts = [];
+    type = 'decode';
+    const digits = answer.replace(/\D/g, '');
+    if (digits.length >= 3) {
+      answer = digits;
+      acceptedAnswers = [digits];
+    }
+  }
+  if (n === 5) {
+    answer = answer.replace(/[^A-Za-z]/g, '').toUpperCase() || answer;
+    memberPrompts = [];
+    type = 'decode';
+    prompt = OFFLINE_CLUE_PROMPTS[5] || prompt;
+    if (answer) {
+      acceptedAnswers = [answer, answer.toLowerCase()];
+    }
+  }
+
   return {
     id: String(ch._id),
     challengeNumber: ch.challengeNumber,
-    type: ch.type,
-    prompt: ch.prompt || '',
-    memberPrompts: Array.isArray(ch.memberPrompts) ? ch.memberPrompts : [],
-    answer: String(ch.answer || '').trim(),
-    acceptedAnswers: Array.isArray(ch.acceptedAnswers)
-      ? ch.acceptedAnswers.map((a) => String(a || '').trim()).filter(Boolean)
-      : [],
+    type,
+    prompt,
+    memberPrompts,
+    answer,
+    acceptedAnswers,
     hintText: ch.hintText || '',
     hintCost: ch.hintCost ?? 15,
     maxAttempts: ch.maxAttempts ?? 3,
@@ -142,21 +203,38 @@ function serializeChallenge(ch) {
     speedBonusBands: ch.speedBonusBands || [],
     destinationInstruction: ch.destinationInstruction || '',
     howTo: OFFLINE_CLUE_HOW_TO[ch.challengeNumber] || CLUE_HOW_TO[ch.challengeNumber] || null,
+    ...(extra.gridAccessCode ? { gridAccessCode: extra.gridAccessCode } : {}),
+    ...(extra.gridGameUrl ? { gridGameUrl: extra.gridGameUrl } : {}),
   };
 }
 
 const {
   resolveCampusStationsCatalog,
+  DEFAULT_STATION_JOINED_WORDS,
+  splitDigitSlips,
+  withStationPlantDefaults,
 } = require('./stationCatalogService');
 
 function stationPlantMap(event) {
   const map = new Map();
-  for (const row of resolveCampusStationsCatalog(event) || []) {
+  const catalog = withStationPlantDefaults(resolveCampusStationsCatalog(event) || [], 3);
+  for (const row of catalog) {
     const code = String(row.code || '').toUpperCase();
     if (!code) continue;
+    let joinedWord = String(row.joinedWord || DEFAULT_STATION_JOINED_WORDS[code] || '')
+      .replace(/\D/g, '')
+      .slice(0, 3);
+    if (joinedWord.length < 3) {
+      joinedWord = String(DEFAULT_STATION_JOINED_WORDS[code] || '847').replace(/\D/g, '').slice(0, 3) || '847';
+    }
+    const plantFragments = Array.isArray(row.plantFragments)
+      && row.plantFragments.length >= 3
+      && row.plantFragments.every((f) => /^\d+$/.test(String(f)))
+      ? row.plantFragments.slice(0, 3).map((f) => String(f).replace(/\D/g, ''))
+      : splitDigitSlips(joinedWord, 3);
     map.set(code, {
-      plantFragments: Array.isArray(row.plantFragments) ? row.plantFragments : [],
-      joinedWord: String(row.joinedWord || '').trim(),
+      plantFragments,
+      joinedWord,
     });
   }
   return map;
@@ -166,14 +244,21 @@ function serializeCheckpoint(cp, plantByStation = null) {
   if (!cp) return null;
   const payload = buildStationQrPayload(cp);
   const stationCode = String(cp.stationCode || '').toUpperCase();
-  const fromCatalog = plantByStation?.get(stationCode) || {};
-  const plantFragments = (Array.isArray(cp.plantFragments) && cp.plantFragments.length
-    ? cp.plantFragments
-    : fromCatalog.plantFragments) || [];
-  const joinedWord = String(cp.joinedWord || fromCatalog.joinedWord || '').trim();
+  const progressionKey = String(cp.progressionKey || cp.checkpointKey || '1');
+  // Plant join-word only for second stop (Clue 2 / green). Other scans are QR-only.
+  const isJoinStop = progressionKey === '2';
+  const fromCatalog = isJoinStop ? (plantByStation?.get(stationCode) || {}) : {};
+  const plantFragments = isJoinStop
+    ? ((Array.isArray(cp.plantFragments) && cp.plantFragments.length
+      ? cp.plantFragments
+      : fromCatalog.plantFragments) || [])
+    : [];
+  const joinedWord = isJoinStop
+    ? String(cp.joinedWord || fromCatalog.joinedWord || '').trim()
+    : '';
   return {
     id: String(cp._id),
-    progressionKey: String(cp.progressionKey || cp.checkpointKey || '1'),
+    progressionKey,
     checkpointKey: cp.checkpointKey,
     code: cp.code || cp.checkpointKey,
     stationCode: cp.stationCode || '',
@@ -195,8 +280,8 @@ function routeStop(checkpointDoc, label, plantByStation) {
 }
 
 /**
- * One physical poster per campus place (not per team, not per color).
- * Prefer progression-1 shared QR; phone already knows which stage the team is on.
+ * One place-poster entry per campus stop for offline packs (prefers stage-1 QR payload;
+ * engine still routes by orange/green/blue/purple/red stops from the team bundle).
  */
 async function buildPlacePosters(eventId, event) {
   const {
@@ -211,7 +296,7 @@ async function buildPlacePosters(eventId, event) {
   const cps = await CampusHuntCheckpoint.find({
     eventId,
     stationCode: { $in: codes },
-    progressionKey: { $in: ['1', 1, '2', 2, '3', 3, '4', 4] },
+    progressionKey: { $in: ['1', 1, '2', 2, '3', 3, '4', 4, '5', 5] },
     active: { $ne: false },
   }).select('+qrSecret +pasteCode').lean();
 
@@ -265,8 +350,8 @@ async function exportOfflinePacks(eventId) {
   for (const team of teams) {
     for (const field of [
       'clue1ChallengeId', 'clue2ChallengeId', 'clue3ChallengeId',
-      'clue4ChallengeId', 'clue5ChallengeId',
-      'firstCheckpointId', 'secondCheckpointId', 'thirdCheckpointId', 'fourthCheckpointId',
+      'clue4ChallengeId', 'clue5ChallengeId', 'clue6ChallengeId',
+      'firstCheckpointId', 'secondCheckpointId', 'thirdCheckpointId', 'fourthCheckpointId', 'fifthCheckpointId',
     ]) {
       if (team[field]) {
         if (field.startsWith('clue')) challengeIds.add(String(team[field]));
@@ -308,10 +393,12 @@ async function exportOfflinePacks(eventId) {
     if (!team.clue3ChallengeId) missing.push('clue3');
     if (!team.clue4ChallengeId) missing.push('clue4');
     if (!team.clue5ChallengeId) missing.push('clue5');
+    if (!team.clue6ChallengeId) missing.push('clue6');
     if (!team.firstCheckpointId) missing.push('checkpoint1');
     if (!team.secondCheckpointId) missing.push('checkpoint2');
     if (!team.thirdCheckpointId) missing.push('checkpoint3');
     if (!team.fourthCheckpointId) missing.push('checkpoint4');
+    if (!team.fifthCheckpointId) missing.push('checkpoint5');
     if (missing.length) {
       incompleteTeams.push({ teamCode: team.teamCode, missing });
       continue;
@@ -327,20 +414,35 @@ async function exportOfflinePacks(eventId) {
     const clue3 = challengeById.get(String(team.clue3ChallengeId));
     const clue4 = challengeById.get(String(team.clue4ChallengeId));
     const clue5 = challengeById.get(String(team.clue5ChallengeId));
+    const clue6 = challengeById.get(String(team.clue6ChallengeId));
+
+    let gridAccessCode = '';
+    try {
+      const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+      // eslint-disable-next-line no-await-in-loop
+      const gridSession = await ensureRound1FieldTerminalGrid(team, {
+        preferredCompletionCode: String(clue4?.answer || '').trim().toUpperCase(),
+      });
+      gridAccessCode = String(gridSession?.accessCode || '').toUpperCase();
+    } catch (err) {
+      warnings.push(
+        `${team.teamCode}: Field Terminal device key not created (${err.message || 'error'})`,
+      );
+    }
 
     const cp1 = checkpointById.get(String(team.firstCheckpointId));
     const cp2 = checkpointById.get(String(team.secondCheckpointId));
     const cp3 = checkpointById.get(String(team.thirdCheckpointId));
     const cp4 = checkpointById.get(String(team.fourthCheckpointId));
+    const cp5 = checkpointById.get(String(team.fifthCheckpointId));
     const start = startById.get(String(team.startingPointId || ''));
 
-    const stops = [cp1, cp2, cp3, cp4].map((cp) => serializeCheckpoint(cp, plantByStation));
-    for (const stop of stops) {
-      if (stop && !stop.joinedWord) {
-        warnings.push(
-          `${team.teamCode}: stop ${stop.stationCode || stop.locationName} missing joinedWord — set plant fragments in Clues`,
-        );
-      }
+    const stops = [cp1, cp2, cp3, cp4, cp5].map((cp) => serializeCheckpoint(cp, plantByStation));
+    const secondStop = stops[1];
+    if (secondStop && !secondStop.joinedWord) {
+      warnings.push(
+        `${team.teamCode}: second stop ${secondStop.stationCode || secondStop.locationName} missing joinedWord — set plant fragments in Places`,
+      );
     }
 
     const bundle = {
@@ -348,6 +450,7 @@ async function exportOfflinePacks(eventId) {
       bundleType: OFFLINE_BUNDLE_TYPE,
       exportBatchId,
       playMode: 'team_device',
+      playerCopyRevision: 16,
       exportedAt: new Date().toISOString(),
       signingKey: bundleSigningKey(String(event._id), team.teamCode),
       event: {
@@ -355,12 +458,16 @@ async function exportOfflinePacks(eventId) {
         slug: event.slug,
         name: event.name,
         college: event.college || '',
-        teamSize: Math.max(2, Math.min(8, Number(event.teamSize) || 4)),
+        teamSize: Math.max(2, Math.min(12, Number(event.teamSize) || 10)),
+        teamCapacity: Math.max(1, Number(event.teamCapacity) || teams.length || 20),
         startingScore: Number(event.startingScore) > 0 ? event.startingScore : 100,
         scoringConfig: event.scoringConfig || DEFAULT_SCORING_CONFIG,
+        destinationName: event.destinationName || 'Mindspark Lobby',
+        organizerFinishCode: String(event.organizerFinishCode || 'MSFINISH').toUpperCase(),
+        organizerStartCode: String(event.organizerStartCode || 'GO').toUpperCase(),
         apiBase: process.env.PUBLIC_API_BASE
           || process.env.API_PUBLIC_URL
-          || '',
+          || 'https://crwdctrl-production-9c58.up.railway.app/api',
       },
       team: {
         id: String(team._id),
@@ -368,31 +475,52 @@ async function exportOfflinePacks(eventId) {
         teamName: team.teamName,
         password,
         roster: buildRoster(team),
-        scheduledStartAt: team.scheduledStartAt || null,
         startingPoint: start
           ? { code: start.code, name: start.name, description: start.description || '' }
           : null,
       },
-      route: {
-        orange: routeStop(cp1, 'first', plantByStation),
-        green: routeStop(cp2, 'second', plantByStation),
-        blue: routeStop(cp3, 'third', plantByStation),
-        purple: routeStop(cp4, 'fourth', plantByStation),
-      },
-      clues: {
-        clue1: serializeChallenge(clue1),
-        clue2: serializeChallenge(clue2),
-        clue3: serializeChallenge(clue3),
-        clue4: serializeChallenge(clue4),
-        clue5: serializeChallenge(clue5),
-      },
+      route: (() => {
+        const orange = routeStop(cp1, 'first', plantByStation);
+        let green = routeStop(cp2, 'second', plantByStation);
+        const blue = routeStop(cp3, 'third', plantByStation);
+        const purple = routeStop(cp4, 'fourth', plantByStation);
+        const red = routeStop(cp5, 'fifth', plantByStation);
+        const plantDigits = String(green?.joinedWord || '').replace(/\D/g, '').slice(0, 3);
+        const clue2Ser = serializeChallenge(clue2, { plantDigits });
+        const answerDigits = String(clue2Ser?.answer || '').replace(/\D/g, '').slice(0, 3);
+        if (green && answerDigits.length >= 3) {
+          green = {
+            ...green,
+            joinedWord: answerDigits,
+            plantFragments: splitDigitSlips(answerDigits, 3),
+          };
+        }
+        return { orange, green, blue, purple, red, _clue2Ser: clue2Ser };
+      })(),
+      clues: null,
       checkpoints: stops.filter(Boolean),
       placePosters,
-      opsNotes: {
-        install: 'Leader opens one WhatsApp link on Wi‑Fi. Pack saves on this phone.',
-        checkpointFlow: 'At each stop: find plant fragments → join word → type → scan place poster once → team code.',
-        posters: 'ONE shared QR per campus place (not per team, not per color). Phone already knows the stage.',
+        opsNotes: {
+        install: 'Share install links ~1 day before. Leaders download Hunt + pack on Wi‑Fi at home, then arrive ready. Whole team walks with that one phone — play works with no campus network.',
+        startGate: 'One start code for everyone. Organizer says it at the gather point; leaders type it; hunt starts. No release desk needed on phones.',
+        checkpointFlow: 'At each of 5 stops: solve the clue on the leader phone → scan the shared place poster once (auto-unlocks next clue — no team-code step, no multi-member scan). Digit join-answer is Clue 2 only. Clue 6 → Mindspark Lobby finish code.',
+        posters: 'ONE shared QR per campus place × scan stage 1–5. Phone already knows the stage. Leader scans once.',
       },
+    };
+
+    // Attach clues using the synced Clue 2 answer from route builder.
+    const clue2Ser = bundle.route._clue2Ser;
+    delete bundle.route._clue2Ser;
+    bundle.clues = {
+      clue1: serializeChallenge(clue1),
+      clue2: clue2Ser,
+      clue3: serializeChallenge(clue3),
+      clue4: serializeChallenge(clue4, {
+        gridAccessCode,
+        gridGameUrl: '/campus-hunt/grid',
+      }),
+      clue5: serializeChallenge(clue5),
+      clue6: serializeChallenge(clue6),
     };
 
     bundles.push({
@@ -404,7 +532,7 @@ async function exportOfflinePacks(eventId) {
   }
 
   if (!bundles.length) {
-    warnings.push('No complete team bundles — finish Clue 1–5 bindings and team passwords first.');
+    warnings.push('No complete team bundles — finish Clue 1–6 bindings (5 path stops + destination) and team passwords first.');
   }
 
   const installs = await publishInstallLinks(eventId, bundles, exportBatchId);
@@ -617,6 +745,111 @@ async function importOfflineResults(eventId, payload, opts = {}) {
 }
 
 /**
+ * Full Start over for one team — live board + progress wipe + Zip Grid.
+ * Used by admin Playtest desk and offline phone startOver sync.
+ */
+async function resetTeamHuntProgress(team, {
+  score = null,
+  stage = 'WAITING',
+  bumpSeq = true,
+  forceGridReset = true,
+  deviceId = '',
+} = {}) {
+  const CampusHuntTeamProgress = require('../models/CampusHuntTeamProgress');
+  const CampusHuntCheckpointVerification = require('../models/CampusHuntCheckpointVerification');
+  const startScore = Number(team.startingScore) > 0
+    ? Number(team.startingScore)
+    : (Number(score) > 0 ? Number(score) : 100);
+  const nextScore = score != null ? Number(score) : startScore;
+  const storedSeq = Number(team.offlineProgressSeq) || 0;
+  const nextSeq = bumpSeq ? Math.max(storedSeq + 1, 1) : storedSeq;
+  // Slightly future stamp so phones that wrote wall-clock appliedResetAt still pick this up.
+  const resetAt = new Date(Date.now() + 1500);
+
+  await Promise.all([
+    CampusHuntTeamProgress.deleteMany({ teamId: team._id }),
+    CampusHuntCheckpointVerification.deleteMany({ teamId: team._id }),
+  ]);
+
+  const $set = {
+    currentScore: nextScore,
+    startingScore: startScore,
+    currentStage: String(stage || 'WAITING'),
+    status: 'registered',
+    startStatus: 'WAITING',
+    offlineProgressSeq: nextSeq,
+    offlineResetAt: resetAt,
+    stats: {
+      hintsUsed: 0,
+      failedAttempts: 0,
+      manualPenalty: 0,
+      totalCompletionMs: 0,
+    },
+  };
+  if (deviceId) $set.offlineDeviceId = String(deviceId).slice(0, 64);
+
+  // Do not $unset stats.* while $set replaces whole `stats` — Mongo conflict.
+  const freshTeam = await CampusHuntTeam.findByIdAndUpdate(
+    team._id,
+    {
+      $set,
+      $unset: {
+        finalScore: 1,
+        scoreLockedAt: 1,
+        finishedAt: 1,
+        suddenDeathRank: 1,
+        lastCheckpointNumber: 1,
+        actualStartAt: 1,
+        scheduledStartAt: 1,
+        releasedAt: 1,
+      },
+    },
+    { new: true },
+  );
+  if (!freshTeam) {
+    const err = new Error('Team not found after reset');
+    err.status = 404;
+    throw err;
+  }
+
+  if (forceGridReset) {
+    try {
+      const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+      const clue4 = freshTeam.clue4ChallengeId
+        ? await CampusHuntChallenge.findById(freshTeam.clue4ChallengeId).select('answer').lean()
+        : null;
+      await ensureRound1FieldTerminalGrid(freshTeam, {
+        preferredCompletionCode: clue4?.answer || '',
+        forceReset: true,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[campus-hunt] Zip Grid reset failed on Start over:', err?.message || err);
+      try {
+        const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+        await ensureRound1FieldTerminalGrid(freshTeam, { forceReset: true });
+      } catch (retryErr) {
+        // eslint-disable-next-line no-console
+        console.warn('[campus-hunt] Zip Grid reset retry failed:', retryErr?.message || retryErr);
+      }
+    }
+  }
+
+  try {
+    const { publishTeamProgress } = require('./teamProgressBus');
+    publishTeamProgress(freshTeam._id);
+  } catch (_) { /* live bus best-effort */ }
+
+  return {
+    team: freshTeam,
+    score: Number(freshTeam.currentScore) || nextScore,
+    stage: freshTeam.currentStage || 'WAITING',
+    seq: freshTeam.offlineProgressSeq,
+    offlineResetAt: freshTeam.offlineResetAt || resetAt,
+  };
+}
+
+/**
  * Best-effort live board sync from leader phone (never required for play).
  */
 async function ingestOfflineProgress(eventId, payload) {
@@ -647,13 +880,112 @@ async function ingestOfflineProgress(eventId, payload) {
     throw err;
   }
 
-  if (team.currentStage === 'SCORE_LOCKED') {
-    return { teamCode: team.teamCode, ignored: true, reason: 'SCORE_LOCKED' };
+  const startOver = Boolean(body.startOver || body.reset);
+  const incomingSeq = Number(body.seq) || 0;
+  const storedSeq = Number(team.offlineProgressSeq) || 0;
+  const incomingDevice = String(body.deviceId || '').slice(0, 64);
+  const startScore = Number(team.startingScore) > 0 ? Number(team.startingScore) : 100;
+  const maxPlausible = startScore + (6 * 120);
+
+  // Start over from leader phone — reset live board + unlock score lock for retest.
+  if (startOver) {
+    const score = Math.min(Math.max(0, Number(body.score) || startScore), maxPlausible);
+    const result = await resetTeamHuntProgress(team, {
+      score,
+      stage: String(body.stage || 'WAITING'),
+      bumpSeq: true,
+      forceGridReset: true,
+      deviceId: incomingDevice,
+    });
+    // Prefer phone seq if higher than auto-bump (anti race with old pushes).
+    if (incomingSeq > Number(result.seq || 0)) {
+      await CampusHuntTeam.updateOne(
+        { _id: team._id },
+        { $set: { offlineProgressSeq: incomingSeq } },
+      );
+      result.seq = incomingSeq;
+    }
+    return {
+      teamCode: result.team.teamCode,
+      score: result.score,
+      stage: result.stage,
+      seq: result.seq,
+      deviceId: result.team.offlineDeviceId,
+      offlineResetAt: result.offlineResetAt,
+      startOver: true,
+      accepted: true,
+    };
   }
 
-  const incomingDevice = String(body.deviceId || '').slice(0, 64);
+  const incomingStage = String(body.stage || '');
+  const playingAgain = Boolean(
+    incomingStage
+    && incomingStage !== 'SCORE_LOCKED'
+    && incomingStage !== 'FINISH_COMPLETED',
+  );
+
+  // Phone re-started after a locked finish — unlock live board and accept score.
+  if (team.currentStage === 'SCORE_LOCKED' && playingAgain) {
+    const unlockScore = Math.min(Math.max(0, Number(body.score) || startScore), maxPlausible);
+    await CampusHuntTeam.updateOne(
+      { _id: team._id },
+      {
+        $set: {
+          status: 'active',
+          currentStage: incomingStage || 'WAITING',
+          currentScore: unlockScore,
+          offlineProgressSeq: Math.max(storedSeq, incomingSeq),
+          ...(incomingDevice ? { offlineDeviceId: incomingDevice } : {}),
+        },
+        $unset: {
+          finalScore: 1,
+          scoreLockedAt: 1,
+          finishedAt: 1,
+        },
+      },
+    );
+    const unlocked = await CampusHuntTeam.findById(team._id);
+    try {
+      const { publishTeamProgress } = require('./teamProgressBus');
+      publishTeamProgress(unlocked._id);
+    } catch (_) { /* best-effort */ }
+    return {
+      teamCode: unlocked.teamCode,
+      score: unlocked.currentScore,
+      stage: unlocked.currentStage,
+      seq: unlocked.offlineProgressSeq,
+      deviceId: unlocked.offlineDeviceId,
+      offlineResetAt: unlocked.offlineResetAt || null,
+      unlocked: true,
+      accepted: true,
+    };
+  }
+
+  if (team.currentStage === 'SCORE_LOCKED') {
+    return {
+      teamCode: team.teamCode,
+      ignored: true,
+      reason: 'SCORE_LOCKED',
+      accepted: false,
+      seq: storedSeq,
+    };
+  }
+
+  if (incomingSeq < storedSeq) {
+    return {
+      teamCode: team.teamCode,
+      ignored: true,
+      reason: 'STALE_SEQ',
+      accepted: false,
+      seq: storedSeq,
+    };
+  }
+
   const bound = String(team.offlineDeviceId || '').slice(0, 64);
-  if (bound && incomingDevice && bound !== incomingDevice && !body.takeover) {
+  // Soft bind: allow takeover when score/stage advanced, or explicit takeover flag.
+  const advancing = incomingSeq > storedSeq
+    || Number(body.score) > Number(team.currentScore || 0);
+  if (bound && incomingDevice && bound !== incomingDevice && !body.takeover && !advancing) {
     const err = new Error(
       'Another phone is bound to this team. Restore a backup on this phone, then tap Take over.',
     );
@@ -663,27 +995,195 @@ async function ingestOfflineProgress(eventId, payload) {
     throw err;
   }
 
-  const incomingSeq = Number(body.seq) || 0;
-  const storedSeq = Number(team.offlineProgressSeq) || 0;
-  if (incomingSeq < storedSeq) {
-    return { teamCode: team.teamCode, ignored: true, reason: 'STALE_SEQ' };
+  const score = Math.max(0, Number(body.score) || 0);
+  let nextScore = Math.min(score, maxPlausible);
+  const nextStage = body.stage ? String(body.stage) : team.currentStage;
+  const nextSeq = Math.max(storedSeq, incomingSeq);
+
+  // Phone awards flat Clue 4 points. Live rank uses the laptop Zip session score.
+  const flatClue4 = Number(body.clue4Points);
+  if (Number.isFinite(flatClue4) && flatClue4 >= 0) {
+    try {
+      const CampusHuntGridSession = require('../models/CampusHuntGridSession');
+      const grid = await CampusHuntGridSession.findOne({
+        teamId: team._id,
+        status: 'completed',
+      }).sort({ updatedAt: -1 }).select('score').lean();
+      if (grid && Number.isFinite(Number(grid.score))) {
+        nextScore = Math.max(0, Math.min(
+          maxPlausible,
+          nextScore - flatClue4 + Number(grid.score),
+        ));
+      }
+    } catch (_) { /* keep phone score */ }
   }
 
-  const score = Math.max(0, Number(body.score) || 0);
-  const maxPlausible = 100 + (5 * 80);
-  team.currentScore = Math.min(score, maxPlausible);
-  if (body.stage) team.currentStage = String(body.stage);
-  team.offlineProgressSeq = incomingSeq;
-  if (incomingDevice) team.offlineDeviceId = incomingDevice;
-  team.status = team.status === 'finished' ? team.status : 'active';
-  await team.save();
+  const $set = {
+    currentScore: nextScore,
+    currentStage: nextStage,
+    offlineProgressSeq: nextSeq,
+    status: 'active',
+  };
+  if (incomingDevice) $set.offlineDeviceId = incomingDevice;
+  if (nextStage === 'SCORE_LOCKED') {
+    $set.finalScore = nextScore;
+    const finished = body.finishedAt ? new Date(body.finishedAt) : new Date();
+    if (!Number.isNaN(finished.getTime())) {
+      $set.finishedAt = finished;
+      $set.scoreLockedAt = finished;
+    }
+    const started = body.huntStartedAt ? new Date(body.huntStartedAt) : null;
+    if (started && $set.finishedAt && !Number.isNaN(started.getTime())) {
+      const ms = $set.finishedAt.getTime() - started.getTime();
+      if (ms > 0) $set['stats.totalCompletionMs'] = ms;
+    }
+  }
+
+  await CampusHuntTeam.updateOne(
+    { _id: team._id },
+    {
+      $set,
+      ...(playingAgain
+        ? { $unset: { finalScore: 1, scoreLockedAt: 1 } }
+        : {}),
+    },
+  );
+
+  const fresh = await CampusHuntTeam.findById(team._id);
+  try {
+    const { publishTeamProgress } = require('./teamProgressBus');
+    publishTeamProgress(fresh._id);
+  } catch (_) { /* best-effort */ }
+
+  let standing = null;
+  try {
+    const { standingForTeam } = require('./leaderboardService');
+    standing = await standingForTeam(eventId, fresh._id);
+  } catch (_) { /* best-effort */ }
+
+  return {
+    teamCode: fresh.teamCode,
+    score: fresh.currentScore,
+    stage: fresh.currentStage,
+    seq: fresh.offlineProgressSeq,
+    deviceId: fresh.offlineDeviceId,
+    offlineResetAt: fresh.offlineResetAt || null,
+    accepted: true,
+    rank: standing?.rank || null,
+    fieldSize: standing?.size || null,
+  };
+}
+
+/**
+ * Phone pulls live board + admin Start over signal (signed).
+ */
+async function pullOfflineBoardState(eventId, payload) {
+  const body = payload?.t ? payload : (payload?.data || payload);
+  if (body?.t !== 'campus_hunt_offline_pull') {
+    const err = new Error('Not an offline pull payload');
+    err.status = 400;
+    throw err;
+  }
+  if (String(body.event) !== String(eventId)) {
+    const err = new Error('Pull is for a different event');
+    err.status = 403;
+    throw err;
+  }
+  if (!verifyResultsSignature(eventId, body)) {
+    const err = new Error('Pull signature is invalid');
+    err.status = 403;
+    throw err;
+  }
+
+  const team = await CampusHuntTeam.findOne({
+    eventId,
+    teamCode: String(body.team || '').toUpperCase(),
+  }).select(
+    'teamCode currentStage currentScore startingScore finalScore offlineProgressSeq offlineResetAt scoreLockedAt',
+  );
+  if (!team) {
+    const err = new Error(`Team ${body.team} not found`);
+    err.status = 404;
+    throw err;
+  }
+
+  let rank = null;
+  let fieldSize = null;
+  let top10 = [];
+  try {
+    const { buildLeaderboard, standingForTeam } = require('./leaderboardService');
+    const standing = await standingForTeam(eventId, team._id);
+    rank = standing?.rank || null;
+    fieldSize = standing?.size || null;
+    const rows = await buildLeaderboard(eventId, { includeUnfinished: true });
+    top10 = (rows || []).slice(0, 10).map((row) => ({
+      rank: row.rank,
+      teamCode: row.teamCode,
+      teamId: row.teamId,
+    }));
+  } catch (_) { /* best-effort */ }
 
   return {
     teamCode: team.teamCode,
-    score: team.currentScore,
     stage: team.currentStage,
-    seq: team.offlineProgressSeq,
-    deviceId: team.offlineDeviceId,
+    score: team.currentScore,
+    startingScore: team.startingScore,
+    finalScore: team.finalScore ?? null,
+    seq: Number(team.offlineProgressSeq) || 0,
+    offlineResetAt: team.offlineResetAt || null,
+    scoreLocked: team.currentStage === 'SCORE_LOCKED' || Boolean(team.scoreLockedAt),
+    rank,
+    fieldSize,
+    top10,
+  };
+}
+
+/**
+ * Best-effort: mint / return Field Terminal device key for an offline pack.
+ */
+async function ensureOfflineGridAccess(eventId, payload) {
+  const body = payload?.t ? payload : (payload?.data || payload);
+  if (body?.t !== 'campus_hunt_offline_grid') {
+    const err = new Error('Not an offline grid request');
+    err.status = 400;
+    throw err;
+  }
+  if (String(body.event) !== String(eventId)) {
+    const err = new Error('Grid request is for a different event');
+    err.status = 403;
+    throw err;
+  }
+  if (!verifyResultsSignature(eventId, body)) {
+    const err = new Error('Grid request signature is invalid');
+    err.status = 403;
+    throw err;
+  }
+
+  const team = await CampusHuntTeam.findOne({
+    eventId,
+    teamCode: String(body.team || '').toUpperCase(),
+  });
+  if (!team) {
+    const err = new Error(`Team ${body.team} not found`);
+    err.status = 404;
+    throw err;
+  }
+
+  const clue4 = team.clue4ChallengeId
+    ? await CampusHuntChallenge.findById(team.clue4ChallengeId).select('answer').lean()
+    : null;
+  const { ensureRound1FieldTerminalGrid } = require('./grid/gridSessionService');
+  const gridSession = await ensureRound1FieldTerminalGrid(team, {
+    preferredCompletionCode: clue4?.answer || body.preferredCompletionCode || '',
+    forceReset: Boolean(body.reset || body.startOver || body.forceReset),
+  });
+
+  return {
+    teamCode: team.teamCode,
+    gridAccessCode: gridSession.accessCode,
+    gridGameUrl: '/campus-hunt/grid',
+    gridStatus: gridSession.status,
+    gridCompleted: gridSession.status === 'completed',
   };
 }
 
@@ -695,5 +1195,8 @@ module.exports = {
   ackOfflineInstall,
   listOfflineInstallStatus,
   ingestOfflineProgress,
+  pullOfflineBoardState,
+  resetTeamHuntProgress,
+  ensureOfflineGridAccess,
   bundleSigningKey,
 };

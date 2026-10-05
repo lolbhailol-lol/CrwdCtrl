@@ -11,6 +11,7 @@ const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
 const { getFestPlugin } = require('../../modules/fest/plugins');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
 const { normalizeLeadIdentityFromRoster } = require('../../utils/rosterResponses');
+const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
 const {
   parseResponsesBody,
   maybeEnrichExistingResponses,
@@ -222,12 +223,17 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       if (existingRegistration) {
         logger.debug('ℹ️ Existing competition registration found:', existingRegistration._id);
         await maybeEnrichExistingResponses(existingRegistration, responses);
+        const stallCoupon = await assignStallCouponIfEligible({
+          fest: competition.fest,
+          userId,
+        });
         return res.status(200).json({
           success: true,
           alreadyRegistered: true,
           message: 'Registration already completed',
           _id: existingRegistration._id,
           registrationId: existingRegistration._id,
+          stallCoupon: stallCoupon || null,
           data: {
             competition: { id: competition._id, name: competition.name },
             registrationId: existingRegistration._id,
@@ -341,6 +347,11 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       consumeCouponUsageForOrder({ paymentOrderId, userId }).catch(() => {});
     }
 
+    const stallCoupon = await assignStallCouponIfEligible({
+      fest: competition.fest,
+      userId,
+    });
+
     const customCompRegistrationLink = `/registration-details/${registration._id}`;
 
     // ✅ PERFORMANCE: Return success IMMEDIATELY to frontend - don't wait for emails/sheets
@@ -350,6 +361,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
       _id: registration._id,
       registrationId: registration._id,
       referenceId: registrationId,
+      stallCoupon: stallCoupon || null,
       data: {
         competition: {
           id: competition._id,
@@ -395,6 +407,7 @@ const submitCustomCompetitionRegistration = async (req, res) => {
           fest: competition.fest,
           competition,
           registration,
+          extras: { stallCoupon: stallCoupon || null },
         });
         logger.debug('✅ Competition registration email sent successfully');
 
@@ -731,6 +744,7 @@ const submitCompetitionRegistration = async (req, res) => {
       });
       if (existingPaid) {
         await maybeEnrichExistingResponses(existingPaid, parseResponsesBody(req.body));
+        const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
         return res.status(200).json({
           success: true,
           message: 'Registration already completed',
@@ -738,6 +752,7 @@ const submitCompetitionRegistration = async (req, res) => {
           registrationId: existingPaid._id,
           festName: fest.festName,
           competitionName: competition.name,
+          stallCoupon: stallCoupon || null,
         });
       }
     }
@@ -809,6 +824,8 @@ const submitCompetitionRegistration = async (req, res) => {
 
     const competitionRegistrationLink = `/registration-details/${registration._id}`;
 
+    const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
+
     // ✅ CRITICAL: Send success response immediately to user (don't wait for emails)
     res.status(201).json({
       success: true,
@@ -816,7 +833,8 @@ const submitCompetitionRegistration = async (req, res) => {
       _id: registration._id,
       registrationId: registration._id,
       festName: fest.festName,
-      competitionName: competition.name
+      competitionName: competition.name,
+      stallCoupon: stallCoupon || null,
     });
 
     scheduleRegistrationNotification(userId, {
@@ -853,6 +871,7 @@ const submitCompetitionRegistration = async (req, res) => {
             fest,
             competition,
             registration,
+            extras: { stallCoupon: stallCoupon || null },
           });
           logger.debug('✅ Competition registration email sent successfully');
         } catch (emailError) {

@@ -22,7 +22,7 @@ export const PAYMENT_RETURN_MAX_WAIT_MS = 10000;
 /** Background poll on fest/event/booking pages (user sees “Finishing…” overlay). */
 export const PAYMENT_BACKGROUND_MAX_WAIT_MS = 18000;
 /** Gaps between poll rounds (background only). */
-export const PAYMENT_POLL_INTERVAL_MS = [500, 700, 1000, 1500, 2000];
+export const PAYMENT_POLL_INTERVAL_MS = [1500, 2500, 3500, 5000, 7000];
 /** @deprecated use PAYMENT_BACKGROUND_MAX_WAIT_MS */
 export const PAYMENT_POLL_MAX_WAIT_MS = PAYMENT_BACKGROUND_MAX_WAIT_MS;
 /** When to show “View My Bookings / Return to form” on the finishing overlay. */

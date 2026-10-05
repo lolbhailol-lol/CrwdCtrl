@@ -88,6 +88,7 @@ test('schedule service honors per-start capacity and release interval', () => {
     variants,
     startsAt,
     releaseIntervalMinutes: 3,
+    startCount: 2,
   });
 
   assert.deepEqual(schedule.map((row) => row.startingPointCode), ['A', 'B', 'B']);
@@ -172,7 +173,7 @@ test('assigned first-checkpoint and allow-list checks reject the wrong team', ()
     ),
     (error) => (
       error.code === 'WRONG_FIRST_CHECKPOINT'
-      && /another team/i.test(error.message)
+      && /not your Orange stop/i.test(error.message)
     ),
   );
   // Other route's poster at the same campus spot — still a wrong team QR

@@ -1,5 +1,5 @@
 /**
- * Bulk-save Clue 5 / Final (one collaborative challenge per start route) in one request.
+ * Bulk-save Clue 5 — unique letter-word per team (start + wave variants).
  */
 
 const CampusHuntEvent = require('../models/CampusHuntEvent');
@@ -9,21 +9,35 @@ const CampusHuntStartingPoint = require('../models/CampusHuntStartingPoint');
 const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const { persistClueScoring } = require('./clueScoringPersistService');
 const { writeAudit } = require('./auditService');
-const { routeClueDefaults, CLUE5_WORDS } = require('./round1BootstrapService');
+const { resyncClue1TeamBindings } = require('./startScheduleService');
+const {
+  routeClueDefaults,
+  CLUE5_WORDS,
+  clue5WordForTeam,
+} = require('./round1BootstrapService');
+
+function normalizeWaveId(waveId, localTeamNumber) {
+  if (waveId) return String(waveId).toUpperCase().trim();
+  const n = Number(localTeamNumber) || 1;
+  return `T${n}`;
+}
+
+function waitIndexFromCode(startCode) {
+  const code = String(startCode || 'A').toUpperCase().charAt(0);
+  return Math.max(0, 'ABCD'.indexOf(code));
+}
 
 /**
  * @param {object} opts
- * @param {string} opts.eventId
- * @param {string} opts.roundId
- * @param {object} [opts.actor]
- * @param {object} [opts.scoring]
- * @param {Array<{startCode,prompt?,answer?,memberPrompts?,destinationInstruction?,routeId?,startingPointId?}>} opts.routes
+ * @param {Array<{startCode,waveId?,localTeamNumber?,prompt?,answer?,routeId?,startingPointId?}>} [opts.variants]
+ * @param {Array} [opts.routes] legacy one-word-per-start (expanded to per-team)
  */
 async function bulkSaveClue5({
   eventId,
   roundId,
   actor = {},
   scoring = {},
+  variants: variantRows = [],
   routes: routeRows = [],
 }) {
   const event = await CampusHuntEvent.findById(eventId);
@@ -60,21 +74,50 @@ async function bulkSaveClue5({
     }
   }
 
-  const teamSize = Math.max(2, Math.min(8, Number(event.teamSize) || 4));
+  const teamSize = Math.max(2, Math.min(12, Number(event.teamSize) || 4));
+  const teamsPerWait = Math.max(
+    1,
+    Math.ceil((Number(event.teamCapacity) || 20) / Math.max(1, startingPoints.length || 1)),
+  );
   const { scoring: clue5Scoring } = await persistClueScoring({
     eventId,
     clueNumber: 5,
     scoring,
   });
 
+  // Prefer explicit per-team variants; expand legacy routes into per-team rows.
+  let rows = Array.isArray(variantRows) ? [...variantRows] : [];
+  if (!rows.length && Array.isArray(routeRows) && routeRows.length) {
+    for (const row of routeRows) {
+      const startCode = String(row.startCode || '').toUpperCase().trim();
+      const sharedWord = String(row.answer || CLUE5_WORDS[startCode] || 'QUEST')
+        .replace(/[^A-Za-z]/g, '')
+        .toUpperCase();
+      for (let local = 1; local <= teamsPerWait; local += 1) {
+        rows.push({
+          ...row,
+          startCode,
+          waveId: `T${local}`,
+          localTeamNumber: local,
+          answer: sharedWord || clue5WordForTeam(waitIndexFromCode(startCode), local, teamsPerWait),
+        });
+      }
+    }
+  }
+
   let saved = 0;
   const errors = [];
+  const usedWords = new Set();
 
-  for (const row of routeRows) {
+  for (const row of rows) {
     try {
       const startCode = String(row.startCode || '').toUpperCase().trim();
-      if (!/^[A-D]$/.test(startCode)) {
-        errors.push({ row, message: 'Invalid startCode' });
+      const waveId = normalizeWaveId(row.waveId, row.localTeamNumber);
+      const localTeamNumber = Number(row.localTeamNumber)
+        || Number(String(waveId || '').replace(/^T/, ''))
+        || 1;
+      if (!/^[A-D]$/.test(startCode) || !waveId) {
+        errors.push({ row, message: 'Invalid startCode or waveId' });
         continue;
       }
 
@@ -83,28 +126,42 @@ async function bulkSaveClue5({
       const point = pointByCode.get(startCode)
         || startingPoints.find((p) => String(p._id) === String(row.startingPointId || ''));
       if (!route || !point) {
-        errors.push({ startCode, message: 'Missing route or starting point' });
+        errors.push({ startCode, waveId, message: 'Missing route or starting point' });
         continue;
       }
 
-      const finishWord = CLUE5_WORDS[startCode] || 'QUEST';
-      const startName = point.name || startCode;
-      const defaults = routeClueDefaults(5, finishWord, teamSize);
-      defaults.destinationInstruction =
-        `Report to your start — ${startName}. Ask the organizer to mark your team reached.`;
+      const fallback = clue5WordForTeam(
+        waitIndexFromCode(startCode),
+        localTeamNumber,
+        teamsPerWait,
+      );
+      const answer = String(row.answer || fallback)
+        .replace(/[^A-Za-z]/g, '')
+        .toUpperCase() || fallback;
+      if (answer.length < 3) {
+        errors.push({ startCode, waveId, message: 'Clue 5 word needs at least 3 letters' });
+        continue;
+      }
+      if (usedWords.has(answer)) {
+        errors.push({
+          startCode,
+          waveId,
+          message: `Word ${answer} already used — each team needs a unique letter word`,
+        });
+        continue;
+      }
+      usedWords.add(answer);
 
-      const answer = String(row.answer || finishWord).trim().toUpperCase();
-      const memberPrompts = Array.isArray(row.memberPrompts)
-        ? row.memberPrompts.slice(0, teamSize).map((v) => String(v || '').trim())
-        : defaults.memberPrompts;
-      while (memberPrompts.length < teamSize) memberPrompts.push('');
+      const defaults = routeClueDefaults(5, answer, teamSize);
+      const prompt = String(row.prompt || defaults.prompt).trim() || defaults.prompt;
+      const variantKey = `${startCode}-${waveId}`;
 
       await CampusHuntChallenge.findOneAndUpdate(
         {
           eventId,
           routeId: route._id,
           challengeNumber: 5,
-          variantKey: 'DEFAULT',
+          variantKey,
         },
         {
           $set: {
@@ -113,9 +170,9 @@ async function bulkSaveClue5({
             routeId: route._id,
             startingPointId: point._id,
             challengeNumber: 5,
-            type: 'collaborative',
-            prompt: String(row.prompt || defaults.prompt).trim(),
-            memberPrompts,
+            type: 'decode',
+            prompt,
+            memberPrompts: [],
             answer,
             acceptedAnswers: [answer, answer.toLowerCase()],
             destinationInstruction: String(
@@ -128,7 +185,7 @@ async function bulkSaveClue5({
             speedBonusBands: clue5Scoring.speedBonusBands || [],
             hintCost: clue5Scoring.hintCost,
             difficulty: 'hard',
-            variantKey: 'DEFAULT',
+            variantKey,
             active: true,
           },
         },
@@ -138,10 +195,26 @@ async function bulkSaveClue5({
     } catch (error) {
       errors.push({
         startCode: row.startCode,
+        waveId: row.waveId,
         message: error.message || 'Save failed',
       });
     }
   }
+
+  // Retire legacy shared DEFAULT Clue 5 rows once per-team variants exist.
+  if (saved > 0) {
+    await CampusHuntChallenge.updateMany(
+      { eventId, challengeNumber: 5, variantKey: 'DEFAULT' },
+      { $set: { active: false } },
+    );
+  }
+
+  const sync = await resyncClue1TeamBindings({
+    eventId,
+    roundId: round._id,
+    actor,
+    reason: 'clue5_bulk_saved',
+  });
 
   await writeAudit({
     eventId,
@@ -149,13 +222,14 @@ async function bulkSaveClue5({
     action: 'clue5_bulk_saved',
     targetType: 'round',
     targetId: round._id,
-    after: { saved, errors: errors.length },
+    after: { saved, errors: errors.length, teamsUpdated: sync.updated },
   });
 
   return {
     saved,
-    expected: routeRows.length,
+    expected: rows.length,
     errors,
+    teamsUpdated: sync.updated,
     scoring: clue5Scoring,
   };
 }

@@ -26,6 +26,7 @@ const {
   getEventPolicy,
   usesMondayClear,
   isCashfreeGateway,
+  cashfreeOrderIdOf,
   classifyBucket,
   computeFinancials,
   settlementStatusOf,
@@ -117,6 +118,7 @@ async function loadNormalizedRegistrations() {
     Registration.find({
       $or: [
         { paymentStatus: 'paid', payment_gateway: 'cashfree' },
+        { paymentStatus: 'paid', payment_gateway: 'cashfree_bundle' },
         { payment_order_id: { $type: 'string', $gt: '' } },
       ],
     })
@@ -154,6 +156,9 @@ async function loadNormalizedRegistrations() {
   for (const reg of festRegs) {
     if (!isCashfreeGateway(reg.payment_gateway)) continue;
     const festId = idStr(reg.fest);
+    const responses = reg.responses && typeof reg.responses === 'object'
+      ? (reg.responses instanceof Map ? Object.fromEntries(reg.responses) : reg.responses)
+      : {};
     normalized.push({
       id: String(reg._id),
       kind: reg.competitionId ? 'competition' : 'fest',
@@ -168,6 +173,7 @@ async function loadNormalizedRegistrations() {
       festId,
       eventId: idStr(reg.competitionId) || festId,
       entityType: reg.competitionId ? 'competition' : 'fest',
+      bundleCashfreeOrderId: String(responses.bundle_cashfree_order_id || '').trim(),
       createdAt: reg.createdAt,
     });
   }
@@ -324,19 +330,28 @@ function resolveContext(order, registration, entities) {
     organizerType = 'fest';
     organizerId = festId;
     organizerName = fest?.festName || eventName;
-  } else if (entityType === 'competition' || registration?.kind === 'competition') {
-    const competition = entities.competitions.get(eventId);
-    if (competition) {
-      festId = festId || idStr(competition.fest);
-      eventName = competition.name || tags.competitionName || 'Competition';
+  } else if (entityType === 'competition' || entityType === 'competition_bundle' || registration?.kind === 'competition') {
+    if (entityType === 'competition_bundle') {
+      festId = festId || String(tags.festId || '') || MINDSPARK_FEST_ID;
+      eventName = tags.competitionName || 'MindSpark Bundle';
+      const fest = entities.fests.get(festId) || entities.fests.get(MINDSPARK_FEST_ID);
+      organizerType = 'fest';
+      organizerId = festId || MINDSPARK_FEST_ID;
+      organizerName = fest?.festName || 'Fest organizer';
     } else {
-      eventName = tags.competitionName || 'Competition';
+      const competition = entities.competitions.get(eventId);
+      if (competition) {
+        festId = festId || idStr(competition.fest);
+        eventName = competition.name || tags.competitionName || 'Competition';
+      } else {
+        eventName = tags.competitionName || 'Competition';
+      }
+      const fest = entities.fests.get(festId);
+      organizerType = 'fest';
+      organizerId = festId || MINDSPARK_FEST_ID;
+      organizerName = fest?.festName || 'Fest organizer';
+      if (isMindSparkFallback(festId)) eventName = eventName || 'Mindspark';
     }
-    const fest = entities.fests.get(festId);
-    organizerType = 'fest';
-    organizerId = festId || MINDSPARK_FEST_ID;
-    organizerName = fest?.festName || 'Fest organizer';
-    if (isMindSparkFallback(festId)) eventName = eventName || 'Mindspark';
   } else if (entityType === 'sports' || entityType === 'event' || registration?.kind === 'sports') {
     const sport = entities.sports.get(eventId);
     eventTitle = sport?.title || tags.eventName || '';
@@ -426,12 +441,17 @@ function buildPayoutOverrideMap(payouts = []) {
 function enrichLinkedRow({ order, registration, unmatched, duplicate, orphanRegistration }, extras) {
   const { entities, settlementsByOrder, refundsByOrder, payoutOverrides, batchPaidLedger } = extras;
   const ctx = resolveContext(order, registration, entities);
-  const orderId = String(order?.orderId || registration?.payment_order_id || '');
+  const orderId = cashfreeOrderIdOf(
+    order?.orderId,
+    registration?.bundleCashfreeOrderId,
+    registration?.payment_order_id,
+  ) || String(order?.orderId || registration?.payment_order_id || '');
   const settlement = settlementsByOrder.get(orderId) || null;
   const paymentId = String(order?.paymentId || registration?.payment_id || settlement?.cfPaymentId || '');
   const grossFromReg = Number(registration?.amountPaid) || 0;
   const grossFromOrder = Number(order?.totalAmount) || 0;
-  const gross = grossFromReg > 0 ? grossFromReg : grossFromOrder;
+  // Prefer Cashfree order amount; keep reg amount only when order is missing.
+  const gross = grossFromOrder > 0 ? grossFromOrder : grossFromReg;
   const refunded = refundTotalFor(refundsByOrder.get(orderId) || []);
   const money = computeFinancials(gross, refunded);
   const override = payoutOverrides.get(payoutOverrideKey(ctx));
@@ -480,6 +500,8 @@ function enrichLinkedRow({ order, registration, unmatched, duplicate, orphanRegi
     customerEmail: order?.customerEmail || registration?.email || '',
     manual: Boolean(registration?.manual),
     amountPaid: gross,
+    orderAmount: grossFromOrder > 0 ? grossFromOrder : null,
+    hasSettlementRecord: Boolean(settlement),
     ...money,
     settlementStatus: settlementStatusOf(settlement),
     settlementDate: settlementDateOf(settlement),

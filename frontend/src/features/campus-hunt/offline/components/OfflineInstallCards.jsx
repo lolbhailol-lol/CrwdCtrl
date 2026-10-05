@@ -15,33 +15,36 @@ function installUrl(token) {
 
 export function teamWhatsAppText(row) {
   const url = installUrl(row.token);
-  const size = Number(row.teamSize) || 4;
+  const size = Number(row.teamSize) || 10;
   return [
-    `Hunt — ${row.teamCode}`,
+    `Hunt — ${row.teamCode} (leader pack)`,
     '',
-    'One link for your team. Leader opens it (not the CrwdCtrl website).',
-    'Add the Hunt icon so the game still opens with data off.',
+    `FOR THE TEAM LEADER ONLY — 1 pack · 1 phone.`,
+    `Your team walks together (~${size} people). Only you install & play.`,
     '',
-    'TODAY on Wi‑Fi — leader phone:',
+    'INSTALL TODAY (Wi‑Fi / data ON):',
     url,
     `Password: ${row.password || '(ask organizer)'}`,
     '',
-    '1. Open the link',
-    '2. Tap ⋮ → Open in Chrome (leave WhatsApp)',
-    '3. Wait until Pack saved',
-    '4. Chrome → Install app / Add to Home screen → name must be Hunt',
+    '1. Open the link in Chrome (⋮ in WhatsApp → Open in Chrome / Safari)',
+    '2. Wait until Pack saved (shows latest export)',
+    '3. If it says Update ready — tap reload',
+    '4. Tap Download Hunt / Install app (name it Hunt — not CrwdCtrl)',
+    '5. Open Hunt → password → play',
+    '   Re-open this same link later on Wi‑Fi to refresh pack + app.',
+    '   If it opens old CrwdCtrl rounds — delete that shortcut and install Hunt again from this link.',
     '',
-    'HOW TO PLAY (all teammates walk together · one phone)',
-    '• Login → Rounds → Round 1',
-    '• Leader types clue answers',
-    `• At each stop: find ${size} clues written nearby, join them into one word, type it, then scan the place QR once`,
-    '• Enter your team code → next location',
+    'AT THE FEST (offline OK):',
+    '• Only your phone — whole team walks with you',
+    '• Clue 1: type place → orange scan',
+    '• Clue 2: digit slips → type number → green scan',
+    '• Clue 3: unique lockbox code → blue scan',
+    '• Clue 4: Zip Grid on laptop → purple scan',
+    '• Clue 5: unique letter word → red scan',
+    '• Finish at Mindspark Lobby with organizer code',
     '',
-    'TEST OFFLINE (data off)',
-    'Turn off Wi‑Fi + mobile data → Hunt icon → password → Round 1',
-    'If Hunt does not open, you added CrwdCtrl by mistake — delete that shortcut and add Hunt again on Wi‑Fi.',
-    '',
-    'At the fest: Hunt icon on the leader phone. No laptop.',
+    'Do not forward this to every teammate. One pack for the leader phone only.',
+    'Do not wait until start time to install. Pack must be on the phone first.',
   ].join('\n');
 }
 
@@ -76,7 +79,7 @@ export default function OfflineInstallCards({ installs = [] }) {
   return (
     <div className="mt-3 space-y-2 print:hidden">
       <p className="text-[11px] font-semibold text-white">
-        WhatsApp — one link per team (leader phone)
+        WhatsApp — one pack per team · send to leader only
       </p>
       {installs.map((row) => (
         <div

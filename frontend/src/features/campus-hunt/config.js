@@ -19,7 +19,7 @@ export const CAMPUS_HUNT_PATHS = {
   login: (slug) => `/campus-hunt/${slug}`,
   play: (slug) => `/campus-hunt/${slug}/play`,
   grid: '/campus-hunt/grid',
-  /** One shared URL per team — leader + all players use this (password + tap name) */
+  /** One shared URL per team — leader phone only (password → enter as leader) */
   teamLogin: (slug, teamCode) =>
     `/campus-hunt/${slug}/team/${String(teamCode || '').toUpperCase()}`,
   teamLoginRole: (slug, teamCode, role, slot) => {
@@ -31,12 +31,15 @@ export const CAMPUS_HUNT_PATHS = {
   leaderboard: '/campus-hunt/leaderboard',
   leaderboardCollege: (college) =>
     `/campus-hunt/leaderboard?college=${encodeURIComponent(college)}`,
-  /** Profile → Campus Hunt login (Google session required) */
+  /** Profile → Campus Hunt login (college + team code, no Google) */
   profileLogin: '/campus-hunt/enter',
   volunteerLogin: '/campus-hunt-volunteer/login',
   volunteerCheckpoint: '/campus-hunt-volunteer/checkpoint',
-  admin: '/admin/campus-hunt',
-  adminEvent: (eventId) => `/admin/campus-hunt/${eventId}`,
+  admin: '/campus-hunt/admin',
+  adminEvent: (eventId) => `/campus-hunt/admin/${eventId}`,
+  /** Inside CrwdCtrl /admin shell (needs main admin_token) */
+  adminCrwdCtrl: '/admin/campus-hunt',
+  adminCrwdCtrlEvent: (eventId) => `/admin/campus-hunt/${eventId}`,
   offline: '/campus-hunt/offline',
   offlineLogin: '/campus-hunt/offline/login',
   offlineTeam: '/campus-hunt/offline/team',

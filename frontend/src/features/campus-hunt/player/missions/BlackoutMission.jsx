@@ -93,15 +93,22 @@ export default function BlackoutMission({
       <MissionBriefBox
         theme={theme}
         eyebrow={`Blackout · ${theme.colorName}`}
-        title={view?.taskLabel || ROLE_LABEL[view?.yourRole] || 'Operation'}
-        body={view?.instruction || 'Stay together. Only the active role submits.'}
-        requirements={[
-          'All players stay together — do not split',
-          view?.yourRole
-            ? `Your role: ${ROLE_LABEL[view.yourRole] || view.yourRole}`
-            : 'Roles are seat-mapped',
-          'Wrong answers cost points (capped)',
-        ]}
+        title={view?.taskLabel || (isLeader ? 'Operation' : ROLE_LABEL[view?.yourRole] || 'Operation')}
+        body={
+          view?.instruction
+          || (isLeader
+            ? 'Clear each Blackout step on this phone.'
+            : 'Only the Team Leader phone plays Blackout.')
+        }
+        requirements={
+          isLeader
+            ? [
+              'One phone · leader submits every step',
+              'Teammates walk with you',
+              'Wrong answers cost points (capped)',
+            ]
+            : ['Leader phone only — stay with your team']
+        }
       >
         <ProgressStrip progress={view?.progress} />
 
@@ -184,7 +191,7 @@ export default function BlackoutMission({
         <p className="rounded-xl bg-white/[0.04] px-3 py-2.5 text-center text-sm text-white/50">
           {view?.locked
             ? 'Another role is active — stay with the team.'
-            : 'Waiting for the active operator…'}
+            : 'Leader phone only — open Blackout on the Team Leader login.'}
         </p>
       )}
 

@@ -34,17 +34,27 @@ const BOT_UA =
   /(facebookexternalhit|facebot|twitterbot|^whatsapp\/|slackbot|slack-imgproxy|linkedinbot|discordbot|telegrambot|pinterest|redditbot|googlebot|google-inspectiontool|storebot-google|bingbot|duckduckbot|applebot|gptbot|oai-searchbot|chatgpt-user|perplexitybot|claudebot|claude-web|anthropic-ai|bytespider|amazonbot|yandexbot|embedly|quora link preview|vkshare|w3c_validator|iframely|skypeuripreview|nuzzel|bitlybot|developers\.google\.com\/\+\/web\/snippet)/i;
 
 /** Prefer cover slots over falling back to the CrwdCtrl logo in OG previews. */
-function pickShareImage(entity) {
+function pickShareImage(entity, { preferPortrait = false } = {}) {
   if (!entity || typeof entity !== 'object') return undefined;
   const covers = entity.coverImages && typeof entity.coverImages === 'object' ? entity.coverImages : {};
-  // Prefer landscape/wide for WhatsApp & Facebook (tall portraits often fail preview).
-  const candidates = [
+  const landscapeCandidates = [
     covers.wide,
     covers.landscape,
     covers.hero,
     covers.page,
     covers.square,
     covers.portrait,
+  ];
+  const portraitCandidates = [
+    covers.portrait,
+    covers.page,
+    covers.square,
+    covers.wide,
+    covers.landscape,
+    covers.hero,
+  ];
+  const candidates = [
+    ...(preferPortrait ? portraitCandidates : landscapeCandidates),
     covers.video,
     entity.coverImage,
     entity.poster,
@@ -60,42 +70,127 @@ function pickShareImage(entity) {
   return undefined;
 }
 
+/** Landscape 1200×630 or run-club portrait card 800×1040 (10:13, dark shell). */
+function toOgImageUrl(url, { contain = true, padColor, portrait = false } = {}) {
+  if (!url || typeof url !== 'string') return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  const w = portrait ? 800 : 1200;
+  const h = portrait ? 1040 : 630;
+  const bg = padColor || (portrait ? 'rgb:0B0C0D' : 'auto');
+  if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
+    if (contain) {
+      return trimmed.replace(
+        /\/image\/upload\//i,
+        `/image/upload/c_pad,w_${w},h_${h},b_${bg},f_jpg,q_auto/`,
+      );
+    }
+    return trimmed.replace(
+      /\/image\/upload\//i,
+      `/image/upload/c_fill,w_${w},h_${h},g_auto,f_jpg,q_auto/`,
+    );
+  }
+  return trimmed;
+}
+
+function isBrandLogoFest(fest) {
+  const name = String(fest?.festName || fest?.title || '').toLowerCase();
+  const slug = String(fest?.slug || '').toLowerCase();
+  // Techfest / MindSpark still use logo artwork; Kshitij now uses a photo cover.
+  return name.includes('techfest') || slug.includes('techfest')
+    || name.includes('mindspark') || slug.includes('mindspark');
+}
+
 const ROUTES = [
   {
     test: /^\/view-details\/([^/]+)\/?$/,
     api: (id) => `/fests/${id}/public`,
     pick: (j) => j?.data || j,
-    build: (f, path) => buildEvent(f.festName, f.description, pickShareImage(f), f.venue, f.ticketPrice ?? f.feeAmount, f.collegeName, path, 'Fests', '/fests'),
+    build: (f, path) => {
+      const logoFest = isBrandLogoFest(f);
+      return buildEvent(
+        f.festName,
+        f.description,
+        toOgImageUrl(pickShareImage(f), {
+          contain: logoFest,
+          padColor: logoFest ? 'rgb:ffffff' : 'auto',
+        }),
+        f.venue,
+        f.ticketPrice ?? f.feeAmount,
+        f.collegeName,
+        path,
+        'Fests',
+        '/fests',
+      );
+    },
   },
   {
     test: /^\/competitions-view-details\/([^/]+)\/?$/,
     api: (id) => `/fests/competitions/${id}/public`,
     pick: (j) => j?.data || j?.competition || j,
-    build: (c, path) => buildEvent(c.name, c.description, pickShareImage(c), c.venue, c.registrationFee ?? c.feeAmount, c.fest?.festName, path, 'Fests', '/fests'),
+    build: (c, path) => buildEvent(
+      c.name,
+      c.description,
+      toOgImageUrl(pickShareImage(c), { contain: false, padColor: 'auto' }),
+      c.venue,
+      c.registrationFee ?? c.feeAmount,
+      c.fest?.festName,
+      path,
+      'Fests',
+      '/fests',
+    ),
   },
   {
     test: /^\/trek\/([^/]+)\/?$/,
     api: (id) => `/treks/${id}`,
     pick: (j) => j?.trek || j?.data || j,
-    build: (t, path) => buildEvent(t.trekName || t.title, t.description, pickShareImage(t), t.city || t.destination || t.startingPoint, t.registrationFee, t.communityName, path, 'Treks', '/treks'),
+    build: (t, path) => buildEvent(t.trekName || t.title, t.description, toOgImageUrl(pickShareImage(t)), t.city || t.destination || t.startingPoint, t.registrationFee, t.communityName, path, 'Treks', '/treks'),
   },
   {
     test: /^\/treks\/community\/([^/]+)\/?$/,
     api: (id) => `/trek-communities/${id}`,
     pick: (j) => j?.community || j?.data || j,
-    build: (c, path) => buildPage(`${c.name} — Trek Community`, c.aboutUs, pickShareImage(c), path, 'Treks', '/treks', c.name),
+    build: (c, path) => buildPage(`${c.name} — Trek Community`, c.aboutUs, toOgImageUrl(pickShareImage(c)), path, 'Treks', '/treks', c.name),
   },
   {
     test: /^\/sports\/run\/([^/]+)\/?$/,
     api: (id) => `/sports/${id}`,
     pick: (j) => j?.event || j?.data || j,
-    build: (e, path) => buildEvent(e.title, e.description, pickShareImage(e), e.venue || e.city, e.registrationFee, e.runClub?.name || e.organizer, path, 'Sports', '/sports'),
+    build: (e, path) => buildEvent(
+      e.title,
+      e.description,
+      toOgImageUrl(pickShareImage(e, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
+      e.venue || e.city,
+      e.registrationFee,
+      e.runClub?.name || e.organizer,
+      path,
+      'Sports',
+      '/sports',
+      { portrait: true },
+    ),
   },
   {
     test: /^\/sports\/run-club\/([^/]+)\/?$/,
     api: (id) => `/run-clubs/${id}`,
     pick: (j) => j?.club || j?.data || j,
-    build: (c, path) => buildPage(`${c.name} — Running Club`, c.aboutUs, pickShareImage(c), path, 'Sports', '/sports', c.name),
+    build: (c, path) => buildPage(
+      `${c.name} — Running Club`,
+      c.aboutUs,
+      toOgImageUrl(pickShareImage(c, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
+      path,
+      'Sports',
+      '/sports',
+      c.name,
+      { portrait: true },
+    ),
   },
   {
     test: /^\/events\/community-event\/([^/]+)\/?$/,
@@ -104,13 +199,18 @@ const ROUTES = [
     build: (e, path) => buildEvent(
       e.title,
       e.description,
-      pickShareImage(e),
+      toOgImageUrl(pickShareImage(e, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
       e.venue || e.city,
       e.registrationFee,
       e.runClub?.name || e.organizer,
       path,
       'Events',
       '/events',
+      { portrait: true },
     ),
   },
   {
@@ -120,11 +220,16 @@ const ROUTES = [
     build: (c, path) => buildPage(
       `${c.name} — Community`,
       c.aboutUs || c.tagline || c.description,
-      pickShareImage(c),
+      toOgImageUrl(pickShareImage(c, { preferPortrait: true }), {
+        contain: true,
+        portrait: true,
+        padColor: 'rgb:0B0C0D',
+      }),
       path,
       'Events',
       '/events',
       c.name,
+      { portrait: true },
     ),
   },
   {
@@ -134,7 +239,7 @@ const ROUTES = [
     build: (e, path) => buildEvent(
       e.displayName || e.title,
       e.description || e.about,
-      pickShareImage(e),
+      toOgImageUrl(pickShareImage(e)),
       e.venue || e.city,
       e.ticketPrice,
       e.organizer,
@@ -145,14 +250,18 @@ const ROUTES = [
   },
 ];
 
-function buildEvent(name, description, image, location, price, organizer, path, parentName, parentPath) {
+function buildEvent(name, description, image, location, price, organizer, path, parentName, parentPath, opts = {}) {
   const safeName = name || 'CrwdCtrl';
   const desc = description || `${safeName} on CrwdCtrl.`;
   const shareImage = image || undefined;
+  const portrait = Boolean(opts.portrait);
   return {
     title: safeName,
     description: desc,
     image: shareImage,
+    imageWidth: portrait ? 800 : 1200,
+    imageHeight: portrait ? 1040 : 630,
+    twitterCard: 'summary_large_image',
     fallback: { h1: safeName, intro: desc },
     jsonLd: [
       breadcrumbSchema([
@@ -174,13 +283,17 @@ function buildEvent(name, description, image, location, price, organizer, path, 
   };
 }
 
-function buildPage(title, description, image, path, parentName, parentPath, crumbName) {
+function buildPage(title, description, image, path, parentName, parentPath, crumbName, opts = {}) {
   const desc = description || `${title} on CrwdCtrl.`;
   const shareImage = image || undefined;
+  const portrait = Boolean(opts.portrait);
   return {
     title,
     description: desc,
     image: shareImage,
+    imageWidth: portrait ? 800 : 1200,
+    imageHeight: portrait ? 1040 : 630,
+    twitterCard: 'summary_large_image',
     fallback: { h1: title, intro: desc },
     jsonLd: [
       webPageSchema({ name: title, description: desc, url: path }),

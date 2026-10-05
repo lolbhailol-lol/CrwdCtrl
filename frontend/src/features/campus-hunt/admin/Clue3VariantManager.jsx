@@ -15,10 +15,11 @@ import {
 } from './clueSettings';
 import {
   CAMPUS_STARTS,
-  STATION_TARGET_COUNT,
   TARGET_TEAMS_PER_STATION,
   TEAMS_PER_WAIT,
   buildTeamSlots,
+  globalTeamNumber,
+  lockboxCodeForTeam,
   resolveStations,
   resolveStarts,
   routeClueDefaults,
@@ -30,6 +31,10 @@ import { STAGE_THEMES } from '../types/stageTheme';
 
 const THEME = STAGE_THEMES.clue3;
 const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 py-2 text-sm text-white';
+
+const SHARED_PROMPT =
+  'Find the physical lockbox nearby.\n'
+  + 'Type the code written on it.';
 
 function id(value) {
   return String(value?._id || value?.id || value || '');
@@ -56,23 +61,12 @@ function routeForStart(routes, point) {
   return routes.find((route) => String(route.routeKey || '').toUpperCase() === code) || null;
 }
 
-function _variantKeyFor(code, waveId) {
+function variantKeyFor(code, waveId) {
   return `${code}-${waveId}`.toUpperCase();
 }
 
-function _resolveThirdCheckpoint(checkpoints, { routeId, waveId, startingPointId }) {
-  const key = `3-${String(waveId || '').toUpperCase()}`.toUpperCase();
-  const onRoute = checkpoints.filter((cp) => id(cp.routeId) === id(routeId));
-  const byStart = onRoute.find(
-    (cp) => String(cp.checkpointKey || '').toUpperCase() === key
-      && id(cp.startingPointId) === id(startingPointId),
-  );
-  if (byStart) return byStart;
-  return onRoute.find((cp) => String(cp.checkpointKey || '').toUpperCase() === key) || null;
-}
-
 /**
- * Clue 3: 10 places × ~4 teams — edit Caesar riddles; shared blue CP3 QR per place.
+ * Clue 3: unique lockbox digit code per team — plant one box per team path.
  */
 export default function Clue3VariantManager({
   eventId,
@@ -81,11 +75,12 @@ export default function Clue3VariantManager({
   campusStarts,
   stationCount = null,
   onChanged,
-  teamCapacity = 40,
-  teamSize: _teamSize = 4,
+  teamCapacity = 20,
+  teamSize: teamSize = 4,
   teamsPerWait = TEAMS_PER_WAIT,
   teamsPerStation = TARGET_TEAMS_PER_STATION,
 }) {
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const stations = useMemo(
     () => resolveStations(campusStations, stationCount),
     [campusStations, stationCount],
@@ -101,7 +96,8 @@ export default function Clue3VariantManager({
   const [points, setPoints] = useState([]);
   const [_checkpoints, setCheckpoints] = useState([]);
   const [variants, setVariants] = useState([]);
-  const [packContent, setPackContent] = useState({});
+  const [codes, setCodes] = useState({});
+  const [prompt, setPrompt] = useState(SHARED_PROMPT);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -113,8 +109,6 @@ export default function Clue3VariantManager({
       .filter((p) => p.active !== false)
       .sort((a, b) => order.indexOf(startCode(a)) - order.indexOf(startCode(b)));
   }, [points]);
-
-  const _expectedCount = orderedPoints.length * teamSlots.length;
 
   const refresh = useCallback(async () => {
     if (!eventId) return;
@@ -139,21 +133,40 @@ export default function Clue3VariantManager({
       list[0],
     ));
 
-    const nextPacks = {};
+    const nextCodes = {};
+    const used = new Set();
     arrivalPlan.forEach((place) => {
-      const defaults = routeClueDefaults(3, place.name);
-      const sample = list.find((v) => (
-        String(v.answer || '').toLowerCase() === place.name.toLowerCase()
-        || String(v.destinationInstruction || '').toLowerCase().includes(place.name.toLowerCase())
-      ));
-      nextPacks[place.code] = {
-        prompt: sample?.prompt || defaults.prompt,
-        answer: (sample?.answer || defaults.answer || place.name).trim(),
-        hintText: sample?.hintText || defaults.hintText,
-      };
+      place.arrivals.forEach((row) => {
+        const waitIndex = waitIndexForStart(row.startingPointCode);
+        const key = `${row.startingPointCode}-T${row.localTeamNumber}`;
+        const existing = list.find((v) => (
+          String(v.variantKey || '').toUpperCase()
+          === variantKeyFor(row.startingPointCode, `T${row.localTeamNumber}`)
+        ));
+        const existingDigits = String(existing?.answer || '').replace(/\D/g, '');
+        let answer = existingDigits;
+        if (!answer || used.has(answer)) {
+          answer = lockboxCodeForTeam(waitIndex, row.localTeamNumber, teamsPerWait);
+          let spin = 0;
+          while (used.has(answer) && spin < 24) {
+            spin += 1;
+            answer = lockboxCodeForTeam(waitIndex, row.localTeamNumber + spin, teamsPerWait);
+          }
+        }
+        used.add(answer);
+        nextCodes[key] = answer;
+      });
     });
-    setPackContent(nextPacks);
-  }, [eventId, arrivalPlan]);
+    setCodes(nextCodes);
+
+    const sample = list.find((row) => {
+      const old = String(row.prompt || '');
+      return old
+        && !/hard find|digit slips|LOCKBOX plaque|not numbered/i.test(old)
+        && !/^THE LOCKBOX/i.test(old);
+    })?.prompt;
+    setPrompt(sample || SHARED_PROMPT);
+  }, [eventId, arrivalPlan, teamsPerWait]);
 
   useEffect(() => {
     refresh().catch((err) => setError(err.message || 'Could not load Clue 3'));
@@ -167,7 +180,12 @@ export default function Clue3VariantManager({
     try {
       await adminSaveClueScoring(eventId, 3, {
         roundId,
-        scoring: coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+        scoring: {
+          ...coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+          timerSeconds: 0,
+          awardMode: 'flat_base',
+          speedBonusBands: [],
+        },
       });
       await refresh();
       setMessage(`Saved Clue 3 attempt & hint settings for all ${teamCapacity} teams`);
@@ -181,7 +199,7 @@ export default function Clue3VariantManager({
 
   const saveAll = async () => {
     if (!eventId || !roundId) {
-      setError('Create Round 1 first');
+      setError('Create the hunt first');
       return;
     }
     if (orderedPoints.length < 1) {
@@ -191,11 +209,14 @@ export default function Clue3VariantManager({
 
     setBusy(true);
     setError('');
-    setMessage('Saving all Clue 3 riddles…');
+    setMessage('Saving unique Clue 3 Lockbox codes…');
 
     try {
       const variantsPayload = [];
       const failures = [];
+      const usedAnswers = new Set();
+      const sharedPrompt = String(prompt || SHARED_PROMPT).trim() || SHARED_PROMPT;
+
       for (const point of orderedPoints) {
         const code = startCode(point);
         const waitIndex = waitIndexForStart(code);
@@ -209,20 +230,32 @@ export default function Clue3VariantManager({
           const place = thirdStopForLocalTeam(slot.localTeamNumber, waitIndex, stations, teamsPerWait);
           const station = stations.find((s) => s.name === place);
           const stationCode = station?.code;
-          const content = packContent[stationCode] || routeClueDefaults(3, place);
-          const prompt = String(content.prompt || '').trim();
-          const answer = String(content.answer || place).trim();
-          if (!prompt || !answer) {
-            failures.push(`${startLabel(point)} · ${waveId}: needs riddle text + answer`);
+          const codeKey = `${code}-${waveId}`;
+          let answer = String(
+            codes[codeKey]
+              || lockboxCodeForTeam(waitIndex, slot.localTeamNumber, teamsPerWait),
+          ).replace(/\D/g, '').trim();
+          if (!answer || answer.length < 3) {
+            failures.push(
+              `${startLabel(point)} · ${waveId}: Team ${globalTeamNumber(waitIndex, slot.localTeamNumber, teamsPerWait)} needs a lockbox code`,
+            );
             continue;
           }
+          if (usedAnswers.has(answer)) {
+            failures.push(
+              `${startLabel(point)} · ${waveId}: lockbox ${answer} is already used — each team needs a unique code`,
+            );
+            continue;
+          }
+          usedAnswers.add(answer);
+          const defaults = routeClueDefaults(3, place, people, null, answer);
           variantsPayload.push({
             startCode: code,
             waveId,
             localTeamNumber: slot.localTeamNumber,
-            prompt,
+            prompt: sharedPrompt,
             answer,
-            hintText: content.hintText,
+            hintText: defaults.hintText,
             place,
             stationCode,
             routeId: id(route),
@@ -239,7 +272,12 @@ export default function Clue3VariantManager({
 
       const result = await adminBulkSaveClue3(eventId, {
         roundId,
-        scoring: coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+        scoring: {
+          ...coerceClueScoring(settings, CLUE3_DEFAULT_SETTINGS),
+          timerSeconds: 0,
+          awardMode: 'flat_base',
+          speedBonusBands: [],
+        },
         variants: variantsPayload,
       });
       const saved = result.data?.saved ?? 0;
@@ -254,7 +292,10 @@ export default function Clue3VariantManager({
         setMessage('');
       } else {
         setMessage(
-          `Saved ${saved} Clue 3 riddles in one request · bound ${bound} teams.`,
+          `Saved ${saved} unique Clue 3 Lockbox codes · bound ${bound} teams.`
+          + (apiErrors.length || failures.length
+            ? ` (${apiErrors.length + failures.length} warnings)`
+            : ''),
         );
         setError(failures[0] || '');
       }
@@ -267,22 +308,28 @@ export default function Clue3VariantManager({
   };
 
   const savedCount = variants.filter((v) => v.active !== false).length;
+  const uniqueSaved = new Set(
+    variants
+      .filter((v) => v.active !== false)
+      .map((v) => String(v.answer || '').replace(/\D/g, ''))
+      .filter(Boolean),
+  ).size;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-[11px]">
         <span className={`rounded-full px-2.5 py-1 ${THEME.bgClass} ${THEME.textClass}`}>
-          Blue · riddle first, then scan CP3
+          Blue · unique lockbox per team · type the code
         </span>
         <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/55">
-          {stations.length} places · ~{teamsPerStation} teams each
+          {stations.length} places · {teamsPerStation === 1 ? '1 team each' : `~${teamsPerStation} teams each`}
         </span>
         <span className={`rounded-full px-2.5 py-1 ${
-          savedCount >= teamCapacity
+          savedCount >= teamCapacity && uniqueSaved >= teamCapacity
             ? 'bg-emerald-500/15 text-emerald-200'
             : 'bg-amber-500/15 text-amber-100'
         }`}>
-          Saved {savedCount}/{teamCapacity}
+          Saved {savedCount}/{teamCapacity} · {uniqueSaved} unique codes
         </span>
       </div>
 
@@ -320,16 +367,28 @@ export default function Clue3VariantManager({
         </button>
       </section>
 
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">Shared phone prompt</h2>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          className={`mt-2 min-h-20 ${inputClass}`}
+          placeholder={SHARED_PROMPT}
+        />
+      </section>
+
       <p className="text-xs text-white/50">
-        After green SECOND SCAN + team code, teams get this Caesar riddle on their phone.
-        Decoding it reveals the third place — then they scan the shared blue QR and enter
-        their team code to unlock the prop hunt.
+        Plant one physical lockbox per team with that team’s unique code printed on it.
+        No two teams share a code. After they type → blue THIRD SCAN → Field Terminal.
       </p>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {arrivalPlan.map((place) => {
-          const content = packContent[place.code] || routeClueDefaults(3, place.name);
-          return (
+      <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
+        <h2 className="text-base font-semibold text-white">Who goes where · unique lockbox codes</h2>
+        <p className="mt-1 text-xs text-white/50">
+          Each team gets its own number. Print that code on their lockbox at the blue stop.
+        </p>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {arrivalPlan.map((place) => (
             <div
               key={place.code}
               className={`rounded-xl border px-3 py-3 ${THEME.borderClass} bg-black/20`}
@@ -337,38 +396,42 @@ export default function Clue3VariantManager({
               <div className="flex items-baseline justify-between gap-2">
                 <p className="font-semibold text-white">{place.name}</p>
                 <p className={`text-xs font-semibold ${THEME.textClass}`}>
-                  {place.teamCount} teams
+                  {place.teamCount} {place.teamCount === 1 ? 'team' : 'teams'}
                 </p>
               </div>
-              <p className="mt-1 text-[11px] text-white/45">
-                {place.arrivals.map((a) => `T${a.teamNumber}`).join(' · ')}
-              </p>
-              <label className="mt-2 block text-xs text-white/55">
-                Riddle prompt
-                <textarea
-                  value={content.prompt || ''}
-                  onChange={(e) => setPackContent((prev) => ({
-                    ...prev,
-                    [place.code]: { ...content, prompt: e.target.value },
-                  }))}
-                  className={`mt-1 min-h-20 ${inputClass}`}
-                />
-              </label>
-              <label className="mt-2 block text-xs text-white/55">
-                Answer (decoded word / place)
-                <input
-                  value={content.answer || ''}
-                  onChange={(e) => setPackContent((prev) => ({
-                    ...prev,
-                    [place.code]: { ...content, answer: e.target.value },
-                  }))}
-                  className={`mt-1 ${inputClass}`}
-                />
-              </label>
+              <div className="mt-2 space-y-2">
+                {place.arrivals.map((row) => {
+                  const codeKey = `${row.startingPointCode}-T${row.localTeamNumber}`;
+                  return (
+                    <div
+                      key={`${place.code}-${row.teamNumber}`}
+                      className="grid grid-cols-[4.5rem_1fr_6rem] items-center gap-2 text-sm"
+                    >
+                      <span className="font-semibold text-white">T{row.teamNumber}</span>
+                      <span className="truncate text-white/55">
+                        from{' '}
+                        <span className="text-emerald-300">
+                          {row.startingPointName || row.waitName}
+                        </span>
+                      </span>
+                      <input
+                        value={codes[codeKey] || ''}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 8);
+                          setCodes((prev) => ({ ...prev, [codeKey]: value }));
+                        }}
+                        aria-label={`Lockbox code for team ${row.teamNumber}`}
+                        className={`${inputClass} py-1.5 text-center font-mono text-base tracking-[0.2em] ${THEME.textClass}`}
+                        placeholder="····"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      </section>
 
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -377,7 +440,7 @@ export default function Clue3VariantManager({
           onClick={saveAll}
           className={`rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-40 ${THEME.buttonClass}`}
         >
-          {busy ? 'Saving…' : `Save Clue 3 · bind ${teamCapacity} teams`}
+          {busy ? 'Saving…' : `Save Clue 3 · bind ${teamCapacity} unique codes`}
         </button>
       </div>
       {message && <p className={`text-xs ${THEME.textClass}`}>{message}</p>}

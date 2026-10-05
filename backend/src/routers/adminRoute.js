@@ -8,6 +8,7 @@ const adminFestCtrl = require('../controllers/adminFestController');
 const adminAuthCtrl = require('../controllers/adminAuthController');
 const adminUserCtrl = require('../controllers/adminUserController');
 const adminUserActivityCtrl = require('../controllers/adminUserActivityController');
+const adminOutreachCtrl = require('../controllers/adminOutreachController');
 const adminSectionCtrl = require('../controllers/adminSectionController');
 const homepageSectionCtrl = require('../controllers/homepageSectionController');
 const uploadCtrl = require('../controllers/uploadController');
@@ -105,6 +106,10 @@ router.get('/user-activity/all-users', adminAuth, adminUserActivityCtrl.listAllU
 router.get('/user-activity/full-history', adminAuth, adminUserActivityCtrl.getFullHistory);
 router.get('/user-activity/scoped', adminAuth, adminUserActivityCtrl.getScopedActivity);
 router.post('/user-activity/backfill', adminAuth, adminUserActivityCtrl.runBackfill);
+
+// ===== OUTREACH DATASETS (imported sheets / lead lists) =====
+router.get('/outreach-datasets', adminAuth, adminOutreachCtrl.listDatasets);
+router.get('/outreach-datasets/:idOrKey', adminAuth, adminOutreachCtrl.getDataset);
 
 // ===== FEST PRIORITY MANAGEMENT (must come BEFORE generic :id routes) =====
 router.put('/fests/:id/priority', adminAuth, adminFestCtrl.updateFestPriority);

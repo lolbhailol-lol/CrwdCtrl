@@ -513,7 +513,7 @@ export default function FinalePlaytestDesk({
       <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
-            Team login (all members)
+            Team login (leader phone)
           </p>
           <button
             type="button"

@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 const RESOLVED = new Set(['COMPLETED', 'FAILED', 'TIMEOUT', 'TIMED_OUT']);
 
 function revealAnswerLabel(challengeNumber) {
-  if (challengeNumber === 2) return '3-digit code';
-  if (challengeNumber === 4) return 'Prop code';
-  if (challengeNumber === 5) return 'Final word';
+  if (challengeNumber === 2) return 'Join-word';
+  if (challengeNumber === 4) return 'GRID code';
+  if (challengeNumber === 5) return 'Clue 5 word';
+  if (challengeNumber === 6) return 'Destination';
   return 'Answer';
 }
 
@@ -14,7 +15,12 @@ function revealAnswerLabel(challengeNumber) {
  * Read-only review of clues the team already finished.
  * Does not undo progress — just lets players re-read passed clues.
  */
-export default function PassedCluesPanel({ challenges = [], isLeader, currentActiveNum }) {
+export default function PassedCluesPanel({
+  challenges = [],
+  isLeader,
+  currentActiveNum,
+  hidePoints = false,
+}) {
   const passed = (challenges || [])
     .filter((c) => RESOLVED.has(c.state) && c.challengeNumber !== currentActiveNum)
     .sort((a, b) => a.challengeNumber - b.challengeNumber);
@@ -33,7 +39,11 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
         {passed.map((ch) => {
           const open = openNum === ch.challengeNumber;
           const title =
-            ch.challengeNumber === 5 ? 'Final clue' : `Clue ${ch.challengeNumber}`;
+            ch.challengeNumber === 6
+              ? 'Clue 6 · Destination'
+              : ch.challengeNumber === 5
+                ? 'Clue 5'
+                : `Clue ${ch.challengeNumber}`;
           const statusLabel =
             ch.state === 'COMPLETED'
               ? 'Done'
@@ -50,7 +60,7 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
               >
                 <span className="text-sm text-white/80">{title}</span>
                 <span className="flex items-center gap-2 text-[11px] text-white/40">
-                  {ch.awardedPoints != null && (
+                  {ch.awardedPoints != null && !hidePoints && (
                     <span className="text-[#0ECCEE]/80">+{ch.awardedPoints}</span>
                   )}
                   <span>{statusLabel}</span>
@@ -78,12 +88,14 @@ export default function PassedCluesPanel({ challenges = [], isLeader, currentAct
                       )}
                       {ch.revealedLocation && (
                         <p className="text-xs text-amber-200">
-                          Revealed location: {ch.revealedLocation} (0 pts)
+                          Revealed location: {ch.revealedLocation}
+                          {hidePoints ? '' : ' (0 pts)'}
                         </p>
                       )}
                       {ch.revealedAnswer && (
                         <p className="text-xs text-amber-200">
-                          Revealed {revealAnswerLabel(ch.challengeNumber)}: {ch.revealedAnswer} (0 pts)
+                          Revealed {revealAnswerLabel(ch.challengeNumber)}: {ch.revealedAnswer}
+                          {hidePoints ? '' : ' (0 pts)'}
                         </p>
                       )}
                       {ch.destinationInstruction && (

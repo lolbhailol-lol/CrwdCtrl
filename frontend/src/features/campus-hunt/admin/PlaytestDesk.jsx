@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   adminRevealTeamAccess,
-  adminReleaseTeam,
   adminMarkTeamStartReached,
   adminPlaytestCompleteScan,
   adminPlaytestResetTeam,
@@ -21,8 +20,12 @@ function stationForTeam(stations, teamCode, keyPrefix) {
   const code = String(teamCode || '').toUpperCase();
   return (stations || []).find((s) => {
     const key = String(s.progressionKey || s.checkpointKey || '');
-    const team = String(s.teamCode || '').toUpperCase();
-    return team === code && key.startsWith(keyPrefix);
+    if (!key.startsWith(keyPrefix)) return false;
+    const primary = String(s.teamCode || '').toUpperCase();
+    if (primary === code) return true;
+    return (s.allowedTeams || []).some(
+      (t) => String(t.teamCode || '').toUpperCase() === code,
+    );
   });
 }
 
@@ -38,7 +41,7 @@ const SCAN_CARDS = [
   {
     id: '2',
     label: 'Green',
-    next: '→ Clue 3 riddle',
+    next: '→ Clue 3',
     color: 'border-emerald-400/50 bg-emerald-500/15',
     btn: 'bg-emerald-400 text-black',
     codeClass: 'text-emerald-200',
@@ -46,15 +49,31 @@ const SCAN_CARDS = [
   {
     id: '3',
     label: 'Blue',
-    next: '→ Final',
+    next: '→ Clue 4',
     color: 'border-blue-400/50 bg-blue-500/15',
     btn: 'bg-blue-500 text-white',
     codeClass: 'text-blue-200',
   },
+  {
+    id: '4',
+    label: 'Purple',
+    next: '→ Clue 5',
+    color: 'border-violet-400/50 bg-violet-500/15',
+    btn: 'bg-violet-500 text-white',
+    codeClass: 'text-violet-200',
+  },
+  {
+    id: '5',
+    label: 'Red',
+    next: '→ Clue 6',
+    color: 'border-rose-400/50 bg-rose-500/15',
+    btn: 'bg-rose-500 text-white',
+    codeClass: 'text-rose-200',
+  },
 ];
 
 function teamRosterLooksReady(team, teamSize = 4) {
-  const people = Math.max(2, Math.min(8, Number(teamSize) || 4));
+  const people = Math.max(2, Math.min(12, Number(teamSize) || 4));
   const scannersNeeded = Math.max(1, people - 1);
   return Boolean(
     team?.leaderUserId
@@ -88,16 +107,34 @@ export default function PlaytestDesk({
   const [revealError, setRevealError] = useState('');
   const [busy, setBusy] = useState('');
   const [note, setNote] = useState('');
+  /** Optimistic patch after Start over so Lobby · 265 cannot stick until parent poll. */
+  const [teamPatch, setTeamPatch] = useState(null);
+
+  const teamBase = sorted.find((t) => String(t._id) === String(teamId)) || null;
+  const team = teamBase && teamPatch && String(teamPatch._id || teamPatch.id) === String(teamId)
+    ? { ...teamBase, ...teamPatch }
+    : teamBase;
 
   useEffect(() => {
     if (!teamId && sorted[0]?._id) setTeamId(String(sorted[0]._id));
   }, [sorted, teamId]);
 
-  const team = sorted.find((t) => String(t._id) === String(teamId)) || null;
+  // Clear optimistic patch once parent refresh matches Waiting · start score.
+  useEffect(() => {
+    if (!teamPatch || !teamBase) return;
+    if (
+      String(teamBase.currentStage) === 'WAITING'
+      && Number(teamBase.currentScore) === Number(teamPatch.currentScore)
+    ) {
+      setTeamPatch(null);
+    }
+  }, [teamBase, teamPatch]);
   const Orange = stationForTeam(stations, team?.teamCode, '1');
   const green = stationForTeam(stations, team?.teamCode, '2');
   const blue = stationForTeam(stations, team?.teamCode, '3');
-  const stationByScan = { 1: Orange, 2: green, 3: blue };
+  const purple = stationForTeam(stations, team?.teamCode, '4');
+  const red = stationForTeam(stations, team?.teamCode, '5');
+  const stationByScan = { 1: Orange, 2: green, 3: blue, 4: purple, 5: red };
 
   const playPath = eventSlug ? CAMPUS_HUNT_PATHS.play(eventSlug) : '';
   const teamLoginPath = eventSlug && team?.teamCode
@@ -188,23 +225,6 @@ export default function PlaytestDesk({
     return () => { cancelled = true; };
   }, [teamId]);
 
-  const releaseNow = async () => {
-    if (!teamId) return;
-    setBusy('release');
-    setNote('');
-    try {
-      await adminReleaseTeam(teamId, {
-        reason: 'Playtest desk — manual early release',
-      });
-      setNote('Released — Clue 1 unlocked. Open play as leader.');
-      await onChanged?.();
-    } catch (err) {
-      setNote(err.message || 'Release failed — is Round 1 live & schedule locked?');
-    } finally {
-      setBusy('');
-    }
-  };
-
   const completeScan = async (scan) => {
     if (!teamId) return;
     setBusy(`scan-${scan}`);
@@ -212,15 +232,16 @@ export default function PlaytestDesk({
     try {
       const res = await adminPlaytestCompleteScan(teamId, {
         scan,
-        reason: `Playtest desk cheat ${teamSize}/${teamSize}`,
+        reason: 'Playtest desk · leader scan cheat',
       });
       const labels = (res.data?.scans || []).map((row) => row.label).join(', ');
-      const n = teamSize;
       const tips = {
-        1: `Orange ${n}/${n} forced — player phones refresh ~1s. Solve Clue 2 on phone (or tap Green next)`,
-        2: `Green ${n}/${n} forced — player phones refresh ~1s. Solve Clue 3 on phone, then Blue`,
-        3: `Blue ${n}/${n} forced — player phones refresh ~1s. Solve Final, then Mark finish`,
-        all: 'All scans forced. Player phones update live — keep play screens open.',
+        1: 'Orange leader scan forced — solve Clue 2 on phone (or tap Green next)',
+        2: 'Green leader scan forced — solve Clue 3 on phone, then Blue',
+        3: 'Blue leader scan forced — solve Field Terminal, then Purple',
+        4: 'Purple leader scan forced — solve Clue 5, then Red',
+        5: 'Red leader scan forced — solve Clue 6, then Mark finish',
+        all: 'All 5 leader scans forced. Keep the leader play screen open.',
       };
       setNote(tips[scan] || `${labels} done`);
       await onChanged?.();
@@ -251,18 +272,34 @@ export default function PlaytestDesk({
   const startOver = async () => {
     if (!teamId) return;
     if (!window.confirm(
-      `Reset ${team?.teamCode || 'this team'} to zero?\nScore → 100 · progress cleared`,
+      `Start over ${team?.teamCode || 'this team'}?\n\n`
+      + 'Board → Waiting · 100 pts\n'
+      + 'Clue progress + scans + Zip Grid wiped\n'
+      + 'Leader phone resets on Wi‑Fi (needs start code again)',
     )) return;
     setBusy('reset');
     setNote('');
     try {
-      await adminPlaytestResetTeam(teamId, {
-        reason: 'Playtest desk — start from again',
+      const res = await adminPlaytestResetTeam(teamId, {
+        reason: 'Playtest desk — start over',
       });
-      setNote('Reset done — tap Release again');
+      const data = res?.data || {};
+      const nextScore = Number(data.currentScore ?? data.scoresResetTo ?? 100);
+      const nextStage = data.currentStage || 'WAITING';
+      setTeamPatch({
+        _id: teamId,
+        currentScore: nextScore,
+        currentStage: nextStage,
+        status: 'registered',
+        finalScore: undefined,
+      });
+      setNote(
+        data.message
+        || `Reset done — Now ${stageLabel(nextStage)} · ${nextScore} pts. Phone updates on Wi‑Fi.`,
+      );
       await onChanged?.();
     } catch (err) {
-      setNote(err.message || 'Could not reset team');
+      setNote(err.message || 'Could not start over');
     } finally {
       setBusy('');
     }
@@ -290,22 +327,15 @@ export default function PlaytestDesk({
           </p>
           <h2 className="mt-1 text-lg font-bold text-white">One team · tap in order</h2>
           <p className="mt-1 text-sm text-white/55">
-            Release → Orange → Green → Blue → Final on phone → Finish
-            (real play still needs join-word on the leader phone)
+            Phone start code → Orange → Green → Blue → Purple → Red → Clue 6 → Lobby
           </p>
         </div>
         {roundStatus && (
           <span className="rounded-full bg-black/40 px-3 py-1 text-xs text-white/60">
-            Round: {roundStatus}
+            Hunt: {roundStatus}
           </span>
         )}
       </div>
-
-      {roundStatus !== 'live' && (
-        <p className="mt-3 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          Round must be <strong>live</strong> first (Schedule → Lock → Start Round 1).
-        </p>
-      )}
 
       {/* Team picker */}
       <div className="mt-4 flex flex-wrap items-end gap-3">
@@ -346,21 +376,8 @@ export default function PlaytestDesk({
         </button>
       </div>
 
-      {/* Setup row */}
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <button
-          type="button"
-          disabled={Boolean(busy) || !teamId || roundStatus !== 'live'}
-          onClick={releaseNow}
-          className="rounded-xl bg-emerald-400 px-3 py-3 text-left disabled:opacity-40"
-        >
-          <p className="text-[11px] font-semibold uppercase text-black/60">Step 1</p>
-          <p className="text-sm font-bold text-black">
-            {busy === 'release' ? 'Releasing…' : 'Release team'}
-          </p>
-          <p className="mt-0.5 text-[11px] text-black/55">Unlock Clue 1 now</p>
-        </button>
-
+      {/* Setup row — no schedule / release (offline = start code on phone) */}
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {teamLoginPath ? (
           <a
             href={teamLoginPath}
@@ -368,9 +385,9 @@ export default function PlaytestDesk({
             rel="noreferrer"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:bg-white/10"
           >
-            <p className="text-[11px] font-semibold uppercase text-white/40">Step 2</p>
+            <p className="text-[11px] font-semibold uppercase text-white/40">Step 1</p>
             <p className="text-sm font-bold text-white">Open team link ↗</p>
-            <p className="mt-0.5 text-[11px] text-white/45">Password → tap name</p>
+            <p className="mt-0.5 text-[11px] text-white/45">Password → leader phone</p>
           </a>
         ) : (
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 opacity-40">
@@ -384,9 +401,9 @@ export default function PlaytestDesk({
             target="_blank"
             className="rounded-xl border border-white/15 bg-white/5 px-3 py-3 hover:bg-white/10"
           >
-            <p className="text-[11px] font-semibold uppercase text-white/40">Step 3</p>
+            <p className="text-[11px] font-semibold uppercase text-white/40">Step 2</p>
             <p className="text-sm font-bold text-white">Open play ↗</p>
-            <p className="mt-0.5 text-[11px] text-white/45">Leader dashboard</p>
+            <p className="mt-0.5 text-[11px] text-white/45">Or use offline install pack</p>
           </Link>
         ) : (
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 opacity-40">
@@ -404,7 +421,7 @@ export default function PlaytestDesk({
           <p className="text-sm font-bold text-rose-100">
             {busy === 'finish' ? '…' : 'Mark finish'}
           </p>
-          <p className="mt-0.5 text-[11px] text-rose-100/50">After Final word</p>
+          <p className="mt-0.5 text-[11px] text-rose-100/50">After Clue 6 → Mindspark Lobby</p>
         </button>
       </div>
 
@@ -412,7 +429,7 @@ export default function PlaytestDesk({
       <div className="mt-4 rounded-xl border border-white/10 bg-black/35 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
-            Team login (all {teamSize} people)
+            Team login (leader phone)
           </p>
           <button
             type="button"
@@ -473,7 +490,7 @@ export default function PlaytestDesk({
               {busy === 'repair' ? 'Repairing…' : 'Repair this team roster'}
             </button>
             <p className="text-[11px] text-white/40">
-              Provisions leader + 3 player logins, then reveals the shared password here.
+              Provisions Team Leader login (one phone). Teammates do not need accounts.
             </p>
           </div>
         ) : (
@@ -493,10 +510,10 @@ export default function PlaytestDesk({
             onClick={() => completeScan('all')}
             className="rounded-lg bg-amber-400/90 px-2.5 py-1 text-[11px] font-bold text-black disabled:opacity-40"
           >
-            {busy === 'scan-all' ? '…' : 'Do ALL Orange+green+blue'}
+            {busy === 'scan-all' ? '…' : 'Do ALL 5 scans'}
           </button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {SCAN_CARDS.map((card, idx) => {
             const station = stationByScan[card.id];
             const code = paste(station);
@@ -517,7 +534,7 @@ export default function PlaytestDesk({
                   className={`mt-2 block w-full break-all rounded-lg bg-black/35 px-2 py-2 text-left font-mono text-xs ${card.codeClass} disabled:opacity-40`}
                   title="Tap to copy"
                 >
-                  {code || 'No code — save clues / schedule'}
+                  {code || 'No code — save clues / places first'}
                 </button>
                 <button
                   type="button"
@@ -525,14 +542,14 @@ export default function PlaytestDesk({
                   onClick={() => completeScan(card.id)}
                   className={`mt-2 w-full rounded-lg px-3 py-2.5 text-sm font-bold disabled:opacity-40 ${card.btn}`}
                 >
-                  {busy === `scan-${card.id}` ? '…' : `${card.label} ${teamSize}/${teamSize} ✓`}
+                  {busy === `scan-${card.id}` ? '…' : `${card.label} · leader ✓`}
                 </button>
               </div>
             );
           })}
         </div>
         <p className="mt-2 text-[11px] text-white/40">
-          Tip: after Green, do Clue 3 on the play page before Blue. After Blue, do Final, then Mark finish.
+          Leader-only: one scan per color · then solve the next clue on the leader phone.
         </p>
       </div>
 

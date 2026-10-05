@@ -1,7 +1,7 @@
 import { clearHuntAuth } from './huntAuth';
 
 const KEY = 'campus_hunt_last_session';
-const VALID_LAST_ROUNDS = new Set(['round1', 'finale']);
+const VALID_LAST_ROUNDS = new Set(['round1']);
 
 function writeSession(next) {
   if (typeof window === 'undefined') return;
@@ -82,6 +82,10 @@ export function redirectCampusHuntAuthLoss() {
   const path = window.location.pathname || '';
   if (!path.startsWith('/campus-hunt')) return false;
   clearHuntAuth();
+  if (path.startsWith('/campus-hunt/offline')) {
+    window.location.assign('/campus-hunt/offline/login');
+    return true;
+  }
   const session = readHuntSession();
   if (session?.teamLoginPath) {
     window.location.assign(session.teamLoginPath);

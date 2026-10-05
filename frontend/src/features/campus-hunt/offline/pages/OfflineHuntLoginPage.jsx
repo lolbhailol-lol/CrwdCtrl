@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   loadOfflineBundle,
   loadOfflineSession,
@@ -15,13 +15,14 @@ export default function OfflineHuntLoginPage() {
   const navigate = useNavigate();
   const [bundle, setBundle] = useState(null);
   const [password, setPassword] = useState('');
-  const [unlocked, setUnlocked] = useState(false);
-  const [selected, setSelected] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => armOfflineNetworkGuard(), []);
+  useEffect(() => {
+    const cleanup = armOfflineNetworkGuard();
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,16 +34,16 @@ export default function OfflineHuntLoginPage() {
         ]);
         if (cancelled) return;
         if (!pack) {
-          setError('No offline pack on this phone — load a team JSON first.');
+          setError('No Hunt pack on this phone — open your install link on Wi‑Fi.');
           setLoading(false);
           return;
         }
         setBundle(pack);
         if (session?.teamCode === pack.team?.teamCode && session?.memberKey) {
-          navigate(CAMPUS_HUNT_PATHS.offlineTeam, { replace: true });
+          navigate(CAMPUS_HUNT_PATHS.offlinePlay, { replace: true });
         }
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Could not read offline pack');
+        if (!cancelled) setError(err.message || 'Could not read Hunt pack');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -50,51 +51,47 @@ export default function OfflineHuntLoginPage() {
     return () => { cancelled = true; };
   }, [navigate]);
 
-  const roster = useMemo(
-    () => (Array.isArray(bundle?.team?.roster) ? bundle.team.roster : []),
-    [bundle],
-  );
-
-  const tryUnlock = (e) => {
-    e.preventDefault();
-    setError('');
-    const expected = String(bundle?.team?.password || '');
-    if (!expected) {
-      setError('This pack has no password — re-export from admin after setting team passwords.');
-      return;
-    }
-    if (password.trim() !== expected) {
-      setError('Wrong team password');
-      return;
-    }
-    setUnlocked(true);
-  };
-
-  const enterAs = async (member) => {
-    if (!member || busy) return;
+  const enterAsLeader = async () => {
+    if (!bundle || busy) return;
     setBusy(true);
     setError('');
     try {
+      const expected = String(bundle?.team?.password || '');
+      if (!expected) {
+        setError('This pack has no password — ask the organizer to re-send your link.');
+        return;
+      }
+      if (password.trim() !== expected) {
+        setError('Wrong team password');
+        return;
+      }
+
+      const roster = Array.isArray(bundle?.team?.roster) ? bundle.team.roster : [];
+      const leader = roster.find((m) => m.role === 'leader') || roster[0] || {
+        memberKey: 'leader',
+        role: 'leader',
+        slot: 0,
+        name: 'Team Leader',
+      };
+
       const teamCode = bundle.team.teamCode;
       let state = await loadOfflineTeamState(teamCode);
       state = hydrateState(bundle, state);
       await saveOfflineTeamState(teamCode, state);
-      const session = {
+      await saveOfflineSession({
         teamCode,
-        memberKey: member.memberKey,
-        role: member.role,
-        slot: member.slot,
-        name: member.name,
+        memberKey: leader.memberKey || 'leader',
+        role: 'leader',
+        slot: Number(leader.slot) || 0,
+        name: leader.name || 'Team Leader',
         eventId: bundle.event?.id,
         eventSlug: bundle.event?.slug,
         teamName: bundle.team.teamName,
         loggedInAt: new Date().toISOString(),
-      };
-      await saveOfflineSession(session);
-      setSelected(member);
-      navigate(CAMPUS_HUNT_PATHS.offlineTeam);
+      });
+      navigate(CAMPUS_HUNT_PATHS.offlinePlay, { replace: true });
     } catch (err) {
-      setError(err.message || 'Could not start offline session');
+      setError(err.message || 'Could not start');
     } finally {
       setBusy(false);
     }
@@ -103,67 +100,52 @@ export default function OfflineHuntLoginPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white/60">
-        Loading offline pack…
+        Loading…
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-4 py-8 text-white">
+    <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
       <div className="mx-auto max-w-md">
-        <Link to={CAMPUS_HUNT_PATHS.offline} className="text-xs text-white/45 underline">
-          ← Change pack
-        </Link>
-        <h1 className="mt-4 text-xl font-bold">
-          {bundle?.team?.teamName || 'Team login'}
+        <h1 className="text-3xl font-black tracking-tight">
+          {bundle?.team?.teamCode || 'Login'}
         </h1>
-        <p className="mt-1 font-mono text-sm text-[#0ECCEE]">{bundle?.team?.teamCode}</p>
-        <p className="mt-1 text-xs text-white/50">{bundle?.event?.name}</p>
+        {bundle?.team?.teamName ? (
+          <p className="mt-1 text-sm text-white/50">{bundle.team.teamName}</p>
+        ) : null}
+        <p className="mt-4 text-sm text-white/60">
+          Team password · leader phone only
+        </p>
 
         {error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
 
-        {!unlocked ? (
-          <form onSubmit={tryUnlock} className="mt-6 space-y-3">
-            <label className="block text-xs text-white/60">
-              Team password
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2.5 text-sm"
-                autoComplete="off"
-              />
-            </label>
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-black"
-            >
-              Unlock roster
-            </button>
-          </form>
-        ) : (
-          <div className="mt-6 space-y-2">
-            <p className="text-xs text-white/55">Tap your name. You will see the team page next — not Clue 1.</p>
-            {roster.map((member) => (
-              <button
-                key={member.memberKey}
-                type="button"
-                disabled={busy}
-                onClick={() => enterAs(member)}
-                className="flex w-full items-center justify-between rounded-xl border border-white/12 bg-white/5 px-4 py-3 text-left text-sm hover:border-[#0ECCEE]/40 disabled:opacity-50"
-              >
-                <span className="font-semibold">{member.name}</span>
-                <span className="text-[10px] uppercase tracking-wide text-white/45">
-                  {member.role === 'leader' ? 'Leader' : `Player ${member.slot}`}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {selected ? (
-          <p className="mt-4 text-xs text-emerald-300">Entering as {selected.name}…</p>
-        ) : null}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void enterAsLeader();
+          }}
+          className="mt-6 space-y-3"
+        >
+          <label className="block text-xs text-white/55">
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1.5 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3.5 text-sm outline-none focus:border-[#0ECCEE]/50"
+              autoComplete="off"
+              autoFocus
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy || !password.trim()}
+            className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
+          >
+            {busy ? 'Entering…' : 'Start'}
+          </button>
+        </form>
       </div>
     </div>
   );

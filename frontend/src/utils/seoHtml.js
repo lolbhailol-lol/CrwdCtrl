@@ -193,8 +193,14 @@ export function applySeoToHtml(baseHtml, seo) {
     'og:image:alt',
     seo.image ? (seo.title || title) : 'CrwdCtrl logo',
   );
+  if (seo.imageWidth) {
+    html = replaceMeta(html, 'property', 'og:image:width', String(seo.imageWidth));
+  }
+  if (seo.imageHeight) {
+    html = replaceMeta(html, 'property', 'og:image:height', String(seo.imageHeight));
+  }
 
-  html = replaceMeta(html, 'name', 'twitter:card', 'summary_large_image');
+  html = replaceMeta(html, 'name', 'twitter:card', seo.twitterCard || 'summary_large_image');
   html = replaceMeta(html, 'name', 'twitter:title', title);
   html = replaceMeta(html, 'name', 'twitter:description', description);
   html = replaceMeta(html, 'name', 'twitter:image', image);

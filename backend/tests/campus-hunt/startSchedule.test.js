@@ -48,6 +48,7 @@ test('deterministically assigns 40 teams across four starts with staggered paral
     startsAt,
     releaseIntervalMinutes: 2,
     assignmentStrategy: 'route_balanced',
+    startCount: 4,
   });
 
   assert.equal(result.length, 40);
@@ -59,7 +60,7 @@ test('deterministically assigns 40 teams across four starts with staggered paral
       assigned[9].scheduledStartAt.toISOString(),
       new Date(startsAt.getTime() + 18 * 60 * 1000).toISOString(),
     );
-    assert.equal(new Set(assigned.map((row) => row.routeId)).size, 4);
+    assert.equal(new Set(assigned.map((row) => row.routeId)).size, 1);
     assert.ok(assigned.every((row) => row.complete));
   }
 });
@@ -71,25 +72,30 @@ test('supports future 50 team / five start configuration without hardcoded pilot
     startsAt: '2026-08-09T05:00:00.000Z',
     releaseIntervalMinutes: 3,
     assignmentStrategy: 'route_balanced',
+    startCount: 4,
   });
   assert.equal(result.length, 50);
+  // startCount caps at 4 (A–D); fifth fixture point is unused.
   assert.deepEqual(
-    data.startingPoints.map((point) => (
+    data.startingPoints.slice(0, 4).map((point) => (
       result.filter((row) => row.startingPointId === point._id).length
     )),
-    [10, 10, 10, 10, 10],
+    [13, 13, 13, 11],
   );
 });
 
-test('rejects schedules that exceed active starting-point capacity', () => {
+test('auto-stretches start capacities when team count exceeds configured slots', () => {
   const data = fixtures(41, 4, 10);
-  assert.throws(
-    () => buildDeterministicSchedule({
-      ...data,
-      startsAt: new Date(),
-      releaseIntervalMinutes: 2,
-    }),
-    (error) => error.code === 'START_CAPACITY_EXCEEDED',
+  const result = buildDeterministicSchedule({
+    ...data,
+    startsAt: new Date(),
+    releaseIntervalMinutes: 2,
+    startCount: 4,
+  });
+  assert.equal(result.length, 41);
+  assert.equal(
+    data.startingPoints.reduce((sum, point) => sum + Number(point.capacity || 0), 0) >= 41,
+    true,
   );
 });
 

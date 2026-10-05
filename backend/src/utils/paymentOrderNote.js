@@ -18,17 +18,21 @@ function buildPaymentOrderNote(pricing = {}) {
   const type = String(pricing.entityType || '').trim();
   const notes = pricing.notes || {};
   const fallback = type ? `${type} registration` : 'registration';
+  const festName = String(notes.festName || '').trim();
+  const isMindSpark = /mindspark/i.test(festName) || String(notes.festId || '') === '6a7f1010ed26d983b34e55c2';
 
   if (type === 'competition') {
     const name = String(notes.competitionName || '').trim();
     const tier = String(notes.tierName || '').trim();
+    if (isMindSpark && name && tier) return sanitizeOrderNote(`MindSpark - ${name} - ${tier}`, fallback);
+    if (isMindSpark && name) return sanitizeOrderNote(`MindSpark - ${name}`, fallback);
     if (name && tier) return sanitizeOrderNote(`${name} - ${tier}`, fallback);
     if (name) return sanitizeOrderNote(`${name} registration`, fallback);
     return fallback;
   }
 
   if (type === 'fest') {
-    const name = String(notes.festName || '').trim();
+    const name = festName;
     if (name) return sanitizeOrderNote(`${name} registration`, fallback);
     return fallback;
   }

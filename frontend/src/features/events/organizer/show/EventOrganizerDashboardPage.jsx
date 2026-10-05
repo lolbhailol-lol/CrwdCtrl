@@ -144,6 +144,8 @@ export default function EventOrganizerDashboardPage() {
     const fee = Number(event.ticketPrice ?? 0);
     const isPaid = fee > 0 || Number(stats.revenue || 0) > 0;
     const isOrganizerQr = (event.registrationMode || event.registration?.mode) === 'organizer_qr';
+    const isCashfree = (event.registrationMode || event.registration?.mode) === 'internal_form';
+    const multiClass = Boolean(event.tiersMultiSelect);
     const regStatus = event.registrationStatus || event.registration?.status || 'closed';
     const isOpen = regStatus === 'open';
     const total = stats.totalRegistrations ?? 0;
@@ -156,6 +158,7 @@ export default function EventOrganizerDashboardPage() {
     const venue = String(event.venue || '').trim();
     const city = String(event.city || '').trim();
     const packages = Array.isArray(data.tiers) ? data.tiers : [];
+    const priceLabel = String(event.priceLabel || '').trim();
     const guestsPath = `/event-organizer/events/${eventId}/participants`;
     const scanPath = `/event-organizer/events/${eventId}/scan`;
     const notifyPath = `/event-organizer/events/${eventId}/notifications`;
@@ -225,8 +228,18 @@ export default function EventOrganizerDashboardPage() {
                                     Booking {isOpen ? 'open' : 'closed'}
                                 </span>
                                 <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-white/10 bg-white/5 text-gray-300">
-                                    {fee > 0 ? `₹${fee}` : (isPaid ? 'Paid' : 'Free')}
+                                    {priceLabel || (fee > 0 ? `₹${fee}` : (isPaid ? 'Paid' : 'Free'))}
                                 </span>
+                                {isCashfree ? (
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-emerald-500/25 bg-emerald-500/10 text-emerald-200">
+                                        Cashfree
+                                    </span>
+                                ) : null}
+                                {multiClass ? (
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-semibold border border-[#0ECCEE]/25 bg-[#0ECCEE]/10 text-[#0ECCEE]">
+                                        Multi-class
+                                    </span>
+                                ) : null}
                             </div>
                         </div>
                         <button
@@ -248,7 +261,7 @@ export default function EventOrganizerDashboardPage() {
                 </div>
             ) : null}
 
-            {pendingReview > 0 ? (
+            {pendingReview > 0 && isOrganizerQr ? (
                 <button
                     type="button"
                     onClick={() => navigate(reviewPath)}
@@ -276,7 +289,7 @@ export default function EventOrganizerDashboardPage() {
                     value={isPaid ? `₹${revenue.toLocaleString('en-IN')}` : 'Free'}
                     tone={isPaid ? 'money' : 'default'}
                     icon={IndianRupee}
-                    hint={isOrganizerQr && isPaid ? 'UPI received' : isPaid ? 'Paid bookings' : undefined}
+                    hint={isOrganizerQr && isPaid ? 'UPI received' : isCashfree && isPaid ? 'Cashfree collected' : isPaid ? 'Paid bookings' : undefined}
                 />
                 <StatTile
                     label="Checked in"
@@ -368,6 +381,32 @@ export default function EventOrganizerDashboardPage() {
                     </button>
                 </div>
 
+                {isCashfree ? (
+                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/8 px-3.5 py-3">
+                        <p className="text-sm font-medium text-emerald-100">Cashfree online payments</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                            {multiClass
+                                ? 'Participants pick classes (₹10,000 each). Spectators register free. Paid bookings settle via Cashfree.'
+                                : 'Guests pay online via Cashfree during registration.'}
+                        </p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => navigate(`${guestsPath}?category=participant`)}
+                                className="py-2 rounded-lg border border-[#0ECCEE]/30 text-[#0ECCEE] text-xs font-bold"
+                            >
+                                Participants
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => navigate(`${guestsPath}?category=spectator`)}
+                                className="py-2 rounded-lg border border-violet-500/30 text-violet-200 text-xs font-bold"
+                            >
+                                Spectators
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
                 {isOrganizerQr ? (
                     <div className="rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3">
                         <p className="text-sm font-medium text-amber-100">Manual UPI + screenshot</p>
@@ -389,14 +428,14 @@ export default function EventOrganizerDashboardPage() {
 
             {packages.length > 0 ? (
                 <SectionCard className="p-4 space-y-3">
-                    <p className="text-sm font-semibold">Packages</p>
+                    <p className="text-sm font-semibold">{multiClass ? 'Classes / tickets' : 'Packages'}</p>
                     <div className="space-y-2">
                         {packages.map((t) => (
                             <div
                                 key={`${t.tierId || t.tierName}-${t.count}`}
                                 className="flex items-center justify-between text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0"
                             >
-                                <span className="text-gray-300 truncate pr-3">{t.tierName || 'Package'}</span>
+                                <span className="text-gray-300 truncate pr-3">{t.tierName || (multiClass ? 'Class' : 'Package')}</span>
                                 <span className="text-gray-500 tabular-nums shrink-0">
                                     {t.count}
                                     {Number(t.revenue) > 0

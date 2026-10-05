@@ -497,8 +497,8 @@ async function submitMissionStep({
     throw finaleError('Team not found.', 'TEAM_NOT_FOUND', 404);
   }
   const isLeader = Boolean(team.isLeader(userId));
-  const allowMemberSubmit = missionId === 'operation_blackout';
-  if (!isLeader && !allowMemberSubmit) {
+  // Leader-phone-only: every finale mission (including Blackout) submits on the leader login.
+  if (!isLeader) {
     throw finaleError('Only the Team Leader can submit.', 'LEADER_ONLY', 403);
   }
 

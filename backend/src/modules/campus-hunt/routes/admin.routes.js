@@ -1,13 +1,39 @@
 const express = require('express');
-const adminAuth = require('../../../middleware/adminAuth');
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { getJwtSecret } = require('../../../config/jwtSecret');
+const adminAuth = require('../middleware/adminAuth');
 const { campusHuntAdminLimiter } = require('../../../middleware/rateLimiter');
 const adminController = require('../controllers/adminController');
 const finaleController = require('../controllers/finaleController');
 
 const router = express.Router();
 
+router.post('/login', async (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const expected = process.env.CAMPUS_HUNT_ADMIN_USERNAME?.trim();
+  const hash = process.env.CAMPUS_HUNT_ADMIN_PASSWORD_HASH?.trim();
+  const valid = Boolean(expected && hash && username === expected)
+    && await bcrypt.compare(password, hash).catch(() => false);
+  if (!valid) return res.status(401).json({ success: false, message: 'Invalid Campus Hunt credentials' });
+  const accessToken = jwt.sign({ role: 'campus_hunt_admin', scope: 'campus_hunt', username: expected }, getJwtSecret(), { expiresIn: '8h' });
+  return res.json({ success: true, accessToken, user: { username: expected, role: 'campus_hunt_admin' } });
+});
+
+function requireDbReady(req, res, next) {
+  if (mongoose.connection.readyState === 1) return next();
+  return res.status(503).json({
+    success: false,
+    message: 'Database briefly unavailable — try again in a few seconds.',
+    code: 'DB_UNAVAILABLE',
+  });
+}
+
 router.use(adminAuth);
 router.use(campusHuntAdminLimiter);
+router.use(requireDbReady);
 
 router.get('/events', adminController.listEvents);
 router.post('/events', adminController.createEvent);
@@ -52,6 +78,7 @@ router.post('/teams/:teamId/mark-start-reached', adminController.markTeamStartRe
 
 router.post('/events/:eventId/teams', adminController.createTeam);
 router.post('/events/:eventId/teams/bulk', adminController.bulkCreateTeams);
+router.post('/events/:eventId/teams/prune-excess', adminController.pruneEventTeams);
 router.post('/events/:eventId/teams/repair-rosters', adminController.repairTeamRosters);
 router.get('/events/:eventId/teams', adminController.listTeams);
 router.get('/teams/:teamId', adminController.getTeamAdmin);

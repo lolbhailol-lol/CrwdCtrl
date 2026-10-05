@@ -1,27 +1,31 @@
 /**
- * After team login — pick Round 1 / Survival / Finals.
- * Locked rounds stay visible, tinted, and full — not grayed out.
+ * After team login — open the hunt (single game). No Survival / Finale cards.
  */
 
 import ScoreChip from '../components/ScoreChip';
 
-const ROUND_LOOK = {
-  round1: {
-    hex: '#0ECCEE',
-    openShell: 'border-[#0ECCEE]/45 bg-[#0ECCEE]/12 hover:border-[#0ECCEE]/70',
-    lockedShell: 'border-[#0ECCEE]/30 bg-[#0ECCEE]/10',
-  },
-  survival: {
-    hex: '#A855F7',
-    openShell: 'border-violet-400/45 bg-violet-500/12 hover:border-violet-400/70',
-    lockedShell: 'border-violet-400/30 bg-violet-500/10',
-  },
-  finale: {
-    hex: '#F97316',
-    openShell: 'border-orange-400/45 bg-orange-500/12 hover:border-orange-400/70',
-    lockedShell: 'border-orange-400/30 bg-orange-500/10',
-  },
+const HUNT_LOOK = {
+  hex: '#0ECCEE',
+  openShell: 'border-[#0ECCEE]/45 bg-[#0ECCEE]/12 hover:border-[#0ECCEE]/70',
+  lockedShell: 'border-[#0ECCEE]/30 bg-[#0ECCEE]/10',
 };
+
+/** Only the live hunt card — drop Survival / Finale leftovers from old APIs. */
+function huntCardsOnly(rounds = []) {
+  const list = Array.isArray(rounds) ? rounds : [];
+  const filtered = list.filter((c) => {
+    const id = String(c?.id || '').toLowerCase();
+    return id !== 'survival' && id !== 'finale' && id !== 'finals';
+  });
+  if (filtered.length) return filtered;
+  return list.length === 0 ? [] : [{
+    id: 'round1',
+    label: 'Campus Hunt Challenge',
+    subtitle: 'Campus Hunt',
+    detail: 'Clues · checkpoints · finish',
+    open: true,
+  }];
+}
 
 export default function PlayerRoundsHub({
   team,
@@ -33,7 +37,8 @@ export default function PlayerRoundsHub({
   intro,
   switchLabel = 'Not you? Switch person on this phone',
 }) {
-  const cards = Array.isArray(rounds) ? rounds : [];
+  const cards = huntCardsOnly(rounds);
+  const look = HUNT_LOOK;
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
@@ -83,7 +88,7 @@ export default function PlayerRoundsHub({
           ) : null}
         </div>
         <p className="mt-4 text-sm text-white/60">
-          {intro || 'Choose a round. Round 1 opens when organizers go live.'}
+          {intro || 'Open the hunt when organizers go live. One phone — team leader only.'}
         </p>
 
         <div className="mt-6 space-y-3">
@@ -97,9 +102,8 @@ export default function PlayerRoundsHub({
               ))}
             </div>
           )}
-          {cards.map((card, index) => {
+          {cards.map((card) => {
             const canOpen = Boolean(card.open) && !card.comingSoon;
-            const look = ROUND_LOOK[card.id] || ROUND_LOOK.round1;
             return (
               <button
                 key={card.id}
@@ -119,11 +123,14 @@ export default function PlayerRoundsHub({
                         aria-hidden
                       />
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
-                        Round {index + 1}
-                        {card.subtitle ? ` · ${card.subtitle}` : ''}
+                        {card.subtitle || 'Campus Hunt'}
                       </p>
                     </div>
-                    <h2 className="mt-1.5 text-lg font-semibold text-white">{card.label}</h2>
+                    <h2 className="mt-1.5 text-lg font-semibold text-white">
+                      {card.label === 'The Hunt' || /round\s*1/i.test(String(card.label || ''))
+                        ? 'Campus Hunt Challenge'
+                        : card.label}
+                    </h2>
                     {card.detail && (
                       <p className="mt-0.5 text-sm text-white/55">{card.detail}</p>
                     )}
@@ -156,20 +163,15 @@ export default function PlayerRoundsHub({
           })}
         </div>
 
-        {team?.isLeader === false && (
-          <p className="mt-6 text-center text-xs text-white/40">
-            Playing as {team.myName || 'player'} — leader starts timed releases.
-          </p>
-        )}
-        {onSwitchPerson && (
+        {onSwitchPerson ? (
           <button
             type="button"
             onClick={onSwitchPerson}
-            className="mt-6 w-full py-2 text-center text-xs text-white/35 transition hover:text-white/60"
+            className="mt-8 w-full text-center text-xs text-white/40 underline hover:text-white/60"
           >
             {switchLabel}
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

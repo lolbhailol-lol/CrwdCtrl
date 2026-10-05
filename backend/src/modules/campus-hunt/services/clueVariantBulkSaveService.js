@@ -18,6 +18,7 @@ const {
   stationForLocalTeam,
   WAIT_POINTS,
   syncSharedStationQrs,
+  routeClueDefaults,
 } = require('./round1BootstrapService');
 
 function waitIndexFromCode(code) {
@@ -150,7 +151,7 @@ async function bulkSaveClue1({
             stationCode,
             publicInstruction:
               `Orange FIRST SCAN at ${place}. One shared QR for this place. `
-              + 'All 4 team members scan, then enter your team code to unlock Clue 2.',
+              + 'Leader scans once to unlock Clue 2.',
             sequence: 1,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -196,7 +197,7 @@ async function bulkSaveClue1({
             destinationInstruction:
               String(row.destinationInstruction || '').trim()
               || `Go to ${place}. Find the shared orange FIRST SCAN QR. `
-                + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Clue 2.`,
+                + `Leader scans once to unlock Clue 2.`,
             hintText: String(row.hintText || '').trim() || `Ask staff for the way to ${place}.`,
             basePoints: clue1Scoring.basePoints,
             maxAttempts: clue1Scoring.maxAttempts,
@@ -267,6 +268,7 @@ async function bulkSaveClue3({
 
   let saved = 0;
   const errors = [];
+  const usedLockboxCodes = new Set();
 
   for (const row of variants) {
     try {
@@ -291,10 +293,20 @@ async function bulkSaveClue3({
       const stationCode = String(row.stationCode || station.code || '').toUpperCase().trim();
       const prompt = String(row.prompt || '').trim();
       const answer = String(row.answer || place).trim();
+      const digits = String(answer).replace(/\D/g, '');
       if (!prompt || !answer) {
-        errors.push({ startCode, waveId, message: 'Riddle prompt and answer required' });
+        errors.push({ startCode, waveId, message: 'Lockbox prompt and code required' });
         continue;
       }
+      if (digits && usedLockboxCodes.has(digits)) {
+        errors.push({
+          startCode,
+          waveId,
+          message: `Lockbox code ${digits} already used — each team needs a unique code`,
+        });
+        continue;
+      }
+      if (digits) usedLockboxCodes.add(digits);
 
       const sharedCode = `ST-${stationCode}-3`;
       const thirdCheckpoint = await CampusHuntCheckpoint.findOneAndUpdate(
@@ -313,7 +325,7 @@ async function bulkSaveClue3({
             stationCode,
             publicInstruction:
               `Blue THIRD SCAN at ${place}. One shared QR for this place. `
-              + 'All 4 team members scan, then enter your team code to unlock Final.',
+              + 'Leader scans once to unlock Field Terminal.',
             sequence: 3,
             active: true,
             compensationPolicyKey: 'skip_and_continue',
@@ -336,6 +348,13 @@ async function bulkSaveClue3({
       );
 
       const variantKey = `${startCode}-${waveId}`;
+      const pieceDefaults = routeClueDefaults(
+        3,
+        place,
+        Number(event?.teamSize) || 4,
+        null,
+        digits || answer,
+      );
       await CampusHuntChallenge.findOneAndUpdate(
         {
           eventId,
@@ -356,11 +375,12 @@ async function bulkSaveClue3({
             answer,
             acceptedAnswers: [answer],
             destinationInstruction:
-              `Riddle solved — go to ${place}. Find the shared blue THIRD SCAN QR. `
-              + `All ${Math.max(2, Math.min(8, Number(event.teamSize) || 4))} members scan, then enter your team code to unlock Final.`,
+              `Lockbox open — go to ${place}. Find the shared blue THIRD SCAN QR. `
+              + `Leader scans once to unlock Field Terminal.`,
+            memberPrompts: [],
             hintText:
               String(row.hintText || '').trim()
-              || 'Caesar shift of 3 — A becomes D, B becomes E… Spaces stay spaces.',
+              || 'Look around the blue stop for the lockbox. Type exactly what’s printed on it.',
             basePoints: clue3Scoring.basePoints,
             maxAttempts: clue3Scoring.maxAttempts,
             hintCost: clue3Scoring.hintCost,

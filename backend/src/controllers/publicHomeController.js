@@ -47,14 +47,25 @@ const safe = async (fn, fallback) => {
   }
 };
 
-/**
- * GET /api/home — single aggregated payload for the homepage.
- * Collapses the 6 separate public reads (fests, treks, communities, sports,
- * run clubs, event shows) into one request. Each section degrades to an empty
- * list independently; `partial: true` when the core fest fetch fails so clients
- * can fall back instead of treating empty arrays as a healthy catalog.
- */
-exports.getHomeFeed = async (_req, res) => {
+/** Short in-memory cache — collapses thrash when hundreds open the homepage at once. */
+const HOME_CACHE_TTL_MS = Number(process.env.HOME_FEED_CACHE_MS) || 20_000;
+let homeCache = null;
+let homeInFlight = null;
+
+function readHomeCache() {
+  if (!homeCache) return null;
+  if (Date.now() - homeCache.at > HOME_CACHE_TTL_MS) {
+    homeCache = null;
+    return null;
+  }
+  return homeCache.payload;
+}
+
+function writeHomeCache(payload) {
+  homeCache = { at: Date.now(), payload };
+}
+
+async function buildHomeFeed() {
   const [festsBody, treks, communities, sports, runClubs, eventShows, eventClubIds, sectionLabels, homepageSections, config] = await Promise.all([
     safe(() => captureHandler(festOrganizerController.getAllFests), null),
     safe(() => Trek.find({ status: 'published' }).sort({ trekDate: 1, createdAt: -1 }).limit(50).lean(), []),
@@ -88,9 +99,7 @@ exports.getHomeFeed = async (_req, res) => {
   const partial = !festsOk;
   const eventClubSet = new Set((Array.isArray(eventClubIds) ? eventClubIds : []).map(String));
 
-  // Do not let intermediaries / SW cache empty or partial home payloads
-  res.set('Cache-Control', 'no-store');
-  res.status(200).json({
+  return {
     success: true,
     partial,
     fests,
@@ -107,5 +116,54 @@ exports.getHomeFeed = async (_req, res) => {
     sectionLabels: sectionLabels || { ...DEFAULT_HOME_SECTION_LABELS },
     config: config || null,
     timestamp: new Date().toISOString(),
-  });
+  };
+}
+
+/**
+ * GET /api/home — single aggregated payload for the homepage.
+ * Collapses the 6 separate public reads (fests, treks, communities, sports,
+ * run clubs, event shows) into one request. Each section degrades to an empty
+ * list independently; `partial: true` when the core fest fetch fails so clients
+ * can fall back instead of treating empty arrays as a healthy catalog.
+ */
+exports.getHomeFeed = async (_req, res) => {
+  const cached = readHomeCache();
+  if (cached) {
+    res.set({
+      'Cache-Control': 'public, max-age=20, stale-while-revalidate=60',
+      'X-Cache': 'HIT',
+    });
+    return res.status(200).json(cached);
+  }
+
+  if (!homeInFlight) {
+    homeInFlight = buildHomeFeed()
+      .then((payload) => {
+        // Only cache healthy feeds — never pin an empty/partial homepage.
+        if (payload && !payload.partial && Array.isArray(payload.fests) && payload.fests.length > 0) {
+          writeHomeCache(payload);
+        }
+        return payload;
+      })
+      .finally(() => {
+        homeInFlight = null;
+      });
+  }
+
+  const payload = await homeInFlight;
+  if (payload?.partial) {
+    res.set('Cache-Control', 'no-store');
+  } else {
+    res.set({
+      'Cache-Control': 'public, max-age=20, stale-while-revalidate=60',
+      'X-Cache': 'MISS',
+    });
+  }
+  return res.status(200).json(payload);
+};
+
+/** Test helper — clear between unit runs. */
+exports._clearHomeCache = () => {
+  homeCache = null;
+  homeInFlight = null;
 };

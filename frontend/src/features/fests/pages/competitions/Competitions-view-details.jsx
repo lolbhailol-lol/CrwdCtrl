@@ -10,7 +10,7 @@ import CrwdCtrlLogin from '../../../../pages/auth/login';
 import CrwdCtrlRegister from '../../../../pages/auth/register';
 import { publicFetchJSONRetry as fetchJSON } from '../../../../services/api/client';
 import Seo from '../../../../components/Seo';
-import { breadcrumbSchema, eventSchema } from '../../../../utils/seo';
+import { breadcrumbSchema, eventSchema, toOgShareImageUrl } from '../../../../utils/seo';
 import { openExternalUrl, shareContent } from '../../../../utils/externalLink';
 import { competitionPath, competitionRegistrationPath, festRegisterPath, festPath, entityMatchesRouteParam, isObjectId } from '../../../../utils/slugRoutes';
 import { resolveCompetitionFee, buildRegistrationPrefetch, saveRegistrationPrefetch } from '../../../../utils/festPublicTransform';
@@ -1150,6 +1150,19 @@ function EventPage() {
         || String(festName).toLowerCase().includes('kshitij pune regionals')
         || String(festName).toLowerCase().includes('kshitij pune multicity');
     const showDiscovery = Boolean(fetchDone && !isKshitijPuneRegionals);
+    const competitionHeroPreset = isKshitijPuneRegionals ? 'competitionHeroWide' : 'hero';
+    const competitionHeroObjectClass = isKshitijPuneRegionals
+        ? 'object-cover object-[center_28%]'
+        : 'object-cover object-center';
+    const competitionHeroMobileH = showHeroImage
+        ? (isKshitijPuneRegionals ? 'aspect-[16/10] h-auto max-h-[240px] min-h-[180px]' : 'h-[396px]')
+        : 'h-52';
+    const competitionHeroDesktopH = isKshitijPuneRegionals
+        ? 'h-56 lg:h-[16rem] xl:h-[18rem]'
+        : isMindSparkCompetition
+            ? 'h-80 lg:h-[24rem] xl:h-[26rem]'
+            : 'h-72 lg:h-[20rem] xl:h-[22rem]';
+    const competitionHeroAnimClass = isKshitijPuneRegionals ? '' : 'animate-detail-enter';
 
     // Function to get common rules based on fest context
     const getCommonRules = () => {
@@ -1376,7 +1389,10 @@ function EventPage() {
     };
 
     const commonRules = getCommonRules();
-    const judgingCriteria = sanitizeRulesArray(eventData?.judgingCriteria || []);
+    // Organizer request: do not disclose judging criteria for Kshitij Pune Multicity.
+    const judgingCriteria = isKshitijPuneRegionals
+        ? []
+        : sanitizeRulesArray(eventData?.judgingCriteria || []);
     // Re-filter at render (covers stale detail cache with empty placeholder rounds)
     const roundsList = (eventData?.rounds?.roundsList || []).filter(roundHasDisplayableContent);
     // A single direct-final/knockout entry describes the format for Kshitij; it is not a useful rounds section.
@@ -1978,7 +1994,7 @@ function EventPage() {
                 title={eventData.title}
                 description={competitionDescription}
                 canonical={canonicalPath}
-                image={eventData.image}
+                image={toOgShareImageUrl(eventData.image, { contain: false })}
                 type="article"
                 jsonLd={[
                     breadcrumbSchema([
@@ -1990,7 +2006,7 @@ function EventPage() {
                         name: eventData.title,
                         description: competitionDescription,
                         url: canonicalPath,
-                        image: eventData.image,
+                        image: toOgShareImageUrl(eventData.image, { contain: false }),
                         location: eventData.venue && eventData.venue !== 'TBD' ? eventData.venue : undefined,
                         price: eventData.entryFee,
                         organizerName: festName || undefined,
@@ -2001,26 +2017,24 @@ function EventPage() {
 
             <main
                 key={competitionId || eventData?.id || 'competition'}
-                className="flex-1 w-full animate-detail-enter"
+                className={`flex-1 w-full ${isKshitijPuneRegionals ? '' : 'animate-detail-enter'}`}
             >
                     {/* Mobile — full-bleed hero when cover exists; compact chrome otherwise (no empty black box) */}
                     <div className="block md:hidden w-full">
                             <div className="mx-auto w-full flex flex-col flex-1 overflow-x-clip">
                                 <div
-                                    className={`relative w-full shrink-0 overflow-hidden bg-[#1A1B1D] ${
-                                        showHeroImage ? 'h-[396px]' : 'h-52'
-                                    }`}
+                                    className={`relative w-full shrink-0 overflow-hidden bg-[#1A1B1D] ${competitionHeroMobileH}`}
                                 >
                                     <CompetitionCoverImage
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        preset="eventHeroFit"
+                                        preset={competitionHeroPreset}
                                         containerClassName="absolute inset-0 w-full h-full"
-                                        className="absolute inset-0 w-full h-full object-contain object-center animate-detail-enter"
+                                        className={`absolute inset-0 w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
                                         loaderSize="hero"
                                         eager={showHeroImage}
-                                        placeholder={showHeroImage ? 'trophy' : 'muted'}
+                                        placeholder={showHeroImage ? (isKshitijPuneRegionals ? 'muted' : 'trophy') : 'muted'}
                                     />
                                     {showHeroImage ? (
                                     <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
@@ -2090,27 +2104,15 @@ function EventPage() {
                                 )}
                                 </div>
 
-                            {/* Kshitij qualification highlight; classic podium for monetary prizes elsewhere. */}
+                            {/* Classic podium for monetary prizes (Kshitij: 1st place cash only). */}
                             {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
                                 <div className="px-4 pb-2">
-                                    {isKshitijPuneRegionals ? (
-                                    <div className={`rounded-2xl border p-4 flex items-center gap-3 ${isDark ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-violet-500/10' : 'border-cyan-200 bg-gradient-to-r from-cyan-50 to-violet-50'}`}>
-                                        <span className="size-10 shrink-0 rounded-full bg-[#0ECCEE] text-slate-950 shadow-md shadow-cyan-500/20 flex items-center justify-center">
-                                            <Ticket size={20} strokeWidth={2.4} />
-                                        </span>
-                                        <div className="min-w-0">
-                                            <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Winner Benefit</p>
-                                            <p className={`mt-0.5 text-sm font-semibold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.prize}</p>
-                                        </div>
-                                    </div>
-                                    ) : (
                                     <PrizePoolPodium
                                       prizeText={eventData.prize}
                                       isDark={isDark}
                                       compact
                                       showTitle={isTechfestCompetition}
                                     />
-                                    )}
                                     </div>
                                 )}
 
@@ -2223,41 +2225,29 @@ function EventPage() {
                                         <ArrowLeft size={15} />
                                         Back
                                     </button>
-                                    <div className={`rounded-2xl overflow-hidden bg-[#1A1B1D] ${isMindSparkCompetition ? 'h-80 lg:h-[24rem] xl:h-[26rem]' : 'h-72 lg:h-[20rem] xl:h-[22rem]'}`}>
+                                    <div className={`rounded-2xl overflow-hidden bg-[#1A1B1D] ${competitionHeroDesktopH}`}>
                                     <CompetitionCoverImage
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
-                                        preset="eventHeroFit"
+                                        preset={competitionHeroPreset}
                                         containerClassName="w-full h-full"
-                                        className="w-full h-full object-contain object-center animate-detail-enter"
+                                        className={`w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
                                         loaderSize="hero"
                                         eager={showHeroImage}
-                                        placeholder={showHeroImage ? 'trophy' : 'muted'}
+                                        placeholder={showHeroImage ? (isKshitijPuneRegionals ? 'muted' : 'trophy') : 'muted'}
                                     />
                                         </div>
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Kshitij qualification highlight; classic podium for monetary prizes elsewhere. */}
+                                    {/* Classic podium for monetary prizes (Kshitij: 1st place cash only). */}
                                     {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
-                                        isKshitijPuneRegionals ? (
-                                        <div className={`rounded-2xl border p-5 flex items-center gap-4 ${isDark ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-400/15 to-violet-500/10' : 'border-cyan-200 bg-gradient-to-r from-cyan-50 to-violet-50'}`}>
-                                            <span className="size-11 shrink-0 rounded-full bg-[#0ECCEE] text-slate-950 shadow-md shadow-cyan-500/20 flex items-center justify-center">
-                                                <Ticket size={22} strokeWidth={2.4} />
-                                            </span>
-                                            <div className="min-w-0">
-                                                <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>Winner Benefit</p>
-                                                <p className={`mt-1 font-semibold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.prize}</p>
-                                            </div>
-                                        </div>
-                                        ) : (
                                         <PrizePoolPodium
                                           prizeText={eventData.prize}
                                           isDark={isDark}
                                           showTitle={isTechfestCompetition}
                                         />
-                                        )
                                     )}
 
                                     <div className={showRulesJudgingSideBySide ? 'grid grid-cols-2 gap-4' : 'space-y-6'}>

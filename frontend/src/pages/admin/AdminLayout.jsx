@@ -26,6 +26,7 @@ import {
   Type,
   Activity,
   IndianRupee,
+  Database,
 } from 'lucide-react';
 import { isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
 
@@ -72,6 +73,7 @@ export default function AdminLayout() {
     { icon: TicketPercent, label: 'Coupons', path: '/admin/coupons' },
     { icon: Bell, label: 'Notifications', path: '/admin/notifications' },
     { icon: FileText, label: 'Registrations', path: '/admin/registrations' },
+    { icon: Database, label: 'Data', path: '/admin/data' },
     { icon: Users, label: 'User Logins', path: '/admin/user-logins' },
     { icon: Activity, label: 'User Activity', path: '/admin/user-activity' },
     { icon: QrCode, label: 'Scanner Access', path: '/admin/scanner-access', exact: true },

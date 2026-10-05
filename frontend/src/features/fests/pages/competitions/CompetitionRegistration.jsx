@@ -337,6 +337,7 @@ export default function CompetitionRegistration() {
         if (regId) setRegistrationId(regId);
         clearRegistrationDraft(draftKey);
         setSuccess(true);
+        return regData.stallCoupon || null;
     }, [competition, competitionId, draftKey]);
 
     // Resume after Cashfree redirect — verify payment, then auto-complete registration

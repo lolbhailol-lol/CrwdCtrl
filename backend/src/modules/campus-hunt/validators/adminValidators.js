@@ -17,15 +17,15 @@ function validateEventCreate(body = {}) {
     err.status = 400;
     throw err;
   }
-  let teamCapacity = body.teamCapacity != null ? Number(body.teamCapacity) : 40;
-  let teamSize = body.teamSize != null ? Number(body.teamSize) : 4;
+  let teamCapacity = body.teamCapacity != null ? Number(body.teamCapacity) : 20;
+  let teamSize = body.teamSize != null ? Number(body.teamSize) : 10;
   if (!Number.isFinite(teamCapacity) || teamCapacity < 4 || teamCapacity > 200) {
     const err = new Error('teamCapacity must be between 4 and 200');
     err.status = 400;
     throw err;
   }
-  if (!Number.isFinite(teamSize) || teamSize < 2 || teamSize > 8) {
-    const err = new Error('teamSize must be between 2 and 8');
+  if (!Number.isFinite(teamSize) || teamSize < 2 || teamSize > 12) {
+    const err = new Error('teamSize must be between 2 and 12 (about 9–10 members is fine)');
     err.status = 400;
     throw err;
   }

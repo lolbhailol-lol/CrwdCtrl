@@ -13,7 +13,9 @@ import {
   adminUpdateStartingPoint,
 } from '../services/campusHunt.api';
 import {
+  DESTINATION_PLACE,
   clue5WordForStart,
+  fifthStopForLocalTeam,
   firstStopForLocalTeam,
   fourthStopForLocalTeam,
   globalTeamNumber,
@@ -85,8 +87,8 @@ export default function StartingSystemPanel({
   mode = 'all',
   eventMeta = null,
 }) {
-  const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 40);
-  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 4));
+  const teamCapacity = Math.max(2, Number(eventMeta?.teamCapacity) || 20);
+  const startCount = Math.max(1, Math.min(4, Number(eventMeta?.startCount) || 1));
   const teamsPerWait = Math.max(1, Math.ceil(teamCapacity / startCount));
   const activeStations = useMemo(
     () => resolveStations(eventMeta?.campusStations, eventMeta?.stationCount),
@@ -285,7 +287,7 @@ export default function StartingSystemPanel({
     if (!roundId || !schedule.startsAt || points.length < 1) {
       setMessage(
         !roundId
-          ? 'Create Round 1 first'
+          ? 'Create the hunt first'
           : points.length < 1
             ? 'Add starting points first'
             : 'Pick a first-release date/time',
@@ -460,10 +462,10 @@ export default function StartingSystemPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">
-              {startCount} starting point{startCount === 1 ? '' : 's'}
+              {startCount === 1 ? 'Gather point' : `${startCount} gather points`}
             </h2>
             <p className="text-xs text-white/50">
-              {startNames.join(' · ') || 'Set under Clues → Starts & places'}
+              {startNames.join(' · ') || 'Set under Places → Starts & places'}
               {' '}— ~{teamsPerWait} team{teamsPerWait === 1 ? '' : 's'} each
               ({teamCapacity} overall). Hunt QR cards are separate (Clues tab).
             </p>
@@ -482,8 +484,8 @@ export default function StartingSystemPanel({
               {busy === 'defaults'
                 ? 'Saving…'
                 : locationsReady
-                  ? `Refresh / repair ${startCount} start${startCount === 1 ? '' : 's'}`
-                  : `Add ${startCount} starting point${startCount === 1 ? '' : 's'}`}
+                  ? `Refresh gather point${startCount === 1 ? '' : 's'}`
+                  : `Add gather point${startCount === 1 ? '' : 's'}`}
             </button>
             <span className={`rounded-full px-3 py-1 text-xs self-center ${
               locationsReady
@@ -497,13 +499,13 @@ export default function StartingSystemPanel({
 
         {locationsReady && (
           <p className="mt-3 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
-            Locations are set for this field size. Move on to Teams / Schedule — no need to recreate starts.
+            Locations are set. Only save again if you change starts — then go to Links.
           </p>
         )}
 
         {!locationsReady && (
           <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            Need {startCount} active start{startCount === 1 ? '' : 's'}
+            Need {startCount} gather point{startCount === 1 ? '' : 's'}
             {' '}({requiredStartLetters.join(' · ')}) for {teamCapacity} teams (~{teamsPerWait} each).
             Tap Add / Refresh to create or repair them.
           </p>
@@ -649,13 +651,13 @@ export default function StartingSystemPanel({
 
         {(!roundId || canonicalReadyCount < startCount) && (
           <div className="mt-3 space-y-1 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-3 text-xs text-amber-100">
-            <p className="font-semibold">Schedule controls are blocked until:</p>
+            <p className="font-semibold">Start hunt needs:</p>
             <ul className="list-disc space-y-0.5 pl-4">
-              {!roundId && <li>Round 1 exists (use Create Round 1 below)</li>}
+              {!roundId && <li>Hunt (created automatically on bootstrap)</li>}
               {canonicalReadyCount < startCount && (
                 <li>
-                  {startCount} starting point{startCount === 1 ? '' : 's'} exist
-                  ({canonicalReadyCount}/{startCount}) — go to Locations or Clues → Save setup
+                  {startCount} gather point{startCount === 1 ? '' : 's'}
+                  ({canonicalReadyCount}/{startCount}) — Places tab or Clues → Save
                 </li>
               )}
             </ul>
@@ -788,7 +790,7 @@ export default function StartingSystemPanel({
             disabled={Boolean(busy) || !roundId || points.length < 1 || !schedule.startsAt}
             title={
               !roundId
-                ? 'Create Round 1 first'
+                ? 'Create the hunt first'
                 : points.length < 1
                   ? 'Add starting points on Locations tab'
                   : ''
@@ -869,7 +871,7 @@ export default function StartingSystemPanel({
                   confirm: true,
                   reason: 'Schedule reviewed and locked by admin',
                 })),
-                'Schedule locked — you can Start Round 1 now',
+                'Schedule locked — you can Start the hunt now',
               );
             }}
             className="rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
@@ -879,7 +881,7 @@ export default function StartingSystemPanel({
         </div>
         <p className="mt-2 text-[11px] text-white/45">
           Tip: use <strong className="text-white/70">Save date &amp; interval</strong> after
-          picking the time, or Preview → Generate → Lock. Then Start Round 1 — players unlock
+          picking the time, or Preview → Generate → Lock. Then Start the hunt — players unlock
           live without refreshing.
         </p>
 
@@ -937,25 +939,29 @@ export default function StartingSystemPanel({
                 </li>
                 <li>
                   <span className="font-semibold text-purple-200">Purple place</span>
-                  {' '}— 4th campus scan after prop hunt (Clue 4).
+                  {' '}— 4th campus scan after Field Terminal (Clue 4).
                 </li>
                 <li>
-                  <span className="font-semibold text-rose-200">Final</span>
-                  {' '}— one-word puzzle on phones, then report back to Meet here.
+                  <span className="font-semibold text-red-200">Red place</span>
+                  {' '}— 5th campus scan after Clue 5 word.
+                </li>
+                <li>
+                  <span className="font-semibold text-yellow-200">Destination</span>
+                  {' '}— Clue 6 → Mindspark Lobby (organizer check-in).
                 </li>
               </ul>
               {previewRows.some((r) => (
-                !r.firstStopName || !r.secondStopName || !r.thirdStopName || !r.fourthStopName
+                !r.firstStopName || !r.secondStopName || !r.thirdStopName
+                || !r.fourthStopName || !r.fifthStopName
               )) && (
                 <p className="mt-2 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  Orange → purple below are the <strong>planned path</strong> across campus places
-                  (Food Court, Student Centre, … — not starting points).
-                  To bind real QR cards, open <strong>Clues</strong>, save Clue 1–4, then Preview again.
+                  Orange → red below are the <strong>planned 5-stop path</strong> across campus places.
+                  Save Clues 1–5, Generate schedule, then Preview again.
                 </p>
               )}
             </div>
             <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[1080px] text-left text-xs">
+              <table className="w-full min-w-[1200px] text-left text-xs">
                 <thead className="bg-white/5 text-white/55">
                   <tr>
                     <th className="px-3 py-2">Team</th>
@@ -966,7 +972,8 @@ export default function StartingSystemPanel({
                     <th>Green place</th>
                     <th>Blue place</th>
                     <th>Purple place</th>
-                    <th>Final</th>
+                    <th>Red place</th>
+                    <th>Destination</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1027,14 +1034,17 @@ export default function StartingSystemPanel({
                         || thirdStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const purplePlace = row.fourthStopName
                         || fourthStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
+                      const redPlace = row.fifthStopName
+                        || fifthStopForLocalTeam(waveNum, waitIdx, activeStations, teamsPerWait);
                       const startCode = waitLetter(code) || code.charAt(0) || 'A';
                       const finalWord = clue5WordForStart(startCode);
-                      const finalLabel = `${finalWord} → ${gatherName}`;
+                      const destLabel = DESTINATION_PLACE?.name || 'Mindspark Lobby';
                       const fromClues = Boolean(
                         row.firstStopName
                         || row.secondStopName
                         || row.thirdStopName
-                        || row.fourthStopName,
+                        || row.fourthStopName
+                        || row.fifthStopName,
                       );
                       return (
                         <tr
@@ -1085,8 +1095,14 @@ export default function StartingSystemPanel({
                           <td className="text-purple-200/90">
                             {purplePlace}
                           </td>
-                          <td className="text-rose-200/90">
-                            {finalLabel}
+                          <td className="text-red-200/90">
+                            {redPlace}
+                            <span className="mt-0.5 block text-[10px] text-white/40">
+                              after {finalWord}
+                            </span>
+                          </td>
+                          <td className="text-yellow-100/90">
+                            {destLabel}
                           </td>
                         </tr>
                       );
@@ -1112,7 +1128,7 @@ export default function StartingSystemPanel({
             <h2 className="mt-1 text-lg font-bold text-white">Release teams at each start</h2>
             <p className="mt-1 text-sm text-white/55">
               {teamCapacity} teams · {startCount} start{startCount === 1 ? '' : 's'}
-              {' '}· auto-releases on schedule · tap Release for early / stuck teams
+              {' '}· for online hunt waves. Offline hunt starts with the shared start code (no GO desk).
             </p>
           </div>
           <button

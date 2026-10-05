@@ -18,6 +18,7 @@ import {
   AppCopyPage,
   CouponsPage,
   AdminNotificationsPage,
+  AdminDataPage,
   AdminProtectedRoute,
   TrekOrganizersPage,
   RunClubOrganizersPage,
@@ -60,6 +61,7 @@ export const adminRoutes = (
       <Route path="app-copy" element={<AppCopyPage />} />
       <Route path="coupons" element={<CouponsPage />} />
       <Route path="notifications" element={<AdminNotificationsPage />} />
+      <Route path="data" element={<AdminDataPage />} />
       {campusHuntAdminChildRoutes()}
     </Route>
 );

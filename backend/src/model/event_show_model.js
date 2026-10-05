@@ -130,6 +130,8 @@ const eventShowSchema = new mongoose.Schema(
             enum: ['single', 'tiers'],
             default: 'single',
         },
+        /** When true with pricingMode tiers, shoppers can select multiple packages and pay the sum. */
+        tiersMultiSelect: { type: Boolean, default: false },
         tiers: [{
             id: { type: String, trim: true, default: '' },
             name: { type: String, trim: true, default: '' },

@@ -72,6 +72,21 @@ const campusHuntTeamSchema = new mongoose.Schema(
       ref: 'CampusHuntCheckpoint',
       index: true,
     },
+    clue5ChallengeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntChallenge',
+      index: true,
+    },
+    fifthCheckpointId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntCheckpoint',
+      index: true,
+    },
+    clue6ChallengeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CampusHuntChallenge',
+      index: true,
+    },
     teamCode: {
       type: String,
       required: true,
@@ -89,15 +104,15 @@ const campusHuntTeamSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator(v) {
-          return Array.isArray(v) && v.length <= 3;
+          return Array.isArray(v) && v.length <= 11;
         },
-        message: 'A team may have at most 3 members besides the leader',
+        message: 'A team may have at most 11 members besides the leader (~12 total)',
       },
     },
     /** Leader display name */
     leaderName: { type: String, default: '', trim: true },
     leaderContactEmail: { type: String, default: '', trim: true, lowercase: true },
-    /** Display names for the 3 scanner members (ops / UI) */
+    /** Display names for scanner members (ops / UI) */
     memberNames: {
       type: [String],
       default: [],
@@ -144,6 +159,8 @@ const campusHuntTeamSchema = new mongoose.Schema(
     scoreLockedAt: { type: Date },
     /** Last accepted offline board-sync sequence (anti-replay). */
     offlineProgressSeq: { type: Number, default: 0 },
+    /** When admin or phone Start over last reset this team (phone pulls this). */
+    offlineResetAt: { type: Date },
     offlineDeviceId: { type: String, default: '', trim: true },
     finishedAt: { type: Date },
     stats: {

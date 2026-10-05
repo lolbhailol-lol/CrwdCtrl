@@ -11,7 +11,7 @@ import LazyMap from '../../../components/LazyMap';
 import TrekDetailIcon from '../../../components/TrekDetailIcon';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 import { primaryCoverUrl, resolveCoverImage } from '../../../utils/coverImages';
-import { absoluteUrl, breadcrumbSchema, eventSchema } from '../../../utils/seo';
+import { toOgShareImageUrl, breadcrumbSchema, eventSchema } from '../../../utils/seo';
 import { shareContent } from '../../../utils/externalLink';
 import { eventCommunityEventPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import { eventDetailTabBoxes, eventMapSideFacts, resolveRunMapPin } from '../../../utils/trekDetailBoxes';
@@ -94,6 +94,7 @@ function pickRunFallback(seeded, cachedEvent, routeParam, keepEvent = null) {
     if (keepOk && keepEvent) return keepEvent;
     // Prefer richer cache over a thin title/image stub
     if (cacheOk && cachedEvent) return cachedEvent;
+    // Listing nav seed (fee + cover) — paint hero/title while detail API loads
     if (seedOk && isPreviewEvent(seeded)) return seeded;
     return null;
 }
@@ -140,8 +141,16 @@ export default function EventCommunityEventPage() {
     const { isDark } = useDarkMode();
     const { token: authToken, isAuthenticated } = useAuth();
 
-    const [event, setEvent] = useState(null);
-    const [_loading, setLoading] = useState(true);
+    const [event, setEvent] = useState(() => {
+        const seeded = seedEventFromNav(location.state?.event);
+        if (seeded && entityMatchesRouteParam(seeded, id, ['title', 'name']) && isPreviewEvent(seeded)) {
+            return seeded;
+        }
+        const cached = id ? readRunDetailCache(id) : null;
+        if (cached && entityMatchesRouteParam(cached, id, ['title', 'name'])) return cached;
+        return null;
+    });
+    const [_loading, setLoading] = useState(() => !event);
     const [fetchingDetail, setFetchingDetail] = useState(true);
     const [loadError, setLoadError] = useState('');
     const [userRegistration, setUserRegistration] = useState(null);
@@ -193,38 +202,36 @@ export default function EventCommunityEventPage() {
         const fallback = existingReady
             ? existing
             : pickRunFallback(seeded, cachedEvent, id, existing);
-        const paintable = existingReady
-            ? existing
-            : (fallback
-                && isHydratedEvent(fallback)
-                && entityMatchesRouteParam(fallback, id, ['title', 'name'])
-                ? fallback
-                : null);
 
-        // Keep the 3D event loader up until a real hydrated payload exists.
-        // Listing/nav stubs (Mafia Night from home scroll) flash demo boxes otherwise.
-        if (existingReady) {
+        // Paint seed/cache immediately — do not block on slow /sports/:id (often 1–2s+)
+        if (fallback) {
+            setEvent(fallback);
             setLoading(false);
-            setFetchingDetail(true);
+            setFetchingDetail(!isHydratedEvent(fallback));
+            setLoadError('');
         } else {
             setEvent(null);
             setLoading(true);
             setFetchingDetail(true);
-            setImgPg(0);
-            setOverviewExpanded(false);
-            setActiveRunTab('Details');
-            setOpenInfo(null);
-            setTermsOpen(false);
-            setTierSheetOpen(false);
-            setHeroLoaded(false);
+            setLoadError('');
         }
+
+        setImgPg(0);
+        setOverviewExpanded(false);
+        setActiveRunTab('Details');
+        setOpenInfo(null);
+        setTermsOpen(false);
+        setTierSheetOpen(false);
+        if (!fallback || !eventCoverHint(fallback)) setHeroLoaded(false);
 
         const controller = new AbortController();
         const inApp = isInAppBrowser();
         publicFetchJSONRetry(`/sports/${encodeURIComponent(eventId)}`, {
             signal: controller.signal,
             ...DETAIL_FETCH_OPTS,
-            retries: inApp ? 2 : DETAIL_FETCH_OPTS.retries,
+            // Allow HTTP cache on warm opens; seed already covers first paint
+            cacheBust: false,
+            retries: fallback ? 1 : (inApp ? 2 : DETAIL_FETCH_OPTS.retries),
             timeout: inApp ? 12000 : DETAIL_FETCH_OPTS.timeout,
             headers: getBearerAuthHeaders(resolveAuthToken(authToken)),
         })
@@ -240,10 +247,7 @@ export default function EventCommunityEventPage() {
                         if (s) writeRunDetailCache(String(s), d.event);
                     });
                     setLoadError('');
-                } else if (paintable) {
-                    setEvent(paintable);
-                    setLoadError('');
-                } else if (fallback && isHydratedEvent(fallback) && entityMatchesRouteParam(fallback, id, ['title', 'name'])) {
+                } else if (fallback) {
                     setEvent(fallback);
                     setLoadError('');
                 } else {
@@ -264,12 +268,7 @@ export default function EventCommunityEventPage() {
             .catch((err) => {
                 if (fetchGenRef.current !== gen) return;
                 if (controller.signal.aborted) return;
-                if (paintable) {
-                    setEvent(paintable);
-                    setLoadError('');
-                    return;
-                }
-                if (fallback && isHydratedEvent(fallback) && entityMatchesRouteParam(fallback, id, ['title', 'name'])) {
+                if (fallback) {
                     setEvent(fallback);
                     setLoadError('');
                     return;
@@ -336,15 +335,14 @@ export default function EventCommunityEventPage() {
     }, [event, id, navigate, location.pathname, location.search]);
 
     const showPageLoader = Boolean(id) && !loadError && (
-        !isHydratedEvent(event)
-        || !entityMatchesRouteParam(event, id, ['title', 'name'])
+        (_loading && !event)
+        || (event && !entityMatchesRouteParam(event, id, ['title', 'name']))
     );
     usePageContentLoading(showPageLoader);
     useDetailLoaderFailsafe(showPageLoader, () => {
         setLoading(false);
         setFetchingDetail(false);
-        if (!isHydratedEvent(eventRef.current)) {
-            setEvent(null);
+        if (!eventRef.current) {
             setLoadError((prev) => prev || 'network');
         }
     });
@@ -409,7 +407,11 @@ export default function EventCommunityEventPage() {
     const coverImg = resolveCoverImage(event, 'hero')
         || primaryCoverUrl(event.coverImages || {}, event.coverImage || event.image)
         || null;
-    const shareImage = coverImg;
+    const shareRaw =
+        resolveCoverImage(event, 'cardPortrait')
+        || primaryCoverUrl(event.coverImages || {}, event.coverImage)
+        || coverImg;
+    const shareImage = toOgShareImageUrl(shareRaw, { contain: true, portrait: true });
     // Gallery uploads only — strip any card/cover URLs that leaked into images[]
     const coverSlots = event.coverImages || {};
     const coverSet = new Set(
@@ -417,7 +419,7 @@ export default function EventCommunityEventPage() {
             .filter(Boolean),
     );
     const galleryImages = (event.images || []).filter((u) => u && !coverSet.has(u));
-    // Top slider = gallery uploads only (cover/card stays out). Fall back to cover if no gallery yet.
+    // Community events: hero = gallery photos only (poster stays on cards / WhatsApp)
     const images = galleryImages.length ? galleryImages : (coverImg ? [coverImg] : [null]);
     const communityName = club?.name || event.organizer || '';
     const copy = organizerHubCopy(true);
@@ -443,15 +445,16 @@ export default function EventCommunityEventPage() {
             : []);
     const termSections = groupTermsAndConditions(terms);
 
+    const canonicalPath = eventCommunityEventPath(event || { id });
+
     const handleShare = () => {
+        const shareUrl = `${window.location.origin}${canonicalPath || window.location.pathname}`;
         shareContent({
             title: event.title,
-            url: window.location.href,
-            imageUrl: shareImage ? absoluteUrl(shareImage) : undefined,
+            url: shareUrl,
+            imageUrl: shareImage || undefined,
         });
     };
-
-    const canonicalPath = eventCommunityEventPath(event || { id });
 
     return (
         <div className="crwdctrl-page flex flex-col min-h-screen" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>

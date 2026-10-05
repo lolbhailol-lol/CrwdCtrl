@@ -5,48 +5,8 @@ import {
   teamSize,
 } from './offlineEngine';
 import { scoringForChallenge } from './scoring';
-
-const HOW_TO = {
-  1: {
-    title: 'How to play — Clue 1',
-    steps: [
-      'All teammates walk together. One phone (leader).',
-      'Read the sentence and type the campus location.',
-      'Go there together. Find the written clues nearby, join them into one word, type it.',
-      'Then scan the place QR once → enter your team code → Clue 2.',
-    ],
-  },
-  2: {
-    title: 'How to play — Clue 2',
-    steps: [
-      'Read the brief, then hunt as a team.',
-      'Find the written clues at the stop, join the word, type it.',
-      'Leader scans the place QR once → team code → Clue 3.',
-    ],
-  },
-  3: {
-    title: 'How to play — Clue 3',
-    steps: [
-      'Decode the Caesar riddle (leader submits).',
-      'Go to that place. Find the written clues, join the word, type it.',
-      'Scan the place QR once → team code → next stop.',
-    ],
-  },
-  4: {
-    title: 'How to play — Clue 4',
-    steps: [
-      'At the stop: find the written clues (or prop tags), join the word, type it.',
-      'Scan the place QR once → team code → Final.',
-    ],
-  },
-  5: {
-    title: 'How to play — Final clue',
-    steps: [
-      'Fragments are on this phone — read them aloud in order and rebuild the word.',
-      'Leader types the word. Report to your start desk.',
-    ],
-  },
-};
+import { sanitizePlayerCopy } from '../player/sanitizePlayerCopy';
+import { OFFLINE_CLUE_HOW_TO, OFFLINE_CLUE_PROMPTS } from './offlineHowTo';
 
 function isExpired(expiresAt, now) {
   if (!expiresAt) return false;
@@ -81,54 +41,85 @@ function challengeView(bundle, state, session, n, now) {
   if (n === 1 && !isLeader) prompt = null;
 
   const memberIndex = Number(session.slot) || 0;
-  let memberCode;
-  let collaborative = false;
-  if (n === 5 && Array.isArray(clue.memberPrompts) && clue.memberPrompts.length) {
-    collaborative = true;
-    memberCode = clue.memberPrompts[memberIndex] || '';
-    prompt = clue.prompt || 'Combine all teammate codes in order into one word.';
+  // Clue 2 / 3 / 5: short prompt only — no phone “piece / digital lockbox” lists.
+  if (n === 3) {
+    prompt = OFFLINE_CLUE_PROMPTS[3] || prompt;
   }
+  if (n === 2) {
+    prompt = OFFLINE_CLUE_PROMPTS[2] || prompt;
+  }
+  if (n === 5) {
+    prompt = OFFLINE_CLUE_PROMPTS[5];
+  }
+  void memberIndex;
 
   const startedAt = row.startedAt || null;
   const expiresAt = row.expiresAt || null;
   const timerArmed = !startedAt || now.getTime() >= new Date(startedAt).getTime();
-  const instructionPhase = (n === 2 || n === 4)
-    && row.state === 'ACTIVE'
-    && Boolean(startedAt)
-    && !timerArmed;
-  const revealed = row.failureReason === 'REVEALED_ZERO_POINTS';
-  const showDestination = row.state === 'COMPLETED' || revealed;
+  const instructionPhase = false;
+  const revealed = row.failureReason === 'REVEALED_ZERO_POINTS'
+    || row.failureReason === 'TIMEOUT';
+  const showDestination = row.state === 'COMPLETED'
+    || (n === 1 && revealed);
 
-  return {
+  // Prefer pack-patched answers (applyOfflinePlayerCopy), keep letters-only for Clue 5.
+  let revealedAnswer = revealed ? (clue.answer || null) : undefined;
+  if (n === 5 && revealedAnswer) {
+    revealedAnswer = String(revealedAnswer).replace(/[^A-Za-z]/g, '').toUpperCase() || revealedAnswer;
+  }
+
+  const view = {
     challengeNumber: n,
     type: clue.type,
     prompt,
-    memberCode,
-    collaborative,
-    howTo: clue.howTo || HOW_TO[n] || null,
-    destinationInstruction: showDestination ? (clue.destinationInstruction || '') : undefined,
+    memberCode: undefined,
+    memberFragments: undefined,
+    collaborative: false,
+    // App HOW_TO wins over pack-frozen text (updates without re-export).
+    howTo: OFFLINE_CLUE_HOW_TO[n] || clue.howTo || null,
+    destinationInstruction: showDestination
+      ? sanitizePlayerCopy(clue.destinationInstruction || '')
+      : undefined,
     revealedLocation: revealed && n === 1 ? (clue.answer || null) : undefined,
-    revealedAnswer: revealed && n !== 1 ? (clue.answer || null) : undefined,
+    revealedAnswer: n === 5 ? revealedAnswer : (revealed ? (clue.answer || null) : undefined),
     state: row.state,
     attempts: row.attempts || 0,
     maxAttempts: clue.maxAttempts || cfg.maxAttempts || 3,
     attemptsLeft: Math.max(0, (clue.maxAttempts || cfg.maxAttempts || 3) - (row.attempts || 0)),
     hintUsed: Boolean(row.hintUsed),
     hintText: isLeader && row.hintUsed ? (clue.hintText || '') : undefined,
+    hintCost: Number(clue.hintCost ?? cfg.hintCost) || 20,
     startedAt,
-    expiresAt,
-    timerStartsAt: startedAt,
+    expiresAt: [2, 3, 4, 5].includes(n) ? null : expiresAt,
+    timerStartsAt: n === 2 ? startedAt : null,
     instructionPhase,
-    timerArmed,
-    timerSeconds: (n === 2 || n === 4) ? (cfg.timerSeconds || 180) : undefined,
-    instructionDelaySeconds: n === 2 ? (cfg.timerStartDelaySeconds ?? 20) : undefined,
+    timerArmed: n === 4 ? true : timerArmed,
+    timerSeconds: undefined,
+    instructionDelaySeconds: undefined,
     awardedPoints: row.awardedPoints ?? null,
     failureReason: row.failureReason || null,
-    timeExpired: Boolean(expiresAt && timerArmed && isExpired(expiresAt, now) && row.state === 'ACTIVE'),
-    allowLateSubmit: Boolean(cfg.allowLateSubmit || n === 2 || n === 4 || n === 5),
-    scoringBands: (n === 2 || n === 4) && row.state === 'ACTIVE' ? (cfg.speedBonusBands || null) : undefined,
+    timeExpired: Boolean(
+      n !== 4
+      && expiresAt
+      && timerArmed
+      && isExpired(expiresAt, now)
+      && row.state === 'ACTIVE',
+    ),
+    allowLateSubmit: Boolean(cfg.allowLateSubmit || n === 4 || n === 5),
+    scoringBands: undefined,
     locked: false,
   };
+
+  // Field Terminal — device key to play Zip Grid on a laptop.
+  if (n === 4 && row.state === 'ACTIVE' && stage === 'CLUE_4_ACTIVE') {
+    view.gridAccessCode = String(
+      clue.gridAccessCode || bundle?.team?.gridAccessCode || '',
+    ).toUpperCase() || null;
+    view.gridGameUrl = clue.gridGameUrl || '/campus-hunt/grid';
+    view.gridCompleted = false;
+  }
+
+  return view;
 }
 
 function checkpointStatus(bundle, state, session, _now) {
@@ -139,17 +130,22 @@ function checkpointStatus(bundle, state, session, _now) {
   const cp = state.checkpoints?.[key] || { scans: {}, confirmed: false };
   const scans = cp.scans || {};
   const verifiedCount = Object.keys(scans).length;
-  const youScanned = Boolean(
+  // One-phone: only real state scans count. localPosterScans sticks after Start over
+  // and was hiding the Scan button / auto-camera after Clue 1.
+  const youScanned = verifiedCount > 0 && Boolean(
     scans[session.memberKey]
     || scans.leader
     || (session.localPosterScans || {})[String(key)],
   );
-  const scanKind = key === 4 ? 'FOURTH SCAN' : key === 3 ? 'THIRD SCAN' : key === 2 ? 'SECOND SCAN' : 'FIRST SCAN';
-  const needJoin = Boolean(String(expected?.joinedWord || '').trim());
-  const joinWordOk = Boolean(cp.joinWordOk) || !needJoin;
-  const awaiting = session.role === 'leader'
-    && verifiedCount >= required
-    && !cp.confirmed;
+  const scanKind = key === 5
+    ? 'FIFTH SCAN'
+    : key === 4
+      ? 'FOURTH SCAN'
+      : key === 3
+        ? 'THIRD SCAN'
+        : key === 2
+          ? 'SECOND SCAN'
+          : 'FIRST SCAN';
   const size = teamSize(bundle);
   const plantCount = Array.isArray(expected?.plantFragments) && expected.plantFragments.length
     ? expected.plantFragments.length
@@ -161,21 +157,20 @@ function checkpointStatus(bundle, state, session, _now) {
     code: expected?.code || expected?.checkpointKey,
     locationName: expected?.locationName,
     posterLabel: { scanKind, sharedStation: true },
-    publicInstruction: joinWordOk
-      ? (expected?.publicInstruction
-        || 'Scan the place QR once, then enter your team code.')
-      : `Find ${plantCount} clues written nearby. Join them into one word and type it — then scan.`,
+    publicInstruction: sanitizePlayerCopy(
+      expected?.publicInstruction
+        || `At ${expected?.locationName || 'this stop'}, leader scans the ${scanKind} QR once.`,
+    ),
     plantFragmentCount: plantCount,
-    joinedWordHint: needJoin && !joinWordOk
-      ? `Find ${plantCount} fragments → join → type`
-      : null,
-    needJoinWord: needJoin && !joinWordOk,
-    joinWordOk,
+    joinedWordHint: null,
+    needJoinWord: false,
+    joinWordOk: true,
     verifiedCount,
     requiredCount: required,
     youScanned,
-    status: cp.confirmed ? 'complete' : awaiting ? 'awaiting_claim' : 'pending',
-    awaitingTeamCodeConfirm: awaiting,
+    // One-phone: scan auto-confirms — never show team-code claim UI.
+    status: cp.confirmed ? 'complete' : 'pending',
+    awaitingTeamCodeConfirm: false,
     membersNeeded: 0,
     scanRoster: [],
     assignmentMissing: !expected,
@@ -189,7 +184,8 @@ export function buildPlayData(bundle, session, state, now = new Date()) {
 
   return {
     event: {
-      teamCapacity: size,
+      id: bundle.event.id,
+      teamCapacity: Number(bundle.event?.teamCapacity) || 20,
       finaleCapacity: 0,
       name: bundle.event.name,
     },
@@ -208,8 +204,9 @@ export function buildPlayData(bundle, session, state, now = new Date()) {
       actualStartAt: state.currentStage === 'WAITING' ? null : (state.huntStartedAt || state.updatedAt),
       startingPoint: bundle.team.startingPoint || null,
     },
-    challenges: [1, 2, 3, 4, 5].map((n) => challengeView(bundle, state, session, n, now)),
+    challenges: [1, 2, 3, 4, 5, 6].map((n) => challengeView(bundle, state, session, n, now)),
     checkpointStatus: checkpointStatus(bundle, state, session, now),
+    finishDestination: bundle.event?.destinationName || 'Mindspark Lobby',
     serverTime: now.toISOString(),
   };
 }

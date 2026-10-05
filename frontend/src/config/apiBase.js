@@ -57,6 +57,14 @@ export function getApiBaseUrl() {
   const sameOrigin = getSameOriginApiBase();
   if (sameOrigin) return sameOrigin;
 
+  // Local Vite must hit local backend — ignore production VITE_API_BASE_URL in .env
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return LOCAL_DEV_API_BASE_URL;
+    }
+  }
+
   const fromEnv = envApiBase();
   if (fromEnv) return fromEnv;
 

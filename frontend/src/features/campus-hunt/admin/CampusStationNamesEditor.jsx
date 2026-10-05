@@ -3,6 +3,8 @@ import { adminUpdateCampusStations, adminUpdateEvent, adminBootstrapRound1 } fro
 import {
   CAMPUS_STATIONS,
   WAIT_POINTS,
+  STATION_TARGET_COUNT,
+  DEFAULT_TEAM_CAPACITY,
   resolveStarts,
   resolveStations,
   suggestHuntLayout,
@@ -13,16 +15,16 @@ const inputClass = 'w-full rounded-lg border border-white/15 bg-[#161718] px-3 p
 
 /**
  * Edit teams / people, starting points, and campus places.
- * Small demos can use 1 start + fewer hunt places.
+ * Default layout: 20 teams · 20 places · 1 start.
  */
 export default function CampusStationNamesEditor({
   eventId,
   campusStations,
   campusStarts,
-  startCount: startCountProp = 4,
-  stationCount: stationCountProp = 10,
-  teamCapacity: teamCapacityProp = 40,
-  teamSize: teamSizeProp = 4,
+  startCount: startCountProp = 1,
+  stationCount: stationCountProp = STATION_TARGET_COUNT,
+  teamCapacity: teamCapacityProp = DEFAULT_TEAM_CAPACITY,
+  teamSize: teamSizeProp = 10,
   onChanged,
   onLayoutDraftChange,
 }) {
@@ -59,7 +61,10 @@ export default function CampusStationNamesEditor({
     [startDraft, startCount],
   );
   const activeStations = useMemo(
-    () => stationDraft.slice(0, Math.max(1, Math.min(10, Number(stationCount) || 1))),
+    () => stationDraft.slice(
+      0,
+      Math.max(1, Math.min(STATION_TARGET_COUNT, Number(stationCount) || STATION_TARGET_COUNT)),
+    ),
     [stationDraft, stationCount],
   );
 
@@ -150,10 +155,10 @@ export default function CampusStationNamesEditor({
   };
 
   const resetDefaults = () => {
-    setTeams('40');
-    setPeople('4');
-    setStartCount(4);
-    setStationCount(10);
+    setTeams(String(DEFAULT_TEAM_CAPACITY));
+    setPeople('6');
+    setStartCount(1);
+    setStationCount(STATION_TARGET_COUNT);
     setStationDraft(CAMPUS_STATIONS.map((s) => ({ ...s })));
     setStartDraft(WAIT_POINTS.map((s) => ({ code: s.code, name: s.name })));
     setMessage('');
@@ -164,10 +169,10 @@ export default function CampusStationNamesEditor({
     <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-white">Teams, starts & places</h2>
+          <h2 className="text-base font-semibold text-white">Places · layout</h2>
           <p className="mt-1 text-xs text-white/50">
-            Set overall teams and people per team, then starting points and campus places.
-            Save setup here, then update Clue 1 → 2 → 3 → 4 → Final one by one.
+            Default: 20 teams · 20 campus places · 1 gather. Save here, then set plant join-words below,
+            then open Clues and update each color.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -202,11 +207,11 @@ export default function CampusStationNamesEditor({
           />
         </label>
         <label className="block text-[11px] text-white/45">
-          People per team
+          People per team (≈9–10)
           <input
             type="number"
             min={2}
-            max={8}
+            max={12}
             value={people}
             onChange={(e) => setPeople(e.target.value)}
             className={`mt-1 ${inputClass}`}
@@ -224,7 +229,7 @@ export default function CampusStationNamesEditor({
           />
         </label>
         <label className="block text-[11px] text-white/45">
-          Campus places (1–10)
+          Campus places (1–20)
           <div className="mt-1 flex items-center gap-2">
             <button
               type="button"
@@ -238,7 +243,7 @@ export default function CampusStationNamesEditor({
             <input
               type="number"
               min={1}
-              max={10}
+              max={20}
               value={stationCount}
               onChange={(e) => setStationCount(e.target.value)}
               className={`${inputClass} text-center`}
@@ -246,8 +251,8 @@ export default function CampusStationNamesEditor({
             <button
               type="button"
               aria-label="More places"
-              disabled={Number(stationCount) >= 10}
-              onClick={() => setStationCount((n) => Math.min(10, Number(n) + 1))}
+              disabled={Number(stationCount) >= STATION_TARGET_COUNT}
+              onClick={() => setStationCount((n) => Math.min(STATION_TARGET_COUNT, Number(n) + 1))}
               className="h-9 w-9 shrink-0 rounded-lg border border-white/15 bg-white/5 text-lg text-white disabled:opacity-30"
             >
               +
@@ -256,7 +261,8 @@ export default function CampusStationNamesEditor({
         </label>
       </div>
       <p className="mt-2 text-[11px] text-white/40">
-        {preview.totalPlayers} players total · Round 1 offline · then Send links (one WhatsApp link per team).
+        {preview.totalPlayers} players total · {preview.teamCapacity} teams × {activeStations.length} places
+        {' · '}offline hunt · then Send links (one WhatsApp pack per leader).
         Raise campus places with + to unlock more scan locations (then Save setup + bootstrap QRs).
       </p>
 
@@ -265,7 +271,7 @@ export default function CampusStationNamesEditor({
           Starting point names · {activeStarts.length} active
         </h3>
         <p className="mt-0.5 text-[11px] text-white/40">
-          Teams gather here before release. Unused starts stay hidden after bootstrap.
+          Teams gather here before the start code. Unused starts stay hidden after bootstrap.
         </p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {activeStarts.map((row, index) => (

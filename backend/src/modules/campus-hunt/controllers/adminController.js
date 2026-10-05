@@ -90,8 +90,13 @@ async function createEvent(req, res, next) {
       qualifyFromRound2: plan.qualifyFromRound2,
       qualifyFromRound3: plan.qualifyFromRound3,
     };
-    payload.finaleCapacity = plan.finaleCapacity || payload.finaleCapacity || 12;
-    payload.finaleDirectFromR1 = plan.qualifyFromRound1;
+    payload.finaleCapacity = 0;
+    payload.finaleDirectFromR1 = 0;
+    payload.playerRoundAccess = {
+      round1: true,
+      survival: false,
+      finale: false,
+    };
     const event = await CampusHuntEvent.create(payload);
     const round = await CampusHuntRound.create({
       eventId: event._id,
@@ -138,6 +143,9 @@ async function updateEvent(req, res, next) {
       'startCount',
       'stationCount',
       'campusStarts',
+      'destinationName',
+      'organizerFinishCode',
+      'organizerStartCode',
       'startingScore',
       'featureNotes',
       'scoringConfig',
@@ -149,8 +157,18 @@ async function updateEvent(req, res, next) {
     for (const key of fields) {
       if (req.body[key] !== undefined) allowed[key] = req.body[key];
     }
-    if (allowed.publicLeaderboardLive !== undefined) {
-      allowed.publicLeaderboardLive = allowed.publicLeaderboardLive === true;
+    if (allowed.organizerFinishCode !== undefined) {
+      allowed.organizerFinishCode = String(allowed.organizerFinishCode || '')
+        .trim()
+        .toUpperCase() || 'MSFINISH';
+    }
+    if (allowed.organizerStartCode !== undefined) {
+      allowed.organizerStartCode = String(allowed.organizerStartCode || '')
+        .trim()
+        .toUpperCase() || 'GO';
+    }
+    if (allowed.destinationName !== undefined) {
+      allowed.destinationName = String(allowed.destinationName || '').trim() || 'Mindspark Lobby';
     }
     if (allowed.publicLoginLive !== undefined) {
       allowed.publicLoginLive = allowed.publicLoginLive === true;
@@ -198,8 +216,13 @@ async function updateEvent(req, res, next) {
         qualifyFromRound2: plan.qualifyFromRound2,
         qualifyFromRound3: plan.qualifyFromRound3,
       };
-      allowed.finaleCapacity = format.finaleTeams || plan.finaleCapacity;
-      allowed.finaleDirectFromR1 = format.directFromR1;
+      allowed.finaleCapacity = 0;
+      allowed.finaleDirectFromR1 = 0;
+      allowed.playerRoundAccess = {
+        round1: true,
+        survival: false,
+        finale: false,
+      };
       syncQualification = format.qualification;
     }
     const event = await CampusHuntEvent.findByIdAndUpdate(
@@ -223,18 +246,38 @@ async function updateEvent(req, res, next) {
         },
       );
     }
+    let pruned = null;
+    if (allowed.teamCapacity != null) {
+      try {
+        const { pruneExcessTeams } = require('../services/capacityService');
+        pruned = await pruneExcessTeams(event._id, allowed.teamCapacity);
+      } catch (pruneErr) {
+        console.warn('[updateEvent] prune skipped:', pruneErr.message);
+        pruned = { kept: null, removed: 0, error: pruneErr.message };
+      }
+    }
     await writeAudit({
       eventId: event._id,
       ...adminActor(req),
       action: 'event_updated',
       targetType: 'event',
       targetId: event._id,
-      after: { ...allowed, qualification: syncQualification || undefined },
+      after: {
+        ...allowed,
+        qualification: syncQualification || undefined,
+        prunedTeams: pruned?.removed || 0,
+      },
       reason: req.body.reason || '',
+    }).catch((auditErr) => {
+      console.warn('[updateEvent] audit skipped:', auditErr?.message || auditErr);
     });
     return res.json({
       success: true,
-      data: { event, qualification: syncQualification || undefined },
+      data: {
+        event,
+        qualification: syncQualification || undefined,
+        pruned,
+      },
     });
   } catch (err) {
     return next(err);
@@ -284,10 +327,19 @@ async function getEventOverview(req, res, next) {
     const event = await CampusHuntEvent.findById(eventId);
     if (!event) return res.status(404).json({ success: false, message: 'Event not found' });
 
-    const [rounds, teams, issues, checkpoints, routes, challenges, volunteers, startingPoints] = await Promise.all([
+    const settled = await Promise.allSettled([
       CampusHuntRound.find({ eventId }),
       CampusHuntTeam.find({ eventId })
-        .select('status currentStage currentScore finishedAt routeId startingPointId scheduledStartAt clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId leaderUserId memberUserIds accessPack'),
+        .select(
+          'status currentStage currentScore finishedAt routeId roundId startingPointId scheduledStartAt '
+          + 'clue1ChallengeId firstCheckpointId clue2ChallengeId secondCheckpointId '
+          + 'clue3ChallengeId thirdCheckpointId clue4ChallengeId fourthCheckpointId '
+          + 'clue5ChallengeId fifthCheckpointId clue6ChallengeId '
+          + 'leaderUserId memberUserIds leaderName accessPack '
+          + '+accessPack.encryptedTeamPassword +accessPack.encryptedSharedScannerPassword '
+          + '+accessPack.leader.encryptedPassword +accessPack.leader.password '
+          + '+accessPack.sharedScannerPassword',
+        ),
       CampusHuntIssueReport.countDocuments({ eventId, status: 'open' }),
       CampusHuntCheckpoint.find({ eventId }).select('checkpointKey progressionKey active locationName routeId'),
       CampusHuntRoute.find({ eventId }).select('routeKey name teamSlots active'),
@@ -295,6 +347,33 @@ async function getEventOverview(req, res, next) {
       CampusHuntVolunteerAccess.find({ eventId, enabled: true }).select('checkpointIds'),
       CampusHuntStartingPoint.find({ eventId, active: { $ne: false } }).select('_id code active'),
     ]);
+
+    const valueOr = (result, fallback) => (
+      result.status === 'fulfilled' ? result.value : fallback
+    );
+    settled.forEach((result, idx) => {
+      if (result.status === 'rejected') {
+        console.warn(`[getEventOverview] query[${idx}] failed:`, result.reason?.message || result.reason);
+      }
+    });
+
+    const rounds = valueOr(settled[0], []);
+    const teams = valueOr(settled[1], []);
+    const issues = valueOr(settled[2], 0);
+    const checkpoints = valueOr(settled[3], []);
+    const routes = valueOr(settled[4], []);
+    const challenges = valueOr(settled[5], []);
+    const volunteers = valueOr(settled[6], []);
+    const startingPoints = valueOr(settled[7], []);
+
+    // Core collections failed together → ask client to retry (don't 500).
+    if (settled[0].status === 'rejected' && settled[1].status === 'rejected') {
+      return res.status(503).json({
+        success: false,
+        message: 'Database briefly unavailable — refresh in a few seconds.',
+        code: 'DB_UNAVAILABLE',
+      });
+    }
 
     const activeTeams = teams.filter((t) => t.status === 'active' || (t.currentStage !== 'WAITING' && t.currentStage !== 'SCORE_LOCKED')).length;
     const finishedTeams = teams.filter((t) => t.currentStage === 'SCORE_LOCKED').length;
@@ -315,6 +394,16 @@ async function getEventOverview(req, res, next) {
         String(checkpoint.routeId) === routeId
         && /Route\s+[A-Z0-9]+\s+(Checkpoint|Finish Zone)/i.test(checkpoint.locationName || '')
       )).length;
+      const progressionStages = new Set(
+        [...checkpointKeys].map((key) => {
+          const text = String(key || '').trim().toUpperCase();
+          if (/^[1-5]$/.test(text)) return text;
+          const match = text.match(/^([1-5])[-_]/);
+          return match ? match[1] : text;
+        }),
+      );
+      const hasPathClues = [1, 2, 3, 4, 5, 6].every((n) => challengeNumbers.has(n));
+      const hasPathStops = ['1', '2', '3', '4', '5'].every((k) => progressionStages.has(k));
       return {
         id: routeId,
         routeKey: route.routeKey,
@@ -326,24 +415,45 @@ async function getEventOverview(req, res, next) {
         checkpointsConfigured: checkpointKeys.size,
         placeholderLocations,
         ready: route.active
-          && challengeNumbers.size >= 5
-          && checkpointKeys.size >= 5
+          && hasPathClues
+          && hasPathStops
           && placeholderLocations === 0,
       };
     });
-    const { isTeamRosterReady } = require('../utils/roster');
+    const { isTeamRosterReady, isTeamPasswordReady } = require('../utils/roster');
     const { resolveDemoScale } = require('../utils/demoScale');
     const { selectCompetitionTeams } = require('../services/startScheduleService');
     const scale = resolveDemoScale(event);
     const roundOne = rounds.find((round) => Number(round.roundNumber) === 1);
-    const roundTeams = roundOne?._id
-      ? teams.filter((team) => String(team.roundId) === String(roundOne._id))
-      : teams;
+    const matchedRoundTeams = roundOne?._id
+      ? teams.filter((team) => String(team.roundId || '') === String(roundOne._id))
+      : [];
+    // Fall back to all event teams if roundId was never set on older rows.
+    const roundTeams = matchedRoundTeams.length ? matchedRoundTeams : teams;
     const competitionTeams = selectCompetitionTeams(roundTeams, event.teamCapacity);
     const leftoverTeams = Math.max(0, roundTeams.length - competitionTeams.length);
-    const teamsReady = competitionTeams.filter((team) => (
-      team.routeId && isTeamRosterReady(team, scale.teamSize)
-    )).length;
+
+    // Shared ST-* posters are anchored on one route — treat path stops as event-wide.
+    const sharedProgression = new Set(
+      checkpoints
+        .filter((checkpoint) => checkpoint.active !== false)
+        .map((checkpoint) => {
+          const text = String(checkpoint.progressionKey || checkpoint.checkpointKey || '')
+            .trim()
+            .toUpperCase();
+          if (/^[1-5]$/.test(text)) return text;
+          const match = text.match(/^([1-5])[-_]/);
+          return match ? match[1] : '';
+        })
+        .filter(Boolean),
+    );
+    const eventHasPathStops = ['1', '2', '3', '4', '5'].every((k) => sharedProgression.has(k));
+    const eventHasPathClues = [1, 2, 3, 4, 5, 6].every((n) => (
+      challenges.some((challenge) => Number(challenge.challengeNumber) === n)
+    ));
+
+    const teamsReady = competitionTeams.filter((team) => isTeamRosterReady(team, scale.teamSize)).length;
+    const passwordsReady = competitionTeams.filter((team) => isTeamPasswordReady(team)).length;
     const startAssignmentsReady = competitionTeams.filter((team) => (
       team.startingPointId
       && team.routeId
@@ -356,31 +466,43 @@ async function getEventOverview(req, res, next) {
       && team.thirdCheckpointId
       && team.clue4ChallengeId
       && team.fourthCheckpointId
+      && team.clue5ChallengeId
+      && team.fifthCheckpointId
+      && team.clue6ChallengeId
     )).length;
     // Player scan is primary — volunteers are optional ops help, not a go-live gate.
     const startingPointsReady = startingPoints.filter((p) => p.active !== false).length
-      >= Math.max(1, Number(event.startCount) || 4);
+      >= Math.max(1, Number(event.startCount) || 1);
+    const routesConfigured = eventHasPathStops && eventHasPathClues;
+    // Links are default-ready when teams exist; export auto-fills passwords/paths.
+    const linksDefaultReady = competitionTeams.length > 0;
     const readiness = {
-      ready: competitionTeams.length > 0
-        && teamsReady === competitionTeams.length
-        && startAssignmentsReady === competitionTeams.length
-        && roundOne?.scheduleStatus === 'locked'
-        && routeReadiness.some((route) => route.ready)
+      ready: linksDefaultReady
+        && (passwordsReady === competitionTeams.length || routesConfigured)
         && startingPointsReady,
+      offlineLinksReady: linksDefaultReady,
       teamsReady,
+      passwordsReady,
       teamsTotal: competitionTeams.length,
       teamsInDb: teams.length,
       leftoverTeams,
       rostersIncomplete: competitionTeams.length - teamsReady,
       startAssignmentsReady,
       scheduleLocked: roundOne?.scheduleStatus === 'locked',
+      scheduleGenerated: ['generated', 'locked'].includes(String(roundOne?.scheduleStatus || '')),
       unassignedTeams: competitionTeams.filter((team) => !team.routeId).length,
-      routesReady: routeReadiness.filter((route) => route.ready).length,
+      routesReady: routesConfigured ? Math.max(1, routeReadiness.filter((route) => route.active).length) : 0,
       routesTotal: routeReadiness.length,
       startingPointsReady,
       startingPointsCount: startingPoints.length,
       volunteersConfigured: volunteers.length,
-      routeReadiness,
+      routeReadiness: routeReadiness.map((row) => ({
+        ...row,
+        // Shared stations count for every route once event-wide path stops exist.
+        ready: row.active
+          && row.challengesConfigured >= 6
+          && (row.ready || eventHasPathStops),
+      })),
     };
 
     const {
@@ -411,6 +533,17 @@ async function getEventOverview(req, res, next) {
       },
     });
   } catch (err) {
+    console.error('[getEventOverview]', err?.message || err);
+    const mongoish = /Mongo|ENOTFOUND|ECONNRESET|timed out|PoolCleared/i.test(
+      String(err?.message || err?.name || ''),
+    );
+    if (mongoish) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database briefly unavailable — refresh in a few seconds.',
+        code: 'DB_UNAVAILABLE',
+      });
+    }
     return next(err);
   }
 }
@@ -1043,7 +1176,7 @@ async function bulkSaveClue4Variants(req, res, next) {
   }
 }
 
-/** One-shot Clue 5 / Final save: all start routes in one request. */
+/** One-shot Clue 5 save: unique letter-word per team. */
 async function bulkSaveClue5Variants(req, res, next) {
   try {
     let roundId = req.body.roundId;
@@ -1057,11 +1190,12 @@ async function bulkSaveClue5Variants(req, res, next) {
     if (!roundId) {
       return res.status(404).json({ success: false, message: 'Round 1 not found' });
     }
+    const variants = Array.isArray(req.body.variants) ? req.body.variants : [];
     const routes = Array.isArray(req.body.routes) ? req.body.routes : [];
-    if (!routes.length) {
+    if (!variants.length && !routes.length) {
       return res.status(400).json({
         success: false,
-        message: 'routes array required (one Final per start path)',
+        message: 'variants array required (unique letter word per team)',
       });
     }
     const data = await bulkSaveClue5({
@@ -1069,6 +1203,7 @@ async function bulkSaveClue5Variants(req, res, next) {
       roundId,
       actor: adminActor(req),
       scoring: req.body.scoring || {},
+      variants,
       routes,
     });
     if (data.saved === 0 && data.errors?.length) {
@@ -1177,7 +1312,7 @@ async function manualReleaseTeam(req, res, next) {
   }
 }
 
-/** After Final (Clue 5): organizer marks team reached at their start → score locked. */
+/** After Clue 6: organizer marks team reached at Mindspark Lobby → score locked. */
 async function markTeamStartReached(req, res, next) {
   try {
     const { markTeamReachedAtStart } = require('../services/finishService');
@@ -1201,7 +1336,7 @@ async function getStartDashboard(req, res, next) {
     if (round?.status === 'live') {
       await releaseDueTeams({ eventId: round.eventId, roundId: round._id });
     }
-    const [points, teams, checkpoints] = await Promise.all([
+    const [points, teams, checkpoints, eventDoc] = await Promise.all([
       CampusHuntStartingPoint.find({ eventId: req.params.eventId }).sort({ displayOrder: 1 }),
       CampusHuntTeam.find({ eventId: req.params.eventId })
         .populate('routeId', 'routeKey name')
@@ -1209,6 +1344,9 @@ async function getStartDashboard(req, res, next) {
         .populate('clue1ChallengeId', 'variantKey')
         .sort({ scheduledStartAt: 1, teamCode: 1 }),
       CampusHuntCheckpointVerification.find({ eventId: req.params.eventId }),
+      CampusHuntEvent.findById(req.params.eventId)
+        .select('destinationName organizerFinishCode teamCapacity startCount teamSize')
+        .lean(),
     ]);
     const cp1Done = new Set(
       checkpoints
@@ -1238,7 +1376,7 @@ async function getStartDashboard(req, res, next) {
       const assigned = rows.filter((team) => String(team.startingPoint?._id) === String(point._id));
       const count = (status) => assigned.filter((team) => team.startStatus === status).length;
       const returning = assigned.filter((team) => (
-        ['CLUE_5_COMPLETED', 'CLUE_5_FAILED'].includes(team.currentStage)
+        ['CLUE_6_COMPLETED', 'CLUE_6_FAILED'].includes(team.currentStage)
       )).length;
       const finishLocked = assigned.filter((team) => (
         ['SCORE_LOCKED', 'FINISH_COMPLETED'].includes(team.currentStage)
@@ -1266,7 +1404,14 @@ async function getStartDashboard(req, res, next) {
     });
     return res.json({
       success: true,
-      data: { round, startingPoints: grouped, teams: rows, serverTime: new Date() },
+      data: {
+        round,
+        startingPoints: grouped,
+        teams: rows,
+        serverTime: new Date(),
+        destinationName: eventDoc?.destinationName || 'Mindspark Lobby',
+        organizerFinishCode: String(eventDoc?.organizerFinishCode || 'MSFINISH').toUpperCase(),
+      },
     });
   } catch (err) {
     return next(err);
@@ -1907,7 +2052,7 @@ async function updateTeam(req, res, next) {
     const eventForSize = await CampusHuntEvent.findById(team.eventId)
       .select('teamSize')
       .lean();
-    const people = Math.max(2, Math.min(8, Number(eventForSize?.teamSize) || 4));
+    const people = Math.max(2, Math.min(12, Number(eventForSize?.teamSize) || 4));
     const scannersNeeded = Math.max(1, people - 1);
 
     if (Array.isArray(req.body.memberNames)) {
@@ -2399,14 +2544,14 @@ async function upsertCheckpoint(req, res, next) {
     }
 
     const normalizedKey = String(checkpointKey).trim().toUpperCase();
-    // Wave keys like 1-T1 / 2-T3 must keep progressionKey as 1|2|3|4|FINISH (not 2-T1).
+    // Wave keys like 1-T1 / 2-T3 must keep progressionKey as 1|2|3|4|5|FINISH (not 2-T1).
     const rawProg = String(progressionKey || '').trim().toUpperCase();
     let normalizedProgression = rawProg;
-    if (!['1', '2', '3', '4', 'FINISH'].includes(normalizedProgression)) {
+    if (!['1', '2', '3', '4', '5', 'FINISH'].includes(normalizedProgression)) {
       if (normalizedKey === 'FINISH' || normalizedKey.startsWith('FINISH')) {
         normalizedProgression = 'FINISH';
       } else {
-        const match = normalizedKey.match(/^([1234])(?:-|$)/);
+        const match = normalizedKey.match(/^([12345])(?:-|$)/);
         normalizedProgression = match ? match[1] : '1';
       }
     }
@@ -2558,8 +2703,8 @@ async function updateCheckpoint(req, res, next) {
  */
 function progressionStage(raw) {
   const text = String(raw || '').trim().toUpperCase();
-  if (/^[1-4]$/.test(text)) return text;
-  const fromKey = text.match(/^([1-4])[-_]/);
+  if (/^[1-5]$/.test(text)) return text;
+  const fromKey = text.match(/^([1-5])[-_]/);
   return fromKey ? fromKey[1] : text;
 }
 
@@ -2671,9 +2816,10 @@ async function listStationQr(req, res, next) {
           { secondCheckpointId: { $exists: true, $ne: null } },
           { thirdCheckpointId: { $exists: true, $ne: null } },
           { fourthCheckpointId: { $exists: true, $ne: null } },
+          { fifthCheckpointId: { $exists: true, $ne: null } },
         ],
       })
-        .select('teamCode teamName firstCheckpointId secondCheckpointId thirdCheckpointId fourthCheckpointId startingPointId routeId')
+        .select('teamCode teamName firstCheckpointId secondCheckpointId thirdCheckpointId fourthCheckpointId fifthCheckpointId startingPointId routeId')
         .lean(),
     ]);
     const routeById = new Map(routes.map((r) => [String(r._id), r]));
@@ -2682,6 +2828,7 @@ async function listStationQr(req, res, next) {
     const teamsBySecondCheckpoint = new Map();
     const teamsByThirdCheckpoint = new Map();
     const teamsByFourthCheckpoint = new Map();
+    const teamsByFifthCheckpoint = new Map();
     for (const team of assignedTeams) {
       if (team.firstCheckpointId) {
         const key = String(team.firstCheckpointId);
@@ -2702,6 +2849,11 @@ async function listStationQr(req, res, next) {
         const key = String(team.fourthCheckpointId);
         if (!teamsByFourthCheckpoint.has(key)) teamsByFourthCheckpoint.set(key, []);
         teamsByFourthCheckpoint.get(key).push(team);
+      }
+      if (team.fifthCheckpointId) {
+        const key = String(team.fifthCheckpointId);
+        if (!teamsByFifthCheckpoint.has(key)) teamsByFifthCheckpoint.set(key, []);
+        teamsByFifthCheckpoint.get(key).push(team);
       }
     }
 
@@ -2727,13 +2879,15 @@ async function listStationQr(req, res, next) {
         .filter(Boolean)
         .map(teamPosterLabel);
       const fromAssignment = (
-        prog === '4'
-          ? (teamsByFourthCheckpoint.get(String(c._id)) || [])
-          : prog === '3'
-            ? (teamsByThirdCheckpoint.get(String(c._id)) || [])
-            : prog === '2'
-              ? (teamsBySecondCheckpoint.get(String(c._id)) || [])
-              : (teamsByFirstCheckpoint.get(String(c._id)) || [])
+        prog === '5'
+          ? (teamsByFifthCheckpoint.get(String(c._id)) || [])
+          : prog === '4'
+            ? (teamsByFourthCheckpoint.get(String(c._id)) || [])
+            : prog === '3'
+              ? (teamsByThirdCheckpoint.get(String(c._id)) || [])
+              : prog === '2'
+                ? (teamsBySecondCheckpoint.get(String(c._id)) || [])
+                : (teamsByFirstCheckpoint.get(String(c._id)) || [])
       ).map(teamPosterLabel);
       // Prefer allow-list; fall back to teams whose checkpointId points here
       const seen = new Set();
@@ -2806,20 +2960,30 @@ async function listStationQr(req, res, next) {
       progressionKey: '4',
       targetPosters: TARGET_POSTERS,
     });
+    const fifth = buildSharedPrintPacks({
+      stations,
+      huntStations,
+      waitNameSet,
+      progressionKey: '5',
+      targetPosters: TARGET_POSTERS,
+    });
 
     const firstStopPrintPacks = first.printPacks;
     const secondStopPrintPacks = second.printPacks;
     const thirdStopPrintPacks = third.printPacks;
     const fourthStopPrintPacks = fourth.printPacks;
+    const fifthStopPrintPacks = fifth.printPacks;
     const skippedUnwanted = first.skipped;
     const skippedSecond = second.skipped;
     const skippedThird = third.skipped;
     const skippedFourth = fourth.skipped;
+    const skippedFifth = fifth.skipped;
 
     const totalPosters = firstStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
     const totalSecondPosters = secondStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
     const totalThirdPosters = thirdStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
     const totalFourthPosters = fourthStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
+    const totalFifthPosters = fifthStopPrintPacks.reduce((sum, pack) => sum + pack.posterCount, 0);
 
     return res.json({
       success: true,
@@ -2829,6 +2993,7 @@ async function listStationQr(req, res, next) {
         secondStopPrintPacks,
         thirdStopPrintPacks,
         fourthStopPrintPacks,
+        fifthStopPrintPacks,
         campusStations: huntStations,
         printSummary: {
           places: firstStopPrintPacks.length,
@@ -2844,10 +3009,14 @@ async function listStationQr(req, res, next) {
           fourthPlaces: fourthStopPrintPacks.length,
           fourthPosters: totalFourthPosters,
           fourthSkipped: skippedFourth,
+          fifthPlaces: fifthStopPrintPacks.length,
+          fifthPosters: totalFifthPosters,
+          fifthSkipped: skippedFifth,
         },
         hint:
-          'Clue 1: orange shared QRs. Clue 2: green. Clue 3: blue. '
-          + 'Clue 4: purple. After full roster scans, teams enter their team code.',
+          'Clue 1: orange · Clue 2: green · Clue 3: blue · Clue 4: purple · Clue 5: red (FIFTH SCAN). '
+          + 'Each campus place gets 5 shared stage QRs (not per team). Leader scans once — next clue unlocks. '
+          + 'Clue 6 → Mindspark Lobby.',
       },
     });
   } catch (err) {
@@ -2908,7 +3077,13 @@ async function listVolunteers(req, res, next) {
 async function liveTeams(req, res, next) {
   try {
     const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
-      .sort({ currentScore: -1, teamCode: 1 });
+      .select(
+        'teamCode name status currentStage currentScore finishedAt routeId roundId '
+        + 'startingPointId scheduledStartAt leaderName leaderUserId memberUserIds '
+        + 'clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId',
+      )
+      .sort({ currentScore: -1, teamCode: 1 })
+      .lean();
     return res.json({ success: true, data: { teams } });
   } catch (err) {
     return next(err);
@@ -3156,25 +3331,25 @@ async function manualVerifyCheckpoint(req, res, next) {
 }
 
 /**
- * Playtest helper: force team onto the scan stage for orange/green/blue/purple, then complete full roster scan.
- * scan: '1' | '2' | '3' | '4' | 'all'
+ * Playtest helper: force team onto the scan stage for orange/green/blue/purple/red, then complete full roster scan.
+ * scan: '1' | '2' | '3' | '4' | '5' | 'all'
  */
 async function playtestCompleteScan(req, res, next) {
   try {
     const scanRaw = String(req.body.scan || '').trim().toLowerCase();
-    const scans = scanRaw === 'all' ? ['1', '2', '3', '4'] : [scanRaw];
-    if (!scans.every((s) => ['1', '2', '3', '4'].includes(s))) {
+    const scans = scanRaw === 'all' ? ['1', '2', '3', '4', '5'] : [scanRaw];
+    if (!scans.every((s) => ['1', '2', '3', '4', '5'].includes(s))) {
       return res.status(400).json({
         success: false,
-        message: 'scan must be 1 (orange), 2 (green), 3 (blue), 4 (purple), or all',
+        message: 'scan must be 1 (orange), 2 (green), 3 (blue), 4 (purple), 5 (red), or all',
       });
     }
 
     let team = await CampusHuntTeam.findById(req.params.teamId);
     if (!team) return res.status(404).json({ success: false, message: 'Team not found' });
 
-    const event = await CampusHuntEvent.findById(team.eventId).select('teamSize').lean();
-    const people = Math.max(2, Math.min(8, Number(event?.teamSize) || 4));
+    const { CHECKPOINT_SCAN_REQUIRED } = require('../constants');
+    const scanRequired = CHECKPOINT_SCAN_REQUIRED;
 
     const stageForScan = {
       1: 'CLUE_1_COMPLETED',
@@ -3182,14 +3357,16 @@ async function playtestCompleteScan(req, res, next) {
       // Blue only after Clue 3 riddle (green auto-opens Clue 3)
       3: 'CLUE_3_COMPLETED',
       4: 'CLUE_4_COMPLETED',
+      5: 'CLUE_5_COMPLETED',
     };
     const checkpointField = {
       1: 'firstCheckpointId',
       2: 'secondCheckpointId',
       3: 'thirdCheckpointId',
       4: 'fourthCheckpointId',
+      5: 'fifthCheckpointId',
     };
-    const labelFor = { 1: 'Orange', 2: 'Green', 3: 'Blue', 4: 'Purple' };
+    const labelFor = { 1: 'Orange', 2: 'Green', 3: 'Blue', 4: 'Purple', 5: 'Red' };
     const done = [];
 
     for (const scan of scans) {
@@ -3225,15 +3402,15 @@ async function playtestCompleteScan(req, res, next) {
         checkpoint,
         volunteer: { ...adminActor(req), actorType: 'admin' },
         source: 'manual',
-        notes: `Playtest ${people}/${people} ${labelFor[scan]}`,
-        forceMemberIds: team.allMemberIds(),
+        notes: `Playtest leader-only ${labelFor[scan]}`,
+        forceMemberIds: [String(team.leaderUserId)],
       });
       done.push({
         scan,
         label: labelFor[scan],
         teamStage: result.teamStage,
         alreadyProcessed: Boolean(result.alreadyProcessed),
-        requiredCount: people,
+        requiredCount: scanRequired,
       });
       // eslint-disable-next-line no-await-in-loop
       team = await CampusHuntTeam.findById(team._id);
@@ -3269,6 +3446,8 @@ async function playtestCompleteScan(req, res, next) {
 /**
  * Playtest: wipe one team's progress so you can start the flow again.
  * Keeps schedule binding (start point / clue IDs). Score → startingScore (100).
+ * Stamps offlineResetAt + bumps seq so the leader phone resets on next Wi‑Fi open.
+ * Stays WAITING — offline phones still need the shared start code.
  */
 async function playtestResetTeam(req, res, next) {
   try {
@@ -3279,35 +3458,23 @@ async function playtestResetTeam(req, res, next) {
     const before = {
       currentStage: team.currentStage,
       currentScore: team.currentScore,
+      finalScore: team.finalScore,
       startStatus: team.startStatus,
+      status: team.status,
+      offlineProgressSeq: team.offlineProgressSeq,
+      offlineResetAt: team.offlineResetAt,
     };
 
-    await Promise.all([
-      CampusHuntTeamProgress.deleteMany({ teamId: team._id }),
-      CampusHuntCheckpointVerification.deleteMany({ teamId: team._id }),
-    ]);
+    const { resetTeamHuntProgress } = require('../services/offlineExportService');
+    const result = await resetTeamHuntProgress(team, {
+      score: startScore,
+      stage: 'WAITING',
+      bumpSeq: true,
+      forceGridReset: true,
+    });
 
-    team.currentStage = 'WAITING';
-    team.status = 'registered';
-    team.startStatus = 'WAITING';
-    team.currentScore = startScore;
-    team.startingScore = startScore;
-    team.finalScore = undefined;
-    team.scoreLockedAt = undefined;
-    team.finishedAt = undefined;
-    team.actualStartAt = undefined;
-    team.lastCheckpointNumber = undefined;
-    team.suddenDeathRank = undefined;
-    team.stats = {
-      hintsUsed: 0,
-      failedAttempts: 0,
-      manualPenalty: 0,
-      totalCompletionMs: undefined,
-    };
-    await team.save();
-
-    const { publishTeamProgress } = require('../services/teamProgressBus');
-    publishTeamProgress(team._id);
+    // Re-read after Zip reset so UI gets the true board state.
+    const unlocked = await CampusHuntTeam.findById(team._id);
 
     await writeAudit({
       eventId: team.eventId,
@@ -3318,18 +3485,25 @@ async function playtestResetTeam(req, res, next) {
       reason: req.body.reason || 'Playtest desk — start over',
       before,
       after: {
-        currentStage: team.currentStage,
-        currentScore: team.currentScore,
-        startStatus: team.startStatus,
+        currentStage: unlocked?.currentStage || 'WAITING',
+        currentScore: unlocked?.currentScore ?? result.score,
+        startStatus: unlocked?.startStatus || 'WAITING',
+        status: unlocked?.status || 'registered',
+        offlineProgressSeq: unlocked?.offlineProgressSeq,
+        offlineResetAt: unlocked?.offlineResetAt || result.offlineResetAt,
       },
     });
 
     return res.json({
       success: true,
       data: {
-        team,
+        team: unlocked || result.team,
         scoresResetTo: startScore,
-        message: 'Team reset — use Release this team now to start again',
+        currentStage: unlocked?.currentStage || 'WAITING',
+        currentScore: unlocked?.currentScore ?? startScore,
+        offlineResetAt: unlocked?.offlineResetAt || result.offlineResetAt,
+        seq: unlocked?.offlineProgressSeq ?? result.seq,
+        message: `Reset ${unlocked?.teamCode || team.teamCode}: Waiting · ${unlocked?.currentScore ?? startScore} pts. Phone updates on Wi‑Fi, then needs start code.`,
       },
     });
   } catch (err) {
@@ -3776,6 +3950,44 @@ async function startRound(req, res, next) {
     const round = await CampusHuntRound.findById(req.params.roundId);
     if (!round) return res.status(404).json({ success: false, message: 'Round not found' });
     assertCanStart(round.status);
+
+    // One-tap start: auto generate + lock schedule when organizer skipped that step.
+    if (round.scheduleStatus !== 'locked') {
+      try {
+        await generateSchedule({
+          eventId: String(round.eventId),
+          roundId: String(round._id),
+          startsAt: new Date().toISOString(),
+          releaseIntervalMinutes: Number(req.body.releaseIntervalMinutes) > 0
+            ? Number(req.body.releaseIntervalMinutes)
+            : 1,
+          assignmentStrategy: req.body.assignmentStrategy || 'route_balanced',
+          confirm: true,
+          forceResetProgress: false,
+          reason: 'Auto-prepared on Start hunt',
+          actor: adminActor(req),
+        });
+        await lockSchedule({
+          eventId: String(round.eventId),
+          roundId: String(round._id),
+          actor: adminActor(req),
+          reason: 'Auto-locked on Start hunt',
+        });
+        const refreshed = await CampusHuntRound.findById(round._id);
+        if (refreshed) {
+          round.scheduleStatus = refreshed.scheduleStatus;
+          round.startsAt = refreshed.startsAt || round.startsAt;
+        }
+      } catch (prepErr) {
+        return res.status(prepErr.status || 409).json({
+          success: false,
+          message: prepErr.message
+            || 'Could not prepare start schedule — bootstrap clues and teams first',
+          code: prepErr.code || 'SCHEDULE_AUTO_PREP_FAILED',
+        });
+      }
+    }
+
     if (round.scheduleStatus !== 'locked') {
       return res.status(409).json({
         success: false,
@@ -3859,6 +4071,7 @@ async function startRound(req, res, next) {
         activateWaitingOnly,
         readyTeams: ready.modifiedCount,
         immediatelyReleasedTeams: due.released,
+        autoPreparedSchedule: true,
       },
     });
 
@@ -3877,18 +4090,49 @@ async function startRound(req, res, next) {
 
 async function bootstrapRound1(req, res, next) {
   try {
+    const { pruneExcessTeams } = require('../services/capacityService');
+    let pruned = { kept: 0, removed: 0 };
+    try {
+      pruned = await pruneExcessTeams(req.params.eventId);
+    } catch (pruneErr) {
+      console.warn('[bootstrap] prune skipped:', pruneErr.message);
+    }
     const data = await bootstrapRound1Defaults({
       eventId: req.params.eventId,
       actor: adminActor(req),
       createTeams: req.body?.createTeams !== false,
       enablePublicLeaderboard: req.body?.enablePublicLeaderboard !== false,
+      teamsOnly: req.body?.teamsOnly === true,
       challengeNumbers: Array.isArray(req.body?.challengeNumbers)
         ? req.body.challengeNumbers
         : (req.body?.challengeNumber != null
           ? [Number(req.body.challengeNumber)]
           : null),
     });
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: { ...data, pruned } });
+  } catch (err) {
+    if (err.status) {
+      return res.status(err.status).json({ success: false, message: err.message });
+    }
+    return next(err);
+  }
+}
+
+/** Drop leftover teams beyond current capacity (e.g. old 40 after save to 20). */
+async function pruneEventTeams(req, res, next) {
+  try {
+    const { pruneExcessTeams } = require('../services/capacityService');
+    const pruned = await pruneExcessTeams(req.params.eventId);
+    await writeAudit({
+      eventId: req.params.eventId,
+      ...adminActor(req),
+      action: 'teams_pruned_to_capacity',
+      targetType: 'event',
+      targetId: req.params.eventId,
+      after: pruned,
+      reason: req.body?.reason || 'Trim teams to event capacity',
+    });
+    return res.json({ success: true, data: pruned });
   } catch (err) {
     if (err.status) {
       return res.status(err.status).json({ success: false, message: err.message });
@@ -3976,9 +4220,80 @@ async function updateEventCampusStations(req, res, next) {
 /** Export offline hunt packs — one JSON bundle per team for airplane-mode play. */
 async function exportOfflinePacks(req, res, next) {
   try {
+    const { pruneExcessTeams } = require('../services/capacityService');
+    let pruned = { kept: 0, removed: 0 };
+    try {
+      pruned = await pruneExcessTeams(req.params.eventId);
+    } catch (pruneErr) {
+      console.warn('[export] prune skipped:', pruneErr.message);
+    }
+
+    const event = await CampusHuntEvent.findById(req.params.eventId)
+      .select('teamCapacity college slug');
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    // Ensure passwords exist so Links stays one-click ready.
+    try {
+      const { setTeamSharedPassword } = require('../services/teamGateService');
+      const { isTeamPasswordReady } = require('../utils/roster');
+      const { selectCompetitionTeams } = require('../services/startScheduleService');
+      const allTeams = await CampusHuntTeam.find({ eventId: event._id })
+        .select('+accessPack.encryptedTeamPassword +accessPack.encryptedSharedScannerPassword '
+          + '+accessPack.leader.encryptedPassword +accessPack.scanners.encryptedPassword');
+      const field = selectCompetitionTeams(allTeams, event.teamCapacity);
+      const defaultPass = process.env.CAMPUS_HUNT_DEFAULT_TEAM_PASSWORD
+        || (String(event.college || '').toUpperCase().includes('COEP') ? 'COEP2026' : 'HUNT2026');
+      for (const team of field) {
+        if (isTeamPasswordReady(team.toObject ? team.toObject() : team)) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await setTeamSharedPassword(team, defaultPass);
+      }
+    } catch (pwdErr) {
+      console.warn('[export] password ensure skipped:', pwdErr.message);
+    }
+
+    // Auto-bind paths if missing — never fail the whole export if bind is slow/flaky.
+    try {
+      const round = await CampusHuntRound.findOne({
+        eventId: req.params.eventId,
+        roundNumber: 1,
+      }).select('_id startsAt releaseIntervalMinutes assignmentStrategy status');
+      if (round) {
+        const { selectCompetitionTeams } = require('../services/startScheduleService');
+        const teams = await CampusHuntTeam.find({ eventId: req.params.eventId })
+          .select('teamCode clue1ChallengeId clue6ChallengeId firstCheckpointId fifthCheckpointId startingPointId')
+          .lean();
+        const field = selectCompetitionTeams(teams, event.teamCapacity);
+        const needsBind = field.length > 0 && field.some((t) => (
+          !t.clue1ChallengeId
+          || !t.clue6ChallengeId
+          || !t.firstCheckpointId
+          || !t.fifthCheckpointId
+          || !t.startingPointId
+        ));
+        if (needsBind) {
+          const { generateSchedule } = require('../services/startScheduleService');
+          await generateSchedule({
+            eventId: req.params.eventId,
+            roundId: round._id,
+            startsAt: round.startsAt || new Date(),
+            releaseIntervalMinutes: round.releaseIntervalMinutes || 5,
+            assignmentStrategy: round.assignmentStrategy || 'route_balanced',
+            confirm: true,
+            actor: adminActor(req),
+            reason: 'Auto-bind paths for offline links',
+          });
+        }
+      }
+    } catch (bindErr) {
+      console.warn('[export] path bind skipped:', bindErr.message);
+    }
+
     const { exportOfflinePacks: buildPacks } = require('../services/offlineExportService');
     const data = await buildPacks(req.params.eventId);
-    await writeAudit({
+    writeAudit({
       eventId: req.params.eventId,
       ...adminActor(req),
       action: 'offline_packs_exported',
@@ -3988,14 +4303,26 @@ async function exportOfflinePacks(req, res, next) {
         teamCount: data.teamCount,
         incomplete: data.incompleteTeams?.length || 0,
         warnings: data.warnings?.length || 0,
+        prunedTeams: pruned?.removed || 0,
       },
-    });
-    return res.json({ success: true, data });
+    }).catch(() => {});
+    return res.json({ success: true, data: { ...data, pruned } });
   } catch (err) {
+    console.error('[exportOfflinePacks]', err?.message || err);
     if (err.status) {
       return res.status(err.status).json({ success: false, message: err.message });
     }
-    return next(err);
+    const mongoish = /Mongo|ENOTFOUND|ECONNRESET|timed out|PoolCleared/i.test(String(err?.message || err?.name || ''));
+    if (mongoish) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database briefly unavailable — try Create links again in a few seconds.',
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Could not create links',
+    });
   }
 }
 
@@ -4133,6 +4460,7 @@ module.exports = {
   updateIssue,
   listAudit,
   bootstrapRound1,
+  pruneEventTeams,
   repairTeamRosters,
   exportOfflinePacks,
   importOfflineResults,

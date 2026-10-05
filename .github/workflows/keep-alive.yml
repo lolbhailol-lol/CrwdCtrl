@@ -44,5 +44,6 @@ jobs:
             echo "All probes failed (cold start or outage) — not failing the job"
           fi
 
-      - name: Log timestamp
-        run: echo "Ping completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+      run: |
+  echo "Ping completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

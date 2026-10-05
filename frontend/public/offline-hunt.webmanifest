@@ -1,8 +1,8 @@
 {
   "id": "/campus-hunt/offline",
-  "name": "Campus Hunt Offline",
+  "name": "CrwdCtrl Hunt",
   "short_name": "Hunt",
-  "description": "Play Campus Hunt in airplane mode. Not the main CrwdCtrl website.",
+  "description": "Offline campus hunt for your team. Not the main CrwdCtrl website. Re-open your install link on Wi‑Fi for updates.",
   "start_url": "/campus-hunt/offline",
   "scope": "/campus-hunt/offline",
   "display": "standalone",

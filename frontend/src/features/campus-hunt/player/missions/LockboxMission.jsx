@@ -61,7 +61,7 @@ export default function LockboxMission({
             ? (locationName
               ? 'Travel together. Read the clue, then pick up the key at this spot.'
               : (view?.locationHint || 'Travel together to this spot, then pick up the key.'))
-            : (view?.instruction || 'Each seat has a piece. Talk it out — leader submits the code.')
+            : (view?.instruction || 'All pieces are on this phone — rebuild the code and submit.')
         }
         requirements={
           isKey
@@ -73,9 +73,9 @@ export default function LockboxMission({
               'Find the physical key · enter its ID',
             ]
             : [
-              'Each player reads only their piece',
-              'Share out loud — do not show phones',
-              'Only the Team Leader submits the final code',
+              'Read every piece on this phone',
+              'Rebuild the code together out loud',
+              'Only the Team Leader submits',
             ]
         }
       >
@@ -115,14 +115,35 @@ export default function LockboxMission({
         )}
 
         {!isKey && (
-          <div className="mt-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">
-              Your piece · {view?.yourLabel || 'Player'}
-            </p>
-            <p className={`mt-1.5 text-base font-semibold ${theme.textClass}`}>
-              {view?.yourInfo || 'No piece assigned — ask an organizer.'}
-            </p>
-          </div>
+          Array.isArray(view?.allPieces) && view.allPieces.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">
+                Lockbox pieces · leader phone
+              </p>
+              {view.allPieces.map((piece, i) => (
+                <div
+                  key={`lb-piece-${i}`}
+                  className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5"
+                >
+                  <p className="text-[10px] uppercase tracking-wide text-white/40">
+                    {piece.label || `Piece ${i + 1}`}
+                  </p>
+                  <p className={`mt-1 text-base font-semibold ${theme.textClass}`}>
+                    {piece.info || '—'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-white/40">
+                Pieces · {view?.yourLabel || 'Leader'}
+              </p>
+              <p className={`mt-1.5 text-base font-semibold ${theme.textClass}`}>
+                {view?.yourInfo || 'No piece assigned — ask an organizer.'}
+              </p>
+            </div>
+          )
         )}
 
         {view?.rosterError && (

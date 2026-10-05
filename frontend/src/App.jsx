@@ -6,6 +6,7 @@ import { FavoritesProvider } from './context/FavoritesContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { RegisteredEventsProvider } from './context/RegisteredEventsContext'
 import { NotificationsProvider } from './context/NotificationsContext'
+import { SidebarProvider, useSidebar } from './context/SidebarContext'
 import MobileBottomNav from './components/layout/MobileBottomNav'
 import Footer from './components/layout/Footer'
 import Navbar from './components/layout/Navbar'
@@ -65,9 +66,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     onProfileClose();
   }, [location.pathname, navigate, onProfileClose, prepareRouteNavigation, startOverlayTransition]);
 
-  const shouldHideMobileBottomNav = hideChrome ||
-    pageContentLoading ||
-    !homeShellReady ||
+  const shouldHideMobileBottomNav = !homeShellReady ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
@@ -81,6 +80,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/fest-organizer') ||
     location.pathname.startsWith('/mindspark-payments') ||
     location.pathname.startsWith('/mindspark/bundle') ||
+    location.pathname.startsWith('/mindspark/auditorium') ||
     location.pathname.startsWith('/stall') ||
     location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
@@ -96,7 +96,6 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/sports/run/') ||
     location.pathname.startsWith('/competitions-view-details') ||
     location.pathname.startsWith('/competition') ||
-    location.pathname.includes('/fest/') && location.pathname.includes('/register') ||
     location.pathname.startsWith('/competition-registration');
 
   if (shouldHideMobileBottomNav) {
@@ -133,6 +132,8 @@ function ConditionalFooter() {
     location.pathname.startsWith('/fest-organizer') ||
     location.pathname.startsWith('/mindspark-payments') ||
     location.pathname.startsWith('/mindspark/bundle') ||
+    location.pathname.startsWith('/mindspark/auditorium') ||
+    location.pathname.startsWith('/mindspark/coupon-preview') ||
     location.pathname.startsWith('/stall') ||
     location.pathname.startsWith('/s/') ||
     location.pathname.startsWith('/run-club-organizer') ||
@@ -177,19 +178,15 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile,
 
   return (
     <>
-      {/* Desktop Sidebar - Hidden on mobile */}
-      <div className="hidden lg:block fixed left-0 top-0 z-40">
-        <Sidebar />
-      </div>
-      {/* Navbar - Fixed position for all pages except login/register */}
-      <div className="hidden lg:block">
-        <Navbar
-          isProfileOpen={isProfileOpen}
-          setIsProfileOpen={setIsProfileOpen}
-          onOpenProfile={onOpenProfile}
-          onShowLogin={onShowLogin}
-        />
-      </div>
+      {/* Desktop Sidebar */}
+      <Sidebar onShowLogin={onShowLogin} />
+      {/* Navbar */}
+      <Navbar
+        isProfileOpen={isProfileOpen}
+        setIsProfileOpen={setIsProfileOpen}
+        onOpenProfile={onOpenProfile}
+        onShowLogin={onShowLogin}
+      />
     </>
   );
 }
@@ -209,6 +206,7 @@ function AppContent({
   const location = useLocation();
   const navigate = useNavigate();
   const { isAuthProcessing, isLoading, isAuthenticated, isRedirectProcessing } = useAuth();
+  const { isCollapsed } = useSidebar();
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isTrekOrganizerRoute = location.pathname.startsWith('/trek-organizer');
   const isFestOrganizerRoute = location.pathname.startsWith('/fest-organizer');
@@ -261,18 +259,10 @@ function AppContent({
 
       setShowLogin(false);
       setShowRegister(false);
+      setIsProfileOpen(false);
 
       const destination = resolvePostLoginRedirect();
       const here = currentAppPath();
-
-      // Profile Google sheet: stay on Profile, toast “Login successful”, then they tap Hunt.
-      if (stayInProfile || fromProfile) {
-        setIsProfileOpen(true);
-        window.requestAnimationFrame(() => showLoginPopup());
-        return;
-      }
-
-      setIsProfileOpen(false);
 
       if (destination && destination !== here) {
         navigate(destination, { replace: true });
@@ -295,8 +285,9 @@ function AppContent({
         onShowLogin={openLoginFromProfile}
       />
 
-        <div className={isStandaloneRoute ? '' : 'lg:ml-20'}>
-        <div className={isStandaloneRoute ? '' : 'desktop-navbar-clearance'}>
+      <div className={isStandaloneRoute ? '' : `${isCollapsed ? 'lg:ml-[6.5rem]' : 'lg:ml-[15.5rem]'} transition-all duration-300 ease-in-out`}>
+        <div className={isStandaloneRoute ? '' : 'lg:pt-20'}>
+
           <ErrorBoundary>
             <PageTransitionContent>
               <Suspense fallback={<RouteSuspenseFallback />}>
@@ -354,9 +345,9 @@ function App() {
 
   const openLoginFromProfile = useCallback((options = {}) => {
     prepareLogin({
-      fromProfile: true,
-      stayInProfile: options.stayInProfile !== false,
-      returnPath: options.stayInProfile === false ? options.returnPath : undefined,
+      fromProfile: false,
+      stayInProfile: false,
+      returnPath: options.returnPath,
     });
     setShowLogin(true);
   }, []);
@@ -452,6 +443,7 @@ function App() {
         <DialogProvider>
         <FavoritesProvider>
           <RegisteredEventsProvider>
+            <SidebarProvider>
               <Router>
                 <NotificationsProvider>
                 <MobileSearchProvider>
@@ -482,6 +474,7 @@ function App() {
                 </MobileSearchProvider>
                 </NotificationsProvider>
               </Router>
+            </SidebarProvider>
           </RegisteredEventsProvider>
         </FavoritesProvider>
         </DialogProvider>

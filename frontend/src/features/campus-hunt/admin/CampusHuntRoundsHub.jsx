@@ -1,17 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { deriveCompetitionFormat } from './competitionFormat';
-import { deriveClueGeometry, suggestHuntLayout } from './campusHuntFormat';
 
 /**
- * Event hub — Round 1 only. Survival / Finale hidden for offline hunt reset.
- * Competition size drives recommended starts + campus places.
+ * Event hub — set teams × people, save, open the hunt.
  */
 export default function CampusHuntRoundsHub({
   round1Status,
-  teamCapacity = 40,
-  teamSize = 4,
-  startCount: savedStartCount,
-  stationCount: savedStationCount,
+  teamCapacity = 20,
+  teamSize = 10,
   roundPlan: roundPlanProp,
   onOpenRound,
   onSaveFormat,
@@ -32,35 +28,8 @@ export default function CampusHuntRoundsHub({
     teamSize: draftTeamSize,
   });
 
-  const suggested = useMemo(
-    () => suggestHuntLayout(previewFormat.teamCapacity),
-    [previewFormat.teamCapacity],
-  );
-
-  const previewLayout = useMemo(
-    () => deriveClueGeometry(
-      previewFormat.teamCapacity,
-      previewFormat.teamSize,
-      {
-        startCount: suggested.startCount,
-        stationCount: suggested.stationCount,
-      },
-    ),
-    [previewFormat.teamCapacity, previewFormat.teamSize, suggested.startCount, suggested.stationCount],
-  );
-
-  const currentLayout = useMemo(
-    () => deriveClueGeometry(teamCapacity, teamSize, {
-      startCount: savedStartCount,
-      stationCount: savedStationCount,
-    }),
-    [teamCapacity, teamSize, savedStartCount, savedStationCount],
-  );
-
-  const formatDirty = Number(draftCapacity) !== savedFormat.teamCapacity
-    || Number(draftTeamSize) !== savedFormat.teamSize
-    || Number(savedStartCount || 0) !== previewLayout.startCount
-    || Number(savedStationCount || 0) !== previewLayout.stationCount;
+  const dirty = previewFormat.teamCapacity !== savedFormat.teamCapacity
+    || previewFormat.teamSize !== savedFormat.teamSize;
 
   const status = String(round1Status || 'not_created').toLowerCase();
   const badge = status === 'live'
@@ -69,13 +38,10 @@ export default function CampusHuntRoundsHub({
       ? { label: 'COMPLETED', className: 'bg-emerald-500/20 text-emerald-200' }
       : { label: 'OPEN', className: 'bg-white/10 text-white/80' };
 
-  const save = (createDemoTeams = true) => {
+  const save = () => {
     onSaveFormat?.({
       teamCapacity: previewFormat.teamCapacity,
       teamSize: previewFormat.teamSize,
-      startCount: previewLayout.startCount,
-      stationCount: previewLayout.stationCount,
-      createDemoTeams,
     });
   };
 
@@ -83,29 +49,15 @@ export default function CampusHuntRoundsHub({
     <div className="space-y-5">
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <h2 className="text-lg font-bold uppercase tracking-wide">
-          Round 1 · {plan?.round1Name || 'Offline Hunt'}
+          {plan?.round1Name || 'Campus Hunt'}
         </h2>
-        <p className="mt-1 max-w-2xl text-sm text-white/55">
-          Set teams and people per team first. Starts, campus places, plant fragments, and posters
-          update from that size — then open Round 1 to name places and finish setup.
-          {plan?.hasFinale ? (
-            <>
-              {' '}
-              Finals “{plan.finaleName}”: {plan.qualifyFromRound1} from R1
-              {plan.hasRound2 ? ` + ${plan.qualifyFromRound2} from R2` : ''}
-              {plan.hasRound3 ? ` + ${plan.qualifyFromRound3} from R3` : ''}
-              {' '}
-              = {plan.finaleCapacity}.
-            </>
-          ) : null}
+        <p className="mt-1 text-sm text-white/55">
+          Set how many teams and people per team, then Save.
         </p>
 
         {typeof onSaveFormat === 'function' && (
-          <div className="mt-4 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">
-              Competition size
-            </h3>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 space-y-3 rounded-xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/5 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-xs text-white/50">
                 Teams
                 <input
@@ -114,100 +66,32 @@ export default function CampusHuntRoundsHub({
                   max={200}
                   value={draftCapacity}
                   onChange={(e) => setDraftCapacity(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
+                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2.5 text-base text-white"
                 />
               </label>
               <label className="block text-xs text-white/50">
-                People per team
+                People / team
                 <input
                   type="number"
                   min={2}
-                  max={8}
+                  max={12}
                   value={draftTeamSize}
                   onChange={(e) => setDraftTeamSize(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2 text-sm text-white"
+                  className="mt-1 w-full rounded-lg border border-white/20 bg-[#161718] px-3 py-2.5 text-base text-white"
                 />
               </label>
-              <div className="flex flex-col justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={busy || !formatDirty}
-                  onClick={() => save(true)}
-                  className="rounded-lg bg-[#0ECCEE] px-3 py-2 text-sm font-semibold text-black disabled:opacity-40"
-                >
-                  {busy ? 'Updating all…' : 'Save + update all sections'}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy || !formatDirty}
-                  onClick={() => save(false)}
-                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 disabled:opacity-40"
-                >
-                  Save layout only (no demo teams)
-                </button>
-                <p className="text-[11px] text-white/45">
-                  {previewFormat.totalPlayers} players · updates Locations, starts, places, Teams, Send links, Playtest, Live, Results. Demo teams OK to rename later.
-                </p>
-              </div>
             </div>
-
-            <div className="mt-4 rounded-xl border border-white/10 bg-black/25 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
-                Suggested layout for {previewFormat.teamCapacity} teams × {previewFormat.teamSize}
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                {[
-                  ['Starting points', previewLayout.startCount],
-                  ['Campus places', previewLayout.stationCount],
-                  ['Teams / start', `~${previewLayout.teamsPerWait}`],
-                  ['Teams / place', `~${previewLayout.teamsPerStation}`],
-                  ['Fragments / stop', previewLayout.teamSize],
-                  ['QR posters', previewLayout.stationCount],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg bg-white/5 px-2.5 py-2">
-                    <p className="text-[10px] text-white/45">{label}</p>
-                    <p className="text-lg font-bold text-white">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-white/55">
-                Save applies
-                {' '}
-                <strong className="text-white">
-                  {previewLayout.startCount} start
-                  {previewLayout.startCount === 1 ? '' : 's'}
-                </strong>
-                {' '}
-                and
-                {' '}
-                <strong className="text-white">
-                  {previewLayout.stationCount} hunt place
-                  {previewLayout.stationCount === 1 ? '' : 's'}
-                </strong>
-                .
-                Plant
-                {' '}
-                <strong className="text-white">{previewLayout.teamSize} shared written fragments</strong>
-                {' '}
-                and
-                {' '}
-                <strong className="text-white">1 QR poster</strong>
-                {' '}
-                at each place (not per team). You can still rename or tweak counts inside Round 1 → Locations / Clues.
-              </p>
-              {(savedStartCount != null || savedStationCount != null) && (
-                <p className="mt-2 text-[11px] text-white/40">
-                  Currently saved:
-                  {' '}
-                  {currentLayout.startCount} start
-                  {currentLayout.startCount === 1 ? '' : 's'}
-                  {' · '}
-                  {currentLayout.stationCount} place
-                  {currentLayout.stationCount === 1 ? '' : 's'}
-                  {formatDirty ? ' · will update on Save' : ' · matches suggestion'}
-                </p>
-              )}
-            </div>
+            <button
+              type="button"
+              disabled={busy || !dirty}
+              onClick={save}
+              className="w-full rounded-xl bg-[#0ECCEE] px-4 py-3 text-sm font-bold text-black disabled:opacity-40"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <p className="text-center text-xs text-white/45">
+              {previewFormat.teamCapacity} teams · {previewFormat.teamSize}/team · {previewFormat.totalPlayers} players
+            </p>
           </div>
         )}
       </section>
@@ -221,10 +105,10 @@ export default function CampusHuntRoundsHub({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
-                Round 1 · {plan?.round1Name || 'The Hunt'}
+                Next
               </p>
               <h3 className="mt-1 text-2xl font-bold uppercase tracking-wide text-white">
-                Open Round 1
+                Open the hunt
               </h3>
             </div>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${badge.className}`}>
@@ -232,22 +116,10 @@ export default function CampusHuntRoundsHub({
             </span>
           </div>
           <p className="mt-2 text-sm text-white/60">
-            {previewFormat.round1Teams} teams · {previewFormat.teamSize}/team ·
-            {' '}
-            {previewLayout.startCount} start
-            {previewLayout.startCount === 1 ? '' : 's'}
-            {' · '}
-            {previewLayout.stationCount} place
-            {previewLayout.stationCount === 1 ? '' : 's'}
-            {' · '}
-            Locations → Clues → Teams →
-            {' '}
-            <strong className="text-white">Send links</strong>
-            {' '}
-            → Playtest / Live
+            Places → Clues → Teams → Links → Live
           </p>
           <p className="mt-3 text-sm font-medium text-[#0ECCEE]">
-            Open setup →
+            Open →
           </p>
         </button>
       </section>

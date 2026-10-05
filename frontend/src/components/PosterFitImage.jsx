@@ -74,8 +74,14 @@ export default function PosterFitImage({
     ? preset
     : preset === 'eventHeroFit'
       ? 'eventHeroPad'
-      : 'cardPortraitPad';
-  const fitPreset = padPreset === 'eventHeroPad' ? 'eventHeroFit' : 'cardPortraitFit';
+      : preset === 'festHeroFit'
+        ? 'festHeroPad'
+        : 'cardPortraitPad';
+  const fitPreset = padPreset === 'eventHeroPad'
+    ? 'eventHeroFit'
+    : padPreset === 'festHeroPad'
+      ? 'festHeroFit'
+      : 'cardPortraitFit';
 
   const padUrl = getImageUrl(src, { preset: padPreset }) || src;
   const fitUrl = getImageUrl(src, { preset: fitPreset }) || src;
@@ -85,7 +91,7 @@ export default function PosterFitImage({
 
   return (
     <div
-      className={`absolute inset-0 overflow-hidden ${className}`}
+      className={`absolute inset-0 z-0 overflow-hidden pointer-events-none ${className}`}
       style={{ backgroundColor: bg }}
     >
       <img

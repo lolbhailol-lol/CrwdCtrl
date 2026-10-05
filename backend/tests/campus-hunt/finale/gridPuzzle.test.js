@@ -13,16 +13,18 @@ const {
   GRID_HINT_COST,
 } = require('../../../src/modules/campus-hunt/grid/levelTemplates');
 
-test('generates 3 Zip levels with 25/50/50 points', () => {
-  assert.equal(TOTAL_LEVELS, 3);
-  assert.equal(LEVEL_TEMPLATES[0].points, 25);
-  assert.equal(LEVEL_TEMPLATES[1].points, 50);
-  assert.equal(LEVEL_TEMPLATES[2].points, 50);
-  assert.equal(MAX_GRID_POINTS, 125);
+test('generates 4 Zip levels with 20/30/40/50 points', () => {
+  assert.equal(TOTAL_LEVELS, 4);
+  assert.equal(LEVEL_TEMPLATES[0].points, 20);
+  assert.equal(LEVEL_TEMPLATES[1].points, 30);
+  assert.equal(LEVEL_TEMPLATES[2].points, 40);
+  assert.equal(LEVEL_TEMPLATES[3].points, 50);
+  assert.equal(MAX_GRID_POINTS, 140);
   assert.equal(GRID_HINT_COST, 20);
-  assert.equal(LEVEL_TEMPLATES[0].rows, 5);
-  assert.equal(LEVEL_TEMPLATES[1].rows, 6);
-  assert.equal(LEVEL_TEMPLATES[2].rows, 7);
+  assert.equal(LEVEL_TEMPLATES[0].rows, 4);
+  assert.equal(LEVEL_TEMPLATES[1].rows, 5);
+  assert.equal(LEVEL_TEMPLATES[2].rows, 6);
+  assert.equal(LEVEL_TEMPLATES[3].rows, 8);
 });
 
 test('valid Zip solution path passes validation', () => {
@@ -31,7 +33,7 @@ test('valid Zip solution path passes validation', () => {
   assert.equal(puzzle.fillAll, true);
   const result = validatePath(puzzle, puzzle.solutionPath);
   assert.equal(result.ok, true);
-  assert.equal(result.points, 25);
+  assert.equal(result.points, 20);
 });
 
 test('diagonal step rejected', () => {
@@ -51,7 +53,6 @@ test('reused cell rejected', () => {
 test('incomplete fill rejected', () => {
   const puzzle = generatePuzzle(0, 101);
   const short = puzzle.solutionPath.slice(0, Math.max(2, puzzle.solutionPath.length - 3));
-  // Ensure starts at 1 and maybe ends wrong
   const result = validatePath(puzzle, short);
   assert.equal(result.ok, false);
 });
@@ -62,5 +63,5 @@ test('public puzzle view hides solution', () => {
   assert.equal(pub.puzzleId, puzzle.puzzleId);
   assert.equal(pub.solutionPath, undefined);
   assert.ok(Array.isArray(pub.numbers));
-  assert.equal(pub.points, 50);
+  assert.equal(pub.points, 40);
 });

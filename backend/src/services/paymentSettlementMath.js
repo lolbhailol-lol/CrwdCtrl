@@ -59,7 +59,24 @@ function isDashboardBucket(bucket) {
 function isCashfreeGateway(gateway) {
   const g = String(gateway || 'cashfree').trim().toLowerCase();
   if (g === 'razorpay' || g === 'organizer_qr' || g === 'manual_organizer') return false;
-  return g === 'cashfree' || g === '';
+  // Bundle regs are fulfilled from a single Cashfree order (payment_gateway: cashfree_bundle).
+  return g === 'cashfree' || g === 'cashfree_bundle' || g === '';
+}
+
+/**
+ * Merchant order id Cashfree knows about.
+ * MindSpark bundle regs store `${orderId}:${itemId}` locally — strip the suffix.
+ */
+function cashfreeOrderIdOf(...values) {
+  for (const value of values) {
+    const raw = String(value || '').trim();
+    if (!raw) continue;
+    const bundle = raw.match(/^(order_[a-f0-9]+)(?::[a-f0-9]+)?$/i);
+    if (bundle) return bundle[1];
+    if (/^order_/i.test(raw)) return raw.split(':')[0];
+    return raw;
+  }
+  return '';
 }
 
 function isTouchGrassText(...parts) {
@@ -99,9 +116,16 @@ function isDummyOrTestPayment(row = {}) {
   return false;
 }
 
+/** Local PAID row whose Cashfree order no longer exists (sandbox leftover / bad webhook). */
+function isCashfreeMissingOrder(row = {}) {
+  const st = String(row.settlementStatus || row.settlementRawStatus || '').trim().toLowerCase();
+  return st === 'order_missing' || st === 'missing_order';
+}
+
 function isDashboardRow(row = {}) {
   if (!isInScopeBucket(row.bucket)) return false;
   if (row.unmatched) return false;
+  if (isCashfreeMissingOrder(row)) return false;
   if (isDummyOrTestPayment(row)) return false;
   return true;
 }
@@ -140,7 +164,10 @@ function settlementStatusOf(settlement) {
   const raw = cashfreeSettlementRawStatus(settlement);
   if (raw === 'SUCCESS' || raw === 'SETTLED') return 'success';
   if (raw === 'FAILED') return 'failed';
-  if (raw.includes('PENDING') || raw === 'NOT_FOUND') return 'pending';
+  if (raw === 'ORDER_MISSING' || raw === 'MISSING_ORDER') return 'order_missing';
+  // Settlement API empty, but order may still be PAID — keep visible, exclude from Cashfree collected.
+  if (raw === 'NOT_FOUND') return 'not_found';
+  if (raw.includes('PENDING')) return 'pending';
   if (!settlement || typeof settlement !== 'object') return 'pending';
   const id = String(settlement.cfSettlementId || settlement.cf_settlement_id || '').trim();
   const transfer = settlement.transferTime || settlement.transfer_time || null;
@@ -586,7 +613,16 @@ function buildPaymentIndex(registrations = []) {
   const byOrderId = new Map();
   const byPaymentId = new Map();
   for (const reg of registrations) {
-    addToIndex(byOrderId, reg.payment_order_id || reg.orderId, reg);
+    const rawOrderId = reg.payment_order_id || reg.orderId;
+    addToIndex(byOrderId, rawOrderId, reg);
+    const baseOrderId = cashfreeOrderIdOf(
+      reg.bundleCashfreeOrderId,
+      reg.bundle_cashfree_order_id,
+      rawOrderId,
+    );
+    if (baseOrderId && baseOrderId !== String(rawOrderId || '').trim()) {
+      addToIndex(byOrderId, baseOrderId, reg);
+    }
     addToIndex(byPaymentId, reg.payment_id || reg.paymentId, reg);
   }
   return { byOrderId, byPaymentId };
@@ -735,7 +771,7 @@ function summarizeRows(rows = [], { paidPayoutAmount = 0, buckets: bucketIds = D
   };
 
   const finalizeSettlementLabel = (group) => {
-    const total = Number(group.registrations) || 0;
+    const total = Number(group.successfulPayments || group.registrations) || 0;
     const success = Number(group.settlementSuccess) || 0;
     if (!total) group.settlement = 'pending';
     else if (success === total) group.settlement = 'success';
@@ -743,41 +779,80 @@ function summarizeRows(rows = [], { paidPayoutAmount = 0, buckets: bucketIds = D
     else group.settlement = 'pending';
   };
 
+  const countedOrderIds = new Set();
+
   for (const row of rows) {
     const bucketId = row.bucket || BUCKET_OTHER;
     const bucket = buckets[bucketId];
     if (!bucket) continue;
-    totals.totalCollected = round2(totals.totalCollected + row.netGross);
-    totals.crwdctrlFee = round2(totals.crwdctrlFee + row.fee);
-    totals.organizerPayable = round2(totals.organizerPayable + row.organizerPayable);
-    totals.refunds = round2(totals.refunds + row.refunded);
-    totals.successfulPayments += 1;
+
+    const orderId = String(row.orderId || '').trim();
+    const settlementKey = String(row.settlementStatus || '').trim().toLowerCase();
+    // Align MindSpark collected with Cashfree merchant totals:
+    // count SUCCESS + PENDING settlement records only (skip ghosts / not_found / no snapshot).
+    const skipCollected = settlementKey === 'order_missing'
+      || settlementKey === 'not_found'
+      || (settlementKey === 'pending' && row.hasSettlementRecord === false);
+    const countMoney = !skipCollected && (!orderId || !countedOrderIds.has(orderId));
+    if (orderId) countedOrderIds.add(orderId);
+
+    // Cashfree collected = one merchant order once. Bundle regs share an order id.
+    const orderGross = Number(row.orderAmount);
+    const rowGross = Number(row.netGross) || 0;
+    const moneyRefunded = countMoney ? (Number(row.refunded) || 0) : 0;
+    const money = countMoney
+      ? (Number.isFinite(orderGross) && orderGross > 0
+        ? computeFinancials(orderGross, moneyRefunded)
+        : {
+          netGross: rowGross,
+          fee: Number(row.fee) || 0,
+          organizerPayable: Number(row.organizerPayable) || 0,
+          refunded: moneyRefunded,
+        })
+      : { netGross: 0, fee: 0, organizerPayable: 0, refunded: 0 };
+
+    const moneyRow = {
+      ...row,
+      netGross: money.netGross,
+      fee: money.fee,
+      organizerPayable: money.organizerPayable,
+      refunded: money.refunded,
+      settlementStatus: countMoney ? row.settlementStatus : '',
+      payoutStatus: countMoney ? row.payoutStatus : '',
+      schedule: countMoney ? row.schedule : null,
+    };
+
+    totals.totalCollected = round2(totals.totalCollected + money.netGross);
+    totals.crwdctrlFee = round2(totals.crwdctrlFee + money.fee);
+    totals.organizerPayable = round2(totals.organizerPayable + money.organizerPayable);
+    totals.refunds = round2(totals.refunds + money.refunded);
+    totals.successfulPayments += countMoney ? 1 : 0;
     if (row.unmatched) totals.unmatchedPayments += 1;
-    if (row.settlementStatus === 'success') totals.settlementSuccess += 1;
-    else if (row.settlementStatus === 'failed') totals.settlementFailed += 1;
-    else totals.settlementPendingCount += 1;
+    if (countMoney && row.settlementStatus === 'success') totals.settlementSuccess += 1;
+    else if (countMoney && row.settlementStatus === 'failed') totals.settlementFailed += 1;
+    else if (countMoney) totals.settlementPendingCount += 1;
 
     bucket.registrations += 1;
-    bucket.successfulPayments += 1;
+    if (countMoney) bucket.successfulPayments += 1;
     if (row.unmatched) bucket.unmatchedPayments += 1;
-    if (row.settlementStatus === 'success') bucket.settlementSuccess += 1;
-    bucket.gross = round2(bucket.gross + row.netGross);
-    bucket.refunded = round2(bucket.refunded + row.refunded);
-    bucket.fee = round2(bucket.fee + row.fee);
-    bucket.organizerPayable = round2(bucket.organizerPayable + row.organizerPayable);
+    if (countMoney && row.settlementStatus === 'success') bucket.settlementSuccess += 1;
+    bucket.gross = round2(bucket.gross + money.netGross);
+    bucket.refunded = round2(bucket.refunded + money.refunded);
+    bucket.fee = round2(bucket.fee + money.fee);
+    bucket.organizerPayable = round2(bucket.organizerPayable + money.organizerPayable);
 
     const cleared = row.payoutStatus === 'paid' || row.schedule?.stage === 'paid';
-    if (cleared) {
-      bucket.alreadyPaid = round2(bucket.alreadyPaid + row.organizerPayable);
+    if (countMoney && cleared) {
+      bucket.alreadyPaid = round2(bucket.alreadyPaid + money.organizerPayable);
       bucket.alreadyPaidCount += 1;
-      totals.alreadyPaid = round2(totals.alreadyPaid + row.organizerPayable);
+      totals.alreadyPaid = round2(totals.alreadyPaid + money.organizerPayable);
       totals.alreadyPaidCount += 1;
-    } else if (row.payoutStatus === 'pending') {
-      totals.settlementPending = round2(totals.settlementPending + row.organizerPayable);
-      bucket.settlementPending = round2(bucket.settlementPending + row.organizerPayable);
-    } else if (row.payoutStatus === 'ready') {
-      totals.readyForPayout = round2(totals.readyForPayout + row.organizerPayable);
-      bucket.readyForPayout = round2(bucket.readyForPayout + row.organizerPayable);
+    } else if (countMoney && row.payoutStatus === 'pending') {
+      totals.settlementPending = round2(totals.settlementPending + money.organizerPayable);
+      bucket.settlementPending = round2(bucket.settlementPending + money.organizerPayable);
+    } else if (countMoney && row.payoutStatus === 'ready') {
+      totals.readyForPayout = round2(totals.readyForPayout + money.organizerPayable);
+      bucket.readyForPayout = round2(bucket.readyForPayout + money.organizerPayable);
     }
 
     if (cleared) bucket.payout = 'paid';
@@ -792,6 +867,7 @@ function summarizeRows(rows = [], { paidPayoutAmount = 0, buckets: bucketIds = D
       organizerId: row.organizerId || '',
       organizerName: row.organizerName || '',
       registrations: 0,
+      successfulPayments: 0,
       gross: 0,
       refunded: 0,
       fee: 0,
@@ -803,7 +879,11 @@ function summarizeRows(rows = [], { paidPayoutAmount = 0, buckets: bucketIds = D
       settlementSuccess: 0,
       settlement: 'pending',
       payout: 'pending',
-    }), row);
+    }), moneyRow);
+    if (countMoney) {
+      const ev = events.get(eventKey);
+      if (ev) ev.successfulPayments = (ev.successfulPayments || 0) + 1;
+    }
 
     const orgKey = payoutOverrideKey(row);
     bumpGroup(organizers, orgKey, () => ({
@@ -814,6 +894,7 @@ function summarizeRows(rows = [], { paidPayoutAmount = 0, buckets: bucketIds = D
       eventName: row.eventName || '',
       bucket: bucketId,
       registrations: 0,
+      successfulPayments: 0,
       gross: 0,
       refunded: 0,
       fee: 0,
@@ -825,7 +906,11 @@ function summarizeRows(rows = [], { paidPayoutAmount = 0, buckets: bucketIds = D
       settlementSuccess: 0,
       settlement: 'pending',
       payout: 'pending',
-    }), row);
+    }), moneyRow);
+    if (countMoney) {
+      const org = organizers.get(orgKey);
+      if (org) org.successfulPayments = (org.successfulPayments || 0) + 1;
+    }
   }
 
   for (const id of bucketIds) finalizeSettlementLabel(buckets[id]);
@@ -861,11 +946,13 @@ module.exports = {
   TOUCH_GRASS_RE,
   TEST_PAYMENT_AMOUNT_MAX,
   isCashfreeGateway,
+  cashfreeOrderIdOf,
   isTouchGrassText,
   isInScopeBucket,
   isInternalTestEmail,
   isManualFlag,
   isDummyOrTestPayment,
+  isCashfreeMissingOrder,
   isDashboardRow,
   classifyBucket,
   computeFinancials,

@@ -27,7 +27,8 @@
     "multer": "^2.0.2",
     "nodemailer": "^7.0.11",
     "pdf-parse": "^2.4.5",
-    "resend": "^6.18.0"
+    "resend": "^6.18.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
@@ -42,8 +43,8 @@
     "test:campus-hunt": "node --test \"tests/campus-hunt/**/*.test.js\"",
     "health": "curl -f http://localhost:8080/api/health || exit 1",
     "verify-deploy": "node scripts/verify-deploy.js",
-    "lint:env": "node -e \"require('./src/config/requiredEnv').assertProductionEnv()\""
-    ,"test:fest-day-load": "node scripts/load-test-fest-day-desk.js"
-    ,"smoke:cashfree-real": "node scripts/smoke-cashfree-real-payment.js"
+    "lint:env": "node -e \"require('./src/config/requiredEnv').assertProductionEnv()\"",
+    "test:fest-day-load": "node scripts/load-test-fest-day-desk.js",
+    "smoke:cashfree-real": "node scripts/smoke-cashfree-real-payment.js"
   }
 }

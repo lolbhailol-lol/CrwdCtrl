@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Loader, RefreshCw } from 'lucide-react';
 import { load } from '@cashfreepayments/cashfree-js';
@@ -13,15 +13,6 @@ export default function DeskPaymentPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
   const polling = useRef(null);
-
-  const refresh = useCallback(async () => {
-    // Always verify while open so "confirming" resolves even without ?returned=1
-    const next = (returned || data?.status === 'confirming' || data?.status === 'pending')
-      ? await verifyDeskPayment(token)
-      : await fetchDeskPayment(token);
-    setData(next);
-    return next;
-  }, [returned, token, data?.status]);
 
   useEffect(() => {
     let cancelled = false;

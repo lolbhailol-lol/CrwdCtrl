@@ -5,11 +5,17 @@ import { saveOfflineBundle } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 
 function isValidBundle(raw) {
+  const clues = raw?.clues || {};
   return raw
     && raw.bundleVersion === OFFLINE_BUNDLE_VERSION
     && raw.bundleType === OFFLINE_BUNDLE_TYPE
     && raw.team?.teamCode
-    && raw.clues?.clue1;
+    && raw.event?.id
+    && raw.team?.password
+    && raw.signingKey
+    && Array.isArray(raw.checkpoints)
+    && raw.checkpoints.length >= 5
+    && [1, 2, 3, 4, 5, 6].every((number) => clues[`clue${number}`]);
 }
 
 function extractSingle(raw) {

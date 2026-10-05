@@ -50,6 +50,39 @@ async function countOccupiedCompetitionSlots(competitionId) {
   return registrations + reservations;
 }
 
+/** One aggregation pair for many competitions — avoids N+1 on MindSpark bundle checkout. */
+async function countOccupiedSlotsByCompetitionIds(competitionIds) {
+  const ids = [...new Set((competitionIds || []).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
+  const [regs, reservations] = await Promise.all([
+    Registration.aggregate([
+      {
+        $match: {
+          competitionId: { $in: ids },
+          $or: [
+            { status: 'approved' },
+            { status: 'pending', paymentStatus: 'paid' },
+          ],
+        },
+      },
+      { $group: { _id: '$competitionId', n: { $sum: 1 } } },
+    ]),
+    CompetitionSlotReservation.aggregate([
+      { $match: { competitionId: { $in: ids }, expiresAt: { $gt: new Date() } } },
+      { $group: { _id: '$competitionId', n: { $sum: 1 } } },
+    ]),
+  ]);
+  const map = new Map(ids.map((id) => [String(id), 0]));
+  for (const row of regs) {
+    map.set(String(row._id), (map.get(String(row._id)) || 0) + (row.n || 0));
+  }
+  for (const row of reservations) {
+    map.set(String(row._id), (map.get(String(row._id)) || 0) + (row.n || 0));
+  }
+  return map;
+}
+
 async function loadCompetitionForSlots(competitionOrId) {
   if (competitionOrId && typeof competitionOrId === 'object' && competitionOrId._id) {
     return competitionOrId;
@@ -122,6 +155,23 @@ async function assertCompetitionAcceptsRegistration(competitionOrId) {
   return assertCompetitionHasOpenSlot(competition);
 }
 
+/** Batch open/closed + slot checks for already-loaded competition docs. */
+async function assertCompetitionsAcceptRegistration(competitions) {
+  const list = (competitions || []).filter(Boolean);
+  for (const competition of list) {
+    if (!competition?._id) throw competitionNotFoundError();
+    if (isCompetitionRegistrationClosed(competition)) throw registrationClosedError();
+  }
+  const limited = list.filter((c) => resolveAllottedSlots(c) > 0);
+  if (!limited.length) return;
+  const filledMap = await countOccupiedSlotsByCompetitionIds(limited.map((c) => c._id));
+  for (const competition of limited) {
+    const allotted = resolveAllottedSlots(competition);
+    const filled = filledMap.get(String(competition._id)) || 0;
+    if (slotState({ allotted, filled }).full) throw slotsFullError();
+  }
+}
+
 module.exports = {
   SLOTS_FULL_MESSAGE,
   REGISTRATION_CLOSED_MESSAGE,
@@ -130,8 +180,10 @@ module.exports = {
   slotState,
   occupiedSlotFilter,
   countOccupiedCompetitionSlots,
+  countOccupiedSlotsByCompetitionIds,
   getCompetitionSlotState,
   assertCompetitionHasOpenSlot,
   isCompetitionRegistrationClosed,
   assertCompetitionAcceptsRegistration,
+  assertCompetitionsAcceptRegistration,
 };

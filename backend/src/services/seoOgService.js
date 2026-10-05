@@ -31,8 +31,8 @@ function cleanDescription(text, max = 160) {
   return `${normalized.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Share cards prefer the portrait listing artwork, with landscape fallbacks. */
-function pickShareImage(entity, { preferPortrait = true } = {}) {
+/** Share cards prefer landscape/wide (WhatsApp ~1.91:1); portrait only when asked. */
+function pickShareImage(entity, { preferPortrait = false } = {}) {
   if (!entity || typeof entity !== 'object') return undefined;
   const covers = entity.coverImages && typeof entity.coverImages === 'object' ? entity.coverImages : {};
   const landscapeCandidates = [
@@ -68,17 +68,23 @@ function pickShareImage(entity, { preferPortrait = true } = {}) {
   return undefined;
 }
 
-/** WhatsApp prefers ~1200×630 JPEG; Cloudinary can crop on the fly. */
-function toOgImageUrl(url, { contain = true } = {}) {
+/** WhatsApp / OG — landscape 1200×630, or run-club portrait card 800×1040 (10:13). */
+function toOgImageUrl(url, { contain = true, padColor, portrait = false } = {}) {
   if (!url || typeof url !== 'string') return DEFAULT_IMAGE;
   const trimmed = url.trim();
   if (!trimmed) return DEFAULT_IMAGE;
+  // Match .card-portrait-image (10:13) + dark shell used on run club RunCards.
+  const w = portrait ? 800 : 1200;
+  const h = portrait ? 1040 : 630;
+  const defaultPad = portrait ? 'rgb:0B0C0D' : 'auto';
   if (/res\.cloudinary\.com\/[^/]+\/image\/upload\//i.test(trimmed) && !/\/upload\/[^/]+,/.test(trimmed)) {
+    const bg = padColor || (contain ? defaultPad : null);
+    const padBg = contain ? `,b_${bg}` : '';
     return trimmed.replace(
       /\/image\/upload\//i,
       contain
-        ? '/image/upload/c_pad,w_1200,h_630,b_auto,f_jpg,q_auto/'
-        : '/image/upload/c_fill,w_1200,h_630,f_jpg,q_auto/',
+        ? `/image/upload/c_pad,w_${w},h_${h}${padBg},f_jpg,q_auto/`
+        : `/image/upload/c_fill,w_${w},h_${h},g_auto,f_jpg,q_auto/`,
     );
   }
   return trimmed;
@@ -91,6 +97,14 @@ function absoluteUrl(pathOrUrl) {
   return `${SITE_URL}${path}`;
 }
 
+function isBrandLogoFest(fest) {
+  const name = String(fest?.festName || fest?.title || '').toLowerCase();
+  const slug = String(fest?.slug || '').toLowerCase();
+  // Techfest / MindSpark still use logo artwork; Kshitij now uses a photo cover.
+  return name.includes('techfest') || slug.includes('techfest')
+    || name.includes('mindspark') || slug.includes('mindspark');
+}
+
 const ROUTES = [
   {
     test: /^\/view-details\/([^/]+)\/?$/,
@@ -101,10 +115,15 @@ const ROUTES = [
         lean: true,
       });
       if (!fest) return null;
+      const logoFest = isBrandLogoFest(fest);
       return {
         title: fest.festName,
         description: fest.description,
-        image: pickShareImage(fest),
+        // Wide/hero first so WhatsApp shows horizontal artwork, not tall portrait cards.
+        image: pickShareImage(fest, { preferPortrait: false }),
+        // Logos → pad; photo covers (Kshitij etc.) → fill 1200×630 for clean WhatsApp cards.
+        containShareImage: logoFest,
+        padColor: logoFest ? 'rgb:ffffff' : 'auto',
       };
     },
   },
@@ -119,7 +138,10 @@ const ROUTES = [
       return {
         title: competition.name,
         description: competition.description,
-        image: pickShareImage(competition),
+        image: pickShareImage(competition, { preferPortrait: false }),
+        // Competition covers are photos — fill the WhatsApp frame (no colour pads).
+        containShareImage: false,
+        padColor: 'auto',
       };
     },
   },
@@ -135,7 +157,7 @@ const ROUTES = [
       return {
         title: trek.trekName || trek.title,
         description: trek.description,
-        image: pickShareImage(trek),
+        image: pickShareImage(trek, { preferPortrait: false }),
       };
     },
   },
@@ -151,17 +173,17 @@ const ROUTES = [
       return {
         title: `${community.name} — Trek Community`,
         description: community.aboutUs,
-        image: pickShareImage(community),
+        image: pickShareImage(community, { preferPortrait: false }),
       };
     },
   },
   {
     test: /^\/sports\/run\/([^/]+)\/?$/,
-    load: async (id) => loadSportsEvent(id),
+    load: async (id) => loadSportsEvent(id, { preferPortrait: true }),
   },
   {
     test: /^\/sports\/run-club\/([^/]+)\/?$/,
-    load: async (id) => loadRunClub(id, 'Running Club'),
+    load: async (id) => loadRunClub(id, 'Running Club', { preferPortrait: true }),
   },
   {
     test: /^\/events\/community-event\/([^/]+)\/?$/,
@@ -169,7 +191,7 @@ const ROUTES = [
   },
   {
     test: /^\/events\/community\/([^/]+)\/?$/,
-    load: async (id) => loadRunClub(id, 'Community'),
+    load: async (id) => loadRunClub(id, 'Community', { preferPortrait: true }),
   },
   {
     test: /^\/events\/([^/]+)\/?$/,
@@ -183,7 +205,7 @@ const ROUTES = [
       return {
         title: show.displayName || show.title,
         description: show.description || show.about,
-        image: pickShareImage(show),
+        image: pickShareImage(show, { preferPortrait: false }),
       };
     },
   },
@@ -200,11 +222,14 @@ async function loadSportsEvent(id, { preferPortrait = false } = {}) {
     title: event.title,
     description: event.description,
     image: pickShareImage(event, { preferPortrait }),
-    containShareImage: preferPortrait,
+    // Full poster in run-club portrait card frame (10:13, dark shell).
+    containShareImage: true,
+    portraitShareImage: preferPortrait,
+    padColor: preferPortrait ? 'rgb:0B0C0D' : 'auto',
   };
 }
 
-async function loadRunClub(id, suffix) {
+async function loadRunClub(id, suffix, { preferPortrait = false } = {}) {
   const club = await findByIdOrSlug(RunClub, id, {
     pickName: (row) => row.name,
     lean: true,
@@ -213,16 +238,33 @@ async function loadRunClub(id, suffix) {
   return {
     title: `${club.name} — ${suffix}`,
     description: club.aboutUs || club.tagline || club.description,
-    image: pickShareImage(club),
+    image: pickShareImage(club, { preferPortrait }),
+    containShareImage: true,
+    portraitShareImage: preferPortrait,
+    padColor: preferPortrait ? 'rgb:0B0C0D' : 'auto',
   };
 }
 
-function buildOgHtml({ title, description, image, path, containShareImage = true }) {
+function buildOgHtml({
+  title,
+  description,
+  image,
+  path,
+  containShareImage = true,
+  portraitShareImage = false,
+  padColor,
+}) {
   const safeTitle = title || SITE_NAME;
   const desc = cleanDescription(description || `${safeTitle} on ${SITE_NAME}.`);
   const pageUrl = absoluteUrl(path);
-  const imageUrl = toOgImageUrl(image, { contain: containShareImage });
+  const imageUrl = toOgImageUrl(image, {
+    contain: containShareImage,
+    padColor,
+    portrait: portraitShareImage,
+  });
   const fullTitle = safeTitle.includes(SITE_NAME) ? safeTitle : `${safeTitle} | ${SITE_NAME}`;
+  const ogW = portraitShareImage ? 800 : 1200;
+  const ogH = portraitShareImage ? 1040 : 630;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -238,8 +280,8 @@ function buildOgHtml({ title, description, image, path, containShareImage = true
   <meta property="og:url" content="${escapeHtml(pageUrl)}" />
   <meta property="og:image" content="${escapeHtml(imageUrl)}" />
   <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image:width" content="${ogW}" />
+  <meta property="og:image:height" content="${ogH}" />
   <meta property="og:image:alt" content="${escapeHtml(safeTitle)}" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(safeTitle)}" />
@@ -275,6 +317,8 @@ async function resolveOgHtml(pathname) {
     description: item.description,
     image: item.image,
     containShareImage: item.containShareImage,
+    portraitShareImage: item.portraitShareImage,
+    padColor: item.padColor,
     path,
   });
 }

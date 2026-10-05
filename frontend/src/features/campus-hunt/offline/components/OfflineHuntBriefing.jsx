@@ -1,90 +1,177 @@
-import ScoreChip from '../../components/ScoreChip';
+import { useEffect, useState } from 'react';
+import { getHuntStartGate } from '../offlineEngine';
+import OfflineHuntWelcome from './OfflineHuntWelcome';
+import HuntColorFlowGuide from '../../components/HuntColorFlowGuide';
 
+const WELCOME_KEY = 'ch_hunt_welcome_seen';
+
+/** Welcome → organizer start code → hunt begins. */
 export default function OfflineHuntBriefing({
   bundle,
   session,
-  state,
   onStartHunt,
   starting = false,
   error = '',
-  onSwitchPerson,
   onBackToRounds,
 }) {
   const isLeader = session?.role === 'leader';
-  const startName = bundle?.team?.startingPoint?.name || 'your start desk';
+  const startName = bundle?.team?.startingPoint?.name;
+  const expectsGo = Boolean(String(bundle?.event?.organizerStartCode || 'GO').trim());
+  const teamKey = String(bundle?.team?.teamCode || 'team');
+
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try {
+      return sessionStorage.getItem(`${WELCOME_KEY}_${teamKey}`) !== '1';
+    } catch {
+      return true;
+    }
+  });
+
+  const [goCode, setGoCode] = useState('');
+  const [gate, setGate] = useState(() => getHuntStartGate(bundle, new Date(), { goCode: '' }));
+
+  useEffect(() => {
+    setGate(getHuntStartGate(bundle, new Date(), { goCode }));
+  }, [bundle, goCode]);
+
+  const markWelcomeDone = () => {
+    try {
+      sessionStorage.setItem(`${WELCOME_KEY}_${teamKey}`, '1');
+    } catch { /* ignore */ }
+    setShowWelcome(false);
+  };
+
+  if (showWelcome) {
+    return (
+      <OfflineHuntWelcome
+        teamCode={bundle?.team?.teamCode}
+        teamName={bundle?.team?.teamName}
+        startName={startName}
+        onContinue={markWelcomeDone}
+        onBack={onBackToRounds}
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-4 py-8 pb-28 text-white">
-      <div className="mx-auto max-w-lg">
+    <div className="relative min-h-screen overflow-hidden text-white">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(14,204,238,0.18), transparent 55%),'
+            + 'linear-gradient(180deg, #07090b 0%, #0b0c0d 100%)',
+        }}
+      />
+
+      <div className="relative mx-auto max-w-md space-y-5 px-4 py-10">
         {onBackToRounds ? (
           <button
             type="button"
             onClick={onBackToRounds}
-            className="text-xs text-white/45"
+            className="text-xs text-white/40"
           >
-            ← Rounds
+            ← Home
           </button>
         ) : null}
-        <div className="mt-3 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0ECCEE]">
-              Round 1
-            </p>
-            <h1 className="mt-1 text-[1.35rem] font-semibold">
-              {bundle?.team?.teamCode}
-            </h1>
-            <p className="mt-1 text-sm text-white/55">
-              {isLeader ? 'Leader' : 'Player'}
-              {' · '}
-              {session?.name}
-            </p>
-          </div>
-          <ScoreChip score={state?.score} label="Score" />
+
+        <button
+          type="button"
+          onClick={() => setShowWelcome(true)}
+          className="text-[11px] text-[#0ECCEE]/70 hover:text-[#0ECCEE]"
+        >
+          ← Welcome
+        </button>
+
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#0ECCEE]">
+            Campus Hunt Challenge
+          </p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight">
+            {bundle?.team?.teamCode}
+          </h1>
+          {startName ? (
+            <p className="mt-2 text-sm text-white/55">Meet at {startName}</p>
+          ) : null}
         </div>
 
-        <section className="mt-6 rounded-2xl border border-[#0ECCEE]/40 bg-[#0ECCEE]/10 p-4">
-          <p className="text-sm font-semibold text-white">Wait here</p>
-          <p className="mt-2 text-sm text-white/70">
-            Meet at
-            {' '}
-            <strong className="text-white">{startName}</strong>
-            . Clue 1 stays closed until the leader starts.
+        <HuntColorFlowGuide title="Clue flow · colors" />
+
+        <div className="rounded-2xl border border-amber-400/25 bg-amber-500/[0.08] px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/90">
+            Mindspark 2026
           </p>
-          <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-white/75">
-            <li>Leader taps Start Round 1.</li>
-            <li>Leader shows Team QR.</li>
-            <li>Everyone else scans that QR.</li>
-          </ol>
-          {error ? <p className="mt-3 text-sm text-red-300">{error}</p> : null}
-          {isLeader ? (
+          <p className="mt-1.5 text-sm leading-snug text-amber-50/90">
+            Top <span className="font-bold">10 teams</span> get a chance to volunteer at
+            Mindspark 2026.
+          </p>
+        </div>
+
+        {expectsGo ? (
+          <div className="rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 py-4">
+            <p className="text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
+              Organizer start code
+            </p>
+            <p className="mt-2 text-center text-sm text-white/70">
+              Wait at the gather point. When the organizer tells everyone the code, type it below — then Start.
+            </p>
+            <label className="mt-4 block text-xs uppercase tracking-wide text-white/45">
+              Code
+              <input
+                value={goCode}
+                onChange={(e) => setGoCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16))}
+                placeholder="Organizer will tell you"
+                className="mt-2 w-full rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-center font-mono text-xl tracking-[0.2em] outline-none focus:border-[#0ECCEE]"
+                autoComplete="off"
+                autoCapitalize="characters"
+              />
+            </label>
+            {goCode && !gate.open ? (
+              <p className="mt-2 text-center text-xs text-rose-300">Not the right code yet</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <p className="text-center text-[11px] text-white/40">
+          Powered by CrwdCtrl · Mindspark COEP Fest collaboration
+        </p>
+
+        {error ? <p className="text-sm text-red-300">{error}</p> : null}
+
+        {isLeader ? (
+          <>
             <button
               type="button"
               disabled={starting}
-              onClick={onStartHunt}
-              className="mt-4 w-full rounded-xl bg-[#0ECCEE] py-3 text-sm font-bold text-black disabled:opacity-50"
+              onClick={() => {
+                if (!gate.open) {
+                  setGate((g) => ({
+                    ...g,
+                    message: 'Type the organizer start code above first, then tap Start.',
+                  }));
+                  return;
+                }
+                onStartHunt?.(goCode);
+              }}
+              className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
             >
-              {starting ? 'Starting…' : 'Start Round 1'}
+              {starting
+                ? 'Starting…'
+                : gate.open
+                  ? 'Start the hunt'
+                  : 'Type start code, then tap here'}
             </button>
-          ) : (
-            <p className="mt-4 text-center text-sm text-white/60">
-              After the leader starts, tap
-              {' '}
-              <strong className="text-white">Scan leader QR</strong>
-              {' '}
-              below.
-            </p>
-          )}
-        </section>
-
-        {onSwitchPerson ? (
-          <button
-            type="button"
-            onClick={onSwitchPerson}
-            className="mt-6 w-full py-2 text-center text-xs text-white/35"
-          >
-            Back to team
-          </button>
-        ) : null}
+            {!gate.open ? (
+              <p className="text-center text-xs text-amber-200/80">
+                Start stays locked until the organizer code is entered (works offline).
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-center text-sm text-white/50">
+            Use the leader phone to start.
+          </p>
+        )}
       </div>
     </div>
   );

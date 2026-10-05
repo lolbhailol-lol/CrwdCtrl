@@ -7,8 +7,9 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
 
     return list.map((item) => {
         if (!item || typeof item !== 'object') return null;
+
         if (item._type === 'fest') {
-            const f = transformedFests.find((t) => t.id === item._id);
+            const f = transformedFests.find((t) => t.id === item._id || t.id === item.id);
             const merged = {
                 ...item,
                 ...(f || {}),
@@ -17,25 +18,20 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
                 galleryImages: item.galleryImages || item.festImages || f?.galleryImages || f?.festImages,
             };
             const rawImage = pickBestCardImage(merged, 'tall');
-            if (f) {
-                return {
-                    ...f,
-                    coverImages: merged.coverImages,
-                    coverImage: merged.coverImage,
-                    galleryImages: merged.galleryImages,
-                    festImages: merged.galleryImages,
-                    image: rawImage,
-                    _type: 'fest',
-                    _priority: item._priority,
-                };
-            }
             return {
-                id: item._id,
-                title: item.festName || item._title || 'Fest',
-                subtitle: item.collegeName || item._subtitle,
+                ...item,
+                ...(f || {}),
+                id: item._id || item.id || f?.id,
+                title: item.festName || item._title || f?.title || f?.festName || 'Fest',
+                subtitle: item.collegeName || item._subtitle || f?.subtitle || f?.collegeName,
+                dateTime: f?.dateTime || item.festDate || item.dateTime || item.date,
+                date: f?.date || item.festDate || item.date || item.dateTime,
+                ticketPrice: f?.ticketPrice || item.ticketPrice || item.price || item.registrationFee || item.feeAmount,
+                price: f?.price || item.price || item.ticketPrice || item.registrationFee,
                 coverImages: merged.coverImages,
                 coverImage: merged.coverImage,
                 galleryImages: merged.galleryImages,
+                festImages: merged.galleryImages,
                 image: rawImage,
                 _type: 'fest',
                 _priority: item._priority,
@@ -43,9 +39,14 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
         }
         if (item._type === 'sport') {
             return {
-                id: item._id,
+                ...item,
+                id: item._id || item.id,
                 title: item.title || item._title || 'Sport',
                 subtitle: item.city || item.sportType || item._subtitle,
+                dateTime: item.dateTime || item.date || item.startDate,
+                date: item.date || item.dateTime || item.startDate,
+                ticketPrice: item.ticketPrice || item.price || item.feeAmount || item.registrationFee,
+                price: item.price || item.ticketPrice || item.feeAmount || item.registrationFee,
                 coverImages: item.coverImages,
                 coverImage: item.coverImage,
                 galleryImages: item.galleryImages || item.images,
@@ -60,12 +61,17 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
         }
         if (item._type === 'runclub') {
             return {
-                _id: item._id,
-                id: item._id,
+                ...item,
+                _id: item._id || item.id,
+                id: item._id || item.id,
                 name: item.name || item._title,
                 title: item.name || item._title || 'Run club',
                 basedIn: item.basedIn || item._subtitle,
                 subtitle: item.basedIn || item._subtitle,
+                dateTime: item.dateTime || item.date,
+                date: item.date || item.dateTime,
+                ticketPrice: item.ticketPrice || item.price || item.feeAmount,
+                price: item.price || item.ticketPrice || item.feeAmount,
                 coverImage: item.coverImage || item._image,
                 coverImages: item.coverImages,
                 galleryImages: item.galleryImages,
@@ -78,9 +84,14 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
         }
         if (item._type === 'events') {
             return {
-                id: item._id,
+                ...item,
+                id: item._id || item.id,
                 title: item.title || item._title || 'Event',
                 subtitle: item.city || item.organizer || item._subtitle,
+                dateTime: item.dateTime || item.date || item.startDate,
+                date: item.date || item.dateTime || item.startDate,
+                ticketPrice: item.ticketPrice || item.price || item.feeAmount || item.registrationFee,
+                price: item.price || item.ticketPrice || item.feeAmount || item.registrationFee,
                 coverImages: item.coverImages,
                 coverImage: item.coverImage || item.poster || item.banner,
                 galleryImages: item.galleryImages || item.images,
@@ -101,6 +112,10 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
                 id: item._id || item.id,
                 title: item.trekName || item._title || item.title || 'Trek',
                 subtitle: communityName || item.city || '',
+                dateTime: item.dateTime || item.date || item.trekDate || item.dateLabel,
+                date: item.date || item.dateTime || item.trekDate || item.dateLabel,
+                ticketPrice: item.ticketPrice || item.price || item.feeAmount || item.registrationFee,
+                price: item.price || item.ticketPrice || item.feeAmount || item.registrationFee,
                 coverImages: item.coverImages,
                 coverImage: item.coverImage,
                 galleryImages: item.galleryImages || item.images,
@@ -115,6 +130,10 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
                 id: item._id || item.id,
                 title: item.name || item._title || item.title || 'Community',
                 subtitle: item.basedIn || item._subtitle,
+                dateTime: item.dateTime || item.date,
+                date: item.date || item.dateTime,
+                ticketPrice: item.ticketPrice || item.price || item.feeAmount,
+                price: item.price || item.ticketPrice || item.feeAmount,
                 coverImages: item.coverImages,
                 coverImage: item.coverImage,
                 galleryImages: item.galleryImages,
@@ -127,6 +146,10 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
             ...item,
             id: item._id || item.id,
             title: item.title || item._title || item.name || 'Featured',
+            dateTime: item.dateTime || item.date,
+            date: item.date || item.dateTime,
+            ticketPrice: item.ticketPrice || item.price,
+            price: item.price || item.ticketPrice,
             coverImages: item.coverImages,
             coverImage: item.coverImage,
             galleryImages: item.galleryImages || item.images,
@@ -135,3 +158,4 @@ export function mapHomeCarouselDisplayItems(raw, transformedFests = []) {
         };
     }).filter(Boolean).sort(byPriority);
 }
+

@@ -279,21 +279,12 @@ export default function ProfileSidebar({
             (t) => label === `Team ${t.teamCode}` || label === t.teamCode,
         );
         if (teamEntry?.loginPath) {
-            if (!isAuthenticated) {
-                promptGoogleFromProfile();
-                return;
-            }
             goToPath(teamEntry.loginPath);
             return;
         }
 
-        const needsGoogle = !isAuthenticated && (
-            label === 'Campus Hunt login'
-            || label === 'Campus Hunt leaderboard'
-            || label === 'Edit profile'
-        );
+        const needsGoogle = !isAuthenticated && label === 'Edit profile';
         if (needsGoogle) {
-            warmCampusHuntChunks();
             promptGoogleFromProfile();
             return;
         }
@@ -301,6 +292,12 @@ export default function ProfileSidebar({
         if (label === 'Campus Hunt login') {
             warmCampusHuntChunks();
             goToPath(CAMPUS_HUNT_PATHS.profileLogin);
+            return;
+        }
+
+        if (label === 'Campus Hunt leaderboard') {
+            warmCampusHuntChunks();
+            goToPath(CAMPUS_HUNT_PATHS.leaderboard);
             return;
         }
 
@@ -372,12 +369,10 @@ export default function ProfileSidebar({
     }));
 
     const huntEnabled = isCampusHuntEnabled();
-    const huntLoginHint = !isAuthenticated
-        ? 'Sign in with Google, then enter your team code'
-        : (campusHuntTeamItems.length > 0 ? 'Enter another team code' : 'Enter team code');
-    const huntBoardHint = !isAuthenticated
-        ? 'Sign in with Google, then open live scores'
-        : 'Live college scores';
+    const huntLoginHint = campusHuntTeamItems.length > 0
+        ? 'Enter another team code'
+        : 'College + team code — no Google needed';
+    const huntBoardHint = 'Live college scores';
 
     const campusHuntItems = huntEnabled ? [
         ...campusHuntTeamItems,
@@ -471,12 +466,12 @@ export default function ProfileSidebar({
             <div className="hidden md:block profile-sidebar-layer">
                 {/* Full Screen Overlay */}
                 <div
-                    className={`fixed inset-0 z-60 transition-opacity duration-300 ${isDark ? 'bg-black/40' : 'bg-black/20'}`}
+                    className={`fixed inset-0 z-[110] transition-opacity duration-300 ${isDark ? 'bg-black/40' : 'bg-black/20'}`}
                     onClick={onClose}
                 />
 
                 {/* Sidebar */}
-                <div className={`fixed right-0 top-0 z-70 w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+                <div className={`fixed right-0 top-0 z-[120] w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
                     }`}>
                     <div className={`relative h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#161718]' : 'bg-white'
                         }`}>

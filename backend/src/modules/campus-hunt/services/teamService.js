@@ -68,7 +68,7 @@ function publicTeamView(team, { isLeader = false, start = null, userId = null, t
 
   const size = Math.max(
     2,
-    Math.min(8, Number(teamSize) || (1 + (team.memberUserIds?.length || 0)) || 4),
+    Math.min(12, Number(teamSize) || (1 + (team.memberUserIds?.length || 0)) || 4),
   );
 
   return {

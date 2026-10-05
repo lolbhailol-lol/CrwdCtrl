@@ -9,12 +9,13 @@ import OfflineInstallCards from '../offline/components/OfflineInstallCards';
 import { downloadOfflinePacks } from '../offline/downloadOfflinePacks';
 
 /**
- * Primary ops surface: create one WhatsApp install link per team and send them.
+ * Links — default ready. Create anytime; change teams/clues then Create again.
  */
 export default function SendLinksPanel({
   eventId,
-  teamCapacity = 40,
-  teamSize = 4,
+  teamCapacity = 20,
+  teamSize = 10,
+  readiness = null,
 }) {
   const [installs, setInstalls] = useState([]);
   const [statusRows, setStatusRows] = useState([]);
@@ -24,6 +25,9 @@ export default function SendLinksPanel({
   const [error, setError] = useState('');
   const [importPreview, setImportPreview] = useState(null);
   const [pendingImport, setPendingImport] = useState(null);
+
+  const teamsTotal = Number(readiness?.teamsTotal) || 0;
+  const passwordsReady = Number(readiness?.passwordsReady ?? readiness?.teamsReady) || 0;
 
   const refreshStatus = useCallback(async () => {
     if (!eventId) return;
@@ -52,20 +56,28 @@ export default function SendLinksPanel({
       await downloadOfflinePacks(data, { perTeam });
       const nextWarnings = [
         ...(data.warnings || []),
+        ...(data.pruned?.removed
+          ? [`Removed ${data.pruned.removed} leftover team(s) beyond capacity.`]
+          : []),
         ...(data.incompleteTeams?.length
-          ? [`${data.incompleteTeams.length} team(s) skipped — finish Clue 1–5 / checkpoint bindings first.`]
+          ? [
+            `${data.incompleteTeams.length} team(s) skipped — save Clues 1–6, then Create again.`,
+          ]
           : []),
       ];
       setWarnings(nextWarnings);
       setMessage(
         data.teamCount
-          ? `Ready: ${data.teamCount} team link${data.teamCount === 1 ? '' : 's'} `
-            + `(batch ${data.exportBatchId || '—'}). WhatsApp each team.`
-          : 'No complete packs — finish Locations, Clues (incl. Clue 5), Teams first.',
+          ? `Ready: ${data.teamCount} leader pack${data.teamCount === 1 ? '' : 's'} `
+            + `(batch ${data.exportBatchId || '—'}). WhatsApp each leader only.`
+          : 'No packs yet — open Teams / Clues once, then Create again.',
       );
       await refreshStatus();
     } catch (err) {
-      setError(err.message || 'Could not create install links');
+      const msg = err.status === 503 || err.code === 'DB_UNAVAILABLE'
+        ? 'Database briefly unavailable — tap Create links again in a few seconds.'
+        : (err.message || 'Could not create install links');
+      setError(msg);
     } finally {
       setBusy('');
     }
@@ -78,7 +90,10 @@ export default function SendLinksPanel({
     try {
       const res = await adminImportOfflineResults(eventId, payload, { force });
       const row = res.data || res;
-      setMessage(`Imported ${row.teamCode}: ${row.score} pts${row.overwritten ? ' (overwrote locked)' : ''}.`);
+      setMessage(
+        `Imported ${row.teamCode}: ${row.score} pts`
+        + `${row.overwritten ? ' (overwrote locked)' : ''}.`,
+      );
       setImportPreview(null);
       setPendingImport(null);
     } catch (err) {
@@ -107,9 +122,9 @@ export default function SendLinksPanel({
       const preview = res.data?.preview || res.preview;
       setImportPreview(preview);
       if (preview?.alreadyLocked) {
-        setMessage(`${preview.team} already locked at ${preview.finalScore ?? preview.currentScore}. Confirm overwrite to continue.`);
+        setMessage(`${preview.team} already locked. Confirm overwrite to continue.`);
       } else {
-        setMessage(`Preview OK · ${preview.team} → ${preview.score} pts. Confirm import.`);
+        setMessage(`Preview OK · ${preview.team} → ${preview.score} pts.`);
       }
     } catch (err) {
       setError(err.message || 'Could not preview import');
@@ -121,33 +136,34 @@ export default function SendLinksPanel({
   const statusByCode = Object.fromEntries(statusRows.map((r) => [r.teamCode, r]));
   const missingInstall = statusRows.filter((r) => !(r.installed || r.installedAt));
   const dayBeforeGate = statusRows.length > 0 && missingInstall.length > 0;
+  const installedCount = statusRows.filter((r) => r.installed || r.installedAt).length;
 
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-[#0ECCEE]">
-          Send links
-        </p>
-        <h2 className="mt-1 text-xl font-bold">One WhatsApp link per team</h2>
-        <p className="mt-1 max-w-2xl text-sm text-white/55">
-          Round 1 offline for ~{teamCapacity} teams × {teamSize} players.
-          Leader opens once on Wi‑Fi → pack saves → Installed badge appears here.
+        <h2 className="text-xl font-bold">Send links</h2>
+        <p className="mt-1 text-sm text-white/55">
+          One pack per team → WhatsApp the leader only. Walkers share that one phone.
         </p>
       </div>
 
+      <section className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+        {teamsTotal > 0
+          ? `✓ ${teamsTotal} leader pack${teamsTotal === 1 ? '' : 's'} · passwords ${passwordsReady}/${teamsTotal || teamCapacity}`
+          : 'Create teams on the Teams tab first (or Save size on the hub), then Create links.'}
+      </section>
+
       {dayBeforeGate ? (
         <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-          <p className="font-semibold">Day-before gate · {missingInstall.length} team(s) not installed</p>
+          <p className="font-semibold">{missingInstall.length} team(s) not installed yet</p>
           <p className="mt-1 text-xs text-amber-100/80">
-            Chase WhatsApp acks before fest day:
-            {' '}
             {missingInstall.slice(0, 12).map((r) => r.teamCode).join(', ')}
             {missingInstall.length > 12 ? '…' : ''}
           </p>
         </div>
       ) : statusRows.length > 0 ? (
         <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
-          Day-before ready · {statusRows.filter((r) => r.installed || r.installedAt).length}/{statusRows.length} installed
+          Installed · {installedCount}/{statusRows.length}
         </div>
       ) : null}
 
@@ -160,7 +176,7 @@ export default function SendLinksPanel({
             onClick={() => exportLinks(false)}
             className="rounded-xl bg-[#0ECCEE] px-5 py-2.5 text-sm font-bold text-black disabled:opacity-40"
           >
-            {busy === 'links' ? 'Creating…' : 'Create team links'}
+            {busy === 'links' ? 'Creating…' : 'Create leader packs'}
           </button>
           <button
             type="button"
@@ -214,7 +230,9 @@ export default function SendLinksPanel({
                       </span>
                     </td>
                     <td className="text-white/45">
-                      {row.installedAt ? new Date(row.installedAt).toLocaleString() : '—'}
+                      {row.installedAt
+                        ? new Date(row.installedAt).toLocaleString()
+                        : '—'}
                     </td>
                   </tr>
                 ))}
@@ -225,17 +243,17 @@ export default function SendLinksPanel({
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-white/4 p-4">
-        <h3 className="text-sm font-bold text-white">After the fest · import results</h3>
+        <h3 className="text-sm font-bold text-white">Import results</h3>
         <p className="mt-1 text-xs text-white/50">
-          Preview first. Locked scores need an explicit overwrite.
+          After the hunt, upload a leader’s results JSON to lock the score.
         </p>
-        <label className="mt-3 flex cursor-pointer flex-wrap items-center gap-2 text-sm text-white/70">
-          <span className="font-semibold text-white/85">Choose results JSON</span>
+        <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 bg-black/30 px-4 py-2 text-sm text-white/80">
+          {busy === 'preview' ? 'Reading…' : 'Choose results file'}
           <input
             type="file"
-            accept=".json,application/json"
-            disabled={Boolean(busy) || !eventId}
-            className="text-xs file:mr-2 file:rounded-lg file:border-0 file:bg-white/15 file:px-3 file:py-1.5 file:text-xs file:text-white"
+            accept="application/json,.json"
+            className="hidden"
+            disabled={Boolean(busy)}
             onChange={(e) => {
               const file = e.target.files?.[0];
               e.target.value = '';
@@ -244,40 +262,39 @@ export default function SendLinksPanel({
           />
         </label>
         {importPreview ? (
-          <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white/75">
+          <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/25 p-3 text-sm">
             <p>
-              <strong className="text-white">{importPreview.team}</strong>
-              {' → '}
+              {importPreview.team}
+              {' · '}
               {importPreview.score}
-              {' pts · sig '}
-              {importPreview.signatureOk ? 'OK' : 'BAD'}
+              {' pts'}
               {importPreview.alreadyLocked ? ' · already locked' : ''}
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={busy === 'import' || !pendingImport || !importPreview.signatureOk}
+                disabled={Boolean(busy) || !pendingImport}
                 onClick={() => runImport(pendingImport, false)}
-                className="rounded-lg bg-[#0ECCEE] px-3 py-1.5 text-xs font-bold text-black disabled:opacity-40"
+                className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-black disabled:opacity-40"
               >
-                Confirm import
+                {busy === 'import' ? 'Importing…' : 'Confirm import'}
               </button>
               {importPreview.alreadyLocked ? (
                 <button
                   type="button"
-                  disabled={busy === 'import' || !pendingImport}
-                  onClick={() => {
-                    if (!window.confirm(`Overwrite locked score for ${importPreview.team}?`)) return;
-                    runImport(pendingImport, true);
-                  }}
-                  className="rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-100"
+                  disabled={Boolean(busy) || !pendingImport}
+                  onClick={() => runImport(pendingImport, true)}
+                  className="rounded-lg border border-amber-400/40 px-3 py-1.5 text-sm text-amber-100 disabled:opacity-40"
                 >
-                  Force overwrite
+                  Overwrite locked score
                 </button>
               ) : null}
             </div>
           </div>
         ) : null}
+        <p className="mt-2 text-[11px] text-white/40">
+          {teamSize}/team · capacity {teamCapacity}
+        </p>
       </section>
     </div>
   );

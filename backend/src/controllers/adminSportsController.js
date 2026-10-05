@@ -88,6 +88,7 @@ function sanitizeSportsPayload(body = {}) {
     if (body.eventDate !== undefined) payload.eventDate = body.eventDate ? new Date(body.eventDate) : null;
     if (body.reportingTime !== undefined) payload.reportingTime = String(body.reportingTime || '').trim();
     if (body.registrationFee !== undefined) payload.registrationFee = Math.max(0, Number(body.registrationFee) || 0);
+    if (body.originalFee !== undefined) payload.originalFee = Math.max(0, Number(body.originalFee) || 0);
     if (body.pricingMode !== undefined) {
         payload.pricingMode = body.pricingMode === 'tiers' ? 'tiers' : 'single';
     }
