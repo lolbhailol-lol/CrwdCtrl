@@ -1,0 +1,14 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Pack Hero 3D">
+<path id="Vector" d="M7.11111 15.1111L24 6.22222L40.8889 15.1111V33.7778L24 42.6667L7.11111 33.7778V15.1111Z" fill="url(#paint0_linear_0_17)"/>
+<path id="Vector_2" d="M7.11111 15.1111L24 24M24 24L40.8889 15.1111M24 24V42.6667" stroke="white" stroke-opacity="0.75" stroke-width="2"/>
+<path id="Vector_3" d="M20.4444 32H27.5556M24 28.4444V35.5556" stroke="white" stroke-width="3" stroke-linecap="round"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_17" x1="277.333" y1="261.333" x2="1663.62" y2="1613.81" gradientUnits="userSpaceOnUse">
+<stop stop-color="#34E0D6"/>
+<stop offset="0.55" stop-color="#1686FF"/>
+<stop offset="1" stop-color="#7B5BFF"/>
+</linearGradient>
+</defs>
+</svg>

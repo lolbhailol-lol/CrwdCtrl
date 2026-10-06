@@ -2141,6 +2141,60 @@ html:not(.dark) .category-card--active .category-active-line {
     -webkit-font-smoothing: antialiased;
 }
 
+.category-games-exact {
+    position: relative;
+    display: block;
+}
+
+.category-games-exact::after {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 23%;
+    width: 54%;
+    height: 8%;
+    border-radius: 50%;
+    background: rgba(17, 24, 39, 0.18);
+    filter: blur(3px);
+}
+
+.category-games-exact__base,
+.category-games-exact > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.category-games-exact__base {
+    z-index: 0;
+    background: #fff;
+    -webkit-mask: url('/category-icons/fests-light.webp') center / 100% 100% no-repeat;
+    mask: url('/category-icons/fests-light.webp') center / 100% 100% no-repeat;
+    clip-path: inset(42% 0 0);
+}
+
+html.dark .category-games-exact__base {
+    background: #202124;
+    -webkit-mask-image: url('/category-icons/fests-dark.webp');
+    mask-image: url('/category-icons/fests-dark.webp');
+}
+
+.category-games-exact > img:not(.category-games-exact__label) {
+    z-index: 2;
+    object-fit: contain;
+    transform: translateY(2px) scale(1.12);
+    transform-origin: center 41%;
+    clip-path: inset(0 0 29% 0);
+}
+
+.category-games-exact > .category-games-exact__label {
+    z-index: 3;
+    object-fit: contain;
+    clip-path: inset(68% 0 0);
+}
+
 /* Fest sub-category icons — preserve 128×113 aspect ratio */
 .category-icon-lg {
     flex-shrink: 0;
@@ -2705,6 +2759,28 @@ html.dark .category-home-btn {
 
 .fests-page-header .mobile-header-category-row .home-category-bar {
     margin-bottom: 0;
+}
+
+/* Games header — visually joins the Games intro into one upper section. */
+@media (max-width: 1023px) {
+    .games-page-header.mobile-header-shell,
+    .games-page-header.mobile-header-shell > .mobile-header-inner {
+        --header-bg: #f5f6fa;
+        background: #f5f6fa !important;
+        border-radius: 0 !important;
+    }
+
+    .games-page-header.mobile-header-shell {
+        margin-bottom: 0;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    html.dark .games-page-header.mobile-header-shell,
+    html.dark .games-page-header.mobile-header-shell > .mobile-header-inner {
+        --header-bg: #0d0e10;
+        background: #0d0e10 !important;
+    }
 }
 
 .mobile-header-category-row .home-category-bar {

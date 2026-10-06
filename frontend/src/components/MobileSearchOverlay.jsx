@@ -173,7 +173,7 @@ export default function MobileSearchOverlay({ session, onClose }) {
             animate={reduced ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: DURATION.fast, delay: 0.08 }}
           >
-            Search fests, treks, sports events and more
+            Search fests, games, sports events and more
           </motion.p>
         ) : heroSearch.isSearching && heroSearch.mergedResults.length === 0 ? (
           <div className="flex items-center gap-2 px-4 py-6">

@@ -5,6 +5,7 @@ import { adminFetchJSON } from '../../services/api/admin.api.js';
 import { ORGANIZER_LOGIN_MATRIX, publicWebUrl } from '../../utils/publicWebOrigin';
 
 const QUICK_LINKS = [
+  { label: 'College Games', path: '/admin/college-platform', description: 'Games, colleges, registrations, passes, and rankings' },
   { label: 'Manage Fests', path: '/admin/fests', description: 'Create, edit, and manage fests' },
   { label: 'Competitions', path: '/admin/competitions', description: 'Competition forms, rounds, and QR' },
   { label: 'Run Clubs', path: '/admin/sports', description: 'Run clubs and run events' },

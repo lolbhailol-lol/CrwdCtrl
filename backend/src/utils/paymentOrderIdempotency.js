@@ -22,11 +22,26 @@ async function expireCancelledPaymentOrder(orderId) {
     const { releaseCompetitionSlot } = require('../services/competitionSlotReservationService');
     await releaseCompetitionSlot(order.orderTags.slotReservationToken).catch(() => {});
   }
+  if (order?.entityType === 'game_registration' && order?.orderTags?.registrationId) {
+    const { GameRegistration, CollegeGame } = require('../modules/college-platform/models');
+    const registration = await GameRegistration.findOneAndUpdate(
+      { _id: order.orderTags.registrationId, slotHeld: true, status: { $in: ['reserved', 'pending_payment'] } },
+      { $set: { status: 'expired', slotHeld: false }, $unset: { participantKeys: 1 } },
+      { new: true },
+    ).catch(() => null);
+    if (registration) {
+      await CollegeGame.updateOne(
+        { _id: registration.gameId, reservedSlots: { $gt: 0 } },
+        { $inc: { reservedSlots: -1 } },
+      ).catch(() => {});
+    }
+  }
 }
 
 function extractEntityId(notes = {}) {
   const raw =
     notes.eventShowId ||
+    notes.gameId ||
     notes.trekId ||
     notes.eventId ||
     notes.competitionId ||

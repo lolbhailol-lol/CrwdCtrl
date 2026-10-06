@@ -2203,6 +2203,25 @@ const generateLoginConfirmationEmailHTML = (userData) => {
 </html>`;
 };
 
+async function sendCollegeGameInviteEmail({ email, name, captainName, gameTitle, teamName, token }) {
+    const frontend = String(process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '');
+    const inviteUrl = `${frontend}/game-invite/${encodeURIComponent(token)}`;
+    return sendEmail({
+        from: getDefaultFrom(),
+        to: email,
+        subject: `Join ${teamName} for ${gameTitle}`,
+        html: buildEmailShell({
+            preheader: `${captainName} invited you to represent your college`,
+            eyebrow: 'CrwdCtrl Games',
+            title: `You are on ${teamName}`,
+            subtitle: gameTitle,
+            bodyHtml: `<p>Hi ${escapeHtml(name || 'there')},</p><p>${escapeHtml(captainName)} registered your team for <strong>${escapeHtml(gameTitle)}</strong>. Sign in with this college email and verify your place before check-in.</p>`,
+            ctaLabel: 'Claim team place',
+            ctaHref: inviteUrl,
+        }),
+    });
+}
+
 module.exports = {
     // Generalized functions (ACTIVE)
     sendWelcomeEmail,
@@ -2225,6 +2244,7 @@ module.exports = {
     sendFestParticipantEmails,
     sendAdminCampaignEmails,
     sendAuditoriumOtpEmail,
+    sendCollegeGameInviteEmail,
     previewAdminCampaignEmailHTML,
     previewLoginEmailHTML: generateLoginConfirmationEmailHTML,
     previewWelcomeEmailHTML: generateWelcomeEmailHTML,

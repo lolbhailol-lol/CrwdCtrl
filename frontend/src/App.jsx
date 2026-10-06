@@ -71,7 +71,6 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
-    location.pathname === '/profile' ||
     location.pathname === '/notifications' ||
     isCategoryHubRoute(location.pathname) ||
     mobileSearch?.isOpen ||
@@ -233,8 +232,9 @@ function AppContent({
   useGlobalSmoothScroll();
 
   const openProfile = useCallback(() => {
-    setIsProfileOpen(true);
-  }, [setIsProfileOpen]);
+    setIsProfileOpen(false);
+    navigate('/profile');
+  }, [navigate, setIsProfileOpen]);
 
   useEffect(() => {
     if (isAuthenticated && showLogin) {

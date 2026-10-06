@@ -10,6 +10,13 @@ import {
 import { hydrateState } from '../offlineEngine';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
+import {
+  HuntPageHeader,
+  HuntPageShell,
+  HuntPrimaryButton,
+  HuntSectionLabel,
+  MissionProgress,
+} from '../../components/HuntV2Shell';
 
 export default function OfflineHuntLoginPage() {
   const navigate = useNavigate();
@@ -99,54 +106,41 @@ export default function OfflineHuntLoginPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0b0c0d] text-white/60">
-        Loading…
-      </div>
+      <HuntPageShell><div className="hunt-v2-page grid place-items-center text-[color:var(--hunt-muted)]">Loading…</div></HuntPageShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
-      <div className="mx-auto max-w-md">
-        <h1 className="text-3xl font-black tracking-tight">
-          {bundle?.team?.teamCode || 'Login'}
-        </h1>
-        {bundle?.team?.teamName ? (
-          <p className="mt-1 text-sm text-white/50">{bundle.team.teamName}</p>
-        ) : null}
-        <p className="mt-4 text-sm text-white/60">
-          Team password · leader phone only
-        </p>
+    <HuntPageShell>
+      <div className="hunt-v2-page">
+        <HuntPageHeader title="Join Your Team" backTo={CAMPUS_HUNT_PATHS.offline} />
+        <div className="hunt-v2-content">
+          <MissionProgress label="Team access" step={7} />
+          <HuntSectionLabel>Team access</HuntSectionLabel>
+          <section className="hunt-v2-card hunt-v2-card-accent p-4">
+            <div className="flex items-center gap-3">
+              <img src="/campus-hunt/v2/team-hero.svg" alt="" className="h-12 w-12" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-extrabold text-[#00828a]">{bundle?.event?.name || 'CTRL Hunt'} • {bundle?.event?.college || 'Campus'}</p>
+                <p className="mt-1 text-xs text-[color:var(--hunt-muted)]">Offline leader phone</p>
+              </div>
+              <span className="rounded-full border border-[#7a59f055] bg-[#7a59f012] px-2 py-1 text-[9px] font-bold text-[#7a59f0]">{bundle?.team?.teamCode || 'TEAM'}</span>
+            </div>
+          </section>
 
-        {error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void enterAsLeader();
-          }}
-          className="mt-6 space-y-3"
-        >
-          <label className="block text-xs text-white/55">
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1.5 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3.5 text-sm outline-none focus:border-[#0ECCEE]/50"
-              autoComplete="off"
-              autoFocus
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={busy || !password.trim()}
-            className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black disabled:opacity-40"
-          >
-            {busy ? 'Entering…' : 'Start'}
-          </button>
-        </form>
+          <form onSubmit={(event) => { event.preventDefault(); void enterAsLeader(); }} className="mt-4 grid gap-4">
+            <label className="hunt-v2-field">Team name
+              <input className="hunt-v2-input" value={bundle?.team?.teamName || bundle?.team?.teamCode || ''} readOnly />
+            </label>
+            <label className="hunt-v2-field">Team password
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="hunt-v2-input font-mono text-lg tracking-[.08em]" autoComplete="off" autoFocus />
+            </label>
+            <div className="hunt-v2-note flex items-center gap-3 p-4 text-sm"><img src="/campus-hunt/v2/team-phone.svg" alt="" className="h-7 w-7" /><span>This phone becomes the active offline game device.</span></div>
+            {error ? <p className="hunt-v2-error">{error}</p> : null}
+            <HuntPrimaryButton type="submit" disabled={busy || !password.trim()}>{busy ? 'Joining…' : 'Join CTRL Hunt'}</HuntPrimaryButton>
+          </form>
+        </div>
       </div>
-    </div>
+    </HuntPageShell>
   );
 }

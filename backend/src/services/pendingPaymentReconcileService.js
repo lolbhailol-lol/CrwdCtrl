@@ -14,6 +14,7 @@ const RECONCILE_ENTITY_TYPES = [
   'competition_bundle',
   'event_show',
   'trek',
+  'game_registration',
 ];
 
 function envMs(name, fallback) {
@@ -52,6 +53,12 @@ async function fulfillPaidOrder(updated) {
     const { fulfillTrekFromPaidOrder } = require('./trekPaymentFulfillment');
     await fulfillTrekFromPaidOrder(updated);
     return { fulfilled: true, entityType: 'trek' };
+  }
+
+  if (updated.entityType === 'game_registration' && updated.orderTags?.registrationId) {
+    const { fulfillGameRegistration } = require('../modules/college-platform/service');
+    await fulfillGameRegistration(updated);
+    return { fulfilled: true, entityType: 'game_registration' };
   }
 
   return { fulfilled: false, reason: 'no_draft' };

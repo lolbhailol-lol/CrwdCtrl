@@ -3,15 +3,11 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Heart, Calendar, User } from 'lucide-react';
 
-/** Prevent duplicate profile opens from double-tap. */
-const PROFILE_TAP_COOLDOWN_MS = 400;
-const profileTapGuard = { lastAt: 0 };
-
 /** Prevent duplicate route navigations from double-tap / ghost clicks. */
 const ROUTE_TAP_COOLDOWN_MS = 450;
 const routeTapGuard = { lastAt: 0, path: '' };
 
-const MobileBottomNav = ({ onProfileClick, onProfileClose, onNavigate, isProfileOpen = false }) => {
+const MobileBottomNav = ({ onProfileClose, onNavigate, isProfileOpen = false }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [mounted, setMounted] = useState(false);
@@ -27,9 +23,7 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onNavigate, isProfile
 
     const isItemActive = (itemPath, itemId) => {
         const p = location.pathname;
-        if (itemId === 'profile') {
-            return isProfileOpen || p.includes('/profile') || p.includes('/edit-profile') || p.includes('/help-center') || p.includes('/list-your-fest') || p.includes('/notifications');
-        }
+        if (itemId === 'profile') return p.includes('/profile') || p.includes('/edit-profile');
         if (isProfileOpen) return false;
         if (itemId === 'home') return p === '/' || p === '/dashboard';
         if (itemId === 'favorites') return p === '/favorites';
@@ -55,20 +49,6 @@ const MobileBottomNav = ({ onProfileClick, onProfileClose, onNavigate, isProfile
     };
 
     const handleNavClick = (path, itemId) => {
-        if (itemId === 'profile') {
-            const now = Date.now();
-            if (now - profileTapGuard.lastAt < PROFILE_TAP_COOLDOWN_MS) {
-                return;
-            }
-            profileTapGuard.lastAt = now;
-
-            if (isProfileOpen) {
-                return;
-            }
-            onProfileClick?.();
-            return;
-        }
-
         if (shouldIgnoreRouteTap(path)) {
             return;
         }

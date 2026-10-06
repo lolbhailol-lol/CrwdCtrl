@@ -19,6 +19,13 @@ import {
 } from '../refreshHuntAppShell';
 import { rememberInstallToken, applyServerStartOverIfNeeded } from '../startOverHunt';
 import { dismissBootOverlays } from '../../../../utils/dismissBootOverlays';
+import {
+  HuntPageHeader,
+  HuntPageShell,
+  HuntPrimaryButton,
+  HuntSectionLabel,
+  MissionProgress,
+} from '../../components/HuntV2Shell';
 
 /** Kill invisible layers that steal taps (One Tap iframe, boot splash, inert). */
 function unlockHuntTaps() {
@@ -189,16 +196,6 @@ export default function OfflineHuntInstallPage() {
     return () => { cancelled = true; };
   }, [token]);
 
-  // Pack + shell ready → enter login (works offline after this).
-  useEffect(() => {
-    if (status !== 'ready' || !team || !shellReady) return undefined;
-    unlockHuntTaps();
-    const t = window.setTimeout(() => {
-      navigate(CAMPUS_HUNT_PATHS.offlineLogin, { replace: true });
-    }, 700);
-    return () => window.clearTimeout(t);
-  }, [status, team, shellReady, navigate]);
-
   const goLogin = () => {
     unlockHuntTaps();
     navigate(CAMPUS_HUNT_PATHS.offlineLogin);
@@ -227,86 +224,66 @@ export default function OfflineHuntInstallPage() {
   };
 
   return (
-    <div className="relative z-10 min-h-screen bg-[#0b0c0d] px-4 py-10 text-white" style={{ pointerEvents: 'auto' }}>
-      <div className="relative z-10 mx-auto max-w-md" style={{ pointerEvents: 'auto' }}>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0ECCEE]">
-          CrwdCtrl Hunt
-        </p>
-        <h1 className="mt-2 text-2xl font-black tracking-tight">
-          {team?.teamCode || 'Install'}
-        </h1>
-        {team?.teamName ? (
-          <p className="mt-1 text-sm text-white/50">{team.teamName}</p>
-        ) : null}
-        {packMeta?.exportedAt ? (
-          <p className="mt-2 text-[11px] text-white/40">
-            Pack export · {new Date(packMeta.exportedAt).toLocaleString()}
-          </p>
-        ) : null}
+    <HuntPageShell>
+      <div className="hunt-v2-page relative z-10" style={{ pointerEvents: 'auto' }}>
+        <HuntPageHeader title="Offline Pack" backTo={CAMPUS_HUNT_PATHS.offline} />
+        <div className="hunt-v2-content">
+          <MissionProgress label="Offline kit" step={6} />
+          <HuntSectionLabel>Offline kit</HuntSectionLabel>
 
-        {status === 'loading' ? (
-          <p className="mt-8 text-sm text-white/50">Saving team pack…</p>
-        ) : null}
+          {status === 'loading' ? (
+            <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-pack-hero">
+              <img src="/campus-hunt/v2/pack-hero.svg" alt="" />
+              <h1>Saving team pack…</h1>
+              <p>KEEP THIS SCREEN OPEN</p>
+            </section>
+          ) : null}
 
-        {status === 'error' ? (
-          <div className="mt-8 space-y-4">
-            <p className="text-sm text-red-300">{error}</p>
-            <button
-              type="button"
-              onClick={() => { void wipeAndRetry(); }}
-              className="relative z-20 w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100 touch-manipulation"
-            >
-              Clear pack on this phone &amp; retry
-            </button>
-            <p className="text-[11px] leading-relaxed text-white/45">
-              New pack links need data ON for one download. After that, airplane mode works.
-            </p>
-          </div>
-        ) : null}
+          {status === 'error' ? (
+            <section className="hunt-v2-card p-4">
+              <p className="hunt-v2-error">{error}</p>
+              <button type="button" onClick={() => void wipeAndRetry()} className="hunt-v2-secondary mt-4">Clear pack &amp; retry</button>
+              <p className="mt-3 text-xs text-[color:var(--hunt-muted)]">New pack links need data once. After download, airplane mode works.</p>
+            </section>
+          ) : null}
 
-        {status === 'ready' && team ? (
-          <div className="relative z-20 mt-6 space-y-4" style={{ pointerEvents: 'auto' }}>
-            <OfflineHuntInstallHelp
-              packReady
-              forceInstall={!appInstalled}
-              teamCode={team.teamCode}
-              updateWaiting={updateWaiting}
-              packNote={packNote}
-              onInstalled={() => setAppInstalled(true)}
-            />
+          {status === 'ready' && team ? (
+            <div className="grid gap-3">
+              <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-pack-hero">
+                <img src="/campus-hunt/v2/pack-hero.svg" alt="" />
+                <h1>Ready for game day</h1>
+                <p>DOWNLOADED • {team.teamCode}</p>
+                <div className="hunt-v2-pack-metrics">
+                  <div><strong>Saved</strong><small>Pack</small></div>
+                  <div><strong>8 stops</strong><small>Route</small></div>
+                  <div><strong>Auto</strong><small>Sync</small></div>
+                </div>
+                <div className="mt-3 w-full text-left text-[9px] font-bold text-[color:var(--hunt-muted)]">KIT READINESS <span className="float-right text-[#00a16a]">100%</span></div>
+                <div className="hunt-v2-track mt-1 w-full"><span style={{ width: '100%' }} /></div>
+              </section>
 
-            {updateWaiting ? (
-              <button
-                type="button"
-                onClick={() => { void applyWaitingHuntUpdate(); }}
-                className="relative z-20 w-full rounded-xl border border-amber-400/40 bg-amber-500/15 py-3 text-sm font-bold text-amber-100 touch-manipulation"
-              >
-                Update ready — reload Hunt
-              </button>
-            ) : null}
+              <div className="hunt-v2-note p-4 text-sm"><strong className="block text-[color:var(--hunt-ink)]">Auto-sync enabled</strong>Leaderboard refreshes whenever internet returns.</div>
+              <div className="hunt-v2-note p-4 text-sm"><strong className="block text-[color:var(--hunt-ink)]">Clues stay locked</strong>Organizer start code unlocks the hunt.</div>
 
-            <button
-              type="button"
-              onClick={goLogin}
-              className="relative z-20 w-full rounded-xl bg-[#0ECCEE] py-4 text-sm font-bold text-black touch-manipulation active:scale-[0.98]"
-            >
-              {shellReady ? 'Enter Hunt' : 'Caching… then Enter'}
-            </button>
+              {!appInstalled || updateWaiting ? (
+                <OfflineHuntInstallHelp
+                  packReady
+                  forceInstall={!appInstalled}
+                  teamCode={team.teamCode}
+                  updateWaiting={updateWaiting}
+                  packNote={packNote}
+                  onInstalled={() => setAppInstalled(true)}
+                />
+              ) : null}
 
-            <button
-              type="button"
-              onClick={() => { void wipeAndRetry(); }}
-              className="relative z-20 w-full text-center text-xs text-white/40 underline hover:text-white/60 touch-manipulation"
-            >
-              Wrong pack? Clear &amp; reload
-            </button>
-          </div>
-        ) : status === 'loading' ? null : (
-          <div className="mt-6">
-            <OfflineHuntInstallHelp packReady={false} forceInstall />
-          </div>
-        )}
+              {updateWaiting ? <button type="button" onClick={() => void applyWaitingHuntUpdate()} className="hunt-v2-secondary">Update &amp; reload Hunt</button> : null}
+              <HuntPrimaryButton disabled={!shellReady} onClick={goLogin}>{shellReady ? 'Continue' : 'Caching…'}</HuntPrimaryButton>
+              <button type="button" onClick={() => void wipeAndRetry()} className="text-xs text-[color:var(--hunt-muted)] underline">Wrong pack? Clear &amp; reload</button>
+              {packMeta?.exportedAt ? <p className="text-[10px] text-[color:var(--hunt-muted)]">Pack export · {new Date(packMeta.exportedAt).toLocaleString()}</p> : null}
+            </div>
+          ) : status === 'loading' ? null : !team ? <OfflineHuntInstallHelp packReady={false} forceInstall /> : null}
+        </div>
       </div>
-    </div>
+    </HuntPageShell>
   );
 }

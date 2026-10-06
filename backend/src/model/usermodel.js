@@ -40,6 +40,13 @@ const userSchema = new mongoose.Schema(
       default: "student",
     },
     college: { type: String },
+    collegeId: { type: mongoose.Schema.Types.ObjectId, ref: 'College', default: null },
+    collegeVerifiedAt: { type: Date, default: null },
+    collegeVerificationMethod: {
+      type: String,
+      enum: ['email_domain', 'admin'],
+      default: null,
+    },
     profilePic: { type: String },
     dateOfBirth: { type: Date },
     gender: { 

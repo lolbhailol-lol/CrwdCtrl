@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Trophy } from 'lucide-react';
 import {
   fetchCampusHuntColleges,
   fetchPublicLeaderboard,
@@ -18,6 +18,7 @@ export default function CampusHuntLeaderboardPage() {
   const { isDark, toggleDarkMode } = useDarkMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const collegeParam = searchParams.get('college') || '';
+  const eventParam = searchParams.get('event') || '';
 
   const [colleges, setColleges] = useState([]);
   const [college, setCollege] = useState(collegeParam);
@@ -58,7 +59,8 @@ export default function CampusHuntLeaderboardPage() {
         setCollege(initial);
         const evs = (list.find((c) => c.college === initial)?.events || [])
           .filter((ev) => ev.leaderboardLive === true);
-        setEventId(evs[0]?.id || '');
+        const requestedEvent = evs.find((ev) => ev.id === eventParam || ev.slug === eventParam);
+        setEventId(requestedEvent?.id || evs[0]?.id || '');
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load colleges');
       } finally {
@@ -66,7 +68,7 @@ export default function CampusHuntLeaderboardPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [collegeParam]);
+  }, [collegeParam, eventParam]);
 
   const loadBoard = useCallback(async () => {
     if (!eventId) {
@@ -143,22 +145,28 @@ export default function CampusHuntLeaderboardPage() {
     setEventId(evs[0]?.id || '');
   };
 
+  const onEventChange = (value) => {
+    setEventId(value);
+    setSearchParams({ college, event: value });
+  };
+
   const rows = board?.leaderboard || [];
   const selectedEvent = events.find((e) => e.id === eventId) || board?.event;
+  const completedEvent = Boolean(selectedEvent?.date && new Date(selectedEvent.date) < new Date());
 
-  const pageBg = isDark ? 'bg-[#0b0c0d] text-white' : 'bg-[#F5F6FA] text-gray-900';
-  const muted = isDark ? 'text-white/50' : 'text-gray-500';
-  const mutedSoft = isDark ? 'text-white/45' : 'text-gray-500';
+  const pageBg = isDark ? 'bg-[#161718] text-[#F8FAFC]' : 'bg-white text-[#111827]';
+  const muted = isDark ? 'text-[#AEB6C2]' : 'text-[#5B6472]';
+  const mutedSoft = isDark ? 'text-[#929BA8]' : 'text-[#667085]';
   const card = isDark
-    ? 'border-white/10 bg-white/5'
-    : 'border-gray-200 bg-white shadow-sm';
+    ? 'border-[#292C31] bg-[#0D0E10] shadow-[0_12px_32px_rgba(0,0,0,0.22)]'
+    : 'border-[#E1E5EA] bg-[#F5F6FA] shadow-[0_10px_28px_rgba(17,24,39,0.06)]';
   const selectCls = isDark
-    ? 'border-white/20 bg-[#161718] text-white'
-    : 'border-gray-200 bg-white text-gray-900';
-  const rowDivider = isDark ? 'divide-white/10' : 'divide-gray-100';
-  const rowHeader = isDark ? 'bg-white/5 text-white/50' : 'bg-gray-50 text-gray-500';
-  const mineRow = isDark ? 'bg-[#0ECCEE]/10' : 'bg-[#0ECCEE]/15';
-  const accent = 'text-[#0ECCEE]';
+    ? 'border-[#343941] bg-[#191B20] text-white'
+    : 'border-[#D7DCE3] bg-white text-[#111827]';
+  const rowDivider = isDark ? 'divide-[#2B3038]' : 'divide-[#EDF0F3]';
+  const rowHeader = isDark ? 'bg-[#1A1C21] text-[#AEB6C2]' : 'bg-[#ECEFF3] text-[#5B6472]';
+  const mineRow = isDark ? 'bg-[#0ECCEE]/10' : 'bg-[#087A82]/10';
+  const accent = isDark ? 'text-[#42D6DF]' : 'text-[#087A82]';
 
   // iOS Safari: pinch/double-tap while scrolling the board often zooms the page — lock scale here only.
   useEffect(() => {
@@ -176,21 +184,21 @@ export default function CampusHuntLeaderboardPage() {
 
   return (
     <div
-      className={`campus-hunt-leaderboard min-h-[100dvh] touch-pan-y overscroll-y-contain px-4 py-6 transition-colors duration-300 ${pageBg}`}
+      className={`campus-hunt-leaderboard min-h-[100dvh] touch-pan-y overscroll-y-contain px-4 py-5 transition-colors duration-300 ${pageBg}`}
       style={{ WebkitOverflowScrolling: 'touch' }}
     >
       <div className="mx-auto max-w-lg space-y-5">
         <CampusHuntBackLink
-          to="/"
-          label="Back"
-          className={isDark ? '' : '!text-gray-400 hover:!text-gray-700'}
+          to="/games"
+          label="Back to Games"
+          className={isDark ? '!text-[#AEB6C2] hover:!text-white' : '!text-[#5B6472] hover:!text-[#111827]'}
         />
         <header className="flex items-start justify-between gap-3">
           <div className="space-y-1">
-            <p className={`text-xs uppercase tracking-widest ${accent}`}>Campus Hunt</p>
-            <h1 className="text-2xl font-bold">Leaderboard</h1>
+            <p className={`text-xs font-semibold uppercase tracking-[0.16em] ${accent}`}>COEP Campus Hunt</p>
+            <h1 className="text-[1.75rem] font-bold leading-tight">Leaderboard</h1>
             <p className={`text-sm ${muted}`}>
-              Live scores by college. Updates every ~12s.
+              {completedEvent ? 'Final rankings from the completed game.' : 'Live scores. Updates every ~12s.'}
             </p>
           </div>
           <button
@@ -201,7 +209,7 @@ export default function CampusHuntLeaderboardPage() {
               isDark
                 ? 'border-white/15 bg-white/5 text-white hover:bg-white/10'
                 : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
-            } ${typeof document !== 'undefined' && document.documentElement.dataset.organizerDark === '1' ? 'hidden' : ''}`}
+            }`}
           >
             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
@@ -240,7 +248,7 @@ export default function CampusHuntLeaderboardPage() {
                 Event
                 <select
                   value={eventId}
-                  onChange={(e) => setEventId(e.target.value)}
+                  onChange={(e) => onEventChange(e.target.value)}
                   className={`mt-1 w-full rounded-xl border px-3 py-2.5 text-base ${selectCls}`}
                 >
                   {events.map((ev) => (
@@ -263,10 +271,10 @@ export default function CampusHuntLeaderboardPage() {
 
         {eventId && (
           <section className={`overflow-hidden rounded-2xl border ${card}`}>
-            <div className={`flex items-center justify-between px-4 py-2 text-xs ${rowHeader}`}>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                Live rankings
+            <div className={`flex items-center justify-between px-4 py-2.5 text-xs ${rowHeader}`}>
+              <span className="inline-flex items-center gap-2 font-medium">
+                {completedEvent ? <Trophy className="h-3.5 w-3.5" /> : <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />}
+                {completedEvent ? 'Final rankings' : 'Live rankings'}
               </span>
               <span>{updatedAt ? `Updated ${updatedAt}` : '…'}</span>
             </div>
@@ -313,12 +321,14 @@ export default function CampusHuntLeaderboardPage() {
           </section>
         )}
 
-        <Link
-          to={CAMPUS_HUNT_PATHS.profileLogin}
-          className={`block text-center text-sm underline ${muted}`}
-        >
-          Hunt login
-        </Link>
+        {!completedEvent && (
+          <Link
+            to={CAMPUS_HUNT_PATHS.profileLogin}
+            className={`block text-center text-sm underline ${muted}`}
+          >
+            Hunt login
+          </Link>
+        )}
       </div>
     </div>
   );

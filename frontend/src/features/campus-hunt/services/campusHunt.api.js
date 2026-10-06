@@ -1,6 +1,6 @@
 import { userApiCall } from '../../../services/api/auth.api';
 import { adminFetch, adminFetchJSON } from '../../../services/api/admin.api';
-import { publicFetchJSON, resolveUrl } from '../../../services/api/client';
+import { publicFetchJSON, publicFetchJSONRetry, resolveUrl } from '../../../services/api/client';
 import { getApiBaseCandidates } from '../../../config/apiBase.js';
 import { gridClientHeaders } from '../grid/laptopOnly';
 import {
@@ -355,7 +355,8 @@ export async function fetchLeaderboard(eventId) {
 
 /** Public colleges + events for profile picker */
 export async function fetchCampusHuntColleges() {
-  return publicFetchJSON(`${BASE}/colleges`);
+  const response = await publicFetchJSONRetry(`${BASE}/colleges`, { retries: 2, cacheBust: false });
+  return response.data;
 }
 
 /** Profile sidebar: login / leaderboard flags + my team codes when authenticated */
@@ -377,7 +378,11 @@ export async function fetchCampusHuntProfileEntries() {
 
 /** Public live leaderboard (no login required) */
 export async function fetchPublicLeaderboard(eventId) {
-  return publicFetchJSON(`${BASE}/events/${encodeURIComponent(eventId)}/leaderboard/public`);
+  const response = await publicFetchJSONRetry(
+    `${BASE}/events/${encodeURIComponent(eventId)}/leaderboard/public`,
+    { retries: 2, cacheBust: false },
+  );
+  return response.data;
 }
 
 export async function fetchPublicFinaleLeaderboard(eventId) {

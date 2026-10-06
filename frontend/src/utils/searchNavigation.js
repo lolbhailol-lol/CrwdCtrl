@@ -1,4 +1,4 @@
-import { communityPath, competitionPath, eventShowPath, festPath, runClubPath, sportRunPath, trekPath } from './slugRoutes.js';
+import { competitionPath, eventShowPath, festPath, runClubPath, sportRunPath } from './slugRoutes.js';
 
 /**
  * Navigate to the correct page from a unified search result.
@@ -16,32 +16,8 @@ export function navigateToSearchResult(navigate, result) {
     navigate(festPath({ ...result, _id: id, id, festName: result.title, title: result.title }));
     return;
   }
-  if (type === 'trek') {
-    navigate(trekPath({ ...result, _id: id, id, trekName: result.title, title: result.title }), {
-      state: {
-        trek: {
-          ...result,
-          trekName: result.title || result.trekName,
-          images: result.image ? [result.image] : result.images || [],
-        },
-      },
-    });
-    return;
-  }
-  if (type === 'community') {
-    navigate(communityPath({ ...result, _id: id, id, name: result.title, title: result.title }), {
-      state: {
-        community: {
-          id,
-          title: result.title || result.name,
-          subtitle: result.subtitle || result.basedIn,
-          image: result.image || result.coverImage,
-          coverImage: result.coverImage || result.image,
-          coverImages: result.coverImages,
-          trekCategories: result.trekCategories || [],
-        },
-      },
-    });
+  if (type === 'game') {
+    navigate(`/games/${result.slug || id}`);
     return;
   }
   if (type === 'runclub') {

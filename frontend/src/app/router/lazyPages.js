@@ -7,6 +7,16 @@ export const CompetitionsViewDetails = lazyWithRetry(
 );
 
 export const Dashboard = lazyWithRetry(() => import('../../pages/home/Dashboard'));
+const collegePlatformPage = (name) => lazyWithRetry(() => import('../../features/college-platform/CollegePlatform').then((module) => ({ default: module[name] })));
+export const CollegeHomePage = collegePlatformPage('CollegeHomePage');
+export const GamesPage = collegePlatformPage('GamesPage');
+export const GameDetailPage = collegePlatformPage('GameDetailPage');
+export const TeamRegistrationPage = collegePlatformPage('TeamRegistrationPage');
+export const GamePassPage = collegePlatformPage('GamePassPage');
+export const RankingsPage = collegePlatformPage('RankingsPage');
+export const CrwdCtrlIdPage = collegePlatformPage('CrwdCtrlIdPage');
+export const HostGamePage = collegePlatformPage('HostGamePage');
+export const GameInvitePage = collegePlatformPage('GameInvitePage');
 export const Booking = lazyWithRetry(() => import('../../pages/profile/booking'));
 export const PaymentReturn = lazyWithRetry(() => import('../../pages/payment/PaymentReturn'));
 export const FestStallInterestPage = lazyWithRetry(() => import('../../features/fests/pages/stall/FestStallInterestPage'));
@@ -71,6 +81,7 @@ export const TrekCategoryPage = lazyWithRetry(() => import('../../features/treks
 
 export const AdminLayout = lazyWithRetry(() => import('../../pages/admin/AdminLayout'));
 export const AdminDashboardPage = lazyWithRetry(() => import('../../pages/admin/AdminDashboardPage'));
+export const CollegePlatformAdminPage = lazyWithRetry(() => import('../../pages/admin/CollegePlatformPage'));
 export const AdminFestsPage = lazyWithRetry(() => import('../../pages/admin/FestsPage'));
 export const CompetitionsPage = lazyWithRetry(() => import('../../pages/admin/CompetitionsPage'));
 export const RegistrationsPage = lazyWithRetry(() => import('../../pages/admin/RegistrationsPage'));

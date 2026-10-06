@@ -2,6 +2,7 @@ import { Route } from 'react-router-dom';
 import {
   AdminLayout,
   AdminDashboardPage,
+  CollegePlatformAdminPage,
   AdminFestsPage,
   CompetitionsPage,
   RegistrationsPage,
@@ -39,6 +40,7 @@ export const adminRoutes = (
       }
     >
       <Route index element={<AdminDashboardPage />} />
+      <Route path="college-platform" element={<CollegePlatformAdminPage />} />
       <Route path="fests" element={<AdminFestsPage />} />
       <Route path="competitions" element={<CompetitionsPage />} />
       <Route path="registrations" element={<RegistrationsPage />} />

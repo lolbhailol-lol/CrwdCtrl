@@ -6,12 +6,16 @@ export const CATEGORY_NAV_ICONS = {
   light: {
     fests: `${BASE}/fests-light.webp`,
     sports: `${BASE}/sports-light.webp`,
+    games: `${BASE}/games.svg`,
+    rankings: `${BASE}/events-light.webp`,
     treks: `${BASE}/treks-light.webp`,
     events: `${BASE}/events-light.webp`,
   },
   dark: {
     fests: `${BASE}/fests-dark.webp`,
     sports: `${BASE}/sports-dark.webp`,
+    games: `${BASE}/games-dark.svg`,
+    rankings: `${BASE}/events-dark.webp`,
     treks: `${BASE}/treks-dark.webp`,
     events: `${BASE}/events-dark.webp`,
   },

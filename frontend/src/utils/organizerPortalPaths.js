@@ -16,6 +16,7 @@ export const ORGANIZER_PORTAL_PREFIXES = [
 /** Campus Hunt player + offline + volunteer — always dark (avoids light-mode white-on-white). */
 export function isCampusHuntDarkPath(pathname = '') {
     const path = String(pathname || '');
+    if (path === '/campus-hunt/leaderboard') return false;
     return (
         path === '/campus-hunt'
         || path.startsWith('/campus-hunt/')

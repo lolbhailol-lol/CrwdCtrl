@@ -28,6 +28,10 @@ function fulfillPaidOrder(order) {
     const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
     return fulfillTrekFromPaidOrder(order);
   }
+  if (order?.entityType === 'game_registration' && order?.orderTags?.registrationId) {
+    const { fulfillGameRegistration } = require('../modules/college-platform/service');
+    return fulfillGameRegistration(order);
+  }
   return Promise.resolve();
 }
 
@@ -277,6 +281,12 @@ exports.handleCashfreeWebhook = async (req, res) => {
               '[paymentWebhook] Trek fulfill failed:',
               fulfillErr?.message || fulfillErr,
             );
+          });
+        }
+        if (updated?.entityType === 'game_registration' && updated?.orderTags?.registrationId) {
+          const { fulfillGameRegistration } = require('../modules/college-platform/service');
+          fulfillGameRegistration(updated).catch((fulfillErr) => {
+            console.error('[paymentWebhook] Game registration fulfill failed:', fulfillErr?.message || fulfillErr);
           });
         }
       } catch (dbErr) {

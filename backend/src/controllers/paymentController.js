@@ -9,6 +9,7 @@ const EventShow = require('../model/event_show_model');
 const PlatformEvent = require('../model/platform_event_model');
 const SportsEvent = require('../model/sports_model');
 const PaymentOrder = require('../model/payment_order_model');
+const { CollegeGame, GameRegistration } = require('../modules/college-platform/models');
 const { buildPriceBreakdown, buildTrekPriceBreakdown, buildEventPriceBreakdown, parseTicketPrice } = require('../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../utils/trekRegistrationFee');
 const { validateTrekGenderRegistration, validateSportsGenderRegistration } = require('../utils/trekGenderRegistration');
@@ -156,6 +157,7 @@ const resolvePricedEntity = async ({
   competitionId,
   festId,
   eventShowId,
+  gameId,
   notes = {},
   tierId,
   selectedTierIds,
@@ -165,7 +167,30 @@ const resolvePricedEntity = async ({
   const resolvedCompetitionId = competitionId || notes.competitionId;
   const resolvedFestId = festId || notes.festId;
   const resolvedEventShowId = eventShowId || notes.eventShowId;
+  const resolvedGameId = gameId || notes.gameId;
   const resolvedTierId = tierId || notes.tierId || '';
+
+  if (resolvedGameId) {
+    const game = await CollegeGame.findById(resolvedGameId)
+      .select('title feePerTeam platformFeePercent status registrationClosesAt')
+      .lean();
+    if (!game || game.status !== 'published') return null;
+    if (game.registrationClosesAt && new Date(game.registrationClosesAt).getTime() <= Date.now()) {
+      const err = new Error('Game registration is closed');
+      err.status = 409;
+      throw err;
+    }
+    return {
+      entityType: 'game_registration',
+      ticketPrice: Math.max(0, Number(game.feePerTeam) || 0),
+      platformFeePercent: Number.isFinite(Number(game.platformFeePercent)) ? Number(game.platformFeePercent) : 3,
+      notes: {
+        gameId: String(game._id),
+        gameName: game.title || '',
+        allowCoupons: false,
+      },
+    };
+  }
 
   if (resolvedEventShowId) {
     const eventShow = await findByIdOrSlug(EventShow, resolvedEventShowId, {
@@ -296,6 +321,7 @@ const getPricingForRequest = async (req) => {
     competitionId,
     festId,
     eventShowId,
+    gameId,
     notes = {},
     couponCode,
     tierId,
@@ -321,6 +347,7 @@ const getPricingForRequest = async (req) => {
       competitionId,
       festId,
       eventShowId,
+      gameId,
       notes,
       tierId: resolvedTierId,
       selectedTierIds: draftTierIds,
@@ -579,7 +606,25 @@ exports.createOrder = async (req, res) => {
     const { sanitizeFestCompetitionDraft } = require('../utils/festCompetitionDraft');
     const eventDraft = sanitizeRegistrationDraft(req.body.registrationDraft);
     const festCompDraft = sanitizeFestCompetitionDraft(req.body.registrationDraft);
-    const registrationDraft = eventDraft || festCompDraft;
+    const gameDraft = pricing.entityType === 'game_registration' && req.body.registrationDraft?.registrationId
+      ? { registrationId: String(req.body.registrationDraft.registrationId) }
+      : null;
+    const registrationDraft = gameDraft || eventDraft || festCompDraft;
+
+    if (pricing.entityType === 'game_registration') {
+      const gameRegistration = await GameRegistration.findOne({
+        _id: gameDraft?.registrationId,
+        gameId: entityId,
+        captainUserId: userId,
+        status: { $in: ['reserved', 'pending_payment'] },
+        reservationExpiresAt: { $gt: new Date() },
+      }).lean();
+      if (!gameRegistration) {
+        const err = new Error('Create or refresh your team reservation before payment');
+        err.status = 409;
+        throw err;
+      }
+    }
 
     const existingPending = await findReusablePendingOrder({
       userId,
@@ -599,11 +644,13 @@ exports.createOrder = async (req, res) => {
         // MindSpark has moved to the events merchant.
         await expireCancelledPaymentOrder(existingPending.orderId);
       } else {
-      if (registrationDraft && ['event_show', 'fest', 'competition'].includes(pricing.entityType)) {
+      if (registrationDraft && ['event_show', 'fest', 'competition', 'game_registration'].includes(pricing.entityType)) {
         const nextTags = {
           ...(existingPending.orderTags || {}),
           registrationDraft: pricing.entityType === 'event_show'
             ? { ...eventDraft, eventShowId: String(entityId || eventDraft?.eventShowId || '') }
+            : pricing.entityType === 'game_registration'
+              ? gameDraft
             : {
               ...festCompDraft,
               festId: String(entityId || festCompDraft?.festId || pricing.notes?.festId || ''),
@@ -618,6 +665,16 @@ exports.createOrder = async (req, res) => {
           { $set: { orderTags: nextTags } },
         ).catch(() => {});
         existingPending.orderTags = nextTags;
+      }
+      if (pricing.entityType === 'game_registration' && gameDraft?.registrationId) {
+        await PaymentOrder.updateOne(
+          { _id: existingPending._id },
+          { $set: { 'orderTags.registrationId': gameDraft.registrationId } },
+        ).catch(() => {});
+        existingPending.orderTags = {
+          ...(existingPending.orderTags || {}),
+          registrationId: gameDraft.registrationId,
+        };
       }
       return res.json({
         ...buildOrderResponse(existingPending),
@@ -750,6 +807,8 @@ exports.createOrder = async (req, res) => {
     };
     allowTag('entityType', pricing.entityType);
     allowTag('eventShowId', pricing.notes?.eventShowId);
+    allowTag('gameId', pricing.notes?.gameId);
+    allowTag('gameName', pricing.notes?.gameName);
     allowTag('competitionName', pricing.notes?.competitionName);
     allowTag('festName', pricing.notes?.festName);
     allowTag('tierId', pricing.notes?.tierId);
@@ -766,6 +825,7 @@ exports.createOrder = async (req, res) => {
           receipt: buildRazorpayReceipt(
             pricing.notes?.competitionName
               || pricing.notes?.eventShowName
+              || pricing.notes?.gameName
               || pricing.notes?.festName
               || pricing.entityType,
             pricing.entityType,
@@ -808,9 +868,11 @@ exports.createOrder = async (req, res) => {
         ...pricing.notes,
         ...(slotReservation?.token ? { slotReservationToken: slotReservation.token } : {}),
       };
-      if (registrationDraft && ['event_show', 'fest', 'competition'].includes(pricing.entityType)) {
+      if (registrationDraft && ['event_show', 'fest', 'competition', 'game_registration'].includes(pricing.entityType)) {
         mongoOrderTags.registrationDraft = pricing.entityType === 'event_show'
           ? { ...eventDraft, eventShowId: String(entityId || eventDraft?.eventShowId || '') }
+          : pricing.entityType === 'game_registration'
+            ? gameDraft
           : {
             ...festCompDraft,
             festId: String(entityId || festCompDraft?.festId || pricing.notes?.festId || ''),
@@ -818,6 +880,9 @@ exports.createOrder = async (req, res) => {
               entityId || festCompDraft?.competitionId || pricing.notes?.competitionId || '',
             ),
           };
+      }
+      if (pricing.entityType === 'game_registration' && gameDraft?.registrationId) {
+        mongoOrderTags.registrationId = gameDraft.registrationId;
       }
       await PaymentOrder.create({
         orderId: order.order_id,
@@ -921,6 +986,10 @@ async function markOrderPaidAndFulfill(result) {
       const { fulfillTrekFromPaidOrder } = require('../services/trekPaymentFulfillment');
       fulfillTrekFromPaidOrder(updated).catch(() => {});
     }
+    if (updated.entityType === 'game_registration' && updated.orderTags?.registrationId) {
+      const { fulfillGameRegistration } = require('../modules/college-platform/service');
+      await fulfillGameRegistration(updated);
+    }
     return updated;
   } catch {
     return null;
@@ -983,9 +1052,16 @@ exports.verifyPayment = async (req, res) => {
       }
 
       let registrationId = null;
+      if (entityType === 'game_registration') {
+        const gameRegistration = await GameRegistration.findById(paymentOrder.orderTags?.registrationId).select('_id passId status').lean().catch(() => null);
+        registrationId = gameRegistration?._id ? String(gameRegistration._id) : null;
+        extras.passId = gameRegistration?.passId || null;
+        extras.registrationStatus = gameRegistration?.status || null;
+      }
       if (result.verified && req.user?.userId) {
         try {
           const Registration = require('../model/registration_model');
+          if (entityType === 'game_registration') throw new Error('game_registration_uses_own_model');
           const regQuery = {
             payment_order_id: String(orderId),
             user: req.user.userId,

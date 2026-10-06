@@ -21,8 +21,8 @@ import { navigateToSearchResult } from '../../utils/searchNavigation';
 
 const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },
-    { id: 'sports',  label: 'Sports',  path: '/sports' },
-    { id: 'treks',   label: 'Treks',   path: '/treks' },
+    { id: 'games',   label: 'Games',   path: '/games' },
+    { id: 'rankings', label: 'Rankings', path: '/rankings' },
     { id: 'events', label: 'Events', path: '/events' },
 ];
 

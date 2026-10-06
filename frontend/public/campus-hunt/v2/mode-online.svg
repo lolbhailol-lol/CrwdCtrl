@@ -1,0 +1,13 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="37.125" height="37.125" viewBox="0 0 37.125 37.125" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group">
+<path id="Vector" d="M18.5625 37.125C28.8143 37.125 37.125 28.8143 37.125 18.5625C37.125 8.31071 28.8143 0 18.5625 0C8.31071 0 0 8.31071 0 18.5625C0 28.8143 8.31071 37.125 18.5625 37.125Z" fill="url(#paint0_linear_0_13)"/>
+<path id="Vector_2" d="M6.75 15.1875C13.5 9.28125 23.625 9.28125 30.375 15.1875M10.9688 20.25C15.1875 16.875 21.9375 16.875 26.1562 20.25M15.1875 25.3125C16.875 23.625 20.25 23.625 21.9375 25.3125" stroke="white" stroke-width="3" stroke-linecap="round"/>
+<path id="Vector_3" d="M18.5625 31.6406C19.7275 31.6406 20.6719 30.6962 20.6719 29.5312C20.6719 28.3663 19.7275 27.4219 18.5625 27.4219C17.3975 27.4219 16.4531 28.3663 16.4531 29.5312C16.4531 30.6962 17.3975 31.6406 18.5625 31.6406Z" fill="white"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_13" x1="371.25" y1="297" x2="2004.75" y2="2079" gradientUnits="userSpaceOnUse">
+<stop stop-color="#37E4D5"/>
+<stop offset="1" stop-color="#087FFF"/>
+</linearGradient>
+</defs>
+</svg>

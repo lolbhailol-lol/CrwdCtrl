@@ -48,6 +48,7 @@ import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { buildFestDetailNavState } from '../../utils/detailPageCache';
 import { prefetchFestDetail } from '../../services/api/fests.api';
 import { shouldShowHomeSectionLoading } from '../../utils/homeFeedLoading';
+import { listGames } from '../../features/college-platform/api';
 
 const CrwdCtrlLogin = lazy(() => import('../auth/login'));
 const CrwdCtrlRegister = lazy(() => import('../auth/register'));
@@ -56,7 +57,7 @@ const HOME_JSON_LD = [
     webPageSchema({
         name: 'CrwdCtrl — Discover fests, clubs & events',
         description:
-            'Find and register for college fests, tech and sports events, running clubs, gym communities, treks, and meetups near you.',
+            'Find and register for college fests, games, tech and sports events, running clubs, and meetups near you.',
         url: '/',
     }),
     itemListSchema({
@@ -65,7 +66,7 @@ const HOME_JSON_LD = [
         url: '/',
         items: [
             { name: 'College Fests', url: '/fests' },
-            { name: 'Treks & Adventure', url: '/treks' },
+            { name: 'CrwdCtrl Games', url: '/games' },
             { name: 'Sports & Running Clubs', url: '/sports' },
             { name: 'Events & Meetups', url: '/events' },
         ],
@@ -298,8 +299,7 @@ const Dashboard = () => {
         return () => window.clearTimeout(timer);
     }, [isFestsLoading]);
 
-    const [homeCommunities, setHomeCommunities] = useState([]);
-    const [homeTreks, setHomeTreks] = useState([]);
+    const [homeGames, setHomeGames] = useState([]);
     const [homeSports, setHomeSports] = useState([]);
     const [homeRunClubs, setHomeRunClubs] = useState([]);
     const [homeEventShows, setHomeEventShows] = useState([]);
@@ -320,6 +320,18 @@ const Dashboard = () => {
         coordinates: null
     });
     const [searchParams, setSearchParams] = useSearchParams();
+
+    useEffect(() => {
+        let active = true;
+        listGames()
+            .then((data) => {
+                if (active) setHomeGames(Array.isArray(data?.games) ? data.games : []);
+            })
+            .catch(() => {
+                if (active) setHomeGames([]);
+            });
+        return () => { active = false; };
+    }, []);
 
     // Function to force refresh data (clear cache and fetch fresh)  retries for cold starts
     const forceRefreshData = useCallback(() => {
@@ -353,8 +365,6 @@ const Dashboard = () => {
                 }
 
                 if (data && typeof data === 'object') {
-                    setHomeCommunities(Array.isArray(data.communities) ? data.communities : []);
-                    setHomeTreks(Array.isArray(data.treks) ? data.treks : []);
                     setHomeSports(Array.isArray(data.sports) ? data.sports : []);
                     setHomeRunClubs(Array.isArray(data.runClubs) ? data.runClubs : []);
                     setHomeEventShows(Array.isArray(data.eventShows) ? data.eventShows : []);
@@ -529,8 +539,6 @@ const Dashboard = () => {
             : (isIOS || isSafari) ? 20000 : 15000;
 
         const applyAux = (d) => {
-            setHomeCommunities(Array.isArray(d.communities) ? d.communities : []);
-            setHomeTreks(Array.isArray(d.treks) ? d.treks : []);
             setHomeSports(Array.isArray(d.sports) ? d.sports : []);
             setHomeRunClubs(Array.isArray(d.runClubs) ? d.runClubs : []);
             setHomeEventShows(Array.isArray(d.eventShows) ? d.eventShows : []);
@@ -545,7 +553,7 @@ const Dashboard = () => {
             }
         };
 
-        // Paint the secondary sections (treks/communities/sports/run clubs/events)
+        // Paint the secondary sections from cache while the network refreshes.
         // instantly from cache too, so repeat opens don't show skeletons while the
         // network refreshes them in the background.
         if (hadFreshCache) {
@@ -560,7 +568,7 @@ const Dashboard = () => {
         // fall through to the resilient multi-endpoint path (iPhone fix).
         const countHomeItems = (d) => {
             const lens = [
-                d.fests, d.treks, d.communities, d.sports, d.runClubs, d.eventShows,
+                d.fests, d.sports, d.runClubs, d.eventShows,
             ].map((a) => (Array.isArray(a) ? a.length : 0));
             return lens.reduce((s, n) => s + n, 0);
         };
@@ -589,8 +597,6 @@ const Dashboard = () => {
                 applyAux(d);
                 setHomeAuxLoaded(true);
                 const auxPayload = {
-                    communities: Array.isArray(d.communities) ? d.communities : [],
-                    treks: Array.isArray(d.treks) ? d.treks : [],
                     sports: Array.isArray(d.sports) ? d.sports : [],
                     runClubs: Array.isArray(d.runClubs) ? d.runClubs : [],
                     eventShows: Array.isArray(d.eventShows) ? d.eventShows : [],
@@ -599,8 +605,6 @@ const Dashboard = () => {
                     config: d.config && typeof d.config === 'object' ? d.config : undefined,
                 };
                 const auxCount =
-                    auxPayload.communities.length +
-                    auxPayload.treks.length +
                     auxPayload.sports.length +
                     auxPayload.runClubs.length +
                     auxPayload.eventShows.length;
@@ -664,12 +668,6 @@ const Dashboard = () => {
         // Fallback: original per-source secondary fetches.
         const runAuxFetches = () => {
             const auxFetches = [
-                fetchCatalogJSON('/trek-communities', { retries: 0, signal: controller.signal }).then(res => {
-                    if (!cancelled) setHomeCommunities(Array.isArray(res?.data?.communities) ? res.data.communities : []);
-                }).catch(() => {}),
-                fetchCatalogJSON('/treks', { retries: 0, signal: controller.signal }).then(res => {
-                    if (!cancelled) setHomeTreks(Array.isArray(res?.data?.treks) ? res.data.treks : []);
-                }).catch(() => {}),
                 fetchCatalogJSON('/sports', { retries: 0, signal: controller.signal }).then(res => {
                     const sports = Array.isArray(res?.data?.events) ? res.data.events : [];
                     if (!cancelled) setHomeSports((prev) => {
@@ -841,6 +839,20 @@ const Dashboard = () => {
         }).filter(f => f.id);
     }, [fests]);
 
+    const homeGameItems = useMemo(() => homeGames.map((game, index) => ({
+        ...game,
+        id: game.id || game._id,
+        _id: game.id || game._id,
+        title: game.title || 'CrwdCtrl Game',
+        _title: game.title || 'CrwdCtrl Game',
+        subtitle: game.hostCollege?.shortName || game.hostCollege?.name || game.city || game.venue || 'College game',
+        _subtitle: game.hostCollege?.shortName || game.hostCollege?.name || game.city || game.venue || 'College game',
+        image: game.coverImage,
+        _image: game.coverImage,
+        _type: 'game',
+        _priority: index + 1,
+    })), [homeGames]);
+
     const heroEvents = useMemo(() => {
         const festSlides = transformedFests
             .filter((f) => f.showOnHomeSlide)
@@ -885,35 +897,13 @@ const Dashboard = () => {
                 name: club.name,
             }));
 
-        const trekSlides = (homeTreks || [])
-            .filter((t) => isOnHomeHero(t))
-            .map((t) => {
-                const communityName = (
-                    (typeof t.communityId === 'object' && (t.communityId?.name || t.communityId?.title))
-                    || t.communityName
-                    || ''
-                );
-                return {
-                    id: t._id,
-                    image: getCoverImageUrl(t, 'hero') || t.coverImage || t.images?.[0],
-                    title: t.trekName,
-                    subtitle: communityName || t.city || t.difficultyLevel || '',
-                    dateTime: t.dateLabel || t.trekDate || 'Trek',
-                    homePriority: t.priority ?? 999,
-                    _type: 'trek',
-                };
-            });
-
-        const communitySlides = (homeCommunities || [])
-            .filter((c) => isOnHomeHero(c))
-            .map((c) => ({
-                id: c._id,
-                image: getCoverImageUrl(c, 'hero') || c.coverImage,
-                title: c.name,
-                subtitle: c.basedIn || '',
-                dateTime: 'Community',
-                homePriority: c.priority ?? 999,
-                _type: 'community',
+        const gameSlides = homeGameItems
+            .filter((game) => game.image)
+            .slice(0, 4)
+            .map((game, index) => ({
+                ...game,
+                dateTime: game.startsAt || 'CrwdCtrl Game',
+                homePriority: index + 1,
             }));
 
         const sportSlides = (homeSports || [])
@@ -934,8 +924,7 @@ const Dashboard = () => {
             ...festSlides,
             ...eventSlides,
             ...runClubSlides,
-            ...trekSlides,
-            ...communitySlides,
+            ...gameSlides,
             ...sportSlides,
         ].sort((a, b) => {
             const priorityA = a.homePriority || 999;
@@ -943,7 +932,7 @@ const Dashboard = () => {
             if (priorityA !== priorityB) return priorityA - priorityB;
             return 0;
         });
-    }, [transformedFests, homeEventShows, homeRunClubs, homeTreks, homeCommunities, homeSports]);
+    }, [transformedFests, homeEventShows, homeRunClubs, homeGameItems, homeSports]);
 
     // Helper function to get city name from coordinates (for major Indian cities)
     const getCityFromCoordinates = (lat, lon) => {
@@ -1164,9 +1153,9 @@ const Dashboard = () => {
     };
 
     const buildSectionItems = useCallback((section) => {
-        const raw = buildHomeCarouselItems(fests, homeTreks, homeCommunities, section, homeSports, homeRunClubs, homeEventShows);
+        const raw = buildHomeCarouselItems(fests, [], [], section, homeSports, homeRunClubs, homeEventShows);
         return mapHomeCarouselDisplayItems(raw, transformedFests);
-    }, [fests, homeTreks, homeCommunities, homeSports, homeRunClubs, homeEventShows, transformedFests]);
+    }, [fests, homeSports, homeRunClubs, homeEventShows, transformedFests]);
 
     const trendingItems = useMemo(() => buildSectionItems('trending'), [buildSectionItems]);
     const happeningItems = useMemo(() => buildSectionItems('happening'), [buildSectionItems]);
@@ -1182,6 +1171,8 @@ const Dashboard = () => {
     const navigateToHomeItem = useCallback((item) => {
         if (item._type === 'fest') {
             navigateToFestDetail(item);
+        } else if (item._type === 'game') {
+            navigate(`/games/${item.slug || item.id || item._id}`);
         } else if (item._type === 'trek') {
             navigate(trekPath(item), { state: { trek: item } });
         } else if (item._type === 'community') {
@@ -1218,6 +1209,7 @@ const Dashboard = () => {
     const getHomeItemShareUrl = useCallback((item) => {
         const origin = window.location.origin;
         if (item._type === 'fest') return `${origin}${festPath(item)}`;
+        if (item._type === 'game') return `${origin}/games/${item.slug || item.id || item._id}`;
         if (item._type === 'trek') return `${origin}${trekPath(item)}`;
         if (item._type === 'community') return `${origin}${communityPath(item)}`;
         if (item._type === 'runclub') return `${origin}${runClubPath(item)}`;
@@ -1229,7 +1221,7 @@ const Dashboard = () => {
     const getHomeItemId = (item) => item.id || item._id;
 
     const searchQuickPicks = useMemo(
-        () => trendingItems.slice(0, 6).map((item) => ({
+        () => [...homeGameItems, ...trendingItems].slice(0, 6).map((item) => ({
             ...item,
             id: item._id || item.id,
             title: item._title,
@@ -1237,21 +1229,25 @@ const Dashboard = () => {
             image: item._image,
             resultType: item._type,
         })),
-        [trendingItems],
+        [homeGameItems, trendingItems],
     );
 
     const handleSearchNavigate = useCallback((result) => {
+        if (result?.resultType === 'game') {
+            navigate(`/games/${result.slug || result.id || result._id}`);
+            return;
+        }
         navigateToSearchResult(navigate, result);
     }, [navigate]);
 
     const searchKeywordCatalog = useMemo(
         () => buildSearchKeywordsFromCatalog({
             fests,
-            treks: homeTreks,
-            communities: homeCommunities,
+            treks: [],
+            communities: [],
             sports: homeSports,
         }),
-        [fests, homeTreks, homeCommunities, homeSports],
+        [fests, homeSports],
     );
 
     // Never block first paint on /home — Google / in-app reloads used to sit on the
@@ -1264,9 +1260,9 @@ const Dashboard = () => {
         <div className="crwdctrl-page crwdctrl-page--hub flex flex-col min-h-screen transition-colors">
           <Seo
             title="CrwdCtrl — Discover fests, clubs & events"
-            description="Find and register for college fests, tech and sports events, running clubs, gym communities, treks, and meetups near you."
+            description="Find and register for college fests, games, tech and sports events, running clubs, and meetups near you."
             canonical="/"
-            keywords="college fests, tech fest, sports events, running clubs, gym communities, treks, meetups, student events, event discovery"
+            keywords="college fests, campus games, tech fest, sports events, running clubs, meetups, student events, event discovery"
             jsonLd={HOME_JSON_LD}
             withBrand={false}
           />
@@ -1375,7 +1371,7 @@ const Dashboard = () => {
 
             {/* Main content - shared mobile + desktop */}
             <main className="flex-1 pb-4">
-                <h1 className="sr-only">Discover college fests, clubs, treks, and events</h1>
+                <h1 className="sr-only">Discover college fests, games, clubs, and events</h1>
                 {/* Hero  full chrome width on desktop (aligns with navbar Pune  profile) */}
                 {heroEvents.length > 0 && (
                     <HeroBanner
@@ -1384,6 +1380,7 @@ const Dashboard = () => {
                             const slide = heroEvents.find((e) => e.id === id);
                             if (!slide) return;
                             if (slide._type === 'events') navigate(eventShowPath(slide));
+                            else if (slide._type === 'game') navigate(`/games/${slide.slug || slide.id}`);
                             else if (slide._type === 'runclub') {
                                 navigate(runClubPath(slide), {
                                     state: {
@@ -1409,6 +1406,18 @@ const Dashboard = () => {
                 <AnnouncementBanner announcement={publicConfig.announcement} />
 
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
+                    {homeGameItems.length > 0 && (
+                        <HomeCarouselSection
+                            title="Upcoming CrwdCtrl Games"
+                            items={homeGameItems}
+                            isDark={isDark}
+                            tallCard
+                            cardGap={TRENDING_CARD_GAP}
+                            onItemClick={navigateToHomeItem}
+                            getShareUrl={getHomeItemShareUrl}
+                        />
+                    )}
+
                     {/* Ongoing Events */}
                     <HomeCarouselSection
                         title={publicConfig.labels.home.ongoing || sectionLabels.ongoing}
@@ -1488,8 +1497,8 @@ const Dashboard = () => {
                         targetPage="home"
                         sections={homePageSections ?? undefined}
                         fests={fests}
-                        treks={homeTreks}
-                        communities={homeCommunities}
+                        treks={[]}
+                        communities={[]}
                         sports={homeSports}
                         runClubs={homeRunClubs}
                         eventShows={homeEventShows}

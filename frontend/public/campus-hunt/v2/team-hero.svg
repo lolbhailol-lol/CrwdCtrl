@@ -1,0 +1,30 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="42" height="42" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Team Hero 3D">
+<path id="Vector" d="M15.96 21C19.2074 21 21.84 18.3674 21.84 15.12C21.84 11.8726 19.2074 9.24 15.96 9.24C12.7126 9.24 10.08 11.8726 10.08 15.12C10.08 18.3674 12.7126 21 15.96 21Z" fill="url(#paint0_linear_0_14)"/>
+<path id="Vector_2" opacity="0.85" d="M28.56 21.84C31.3435 21.84 33.6 19.5835 33.6 16.8C33.6 14.0165 31.3435 11.76 28.56 11.76C25.7765 11.76 23.52 14.0165 23.52 16.8C23.52 19.5835 25.7765 21.84 28.56 21.84Z" fill="url(#paint1_linear_0_14)"/>
+<path id="Vector_3" d="M5.88 34.44C6.72 26.88 10.92 23.52 15.96 23.52C21 23.52 25.2 27.72 26.04 34.44" fill="url(#paint2_linear_0_14)"/>
+<path id="Vector_4" opacity="0.85" d="M24.36 34.44C25.2 28.56 28.56 26.04 32.76 26.04C36.96 26.04 38.64 29.4 39.48 34.44" fill="url(#paint3_linear_0_14)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_14" x1="104.16" y1="79.8" x2="515.76" y2="514.92" gradientUnits="userSpaceOnUse">
+<stop stop-color="#32DFD5"/>
+<stop offset="0.55" stop-color="#1686FF"/>
+<stop offset="1" stop-color="#7B5BFF"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_14" x1="104.16" y1="72.24" x2="456.96" y2="445.2" gradientUnits="userSpaceOnUse">
+<stop stop-color="#32DFD5"/>
+<stop offset="0.55" stop-color="#1686FF"/>
+<stop offset="1" stop-color="#7B5BFF"/>
+</linearGradient>
+<linearGradient id="paint2_linear_0_14" x1="167.16" y1="89.04" x2="477.862" y2="695.421" gradientUnits="userSpaceOnUse">
+<stop stop-color="#32DFD5"/>
+<stop offset="0.55" stop-color="#1686FF"/>
+<stop offset="1" stop-color="#7B5BFF"/>
+</linearGradient>
+<linearGradient id="paint3_linear_0_14" x1="145.32" y1="76.44" x2="387.83" y2="537.903" gradientUnits="userSpaceOnUse">
+<stop stop-color="#32DFD5"/>
+<stop offset="0.55" stop-color="#1686FF"/>
+<stop offset="1" stop-color="#7B5BFF"/>
+</linearGradient>
+</defs>
+</svg>

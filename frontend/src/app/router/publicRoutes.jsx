@@ -2,7 +2,15 @@ import { Route } from 'react-router-dom';
 import ConnectionStatus from '../../components/ConnectionStatus';
 import OpenInExternalBrowserPage from '../../pages/OpenInExternalBrowserPage';
 import {
-  Dashboard,
+  CollegeHomePage,
+  GamesPage,
+  GameDetailPage,
+  TeamRegistrationPage,
+  GamePassPage,
+  RankingsPage,
+  CrwdCtrlIdPage,
+  HostGamePage,
+  GameInvitePage,
   Booking,
   CulturalFestPage,
   TechFestPage,
@@ -15,7 +23,6 @@ import {
   HelpCenter,
   ListYourFest,
   NotificationsPanel,
-  ProfilePage,
   CrwdCtrlLogin,
   CrwdCtrlRegister,
   EmailVerification,
@@ -79,13 +86,20 @@ export const publicRoutes = (
       <Route path="/mindspark/coupon-preview" element={<MindSparkCouponPreviewPage />} />
       <Route path="/demo/entry-pass" element={<PassDemoDashboardPage />} />
       {paymentReturnRedirect}
-      <Route path="/" element={<Dashboard />} />
+      <Route path="/" element={<CollegeHomePage />} />
       {dashboardRedirect}
       <Route path="/login" element={<CrwdCtrlLogin />} />
       <Route path="/admin/login" element={<CrwdCtrlLogin />} />
       <Route path="/register" element={<CrwdCtrlRegister />} />
       <Route path="/verify-email" element={<EmailVerification />} />
       <Route path="/fests" element={<FestsPage />} />
+      <Route path="/games" element={<GamesPage />} />
+      <Route path="/games/:id/register" element={<TeamRegistrationPage />} />
+      <Route path="/games/:id" element={<GameDetailPage />} />
+      <Route path="/game-pass/:id" element={<GamePassPage />} />
+      <Route path="/game-invite/:token" element={<GameInvitePage />} />
+      <Route path="/rankings" element={<RankingsPage />} />
+      <Route path="/host-a-game" element={<HostGamePage />} />
       <Route path="/cultural-fest" element={<CulturalFestPage />} />
       <Route path="/tech-fest" element={<TechFestPage />} />
       <Route path="/sports" element={<SportsCategoryPage />} />
@@ -113,7 +127,7 @@ export const publicRoutes = (
       <Route path="/competitions-view-details" element={<CompetitionsViewDetails />} />
       <Route path="/competition-list/:eventId" element={<CompetitionListPage />} />
       <Route path="/competition-register" element={<CompetitionRegistration />} />
-      <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/profile" element={<CrwdCtrlIdPage />} />
       <Route path="/edit-profile" element={<EditProfile />} />
       <Route path="/booking" element={<Booking />} />
       {registeredFestRedirect}

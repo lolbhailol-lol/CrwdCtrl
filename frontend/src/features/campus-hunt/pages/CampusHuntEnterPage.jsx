@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { CAMPUS_HUNT_PATHS } from '../config';
 import { normalizeTeamCode } from '../utils/teamCode';
 import { fetchCampusHuntColleges } from '../services/campusHunt.api';
-import CampusHuntBackLink from '../components/CampusHuntBackLink';
+import {
+  HuntPageHeader,
+  HuntPageShell,
+  HuntPrimaryButton,
+  HuntSectionLabel,
+  MissionProgress,
+} from '../components/HuntV2Shell';
 
-/**
- * Public Campus Hunt login hub — no Google required.
- * Pick college → team code → team password screen.
- */
 export default function CampusHuntEnterPage() {
   const navigate = useNavigate();
-
   const [colleges, setColleges] = useState([]);
   const [college, setCollege] = useState('');
   const [eventSlug, setEventSlug] = useState('');
@@ -21,136 +22,94 @@ export default function CampusHuntEnterPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetchCampusHuntColleges();
+    fetchCampusHuntColleges()
+      .then((response) => {
         if (cancelled) return;
-        const list = (res.data?.colleges || []).filter((c) =>
-          (c.events || []).some((ev) => ev.loginLive === true),
-        );
+        const list = (response.data?.colleges || []).filter((row) =>
+          (row.events || []).some((event) => event.loginLive === true));
         setColleges(list);
-        const first = list[0];
-        setCollege(first?.college || '');
-        const firstEv = first?.events?.find((ev) => ev.loginLive === true) || first?.events?.[0];
-        setEventSlug(firstEv?.slug || '');
-      } catch (err) {
-        if (!cancelled) setError(err.message || 'Could not load colleges');
-      } finally {
+        setCollege(list[0]?.college || '');
+        setEventSlug(list[0]?.events?.find((event) => event.loginLive)?.slug || '');
+      })
+      .catch((requestError) => {
+        if (!cancelled) setError(requestError.message || 'Could not load colleges');
+      })
+      .finally(() => {
         if (!cancelled) setLoading(false);
-      }
-    })();
+      });
     return () => { cancelled = true; };
   }, []);
 
-  const events = useMemo(() => {
-    const row = colleges.find((c) => c.college === college);
-    return (row?.events || []).filter((ev) => ev.loginLive === true);
-  }, [colleges, college]);
+  const events = useMemo(() => (
+    colleges.find((row) => row.college === college)?.events || []
+  ).filter((event) => event.loginLive === true), [colleges, college]);
 
-  const onCollegeChange = (value) => {
+  const changeCollege = (value) => {
     setCollege(value);
-    const evs = (colleges.find((c) => c.college === value)?.events || [])
-      .filter((ev) => ev.loginLive === true);
-    setEventSlug(evs[0]?.slug || '');
+    const next = (colleges.find((row) => row.college === value)?.events || [])
+      .find((event) => event.loginLive === true);
+    setEventSlug(next?.slug || '');
   };
 
-  const onContinue = (e) => {
-    e.preventDefault();
+  const openOnline = () => {
     const code = normalizeTeamCode(teamCode);
-    if (!eventSlug) {
-      setError('Pick your college');
-      return;
-    }
-    if (!code) {
-      setError('Enter your team code (e.g. CC001)');
-      return;
-    }
+    if (!eventSlug) return setError('Pick your college');
+    if (!code) return setError('Enter your team code (for example CC001)');
     navigate(CAMPUS_HUNT_PATHS.teamLogin(eventSlug, code));
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-4 py-10 text-white">
-      <div className="mx-auto max-w-md space-y-6">
-        <CampusHuntBackLink to="/" label="Back" />
-        <header className="text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-            Campus Hunt
-          </p>
-          <h1 className="mt-2 text-3xl font-black uppercase tracking-tight">Hunt login</h1>
-          <p className="mt-2 text-sm text-white/55">
-            Choose your college and enter your team code. No Google sign-in needed.
-          </p>
-        </header>
+    <HuntPageShell>
+      <div className="hunt-v2-page">
+        <HuntPageHeader title="Choose Game Mode" backTo="/" />
+        <div className="hunt-v2-content">
+          <MissionProgress label="Loadout" step={5} />
+          <p className="mt-4 text-sm text-[color:var(--hunt-muted)]">Pick the mode that fits your campus connection.</p>
+          <HuntSectionLabel>Choose your loadout</HuntSectionLabel>
 
-        {loading && colleges.length === 0 ? (
-          <p className="text-center text-white/50">Loading colleges…</p>
-        ) : !colleges.length ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center text-sm text-white/60">
-            No Campus Hunt login is live yet.
-            <p className="mt-2 text-xs text-white/40">Ask an organizer to enable “Login on Profile”.</p>
-          </div>
-        ) : (
-          <form onSubmit={onContinue} className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
-            <label className="block text-xs uppercase tracking-wide text-white/50">
-              College
-              <select
-                value={college}
-                onChange={(e) => onCollegeChange(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/15 bg-[#111213] px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE] [color-scheme:dark]"
-              >
-                {colleges.map((c) => (
-                  <option key={c.college} value={c.college} className="bg-[#111213] text-white">
-                    {c.college}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-mode">
+            <div className="hunt-v2-mode-head">
+              <img src="/campus-hunt/v2/mode-online.svg" alt="" />
+              <div><h2>Online Mode</h2><small>Live sync + live leaderboard</small></div>
+            </div>
+            <p>Best when campus internet is stable.</p>
+            <div className="grid gap-3">
+              {loading ? <p>Loading colleges…</p> : (
+                <>
+                  <label className="hunt-v2-field">College
+                    <select className="hunt-v2-select" value={college} onChange={(event) => changeCollege(event.target.value)}>
+                      {colleges.map((row) => <option key={row.college} value={row.college}>{row.college}</option>)}
+                    </select>
+                  </label>
+                  {events.length > 1 ? (
+                    <label className="hunt-v2-field">Event
+                      <select className="hunt-v2-select" value={eventSlug} onChange={(event) => setEventSlug(event.target.value)}>
+                        {events.map((event) => <option key={event.id || event.slug} value={event.slug}>{event.name}</option>)}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="hunt-v2-field">Team code
+                    <input className="hunt-v2-input font-mono uppercase tracking-[.16em]" value={teamCode} onChange={(event) => setTeamCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))} placeholder="CC001" />
+                  </label>
+                </>
+              )}
+            </div>
+            {error ? <p className="hunt-v2-error mt-3">{error}</p> : null}
+            <HuntPrimaryButton className="mt-4" onClick={openOnline}>Use Online Mode</HuntPrimaryButton>
+            <div className="hunt-v2-mode-tags"><span>LIVE SYNC</span><span>LEADERBOARD</span></div>
+          </section>
 
-            {events.length > 1 && (
-              <label className="block text-xs uppercase tracking-wide text-white/50">
-                Event
-                <select
-                  value={eventSlug}
-                  onChange={(e) => setEventSlug(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-white/15 bg-[#111213] px-3 py-3 text-sm text-white outline-none focus:border-[#0ECCEE] [color-scheme:dark]"
-                >
-                  {events.map((ev) => (
-                    <option key={ev.id || ev.slug} value={ev.slug} className="bg-[#111213] text-white">
-                      {ev.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            <label className="block text-xs uppercase tracking-wide text-white/50">
-              Team code
-              <input
-                value={teamCode}
-                onChange={(e) => setTeamCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8))}
-                placeholder="CC001"
-                className="mt-2 w-full rounded-xl border border-white/15 bg-[#111213] px-3 py-3 text-center font-mono text-xl tracking-[0.2em] text-white outline-none focus:border-[#0ECCEE] [color-scheme:dark]"
-                autoComplete="off"
-              />
-            </label>
-
-            {error && <p className="text-center text-sm text-red-300">{error}</p>}
-
-            <button
-              type="submit"
-              className="w-full rounded-xl bg-[#0ECCEE] py-3 text-sm font-bold uppercase tracking-wide text-black"
-            >
-              Continue to team login
-            </button>
-          </form>
-        )}
-
-        <p className="text-center text-xs text-white/40">
-          <Link to={CAMPUS_HUNT_PATHS.leaderboard} className="underline hover:text-[#0ECCEE]">
-            View leaderboard
-          </Link>
-        </p>
+          <section className="hunt-v2-card hunt-v2-mode mt-4">
+            <div className="hunt-v2-mode-head">
+              <img src="/campus-hunt/v2/mode-offline.svg" alt="" />
+              <div><h2>Offline Pack</h2><small>Works through weak network</small></div>
+            </div>
+            <p>Progress stays on this phone and syncs automatically when internet returns.</p>
+            <button type="button" className="hunt-v2-secondary" onClick={() => navigate(CAMPUS_HUNT_PATHS.offline)}>Open Offline Pack</button>
+            <div className="hunt-v2-mode-tags"><span>NO SIGNAL</span><span>AUTO SYNC</span></div>
+          </section>
+        </div>
       </div>
-    </div>
+    </HuntPageShell>
   );
 }

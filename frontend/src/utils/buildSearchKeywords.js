@@ -34,8 +34,6 @@ function festTypeLabel(festType) {
 
 export function buildSearchKeywordsFromCatalog({
     fests = [],
-    treks = [],
-    communities = [],
     sports = [],
     runClubs = [],
     competitions = [],
@@ -51,20 +49,6 @@ export function buildSearchKeywordsFromCatalog({
         addCity(seen, bucket, fest.venue, 3);
         addCity(seen, bucket, fest.location, 3);
         (fest.highlights || []).forEach((h) => addTerm(bucket, seen, h, 2));
-    });
-
-    treks.forEach((trek) => {
-        addTerm(bucket, seen, trek.trekName || trek.title, 5);
-        addCity(seen, bucket, trek.city, 4);
-        addTerm(bucket, seen, trek.startingPoint, 3);
-        addTerm(bucket, seen, trek.trekCategory, 3);
-        if (trek.difficultyLevel) addTerm(bucket, seen, `${trek.difficultyLevel} trek`, 2);
-    });
-
-    communities.forEach((comm) => {
-        addTerm(bucket, seen, comm.name || comm.title, 5);
-        addCity(seen, bucket, comm.basedIn || comm.subtitle, 4);
-        (comm.trekCategories || []).forEach((cat) => addTerm(bucket, seen, cat, 3));
     });
 
     sports.forEach((event) => {

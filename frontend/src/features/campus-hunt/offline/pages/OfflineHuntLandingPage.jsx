@@ -4,8 +4,14 @@ import { loadOfflineBundle, loadOfflineSession } from '../offlineDb';
 import { CAMPUS_HUNT_PATHS } from '../../config';
 import { armOfflineNetworkGuard } from '../offlineNetworkGuard';
 import OfflineHuntInstallHelp from '../components/OfflineHuntInstallHelp';
-import PoweredByCrwdCtrl from '../../components/PoweredByCrwdCtrl';
 import { startOverHunt, applyServerStartOverIfNeeded } from '../startOverHunt';
+import {
+  HuntPageHeader,
+  HuntPageShell,
+  HuntPrimaryButton,
+  HuntSectionLabel,
+  MissionProgress,
+} from '../../components/HuntV2Shell';
 
 /** Pack hub — brand first, then enter hunt. */
 export default function OfflineHuntLandingPage() {
@@ -59,71 +65,41 @@ export default function OfflineHuntLandingPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(ellipse 90% 55% at 50% -5%, rgba(14,204,238,0.22), transparent 55%),'
-            + 'linear-gradient(165deg, #07090b 0%, #0b1218 50%, #0a0c0e 100%)',
-        }}
-      />
+    <HuntPageShell>
+      <div className="hunt-v2-page">
+        <HuntPageHeader title="Offline Pack" backTo={CAMPUS_HUNT_PATHS.profileLogin} />
+        <div className="hunt-v2-content">
+          <MissionProgress label="Offline kit" step={6} />
+          <HuntSectionLabel>Offline kit</HuntSectionLabel>
+          <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-pack-hero">
+            <img src="/campus-hunt/v2/pack-hero.svg" alt="" />
+            <h1>{hasPack ? 'Ready for game day' : 'Install your team pack'}</h1>
+            <p>{hasPack ? `DOWNLOADED • ${existing.team.teamCode}` : 'WI-FI NEEDED ONCE'}</p>
+            {hasPack ? (
+              <div className="hunt-v2-pack-metrics">
+                <div><strong>Saved</strong><small>Pack</small></div>
+                <div><strong>8 stops</strong><small>Route</small></div>
+                <div><strong>Auto</strong><small>Sync</small></div>
+              </div>
+            ) : null}
+          </section>
 
-      <div className="relative mx-auto max-w-md px-5 py-10">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]/90">
-          CrwdCtrl × Mindspark
-        </p>
-        <h1 className="mt-3 text-[3.1rem] font-black uppercase leading-[0.9] tracking-tight text-white">
-          Campus Hunt
-        </h1>
-        <p className="mt-1 text-xl font-bold tracking-wide text-[#0ECCEE]">
-          Challenge
-        </p>
-        <div className="mt-3">
-          <PoweredByCrwdCtrl />
-        </div>
-
-        {hasPack ? (
-          <>
-            <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
-              <p className="font-mono text-xl font-bold tracking-wide">
-                {existing.team.teamCode}
-              </p>
-              {existing.team.teamName ? (
-                <p className="mt-1 text-sm text-white/50">{existing.team.teamName}</p>
-              ) : null}
+          {hasPack ? (
+            <div className="mt-3 grid gap-3">
+              <div className="hunt-v2-note p-4 text-sm"><strong className="block text-[color:var(--hunt-ink)]">Auto-sync enabled</strong>Leaderboard updates when internet returns.</div>
+              <div className="hunt-v2-note p-4 text-sm"><strong className="block text-[color:var(--hunt-ink)]">Clues stay locked</strong>Organizer start code unlocks the hunt.</div>
+              <HuntPrimaryButton onClick={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}>Continue</HuntPrimaryButton>
+              <button type="button" disabled={busy} onClick={onStartOver} className="text-xs text-[color:var(--hunt-muted)] disabled:opacity-50">{busy ? 'Updating…' : 'Start over'}</button>
+              {note ? <p className="text-center text-xs text-[color:var(--hunt-muted)]">{note}</p> : null}
             </div>
-
-            <button
-              type="button"
-              onClick={() => navigate(CAMPUS_HUNT_PATHS.offlineLogin)}
-              className="mt-6 w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black"
-            >
-              Enter Hunt
-            </button>
-
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onStartOver}
-              className="mt-3 w-full py-2 text-xs text-white/40 disabled:opacity-50"
-            >
-              {busy ? 'Updating…' : 'Start over'}
-            </button>
-            {note ? <p className="mt-2 text-center text-xs text-white/45">{note}</p> : null}
-          </>
-        ) : (
-          <>
-            <h2 className="mt-8 text-lg font-semibold text-white">Install Hunt</h2>
-            <p className="mt-2 text-sm text-white/55">
-              Open your team install link on Wi‑Fi first.
-            </p>
-            <div className="mt-6">
+          ) : (
+            <div className="mt-4">
+              <p className="mb-4 text-sm text-[color:var(--hunt-muted)]">Open the private install link shared by your organizer while connected once.</p>
               <OfflineHuntInstallHelp packReady={false} forceInstall />
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </HuntPageShell>
   );
 }

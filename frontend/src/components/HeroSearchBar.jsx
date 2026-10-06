@@ -6,7 +6,7 @@ import { BRAND } from '../motion/tokens';
 
 const PLACEHOLDERS = [
     'search college, fest',
-    'find treks near you',
+    'find games near you',
     'discover run clubs',
     'explore communities',
 ];

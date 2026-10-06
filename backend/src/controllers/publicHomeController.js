@@ -1,5 +1,3 @@
-const Trek = require('../model/trek_model');
-const TrekCommunity = require('../model/trek_community_model');
 const SportsEvent = require('../model/sports_model');
 const RunClub = require('../model/run_club_model');
 const EventShow = require('../model/event_show_model');
@@ -7,10 +5,8 @@ const festOrganizerController = require('./festOrganizerController');
 const { readHomeSectionLabels, readPublicConfig, DEFAULT_HOME_SECTION_LABELS } = require('./siteSettingController');
 const homepageSectionCtrl = require('./homepageSectionController');
 const {
-  sanitizePublicTrek,
   sanitizePublicSportsEvent,
   sanitizePublicRunClub,
-  sanitizePublicCommunity,
   sanitizePublicEventShow,
 } = require('../utils/publicEntitySanitize');
 
@@ -66,10 +62,8 @@ function writeHomeCache(payload) {
 }
 
 async function buildHomeFeed() {
-  const [festsBody, treks, communities, sports, runClubs, eventShows, eventClubIds, sectionLabels, homepageSections, config] = await Promise.all([
+  const [festsBody, sports, runClubs, eventShows, eventClubIds, sectionLabels, homepageSections, config] = await Promise.all([
     safe(() => captureHandler(festOrganizerController.getAllFests), null),
-    safe(() => Trek.find({ status: 'published' }).sort({ trekDate: 1, createdAt: -1 }).limit(50).lean(), []),
-    safe(() => TrekCommunity.find({ status: 'published' }).sort({ trekPagePriority: 1, createdAt: -1 }).limit(50).lean(), []),
     safe(() => SportsEvent.find({
       status: 'published',
       $or: [
@@ -103,8 +97,8 @@ async function buildHomeFeed() {
     success: true,
     partial,
     fests,
-    treks: Array.isArray(treks) ? treks.map(sanitizePublicTrek) : [],
-    communities: Array.isArray(communities) ? communities.map(sanitizePublicCommunity) : [],
+    treks: [],
+    communities: [],
     sports: Array.isArray(sports) ? sports.map((s) => {
       const clean = sanitizePublicSportsEvent(s);
       if (s.runClubId && eventClubSet.has(String(s.runClubId))) clean.listingHub = 'events';

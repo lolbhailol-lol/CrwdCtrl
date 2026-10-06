@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   enterTeamAsMember,
   fetchEventBySlug,
@@ -13,7 +13,13 @@ import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import { normalizeTeamCode } from '../utils/teamCode';
 import { rememberHuntSession } from '../utils/huntSession';
 import { readHuntAuthMeta } from '../utils/huntAuth';
-import CampusHuntBackLink from './CampusHuntBackLink';
+import {
+  HuntPageHeader,
+  HuntPageShell,
+  HuntPrimaryButton,
+  HuntSectionLabel,
+  MissionProgress,
+} from './HuntV2Shell';
 
 /**
  * Per-team login — password enters as Team Leader (leader-phone-only hunt).
@@ -258,136 +264,99 @@ export default function TeamLoginForm({
 
   if (!teamCode) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
-        <h1 className="text-2xl font-bold">Invalid team link</h1>
-        <p className="text-white/55">Ask your organizer for your team URL.</p>
-        <Link to={eventBackPath} className="text-[#0ECCEE] underline">Campus Hunt</Link>
-      </div>
+      <HuntPageShell>
+        <div className="hunt-v2-page">
+          <HuntPageHeader title="Join Your Team" backTo={eventBackPath} />
+          <div className="hunt-v2-content">
+            <p className="hunt-v2-error">Invalid team link. Ask your organizer for your team URL.</p>
+            <HuntPrimaryButton className="mt-4" onClick={() => navigate(eventBackPath)}>Back to Campus Hunt</HuntPrimaryButton>
+          </div>
+        </div>
+      </HuntPageShell>
     );
   }
 
   if (sessionCheck === 'other' && otherTeamCode) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b0c0d] px-5 text-center text-white">
-        <div className="absolute left-4 top-[max(1rem,var(--safe-top))] z-10">
-          <CampusHuntBackLink to={eventBackPath} label="Back" forceTo />
-        </div>
-        <div className="relative max-w-md space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-            {roundLabel}
-          </p>
-          <h1 className="text-2xl font-bold">Wrong team link</h1>
-          <p className="text-sm text-white/60">
-            This phone is on team{' '}
-            <span className="font-mono text-white">{otherTeamCode}</span>.
-            This link is{' '}
-            <span className="font-mono text-white">{teamCode}</span>.
-          </p>
-          <div className="flex flex-col gap-2 pt-2">
-            <Link
-              to={playPath}
-              className="rounded-xl bg-[#0ECCEE] px-4 py-3 text-sm font-bold text-black"
-            >
-              Continue as {otherTeamCode}
-            </Link>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={switchToThisTeam}
-              className="rounded-xl border border-white/20 px-4 py-3 text-sm text-white/80 disabled:opacity-40"
-            >
-              Switch person · join {teamCode}
-            </button>
+      <HuntPageShell>
+        <div className="hunt-v2-page">
+          <HuntPageHeader title="Join Your Team" backTo={eventBackPath} />
+          <div className="hunt-v2-content">
+            <MissionProgress label="Team access" step={7} />
+            <section className="hunt-v2-card mt-4 p-5 text-center">
+              <h1 className="text-2xl font-extrabold">Wrong team link</h1>
+              <p className="mt-3 text-sm text-[color:var(--hunt-muted)]">This phone is on <b>{otherTeamCode}</b>, but this link belongs to <b>{teamCode}</b>.</p>
+              <HuntPrimaryButton className="mt-5" onClick={() => navigate(playPath)}>Continue as {otherTeamCode}</HuntPrimaryButton>
+              <button type="button" disabled={busy} onClick={switchToThisTeam} className="hunt-v2-secondary mt-3">Switch phone to {teamCode}</button>
+            </section>
           </div>
         </div>
-      </div>
+      </HuntPageShell>
     );
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0b0c0d] text-white">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(ellipse 80% 45% at 50% -5%, #0ECCEE33, transparent 55%), linear-gradient(180deg, #121416 0%, #0b0c0d 70%)',
-        }}
-      />
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
-        <CampusHuntBackLink
-          to={eventBackPath}
-          label="Back"
-          className="mb-4 self-start"
-          forceTo
-        />
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-          Campus Hunt access
-        </p>
-        <h1 className="mt-2 font-mono text-4xl font-bold tracking-tight">
-          {lookingUp && !teamCard ? '…' : (primary || teamCode)}
-        </h1>
-        {secondary ? (
-          <p className="mt-1 text-lg text-white/70">{secondary}</p>
-        ) : null}
-        <p className="mt-2 text-sm text-white/50">
-          {eventName}
-          {college ? ` · ${college}` : ''}
-        </p>
-        <p className="mt-3 text-sm text-white/60">
-          Enter your team password — you stay in on this phone.
-        </p>
+    <HuntPageShell>
+      <div className="hunt-v2-page">
+        <HuntPageHeader title="Join Your Team" backTo={eventBackPath} />
+        <div className="hunt-v2-content">
+          <MissionProgress label="Team access" step={7} />
+          <HuntSectionLabel>Team access</HuntSectionLabel>
 
-        <div className="mt-8">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-white/45">
-            Team password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (unlocked) setUnlocked(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void unlockAndEnterAsLeader();
-                }
-              }}
-              placeholder="Password from your organizer"
-              autoComplete="current-password"
-              autoFocus
-              className="mt-2 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3.5 text-lg text-white placeholder:text-white/25 focus:border-[#0ECCEE]/50 focus:outline-none"
-            />
-          </label>
-          <button
-            type="button"
+          <section className="hunt-v2-card hunt-v2-card-accent p-4">
+            <div className="flex items-center gap-3">
+              <img src="/campus-hunt/v2/team-hero.svg" alt="" className="h-12 w-12" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-extrabold text-[#00828a]">{eventName || roundLabel} • {college || 'Campus'}</p>
+                <p className="mt-1 text-xs text-[color:var(--hunt-muted)]">Leader phone • live team access</p>
+              </div>
+              <span className="rounded-full border border-[#7a59f055] bg-[#7a59f012] px-2 py-1 text-[9px] font-bold text-[#7a59f0]">TEAM • {teamCode}</span>
+            </div>
+          </section>
+
+          <div className="mt-4 grid gap-4">
+            <label className="hunt-v2-field">Team name
+              <input className="hunt-v2-input" value={lookingUp && !teamCard ? 'Opening team…' : (secondary || primary || teamCode)} readOnly />
+            </label>
+            <label className="hunt-v2-field">Team password
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  if (unlocked) setUnlocked(false);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void unlockAndEnterAsLeader();
+                  }
+                }}
+                placeholder="Password from your organizer"
+                autoComplete="current-password"
+                autoFocus
+                className="hunt-v2-input font-mono text-lg tracking-[.08em]"
+              />
+            </label>
+          </div>
+
+          <div className="hunt-v2-note mt-4 flex items-center gap-3 p-4 text-sm">
+            <img src="/campus-hunt/v2/team-phone.svg" alt="" className="h-7 w-7" />
+            <span>This phone becomes the active game device.</span>
+          </div>
+
+          {error ? <p className="hunt-v2-error mt-4">{error}</p> : null}
+          {sessionCheck === 'checking' && !lookingUp ? <p className="mt-3 text-sm text-[color:var(--hunt-muted)]">Opening hunt…</p> : null}
+
+          <HuntPrimaryButton
+            className="mt-4"
             disabled={busy || lookingUp || !password.trim()}
             onClick={() => void unlockAndEnterAsLeader()}
-            className="mt-3 w-full rounded-xl bg-[#0ECCEE] px-4 py-3.5 text-sm font-bold text-black disabled:opacity-40"
           >
-            {busy ? 'Entering…' : 'Enter as Team Leader'}
-          </button>
-          {lookingUp && !teamCard && (
-            <p className="mt-3 text-sm text-white/45">Opening team…</p>
-          )}
-          {sessionCheck === 'checking' && !lookingUp && (
-            <p className="mt-3 text-sm text-white/45">Opening hunt…</p>
-          )}
-        </div>
-
-        {error && <p className="mt-4 text-sm text-rose-300">{error}</p>}
-
-        <div className="mt-8 rounded-2xl border border-white/10 bg-white/4 p-4 text-sm text-white/60">
-          <p className="font-semibold text-white">One phone · Team Leader</p>
-          <ul className="mt-2 list-disc space-y-1.5 pl-4">
-            <li>Password → enter as Team Leader → done</li>
-            <li>Only the leader phone plays and scans</li>
-            <li>Refresh or reopen — still in the hunt</li>
-            <li>Teammates help in person — no separate logins</li>
-          </ul>
+            {busy ? 'Joining…' : 'Join CTRL Hunt'}
+          </HuntPrimaryButton>
         </div>
       </div>
-    </div>
+    </HuntPageShell>
   );
 }

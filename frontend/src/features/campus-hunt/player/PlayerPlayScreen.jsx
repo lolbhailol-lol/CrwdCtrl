@@ -28,10 +28,10 @@ import { buildPlayerNowGuide } from './playerNowGuide';
 import { sanitizePlayerCopy } from './sanitizePlayerCopy';
 import { teamPrimaryLabel, teamSecondaryName } from '../utils/teamLabel';
 import ClueHowTo from '../components/ClueHowTo';
-import HuntColorFlowGuide from '../components/HuntColorFlowGuide';
 import PoweredByCrwdCtrl from '../components/PoweredByCrwdCtrl';
 import OfflineHuntWelcome from '../offline/components/OfflineHuntWelcome';
 import { OFFLINE_CLUE_HOW_TO, OFFLINE_CLUE_PROMPTS } from '../offline/offlineHowTo';
+import '../components/huntV2.css';
 
 function activeChallengeNumber(stage) {
   const m = String(stage || '').match(/^CLUE_(\d)_ACTIVE$/);
@@ -857,18 +857,26 @@ export default function PlayerPlayScreen({
           )}
 
           {waitingForRelease && (
-            <div className="space-y-4">
-              <section className="overflow-hidden rounded-3xl border border-[#0ECCEE]/35 bg-[#071016] shadow-[0_0_48px_-24px_rgba(14,204,238,0.9)]">
-                <div className="h-1 w-full bg-[#0ECCEE]" />
-                <div className="px-4 py-5">
-                <p className="text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-[#0ECCEE]">
-                  Organizer start code
-                </p>
-                <p className="mt-2 text-center text-sm text-white/65">
-                  {team.startingPoint?.name
-                    ? `Meet at ${team.startingPoint.name}. `
-                    : ''}
-                  Type the code, then Start.
+            <div className="hunt-v2 space-y-4 rounded-[22px] p-3">
+              <section className="hunt-v2-card hunt-v2-card-accent p-4 text-center">
+                <img src="/campus-hunt/v2/start-key.svg" alt="" className="mx-auto h-14 w-14" />
+                <h2 className="mt-2 text-2xl font-extrabold text-[color:var(--hunt-ink)]">
+                  {teamPrimaryLabel(team)}
+                </h2>
+                <span className="mt-2 inline-flex rounded-full bg-[#dcfaf2] px-3 py-1 text-[10px] font-bold text-[#00a16a]">TEAM AUTHENTICATED</span>
+                <img src="/campus-hunt/v2/start-route.svg" alt="" className="mx-auto mt-4 h-6 w-[250px] max-w-full" />
+                <div className="mt-2 flex justify-center gap-2 text-[9px] font-bold">
+                  <span className="rounded-full border border-[#00c2cc55] bg-[#00c2cc12] px-3 py-1 text-[#00a7ae]">TEAM ✓</span>
+                  <span className="rounded-full border border-[#0a85ff55] bg-[#0a85ff12] px-3 py-1 text-[#0a85ff]">DEVICE ✓</span>
+                  <span className="rounded-full border border-[#7a59f055] bg-[#7a59f012] px-3 py-1 text-[#7a59f0]">CODE •••</span>
+                </div>
+              </section>
+
+              <section className="hunt-v2-card p-4 text-[color:var(--hunt-ink)]">
+                <h3 className="text-base font-extrabold">Organizer Start Code</h3>
+                <p className="mt-2 text-sm text-[color:var(--hunt-muted)]">
+                  {team.startingPoint?.name ? `Meet at ${team.startingPoint.name}. ` : ''}
+                  Enter the code when the organizer announces it.
                 </p>
                 {isLeader ? (
                   <form
@@ -914,7 +922,7 @@ export default function PlayerPlayScreen({
                       placeholder="Organizer will tell you"
                       autoComplete="off"
                       autoCapitalize="characters"
-                      className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3.5 text-center font-mono text-2xl tracking-[0.28em] text-white outline-none focus:border-[#0ECCEE]"
+                      className="hunt-v2-input mt-4 text-center font-mono text-2xl tracking-[0.42em]"
                     />
                     {startErr ? (
                       <p className="text-center text-xs text-rose-300">{startErr}</p>
@@ -922,20 +930,20 @@ export default function PlayerPlayScreen({
                     <button
                       type="submit"
                       disabled={busy}
-                      className="w-full rounded-2xl bg-[#0ECCEE] py-4 text-sm font-bold text-black shadow-[0_16px_40px_-16px_rgba(14,204,238,0.85)] disabled:opacity-40"
+                      className="hunt-v2-primary"
                     >
-                      {busy ? 'Starting…' : 'Start the hunt'}
+                      {busy ? 'Starting…' : 'Start Game'}
                     </button>
                   </form>
                 ) : (
-                  <p className="mt-4 text-center text-sm text-white/55">
+                  <p className="mt-4 text-center text-sm text-[color:var(--hunt-muted)]">
                     Use the leader phone to start.
                   </p>
                 )}
-                </div>
               </section>
-              <HuntColorFlowGuide title="Before you start" />
-              <PoweredByCrwdCtrl />
+              <div className="rounded-2xl border border-amber-400/60 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-200">
+                Waiting for organizer code
+              </div>
             </div>
           )}
 

@@ -56,6 +56,7 @@ export default function AdminLayout() {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', exact: true },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
     { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
+    { icon: Users2, label: 'College Games', path: '/admin/college-platform' },
     ...(isCampusHuntAdminEnabled()
       ? [{ icon: MapPinned, label: 'Campus Hunt', path: '/admin/campus-hunt' }]
       : []),
@@ -192,4 +193,3 @@ export default function AdminLayout() {
     </div>
   );
 }
-

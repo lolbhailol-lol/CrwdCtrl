@@ -22,6 +22,7 @@ import {
     completeEventPayAndRegister,
     clearEventPaymentArtifacts,
 } from '../../utils/eventPaymentRecovery';
+import { myGameRegistrations } from '../../features/college-platform/api';
 
 // Lightweight per-user session cache so returning to the bookings page paints
 // instantly (stale-while-revalidate) instead of showing a full skeleton while
@@ -254,18 +255,44 @@ function mapEventRegistrations(eventRegistrations = []) {
     });
 }
 
+function mapGameRegistrations(gameRegistrations = []) {
+    return gameRegistrations.map((registration) => ({
+        id: registration.id,
+        gameId: registration.game?.id || '',
+        name: registration.game?.title || 'CrwdCtrl Game',
+        image: registration.game?.coverImage || null,
+        date: registration.game?.startsAt || null,
+        venue: registration.game?.venue || registration.game?.city || '',
+        type: 'game',
+        collegeName: registration.college?.shortName || registration.college?.name || '',
+        status: registration.game?.endsAt && new Date(registration.game.endsAt) < new Date() ? 'completed' : 'upcoming',
+        registrationStatus: registration.status,
+        registrationType: 'game',
+        isCompetition: false,
+        isTrek: false,
+        isSports: false,
+        isGame: true,
+        teamName: registration.teamName,
+        amountPaid: registration.amountPaid || 0,
+        paymentStatus: registration.status === 'pending_payment' ? 'pending' : 'paid',
+        registeredAt: registration.createdAt || registration.game?.startsAt,
+    }));
+}
+
 async function loadAllBookings(authToken = null) {
     const opts = { cacheBust: true, token: authToken };
-    const [festResult, sportsResult] = await Promise.allSettled([
+    const [festResult, sportsResult, gamesResult] = await Promise.allSettled([
         fetchMyRegistrations(opts),
         fetchMySportsRegistrations(opts),
+        myGameRegistrations(),
     ]);
 
     const festFailed = festResult.status === 'rejected';
     const sportsFailed = sportsResult.status === 'rejected';
+    const gamesFailed = gamesResult.status === 'rejected';
     if (festFailed) console.warn('Fest/trek bookings fetch failed:', festResult.reason);
     if (sportsFailed) console.warn('Sports bookings fetch failed:', sportsResult.reason);
-    if (festFailed && sportsFailed) {
+    if (festFailed && sportsFailed && gamesFailed) {
         throw festResult.reason || sportsResult.reason || new Error('Failed to load bookings');
     }
 
@@ -280,9 +307,10 @@ async function loadAllBookings(authToken = null) {
     const transformedTreks = mapTrekBookings(registrationsData.trekBookings || []);
     const transformedEvents = mapEventRegistrations(registrationsData.eventRegistrations || []);
     const transformedSports = mapSportsRegistrations(sportsData.registrations || []);
+    const transformedGames = mapGameRegistrations(gamesFailed ? [] : gamesResult.value?.registrations || []);
 
     return {
-        bookings: [...transformedFests, ...transformedTreks, ...transformedSports, ...transformedEvents]
+        bookings: [...transformedGames, ...transformedFests, ...transformedTreks, ...transformedSports, ...transformedEvents]
             .sort((a, b) => {
                 const ap = a.isSports && a.registrationStatus === 'pending' ? 1 : 0;
                 const bp = b.isSports && b.registrationStatus === 'pending' ? 1 : 0;
@@ -619,6 +647,10 @@ function Booking() {
 
     const handleViewDetails = (item) => {
         if (!item.id) return;
+        if (item.isGame) {
+            navigate(item.registrationStatus === 'pending_payment' ? `/games/${item.gameId || ''}` : `/game-pass/${item.id}`);
+            return;
+        }
         if (item.isTrek) {
             navigate(`/registration-details/${item.id}?type=trek`);
             return;
@@ -649,6 +681,10 @@ function Booking() {
 
     const handleDownloadTicket = (item) => {
         if (!item.id) return;
+        if (item.isGame) {
+            navigate(`/game-pass/${item.id}`);
+            return;
+        }
         if (item.isTrek) {
             navigate(`/qr-ticket/${item.id}?type=trek`);
             return;
