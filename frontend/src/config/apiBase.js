@@ -66,7 +66,6 @@ export function getApiBaseUrl() {
   }
 
   const fromEnv = envApiBase();
-  if (fromEnv) return fromEnv;
 
   if (import.meta.env.PROD) {
     return PRODUCTION_API_BASE_URL;
