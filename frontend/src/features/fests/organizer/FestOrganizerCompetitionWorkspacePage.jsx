@@ -1384,7 +1384,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
 
             {/* Stat boxes */}
             {stats ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className={`grid grid-cols-2 ${plugin.id === 'mindspark' ? 'sm:grid-cols-3' : 'sm:grid-cols-4'} gap-2.5`}>
                     <div className="rounded-2xl border border-[#0ECCEE]/35 bg-linear-to-br from-[#0ECCEE]/20 to-[#161718] p-3.5">
                         <p className="text-[10px] uppercase tracking-wide text-[#0ECCEE]/90">
                             {noReview ? 'Entries' : 'Total entries'}
@@ -1398,6 +1398,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                 : `${stats.approved} approved`}
                         </p>
                     </div>
+                    {plugin.id !== 'mindspark' ? (
                     <div className="rounded-2xl border border-emerald-400/30 bg-linear-to-br from-emerald-500/15 to-[#161718] p-3.5">
                         <p className="text-[10px] uppercase tracking-wide text-emerald-200/80">Collected</p>
                         <p className="text-2xl font-bold tabular-nums text-white mt-1">
@@ -1413,6 +1414,7 @@ export default function FestOrganizerCompetitionWorkspacePage() {
                                     : 'Paid entries on this competition')}
                         </p>
                     </div>
+                    ) : null}
                     {noReview ? (
                         <div className="rounded-2xl border border-sky-400/30 bg-linear-to-br from-sky-500/15 to-[#161718] p-3.5">
                             <p className="text-[10px] uppercase tracking-wide text-sky-200/80">People</p>
