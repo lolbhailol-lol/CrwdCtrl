@@ -12,6 +12,7 @@ const {
 const {
   normalizePaymentGateway,
   resolveCheckoutGateway,
+  resolveGatewayFeeContext,
 } = require('../src/utils/paymentGatewayConfig');
 
 test('gateway switches accept only known providers', () => {
@@ -67,6 +68,26 @@ test('fest and Delulu gateway switches are independent', () => {
     else process.env.FEST_PAYMENT_GATEWAY = previousFest;
     if (previousDelulu === undefined) delete process.env.DELULU_PAYMENT_GATEWAY;
     else process.env.DELULU_PAYMENT_GATEWAY = previousDelulu;
+    if (previousRuns === undefined) delete process.env.RUNS_PAYMENT_GATEWAY;
+    else process.env.RUNS_PAYMENT_GATEWAY = previousRuns;
+  }
+});
+
+test('run organizer fee context follows the configured checkout gateway', () => {
+  const previousRuns = process.env.RUNS_PAYMENT_GATEWAY;
+  try {
+    process.env.RUNS_PAYMENT_GATEWAY = 'razorpay';
+    assert.deepEqual(
+      resolveGatewayFeeContext({ entityType: 'sports', listingHub: 'sports' }),
+      { gatewayFeeRate: 0.02, gatewayFeePercent: 2, gatewayName: 'Razorpay' },
+    );
+
+    process.env.RUNS_PAYMENT_GATEWAY = 'cashfree';
+    assert.deepEqual(
+      resolveGatewayFeeContext({ entityType: 'sports', listingHub: 'sports' }),
+      { gatewayFeeRate: null, gatewayFeePercent: 1.6, gatewayName: 'Cashfree' },
+    );
+  } finally {
     if (previousRuns === undefined) delete process.env.RUNS_PAYMENT_GATEWAY;
     else process.env.RUNS_PAYMENT_GATEWAY = previousRuns;
   }

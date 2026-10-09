@@ -39,23 +39,20 @@ const {
     searchTokensForQuery,
 } = require('../utils/runClubPiiCrypto');
 const { summarizeCashfreeSettlement, isCashfreePayment } = require('../utils/cashfreeGatewayFee');
-
-function rushGatewayFeeContext(club) {
-    const slug = String(club?.slug || '').trim().toLowerCase();
-    const name = String(club?.name || '').trim().toLowerCase();
-    const rush = slug === 'the-rush' || name === 'the rush' || name.includes('the rush');
-    if (!rush) {
-        return { gatewayFeeRate: null, gatewayFeePercent: 1.6, gatewayName: 'Cashfree' };
-    }
-    return { gatewayFeeRate: 0.02, gatewayFeePercent: 2, gatewayName: 'Razorpay' };
-}
+const { resolveGatewayFeeContext } = require('../utils/paymentGatewayConfig');
 
 async function attachGatewayFeeContext(event) {
-    if (!event) return { gatewayFeeRate: null, gatewayFeePercent: 1.6, gatewayName: 'Cashfree' };
+    if (!event) return resolveGatewayFeeContext({ entityType: 'sports', listingHub: 'sports' });
     const club = event.runClubId
-        ? await RunClub.findById(event.runClubId).select('slug name').lean()
+        ? await RunClub.findById(event.runClubId).select('listingHub organizerGatewayFeeRate').lean()
         : null;
-    const fee = rushGatewayFeeContext(club);
+    const listingHub = club?.listingHub === 'events' ? 'events' : 'sports';
+    const fee = resolveGatewayFeeContext({ entityType: 'sports', listingHub });
+    if (club?.organizerGatewayFeeRate != null) {
+        const rate = Math.max(0, Number(club.organizerGatewayFeeRate) || 0);
+        fee.gatewayFeeRate = rate;
+        fee.gatewayFeePercent = rate * 100;
+    }
     event.gatewayFeeRate = fee.gatewayFeeRate;
     event.gatewayFeePercent = fee.gatewayFeePercent;
     event.gatewayName = fee.gatewayName;
@@ -1234,7 +1231,9 @@ exports.getDashboard = async (req, res) => {
         const feeContext = await attachGatewayFeeContext(event);
         const settlement = summarizeCashfreeSettlement(
             paidRegs,
-            feeContext.gatewayFeeRate ? { feeRate: feeContext.gatewayFeeRate } : {},
+            Number.isFinite(Number(feeContext.gatewayFeeRate))
+                ? { feeRate: Number(feeContext.gatewayFeeRate) }
+                : {},
         );
         const organizerRevenue = settlement.revenue;
         const cashfreePaid = paidRegs.filter((r) => isCashfreePayment(r));

@@ -585,7 +585,7 @@ export default function RunClubOrganizerParticipantsPage() {
                     ) : isPaidEvent ? (
                         <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">
                             <p className="text-[10px] uppercase text-gray-500">Payment</p>
-                            <p className="text-xs font-semibold mt-1 text-[#0ECCEE]">Auto · Cashfree</p>
+                            <p className="text-xs font-semibold mt-1 text-[#0ECCEE]">Auto · {stats?.gatewayName || 'Online'}</p>
                         </div>
                     ) : null}
                     <div className="rounded-xl border border-gray-800 bg-[#161718] px-3 py-3">

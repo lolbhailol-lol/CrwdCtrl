@@ -203,7 +203,7 @@ export default function RunClubOrganizerDashboardPage() {
     const revenue = Number(stats.organizerRevenue ?? stats.revenue ?? 0);
     const grossCollected = Number(stats.grossCollected ?? revenue);
     const gatewayFees = Number(stats.gatewayFees ?? stats.platformFees ?? 0);
-    const gatewayFeePercent = Number(stats.gatewayFeePercent) || 1.6;
+    const gatewayFeePercent = stats.gatewayFeePercent == null ? 1.6 : Number(stats.gatewayFeePercent);
     const gatewayName = stats.gatewayName || 'Cashfree';
     const gatewayFeeLabel = `${gatewayFeePercent}%`;
     const seatsFilled = Number(stats.seatsFilled ?? total);
@@ -359,7 +359,7 @@ export default function RunClubOrganizerDashboardPage() {
                                             ? 'bg-amber-500/10 text-amber-300 border-amber-500/25'
                                             : 'bg-[#0ECCEE]/10 text-[#0ECCEE] border-[#0ECCEE]/25'
                                     }`}>
-                                        {isOrganizerQr ? 'UPI + QR · manual review' : 'Online checkout · Cashfree'}
+                                        {isOrganizerQr ? 'UPI + QR · manual review' : `Online checkout · ${gatewayName}`}
                                     </span>
                                 ) : null}
                             </div>

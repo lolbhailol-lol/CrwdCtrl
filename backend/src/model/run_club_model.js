@@ -29,6 +29,8 @@ const runClubSchema = new mongoose.Schema(
         contactInstagram: { type: String, trim: true, default: '' },
         /** WhatsApp / community invite — sent after payment approval */
         groupLink: { type: String, trim: true, default: '' },
+        /** Optional organizer-dashboard fee override. Zero means no deduction. */
+        organizerGatewayFeeRate: { type: Number, min: 0, max: 1, default: null },
         showOnSportsPage: { type: Boolean, default: true },
         showInRunClubs: { type: Boolean, default: true },
         /**

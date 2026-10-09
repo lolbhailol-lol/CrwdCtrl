@@ -41,6 +41,14 @@ function resolveCheckoutGateway({ entityType = '', listingHub = '', festId = '',
   return 'cashfree';
 }
 
+function resolveGatewayFeeContext(options = {}) {
+  const gateway = resolveCheckoutGateway(options);
+  if (gateway === 'razorpay') {
+    return { gatewayFeeRate: 0.02, gatewayFeePercent: 2, gatewayName: 'Razorpay' };
+  }
+  return { gatewayFeeRate: null, gatewayFeePercent: 1.6, gatewayName: 'Cashfree' };
+}
+
 module.exports = {
   normalizePaymentGateway,
   resolveFestPaymentGateway,
@@ -48,4 +56,5 @@ module.exports = {
   resolveRunsPaymentGateway,
   resolveAarohanPaymentGateway,
   resolveCheckoutGateway,
+  resolveGatewayFeeContext,
 };

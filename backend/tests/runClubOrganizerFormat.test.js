@@ -6,6 +6,7 @@ const {
   formatParticipantDetail,
   pickRegistrationEmailExtras,
   buildSportsCheckinGuestPayload,
+  buildSheetColumns,
 } = require('../src/utils/runClubOrganizerFormat');
 
 const EVENT = {
@@ -132,10 +133,31 @@ test('Rush participant rows deduct and label the 2% Razorpay fee', () => {
     ...EVENT,
     gatewayFeeRate: 0.02,
     gatewayFeePercent: 2,
+    gatewayName: 'Razorpay',
   });
   assert.equal(row.gatewayFee, 10);
   assert.equal(row.organizerNet, 490);
   assert.equal(row.gatewayFeeLabel, '2% Razorpay');
+});
+
+test('zero-fee run club keeps the full Razorpay payment for the organizer', () => {
+  const row = formatParticipantSheetRow(sampleReg({
+    payment_gateway: 'razorpay',
+    payment_order_id: 'order_rzp_no_fee',
+    amountPaid: 200,
+  }), {
+    ...EVENT,
+    gatewayFeeRate: 0,
+    gatewayFeePercent: 0,
+    gatewayName: 'Razorpay',
+  });
+  assert.equal(row.gatewayFee, 0);
+  assert.equal(row.organizerNet, 200);
+  assert.equal(row.gatewayFeeLabel, '0% Razorpay');
+  assert.equal(
+    buildSheetColumns([], { gatewayFeePercent: 0 }).some((column) => column.key === 'gatewayFee'),
+    false,
+  );
 });
 
 test('confirmation email extras include post-game fuel and skill level', () => {

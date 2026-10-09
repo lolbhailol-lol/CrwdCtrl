@@ -228,7 +228,7 @@ function formatParticipantRow(reg, event = null) {
         amountPaid: grossCollected,
         payment_gateway: reg.payment_gateway,
         payment_order_id: reg.payment_order_id,
-    }, Number.isFinite(feeRate) && feeRate > 0 ? { feeRate } : {});
+    }, Number.isFinite(feeRate) && feeRate >= 0 ? { feeRate } : {});
 
     return {
         bookingId: String(reg._id),
@@ -284,7 +284,7 @@ function formatParticipantRow(reg, event = null) {
         organizerNet: settled.netToOrganizer,
         platformFee: settled.gatewayFee,
         gatewayFee: settled.gatewayFee,
-        gatewayFeeLabel: Number(event?.gatewayFeePercent) === 2 ? '2% Razorpay' : '1.6% Cashfree',
+        gatewayFeeLabel: `${event?.gatewayFeePercent ?? 1.6}% ${event?.gatewayName || 'Cashfree'}`,
         paymentScreenshotUrl: reg.paymentScreenshotUrl || '',
         transactionId: reg.transactionId || '',
         paymentReviewNote: reg.paymentReviewNote || '',
@@ -362,7 +362,9 @@ function buildSheetColumns(formSchema = [], event = null) {
         { key: 'listAmount', label: 'List (₹)', group: 'status', minWidth: 88 },
         { key: 'paymentStatus', label: 'Payment', group: 'status', minWidth: 88 },
         { key: 'grossCollected', label: 'Paid (₹)', group: 'status', minWidth: 88 },
-        { key: 'gatewayFee', label: Number(event?.gatewayFeePercent) === 2 ? 'Platform 2% (₹)' : 'Gateway 1.6% (₹)', group: 'status', minWidth: 118 },
+        ...(Number(event?.gatewayFeePercent ?? 1.6) > 0
+            ? [{ key: 'gatewayFee', label: `Gateway ${event?.gatewayFeePercent ?? 1.6}% (₹)`, group: 'status', minWidth: 118 }]
+            : []),
         { key: 'organizerNet', label: 'Your share (₹)', group: 'status', minWidth: 104 },
         { key: 'checkInStatus', label: 'Check-in', group: 'status', minWidth: 100 },
         { key: 'checkedInAt', label: 'Check-in At', group: 'status', minWidth: 138 },
@@ -474,12 +476,12 @@ function buildParticipantTimeline(reg, event = null) {
             });
         } else if (gross > 0 && (reg.paymentStatus === 'paid' || booking.status === 'confirmed')) {
             const feeRate = Number(event?.gatewayFeeRate);
-            const feeLabel = Number(event?.gatewayFeePercent) === 2 ? '2%' : '1.6%';
+            const feeLabel = `${event?.gatewayFeePercent ?? 1.6}% ${event?.gatewayName || 'Cashfree'}`;
             const settled = settlementForRegistration({
                 amountPaid: gross,
                 payment_gateway: reg.payment_gateway,
                 payment_order_id: reg.payment_order_id,
-            }, Number.isFinite(feeRate) && feeRate > 0 ? { feeRate } : {});
+            }, Number.isFinite(feeRate) && feeRate >= 0 ? { feeRate } : {});
             items.push({
                 label: 'Payment received',
                 at: reg.paymentReviewedAt || booking.createdAt,
