@@ -161,6 +161,7 @@ export const FestOrganizerCompetitionWorkspacePage = lazyWithRetry(() => import(
 export const FestOrganizerCompetitionDetailsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerCompetitionDetailsPage'));
 export const FestOrganizerProbablesPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerProbablesPage'));
 export const FestOrganizerRevenuePage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerRevenuePage'));
+export const FestOrganizerReceiptsPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerReceiptsPage'));
 export const FestOrganizerProShowPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerProShowPage'));
 export const FestOrganizerLiveUpdatesPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerLiveUpdatesPage'));
 export const FestOrganizerAuditoriumPage = lazyWithRetry(() => import('../../features/fests/organizer/FestOrganizerAuditoriumPage'));

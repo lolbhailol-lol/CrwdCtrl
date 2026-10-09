@@ -11,6 +11,8 @@ function isMindSparkFestId(festId) {
  */
 const mindsparkPlugin = {
     id: 'mindspark',
+    /** Successful transfers shown in the supplied COEP account receipt ledger. */
+    coepTransferTotal: 471120,
     autoConfirmOnRegister: true,
     forcePersonFields: true,
     useCashfreeSettlement: true,

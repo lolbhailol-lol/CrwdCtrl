@@ -11,6 +11,7 @@ const FestDayAssistedRegistration = require('../model/fest_day_assisted_registra
 const CompetitionSlotReservation = require('../model/competition_slot_reservation_model');
 const MindSparkBundle = require('../model/mindspark_bundle_model');
 const MindSparkAuditoriumTicketClaim = require('../model/mindspark_auditorium_ticket_claim_model');
+const FestTransferReceipt = require('../model/fest_transfer_receipt_model');
 const { syncCategoryCounter } = require('../utils/auditoriumQuota');
 const { getJwtSecret } = require('../config/jwtSecret');
 const { performCheckinFromRaw } = require('../services/checkinService');
@@ -1455,6 +1456,29 @@ exports.getDashboard = async (req, res) => {
                         revenue,
                     });
                 }
+            }
+        }
+
+        if (isMindSparkFestId(festId)) {
+            const receiptTotals = await FestTransferReceipt.aggregate([
+                { $match: { festId: festOid, status: 'successful' } },
+                { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } },
+            ]);
+            const receiptTotal = Math.round((Number(receiptTotals[0]?.total) || 0) * 100) / 100;
+            const pinnedTotal = Number(getFestPlugin(festId).coepTransferTotal) || 0;
+            revenue = receiptTotal > 0 ? receiptTotal : pinnedTotal;
+            grossCollected = revenue;
+            gatewayFees = 0;
+            additionalDeduction = 0;
+            earlierClearGross = 0;
+            earlierClearRevenue = 0;
+            razorpayPaidGross = 0;
+            razorpayPaidRevenue = 0;
+            cashfreeLockGross = 0;
+            cashfreeLockRevenue = 0;
+            for (const row of competitionStats) {
+                delete row.revenue;
+                delete row.grossCollected;
             }
         }
 

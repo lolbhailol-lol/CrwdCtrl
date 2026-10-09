@@ -228,6 +228,23 @@ export async function fetchFestOrganizerDashboard(festId) {
     return fetchView(`dash:${festId}`, `/fest-organizer/fests/${festId}/dashboard`, { timeout: 45000, retries: 0 });
 }
 
+export async function fetchFestTransferReceipts(festId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/transfer-receipts`);
+}
+
+export async function createFestTransferReceipt(festId, body) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/transfer-receipts`, {
+        method: 'POST',
+        body,
+    });
+}
+
+export async function deleteFestTransferReceipt(festId, receiptId) {
+    return festOrganizerFetch(`/fest-organizer/fests/${festId}/transfer-receipts/${receiptId}`, {
+        method: 'DELETE',
+    });
+}
+
 export function peekFestDayDesk(festId) {
     return readView(`desk:${festId}`);
 }

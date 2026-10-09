@@ -103,7 +103,7 @@ export default function FestOrganizerRevenuePage() {
                     <p className="text-xs text-gray-500 mt-1">
                         {fest?.festName}
                         {mindSparkMode
-                            ? ' — paid vs unpaid by competition'
+                            ? ' — confirmed transfers sent to the COEP account'
                             : ' — collected vs unpaid, by competition'}
                     </p>
                 </div>
@@ -114,23 +114,29 @@ export default function FestOrganizerRevenuePage() {
 
             <section className="rounded-2xl border border-emerald-400/25 bg-linear-to-br from-emerald-500/20 to-[#161718] p-5">
                 <p className="text-xs uppercase tracking-wider text-emerald-200/70">
-                    {mindSparkMode ? 'After payment gateway charges and taxes' : 'Collected'}
+                    {mindSparkMode ? 'Overall revenue · transferred to COEP' : 'Collected'}
                 </p>
                 <p className="text-3xl font-bold tabular-nums text-white mt-2">
                     ₹{Number(stats.revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </p>
-                {mindSparkMode && Number(stats.cashfreeLockRevenue) > 0 ? (
-                    <p className="text-[11px] text-gray-400 mt-2">
-                        {`Cashfree locked ₹${Number(stats.cashfreeLockRevenue).toLocaleString('en-IN', { maximumFractionDigits: 0 })} + Razorpay ₹${Number(stats.razorpayPaidRevenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
-                    </p>
-                ) : null}
                 <p className="text-[11px] text-gray-400 mt-1">
                     {mindSparkMode
-                        ? `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} registrations`
+                        ? 'Confirmed from uploaded COEP transfer receipts'
                         : `${payments.paid || 0} paid · ${payments.pending || 0} unpaid · ${totalEntries} entries`}
                 </p>
             </section>
 
+            {mindSparkMode ? (
+                <Link
+                    to={`/fest-organizer/fests/${festId}/receipts`}
+                    className="rounded-2xl border border-[#0ECCEE]/25 bg-[#0ECCEE]/8 px-4 py-3 flex items-center justify-between gap-3 text-sm text-white"
+                >
+                    <span>View daily COEP transfer receipts</span>
+                    <ArrowRight size={15} className="text-[#0ECCEE]" />
+                </Link>
+            ) : null}
+
+            {!mindSparkMode ? (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {[
                     {
@@ -161,8 +167,9 @@ export default function FestOrganizerRevenuePage() {
                     </button>
                 ))}
             </div>
+            ) : null}
 
-            {(payments.pending || 0) > 0 ? (
+            {!mindSparkMode && (payments.pending || 0) > 0 ? (
                 <section className="rounded-2xl border border-amber-400/25 bg-amber-500/8 p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2 min-w-0">
@@ -226,6 +233,7 @@ export default function FestOrganizerRevenuePage() {
                 </section>
             ) : null}
 
+            {!mindSparkMode ? (
             <section className="rounded-2xl border border-white/10 bg-[#161718] p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                     <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
@@ -322,8 +330,9 @@ export default function FestOrganizerRevenuePage() {
                     <p className="text-sm text-gray-500 text-center py-10">No competitions yet.</p>
                 )}
             </section>
+            ) : null}
 
-            {(payments.pending || 0) > 0 ? (
+            {!mindSparkMode && (payments.pending || 0) > 0 ? (
                 <div className="rounded-xl border border-white/10 bg-[#161718] px-4 py-3 flex items-center gap-3 text-xs text-gray-400">
                     <Users size={14} className="text-[#0ECCEE] shrink-0" />
                     <span className="flex-1">Need the full unpaid list with filters?</span>

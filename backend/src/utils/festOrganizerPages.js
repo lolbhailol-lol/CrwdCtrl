@@ -16,6 +16,7 @@ const PAGE_CATALOG = [
     { key: 'auditorium-gate', label: 'Auditorium gate', navLabels: ['Auditorium gate'] },
     { key: 'coupons', label: 'Coupons', navLabels: ['Coupons'] },
     { key: 'revenue', label: 'Revenue', navLabels: ['Revenue'] },
+    { key: 'receipts', label: 'Receipts', navLabels: ['Receipts'] },
     { key: 'connect', label: 'Connect', navLabels: ['Connect'] },
     { key: 'access', label: 'Access', navLabels: ['Access'] },
 ];
@@ -63,6 +64,9 @@ const PAGE_ROUTE_MATCHERS = {
     revenue: [
         { methods: ['GET'], re: /\/dashboard$/ },
         { methods: ['GET'], re: /\/notifications\/contacts$/ },
+    ],
+    receipts: [
+        { methods: ['GET'], re: /\/transfer-receipts$/ },
     ],
     connect: [
         { methods: ['GET', 'POST'], re: /\/notifications(\/|$)/ },

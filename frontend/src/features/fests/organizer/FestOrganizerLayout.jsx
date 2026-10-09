@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard, Users, QrCode, LogOut, PartyPopper, Bell, Menu, Home,
     Trophy, IndianRupee, Info, ClipboardList, Mic2, Radio, Pencil, Tag, ScanLine,
-    Lock, Shield, Ticket,
+    Lock, Shield, Ticket, Receipt,
 } from 'lucide-react';
 import { clearFestOrganizerSession, getFestOrganizerSession } from '../../../utils/festOrganizerSession';
 import { getFestPlugin } from '../plugins/registry';
@@ -13,6 +13,7 @@ import {
     firstGrantedFestPath,
     navPageKeyForLabel,
     organizerAllowedPages,
+    organizerHasPage,
     organizerPortalRole,
     pathAllowedForOrganizer,
 } from './festOrganizerPages';
@@ -30,6 +31,7 @@ const navForFest = (festId, {
     showAccess = false,
     showAuditorium = false,
     showAuditoriumGate = false,
+    showReceipts = false,
 } = {}) => {
     const showLive = showcaseAll || !hideLiveNav;
     const showLeads = showcaseAll || !hideStallLeads;
@@ -66,6 +68,9 @@ const navForFest = (festId, {
             ? [{ label: 'Coupons', path: `/fest-organizer/fests/${festId}/coupons`, icon: Tag, short: 'Codes', group: 'ops' }]
             : []),
         { label: 'Revenue', path: `/fest-organizer/fests/${festId}/revenue`, icon: IndianRupee, short: '₹', group: 'ops' },
+        ...(showReceipts
+            ? [{ label: 'Receipts', path: `/fest-organizer/fests/${festId}/receipts`, icon: Receipt, short: 'Proofs', group: 'ops' }]
+            : []),
         { label: 'Connect', path: `/fest-organizer/fests/${festId}/notifications`, icon: Bell, short: 'Msg', group: 'ops' },
         ...(showAccess
             ? [{ label: 'Access', path: `/fest-organizer/fests/${festId}/access`, icon: Shield, short: 'Access', group: 'ops' }]
@@ -179,6 +184,7 @@ export default function FestOrganizerLayout() {
             showAccess: showAccessNav,
             showAuditorium,
             showAuditoriumGate: showAuditorium && portalRole === 'cohead',
+            showReceipts: plugin.id === 'mindspark' && organizerHasPage(session, 'receipts'),
         }).map((item) => ({
             ...item,
             locked: simplePortal && !SIMPLE_PORTAL_UNLOCKED.has(item.label),

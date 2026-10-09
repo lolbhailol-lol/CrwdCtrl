@@ -16,11 +16,16 @@ const {
 } = require('../utils/festOrganizerPages');
 const Competition = require('../model/competition_model');
 const { sanitizeCategories } = require('../modules/fest/plugins/mindsparkAuditorium');
+const { isMindSparkFestId } = require('../modules/fest/plugins/mindspark');
 
 const SECTION_LIST = COMPETITION_SECTIONS
     .filter(({ key }) => key !== 'gate')
     .map(({ key, label }) => ({ key, label }));
 const GRANTABLE_PAGES = PAGE_CATALOG.filter((p) => p.key !== 'access' && p.key !== 'auditorium-gate');
+
+function grantablePagesForFest(festId) {
+    return GRANTABLE_PAGES.filter((page) => page.key !== 'receipts' || isMindSparkFestId(festId));
+}
 
 function badRequest(message) {
     const error = new Error(message);
@@ -191,10 +196,10 @@ async function trySendInviteEmail({
     }
 }
 
-exports.getAccessCatalog = async (_req, res) => {
+exports.getAccessCatalog = async (req, res) => {
     res.json({
         success: true,
-        pages: GRANTABLE_PAGES,
+        pages: grantablePagesForFest(req.festId),
     });
 };
 
@@ -215,7 +220,7 @@ exports.listAccessMembers = async (req, res) => {
 
         res.json({
             success: true,
-            pages: GRANTABLE_PAGES,
+            pages: grantablePagesForFest(festId),
             sections: SECTION_LIST,
             competitions: competitions.map((c) => ({ id: String(c._id), name: c.name || 'Competition' })),
             auditorium,

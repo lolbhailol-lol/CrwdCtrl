@@ -12,6 +12,7 @@ const auditoriumCtrl = require('../controllers/mindsparkAuditoriumController');
 const uploadCtrl = require('../controllers/uploadController');
 const { authenticateFestOrganizer, requireFestAccess, requireAccessManager } = require('../middleware/festOrganizerAuth');
 const accessCtrl = require('../controllers/festOrganizerAccessController');
+const transferReceiptCtrl = require('../controllers/festTransferReceiptController');
 const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
@@ -40,6 +41,9 @@ router.post(
 );
 
 router.get('/fests/:festId/dashboard', authenticateFestOrganizer, requireFestAccess, ctrl.getDashboard);
+router.get('/fests/:festId/transfer-receipts', authenticateFestOrganizer, requireFestAccess, transferReceiptCtrl.list);
+router.post('/fests/:festId/transfer-receipts', authenticateFestOrganizer, requireFestAccess, requireAccessManager, transferReceiptCtrl.create);
+router.delete('/fests/:festId/transfer-receipts/:receiptId', authenticateFestOrganizer, requireFestAccess, requireAccessManager, transferReceiptCtrl.remove);
 router.get('/fests/:festId/access', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.listAccessMembers);
 router.post('/fests/:festId/access/invite', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.inviteAccessMember);
 router.patch('/fests/:festId/access/:accountId', authenticateFestOrganizer, requireFestAccess, requireAccessManager, accessCtrl.updateAccessMember);

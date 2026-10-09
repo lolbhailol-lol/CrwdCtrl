@@ -31,6 +31,8 @@ const EMPTY_INVITE = {
     gateCategories: [],
 };
 
+const FINANCE_PAGES = ['revenue', 'receipts'];
+
 function inputClass() {
     return 'w-full bg-[#121314] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-[#0ECCEE]/50';
 }
@@ -236,6 +238,15 @@ export default function FestOrganizerAccessPage() {
         });
     };
 
+    const chooseFinanceAccess = () => {
+        setInvite((prev) => ({
+            ...prev,
+            mode: 'pages',
+            pages: FINANCE_PAGES,
+            competitionAccess: [],
+        }));
+    };
+
     const submitInvite = async (e) => {
         e.preventDefault();
         if (!invite.name.trim() || !invite.username.trim()) {
@@ -390,7 +401,7 @@ export default function FestOrganizerAccessPage() {
                     </div>
                     <h1 className="text-2xl font-semibold tracking-tight mt-2">Co-head access</h1>
                     <p className="text-sm text-gray-400 mt-1">
-                        Invite co-heads and give them whole pages, or only specific competitions with Participants, Desk registration, Scanner or Revenue.
+                        Invite team members and give them whole pages, specific competitions, or read-only finance access.
                     </p>
                 </div>
                 <button
@@ -488,17 +499,28 @@ export default function FestOrganizerAccessPage() {
                                     onToggle={(competitionId, key) => toggleMemberSection(member, competitionId, key)}
                                 />
                             ) : (
-                                <div className="flex flex-wrap gap-2">
-                                    {pages.map((page) => (
+                                <div className="space-y-2">
+                                    {pages.some((page) => page.key === 'receipts') ? (
                                         <button
-                                            key={page.key}
                                             type="button"
-                                            onClick={() => toggleMemberPage(member, page.key)}
-                                            className={chipClass((member.allowedPages || []).includes(page.key))}
+                                            onClick={() => saveMemberAccess(member, { competitionAccess: [], allowedPages: FINANCE_PAGES })}
+                                            className={chipClass(FINANCE_PAGES.every((key) => (member.allowedPages || []).includes(key)) && (member.allowedPages || []).length === FINANCE_PAGES.length)}
                                         >
-                                            {page.label}
+                                            Finance team · Revenue + Receipts only
                                         </button>
-                                    ))}
+                                    ) : null}
+                                    <div className="flex flex-wrap gap-2">
+                                        {pages.map((page) => (
+                                            <button
+                                                key={page.key}
+                                                type="button"
+                                                onClick={() => toggleMemberPage(member, page.key)}
+                                                className={chipClass((member.allowedPages || []).includes(page.key))}
+                                            >
+                                                {page.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -547,6 +569,15 @@ export default function FestOrganizerAccessPage() {
                                     showAuditorium={Boolean(auditorium)}
                                 />
                             </div>
+                            {pages.some((page) => page.key === 'receipts') ? (
+                                <button
+                                    type="button"
+                                    onClick={chooseFinanceAccess}
+                                    className={chipClass(invite.mode === 'pages' && FINANCE_PAGES.every((key) => invite.pages.includes(key)) && invite.pages.length === FINANCE_PAGES.length)}
+                                >
+                                    Finance team · Revenue + Receipts only
+                                </button>
+                            ) : null}
                             {invite.mode === 'auditorium' && auditorium ? (
                                 <AuditoriumCategoryPicker
                                     auditorium={auditorium}
