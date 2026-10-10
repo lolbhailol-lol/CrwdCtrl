@@ -18,6 +18,7 @@ publicRouter.put('/host/profile', authenticateToken, hostController.saveHostProf
 publicRouter.get('/host/campus-hunts', authenticateToken, hostController.listHostedGames);
 publicRouter.post('/host/campus-hunts', authenticateToken, hostController.requireHostingEnabled, hostController.createHostedGame);
 publicRouter.put('/host/campus-hunts/:gameId', authenticateToken, hostController.updateHostedGame);
+publicRouter.delete('/host/campus-hunts/:gameId', authenticateToken, hostController.deleteHostedGame);
 publicRouter.post('/host/campus-hunts/:gameId/permission-document', authenticateToken, hostController.permissionUploadMiddleware, hostController.uploadPermissionDocument);
 publicRouter.put('/host/campus-hunts/:gameId/permission', authenticateToken, hostController.savePermission);
 publicRouter.post('/host/campus-hunts/:gameId/submit', authenticateToken, hostController.submitHostedGame);

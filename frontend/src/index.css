@@ -2176,7 +2176,7 @@ html:not(.dark) .category-card--active .category-active-line {
 }
 
 html.dark .category-games-exact__base {
-    background: #202124;
+    background: #1b1c1e;
     -webkit-mask-image: url('/category-icons/fests-dark.webp');
     mask-image: url('/category-icons/fests-dark.webp');
 }

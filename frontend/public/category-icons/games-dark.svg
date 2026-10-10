@@ -1,8 +1,8 @@
 <svg width="234" height="255" viewBox="0 0 234 255" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="card" x1="34" y1="112" x2="203" y2="235" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#292C31"/>
-      <stop offset="1" stop-color="#202226"/>
+      <stop stop-color="#1B1C1E"/>
+      <stop offset="1" stop-color="#1B1C1E"/>
     </linearGradient>
     <linearGradient id="console" x1="54" y1="73" x2="183" y2="139" gradientUnits="userSpaceOnUse">
       <stop stop-color="#9A76FF"/>

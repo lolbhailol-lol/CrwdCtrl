@@ -173,6 +173,14 @@ exports.updateHostedGame = async (req, res, next) => {
   } catch (error) { return next(error); }
 };
 
+exports.deleteHostedGame = async (req, res, next) => {
+  try {
+    const profile = await hostService.loadHostForUser(req.user.userId, { approved: true });
+    const deletedGameId = await hostService.deleteHostedDraft(profile, req.params.gameId);
+    return res.json({ success: true, deletedGameId });
+  } catch (error) { return next(error); }
+};
+
 exports.uploadPermissionDocument = async (req, res, next) => {
   try {
     const profile = await hostService.loadHostForUser(req.user.userId, { approved: true });

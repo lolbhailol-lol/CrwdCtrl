@@ -115,3 +115,4 @@
 .college-game-card__facts{margin-top:.55rem;padding-top:.6rem}
 .college-host-game-card{grid-template-columns:auto 1fr auto;padding:.75rem}
 .college-host-game-card>a{grid-column:auto;min-height:2.35rem;padding:0 .8rem;white-space:nowrap}
+.college-status-chip--soon{display:inline-flex;align-items:center;gap:.3rem;background:#fff4d6;color:#6c4b00}.college-game-card__interest{display:flex;align-items:center;justify-content:center;gap:.45rem;border-top:1px solid #dde0e7;padding:.75rem;color:#087a82;font-size:.76rem;font-weight:600}.college-page--dark .college-status-chip--soon{background:#493b16;color:#ffe59a}.college-page--dark .college-game-card__interest{border-color:#353840;color:#42d6df}

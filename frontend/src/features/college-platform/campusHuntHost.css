@@ -8,7 +8,7 @@
   --host-line: rgba(22, 23, 25, 0.11);
   --host-shadow: 0 18px 48px rgba(18, 20, 24, 0.08);
   min-height: 100vh;
-  padding-bottom: 88px;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
   color: var(--host-text);
   background: var(--host-bg);
 }
@@ -378,6 +378,27 @@
 }
 
 .hunt-host__primary svg {
+  width: 17px;
+  height: 17px;
+}
+
+.hunt-host__danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-color: rgba(220, 38, 38, 0.28) !important;
+  color: #b91c1c !important;
+  background: rgba(254, 226, 226, 0.72) !important;
+}
+
+.hunt-host--dark .hunt-host__danger {
+  border-color: rgba(248, 113, 113, 0.3) !important;
+  color: #fca5a5 !important;
+  background: rgba(127, 29, 29, 0.3) !important;
+}
+
+.hunt-host__danger svg {
   width: 17px;
   height: 17px;
 }
@@ -1026,7 +1047,7 @@
 
   .hunt-host__wizard-actions {
     position: sticky;
-    bottom: 72px;
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
     z-index: 10;
     margin: 0 -10px -10px;
     padding: 11px 10px 10px;

@@ -57,6 +57,16 @@ import './collegePlatform.css';
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
+const MIT_WPU_CAMPUS_HUNT = {
+  id: 'mit-wpu-campus-hunt-coming-soon',
+  title: 'Campus Hunt: MIT-WPU',
+  coverImage: '/campus-hunt/v2/hunt-hero.png',
+  venue: 'MIT-WPU',
+  city: 'Pune',
+  teamSize: 4,
+  capacity: 40,
+};
+
 function formatDate(value, options = {}) {
   if (!value) return 'Date to be announced';
   return new Intl.DateTimeFormat('en-IN', {
@@ -127,6 +137,31 @@ function GameCard({ game }) {
         </div>
       </Link>
       {completed && <Link className="college-game-card__leaderboard" to={leaderboardPath}><Trophy size={16} />View leaderboard<ChevronRight size={16} /></Link>}
+    </article>
+  );
+}
+
+function ComingSoonGameCard({ game }) {
+  return (
+    <article className="college-game-card college-game-card--coming-soon">
+      <div className="college-game-card__main">
+        <div className="college-card-media">
+          <img src={game.coverImage} alt="" />
+          <span className="college-status-chip college-status-chip--soon"><Sparkles size={12} />Coming soon</span>
+          <span className="college-game-card__teams"><Users size={13} />{game.capacity} teams</span>
+          <div className="college-game-card__media-shade" />
+        </div>
+        <div className="college-card-body">
+          <h3>{game.title}</h3>
+          <p className="college-game-card__venue"><MapPin size={14} />{game.venue} · {game.city}</p>
+          <div className="college-game-card__facts">
+            <span><CalendarDays size={14} />Date coming soon</span>
+            <span><Users size={14} />Team of {game.teamSize}</span>
+            <strong>Entry fee TBA</strong>
+          </div>
+        </div>
+      </div>
+      <div className="college-game-card__interest"><Sparkles size={16} />Pre-register your team name · opening soon</div>
     </article>
   );
 }
@@ -239,8 +274,11 @@ export function GamesPage() {
     [navigate],
   );
 
+  const showMitWpuPreview = mode !== 'intercollege'
+    && (!query.trim() || 'campus hunt mit-wpu pune'.includes(query.trim().toLowerCase()));
   const upcomingGames = useMemo(() => games.filter((game) => game.status !== 'completed'), [games]);
   const completedGames = useMemo(() => games.filter((game) => game.status === 'completed'), [games]);
+  const upcomingCount = upcomingGames.length + (showMitWpuPreview ? 1 : 0);
 
   return (
     <div className="crwdctrl-page games-page min-h-screen">
@@ -325,12 +363,12 @@ export function GamesPage() {
         <section className="college-content">
           <div className="college-games-section-title">
             <div><h2>Upcoming</h2></div>
-            <b>{upcomingGames.length}</b>
+            <b>{upcomingCount}</b>
           </div>
-          {loading ? <div className="college-skeleton college-skeleton--card" /> : games.length ? (
+          {loading ? <div className="college-skeleton college-skeleton--card" /> : upcomingCount || completedGames.length ? (
             <>
-              {upcomingGames.length > 0 && <div className="college-game-stack">{upcomingGames.map((game) => <GameCard key={game.id} game={game} />)}</div>}
-              {upcomingGames.length === 0 && (
+              {upcomingCount > 0 && <div className="college-game-stack">{showMitWpuPreview ? <ComingSoonGameCard game={MIT_WPU_CAMPUS_HUNT} /> : null}{upcomingGames.map((game) => <GameCard key={game.id} game={game} />)}</div>}
+              {upcomingCount === 0 && (
                 <div className="college-next-drop"><Sparkles size={20} /><strong>New games coming soon</strong></div>
               )}
               {completedGames.length > 0 && (

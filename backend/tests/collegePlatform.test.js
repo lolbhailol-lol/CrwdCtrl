@@ -20,7 +20,7 @@ const {
 } = require('../src/modules/college-platform/models');
 const CampusHuntOfflineInstall = require('../src/modules/campus-hunt/models/CampusHuntOfflineInstall');
 const collegePlatformController = require('../src/modules/college-platform/controller');
-const { economicsForDraft, normalizeDraft, hostIsApproved } = require('../src/modules/college-platform/hostService');
+const { economicsForDraft, normalizeDraft, hostIsApproved, isHostedDraftDeletable } = require('../src/modules/college-platform/hostService');
 
 test('college email verification requires an exact approved domain', () => {
   const college = { emailDomains: ['college.edu', 'students.college.ac.in'] };
@@ -106,6 +106,13 @@ test('hosted Campus Hunt draft enforces the V1 team and capacity limits', () => 
   assert.equal(draft.minimumTeams, 20);
   assert.equal(economicsForDraft(draft).platformFeePercent, 40);
   assert.equal(economicsForDraft(draft).gatewayFeeEstimatePercent, 1.6);
+});
+
+test('hosts can delete only unpublished Campus Hunt drafts', () => {
+  assert.equal(isHostedDraftDeletable({ status: 'draft', operationalStatus: 'draft', approvalStatus: 'draft' }), true);
+  assert.equal(isHostedDraftDeletable({ status: 'draft', operationalStatus: 'draft', approvalStatus: 'changes_required' }), true);
+  assert.equal(isHostedDraftDeletable({ status: 'draft', operationalStatus: 'draft', approvalStatus: 'pending_approval' }), false);
+  assert.equal(isHostedDraftDeletable({ status: 'published', operationalStatus: 'published', approvalStatus: 'approved' }), false);
 });
 
 test('host approval requires an unexpired annual verification and verified phone', () => {

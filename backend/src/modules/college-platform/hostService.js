@@ -25,9 +25,17 @@ const CampusHuntRound = require('../campus-hunt/models/CampusHuntRound');
 const CampusHuntTeam = require('../campus-hunt/models/CampusHuntTeam');
 const CampusHuntVolunteerAccess = require('../campus-hunt/models/CampusHuntVolunteerAccess');
 const CampusHuntCheckpoint = require('../campus-hunt/models/CampusHuntCheckpoint');
+const CampusHuntCheckpointVerification = require('../campus-hunt/models/CampusHuntCheckpointVerification');
 const CampusHuntRoute = require('../campus-hunt/models/CampusHuntRoute');
 const CampusHuntStartingPoint = require('../campus-hunt/models/CampusHuntStartingPoint');
 const CampusHuntChallenge = require('../campus-hunt/models/CampusHuntChallenge');
+const CampusHuntTeamProgress = require('../campus-hunt/models/CampusHuntTeamProgress');
+const CampusHuntIssueReport = require('../campus-hunt/models/CampusHuntIssueReport');
+const CampusHuntAuditLog = require('../campus-hunt/models/CampusHuntAuditLog');
+const CampusHuntFinaleEntry = require('../campus-hunt/models/CampusHuntFinaleEntry');
+const CampusHuntFinaleMissionConfig = require('../campus-hunt/models/CampusHuntFinaleMissionConfig');
+const CampusHuntFinaleMissionRun = require('../campus-hunt/models/CampusHuntFinaleMissionRun');
+const CampusHuntGridSession = require('../campus-hunt/models/CampusHuntGridSession');
 const { bootstrapRound1Defaults } = require('../campus-hunt/services/round1BootstrapService');
 const { exportOfflinePacks } = require('../campus-hunt/services/offlineExportService');
 const { generateSchedule, lockSchedule } = require('../campus-hunt/services/startScheduleService');
@@ -325,6 +333,59 @@ async function ownedGame(hostProfile, gameId) {
   return game;
 }
 
+function isHostedDraftDeletable(game) {
+  return game?.status === 'draft'
+    && game?.operationalStatus === 'draft'
+    && ['draft', 'changes_required', 'rejected'].includes(game?.approvalStatus);
+}
+
+async function deleteHostedDraft(hostProfile, gameId) {
+  const game = await ownedGame(hostProfile, gameId);
+  if (!isHostedDraftDeletable(game)) throw httpError('Only unpublished drafts can be deleted', 409);
+  if (game.reservedSlots > 0 || await GameRegistration.exists({ gameId: game._id })) {
+    throw httpError('A draft with participant registrations cannot be deleted', 409);
+  }
+
+  const eventId = game.engine?.eventId;
+  if (eventId) {
+    const teams = await CampusHuntTeam.find({ eventId }).select('_id').lean();
+    const teamIds = teams.map((team) => team._id);
+    await Promise.all([
+      CampusHuntTeamProgress.deleteMany({ $or: [{ eventId }, { teamId: { $in: teamIds } }] }),
+      CampusHuntCheckpointVerification.deleteMany({ eventId }),
+      CampusHuntIssueReport.deleteMany({ eventId }),
+      CampusHuntAuditLog.deleteMany({ eventId }),
+      CampusHuntVolunteerAccess.deleteMany({ eventId }),
+      CampusHuntOfflineInstall.deleteMany({ eventId }),
+      CampusHuntFinaleEntry.deleteMany({ eventId }),
+      CampusHuntFinaleMissionConfig.deleteMany({ eventId }),
+      CampusHuntFinaleMissionRun.deleteMany({ eventId }),
+      CampusHuntGridSession.deleteMany({ eventId }),
+      CampusHuntChallenge.deleteMany({ eventId }),
+      CampusHuntCheckpoint.deleteMany({ eventId }),
+      CampusHuntStartingPoint.deleteMany({ eventId }),
+      CampusHuntTeam.deleteMany({ eventId }),
+      CampusHuntRoute.deleteMany({ eventId }),
+      CampusHuntRound.deleteMany({ eventId }),
+      CampusHuntEvent.deleteOne({ _id: eventId }),
+    ]);
+  }
+
+  await Promise.all([
+    CampusHuntPermission.deleteMany({ gameId: game._id }),
+    CampusHuntOperatorGrant.deleteMany({ gameId: game._id }),
+    GameAnnouncement.deleteMany({ gameId: game._id }),
+    GameRefundRequest.deleteMany({ gameId: game._id }),
+    GameResultDispute.deleteMany({ gameId: game._id }),
+    GamePrizeDisbursement.deleteMany({ gameId: game._id }),
+    CampusHuntHostReport.deleteMany({ gameId: game._id }),
+    CampusHuntHostCheckInPack.deleteMany({ gameId: game._id }),
+    GameResult.deleteMany({ gameId: game._id }),
+  ]);
+  await CollegeGame.deleteOne({ _id: game._id, ownerHostProfileId: hostProfile._id });
+  return String(game._id);
+}
+
 async function hostSetup(hostProfile, gameId) {
   const game = await ownedGame(hostProfile, gameId);
   if (!game.engine?.eventId) throw httpError('Hunt must be approved and provisioned before setup is available', 409);
@@ -601,10 +662,9 @@ async function financeSummary(gameId) {
 }
 
 async function readinessForGame(game) {
-  const [profile, registrations, operatorCount, event, finance, round, routeCount, checkpointCount, startCount, teams] = await Promise.all([
+  const [profile, registrations, event, finance, round, routeCount, checkpointCount, startCount, teams] = await Promise.all([
     CampusHostProfile.findById(game.ownerHostProfileId).lean(),
     GameRegistration.find({ gameId: game._id, status: { $in: ['confirmed', 'checked_in'] } }).select('members').lean(),
-    CampusHuntOperatorGrant.countDocuments({ gameId: game._id, role: 'emergency_operator', enabled: true, expiresAt: { $gt: new Date() } }),
     game.engine?.eventId ? CampusHuntEvent.findById(game.engine.eventId).lean() : null,
     financeSummary(game._id),
     game.engine?.eventId ? CampusHuntRound.findOne({ eventId: game.engine.eventId, roundNumber: 1 }).select('scheduleStatus').lean() : null,
@@ -624,7 +684,6 @@ async function readinessForGame(game) {
     eventProvisioned: Boolean(event),
     infrastructureReady: Boolean(round?.scheduleStatus === 'locked' && routeCount && checkpointCount && startCount && scheduledTeamsReady),
     offlinePackCurrent: Boolean(event?.offlineExportBatchId),
-    emergencyOperator: operatorCount > 0,
     notEmergencyStopped: !game.emergencyStoppedAt && !event?.emergencyStoppedAt,
   };
   return { ready: Object.values(checks).every(Boolean), checks, finance };
@@ -1073,6 +1132,8 @@ module.exports = {
   validateDraft,
   createHostedGame,
   ownedGame,
+  isHostedDraftDeletable,
+  deleteHostedDraft,
   hostSetup,
   updateHostSetup,
   updateHostChallenge,

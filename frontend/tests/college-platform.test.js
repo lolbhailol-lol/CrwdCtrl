@@ -58,7 +58,7 @@ test('host game requests capture club details and remain actionable in admin', (
   assert.match(admin, />Reject</);
 });
 
-test('verified hosts get a preset wizard, simple submission flow, and scoped operations', () => {
+test('verified hosts get a clean preset workspace and scoped operations', () => {
   const host = read('../src/features/college-platform/CampusHuntHostPage.jsx');
   const api = read('../src/features/college-platform/api.js');
   const routes = read('../src/app/router/publicRoutes.jsx');
@@ -71,18 +71,18 @@ test('verified hosts get a preset wizard, simple submission flow, and scoped ope
     assert.match(workflow, new RegExp(copy));
   }
   assert.match(control, /AdminWorkflowNav/);
-  for (const copy of ['Campus Hunt', 'Offline pass check-in', 'Emergency operator']) assert.match(host, new RegExp(copy));
+  for (const copy of ['Campus Hunt', 'Offline pass check-in', 'Delete draft']) assert.match(host, new RegExp(copy));
   assert.match(api, /check-in-pack\/activate/);
   assert.match(host, /1\. Close registration/);
   assert.match(host, /3\. Start Hunt/);
   assert.match(host, /Complete &amp; finalize/);
-  assert.match(routes, /campus-hunt\/host-mode/);
+  assert.doesNotMatch(host, /Emergency operator and volunteers|Announcements|Edit draft \/ submit revision|Submit setup for approval/);
   assert.doesNotMatch(host, /Campus Hunt admin password|admin credentials/i);
   assert.match(api, /college\.id \|\| college\._id/);
   assert.match(host, /Type your college name/);
   assert.match(host, /Create from start/);
   assert.match(host, /Open Campus Hunt control/);
-  assert.match(host, /Submit setup for approval/);
+  assert.match(api, /method: 'DELETE'/);
   assert.match(api, /control-session/);
   assert.match(hostRoutes, /control-session/);
   assert.match(read('../../backend/src/modules/college-platform/hostController.js'), /allowIncomplete: true/);
@@ -91,6 +91,23 @@ test('verified hosts get a preset wizard, simple submission flow, and scoped ope
   assert.doesNotMatch(host, /getHostedHuntSetup/);
   assert.doesNotMatch(host, /Event permission/);
   assert.doesNotMatch(host, /Your college email proves affiliation/);
+});
+
+test('host workspace owns its mobile chrome without stacked navigation', () => {
+  const app = read('../src/App.jsx');
+  const styles = read('../src/features/college-platform/campusHuntHost.css');
+  assert.match(app, /isCampusHuntRoute = location\.pathname\.startsWith\('\/host-a-game'\)/);
+  assert.match(styles, /padding-bottom: calc\(28px \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(styles, /bottom: max\(8px, env\(safe-area-inset-bottom, 0px\)\)/);
+});
+
+test('games preview includes the MIT-WPU coming-soon Campus Hunt', () => {
+  const page = read('../src/features/college-platform/CollegePlatform.jsx');
+  assert.match(page, /Campus Hunt: MIT-WPU/);
+  assert.match(page, /40/);
+  assert.match(page, /Date coming soon/);
+  assert.match(page, /Entry fee TBA/);
+  assert.match(page, /Pre-register your team name/);
 });
 
 test('game pass provides explicit online and offline Campus Hunt handoff', () => {

@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
-  Bell,
   ChevronRight,
   CircleDollarSign,
   Flag,
@@ -17,6 +16,7 @@ import {
   Send,
   ShieldCheck,
   Smartphone,
+  Trash2,
   Trophy,
   Users,
   X,
@@ -26,7 +26,7 @@ import { useDarkMode } from '../../context/DarkModeContext';
 import {
   createHostedCampusHunt,
   createHostedHuntControlSession,
-  createHostedHuntOperator,
+  deleteHostedCampusHunt,
   activateHostedHuntCheckInPack,
   emergencyOperatorAction,
   emergencyOperatorLogin,
@@ -34,11 +34,8 @@ import {
   getHostedHuntDashboard,
   listHostedCampusHunts,
   requestHostedHuntRefund,
-  revokeHostedHuntOperator,
   runHostedHuntOperation,
   saveCampusHostProfile,
-  sendHostedHuntAnnouncement,
-  submitHostedCampusHunt,
   syncHostedHuntCheckInPack,
   updateHostedCampusHunt,
 } from './api';
@@ -54,7 +51,6 @@ const READINESS_LABELS = {
   eventProvisioned: 'Hunt provisioned',
   infrastructureReady: 'Routes and schedule ready',
   offlinePackCurrent: 'Final offline packs ready',
-  emergencyOperator: 'Emergency operator added',
   notEmergencyStopped: 'No emergency stop',
 };
 
@@ -191,10 +187,8 @@ function HuntWizard({ onCreated, initial = null, gameId = '', collegeName = '', 
       const data = existingGameId ? await updateHostedCampusHunt(existingGameId, payload) : await createHostedCampusHunt(payload);
       setGame(data.game);
       if (!existingGameId) onCreated(data.game?.id || data.game?._id);
-      else if (step === 2) {
-        await submitHostedCampusHunt(data.game?.id || data.game?._id);
-        onCreated(data.game?.id || data.game?._id);
-      } else setStep(1);
+      else if (step === 2) onCreated(data.game?.id || data.game?._id);
+      else setStep(1);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   return (
@@ -204,7 +198,7 @@ function HuntWizard({ onCreated, initial = null, gameId = '', collegeName = '', 
       {step === 1 && game ? <div className="hunt-host__saved-box"><div><span className="hunt-host__eyebrow">Saved</span><h3>{form.title || game.title}</h3><p>{form.city || game.city} · {form.venue || game.venue}</p></div><button type="button" className="hunt-host__primary" onClick={() => setStep(2)}>Places <ChevronRight /></button></div> : null}
       {step === 2 ? <div className="hunt-host__form"><div className="hunt-host__section-title"><MapPin /><div><h3>Places</h3><p>Starting points and campus stations.</p></div><button type="button" onClick={() => form.campusStarts.length < 4 && setForm({ ...form, campusStarts: [...form.campusStarts, { name: '' }] })}><Plus /></button></div>{form.campusStarts.map((item, index) => <div className="hunt-host__inline" key={`start-${index}`}><input placeholder={`Start ${index + 1}`} value={item.name} onChange={(e) => updateStart(index, e.target.value)} />{form.campusStarts.length > 1 ? <button type="button" onClick={() => setForm({ ...form, campusStarts: form.campusStarts.filter((_, i) => i !== index) })}><X /></button> : null}</div>)}<div className="hunt-host__section-title"><Flag /><div><h3>Campus stations</h3><p>Clues and locations.</p></div><button type="button" onClick={() => form.campusStations.length < 20 && setForm({ ...form, campusStations: [...form.campusStations, { name: '', zone: '', riddle: '', joinedWord: '' }] })}><Plus /></button></div>{form.campusStations.map((station, index) => <article className="hunt-host__station" key={`station-${index}`}><div><strong>S{String(index + 1).padStart(2, '0')}</strong>{form.campusStations.length > 6 ? <button type="button" onClick={() => setForm({ ...form, campusStations: form.campusStations.filter((_, i) => i !== index) })}><X /></button> : null}</div><input placeholder="Location name" value={station.name} onChange={(e) => updateStation(index, 'name', e.target.value)} /><input placeholder="Zone" value={station.zone} onChange={(e) => updateStation(index, 'zone', e.target.value)} /><textarea placeholder="Location riddle" value={station.riddle} onChange={(e) => updateStation(index, 'riddle', e.target.value)} /><input placeholder="Joined word (optional)" value={station.joinedWord} onChange={(e) => updateStation(index, 'joinedWord', e.target.value)} /></article>)}<label>Finish destination<input value={form.destinationName} onChange={(e) => setForm({ ...form, destinationName: e.target.value })} /></label></div> : null}
       {error ? <Notice type="error">{error}</Notice> : null}
-      <div className="hunt-host__wizard-actions">{step > 1 ? <button type="button" onClick={() => setStep(step - 1)}>Back</button> : null}{step === 1 && !game ? <button type="button" className="hunt-host__primary" disabled={busy} onClick={saveDraft}>{busy ? 'Saving…' : 'Save event details'} <ChevronRight /></button> : null}{step === 2 ? <button type="button" className="hunt-host__primary" disabled={busy} onClick={saveDraft}>{busy ? 'Submitting…' : 'Save & submit for approval'} <Send /></button> : null}</div>
+      <div className="hunt-host__wizard-actions">{step > 1 ? <button type="button" onClick={() => setStep(step - 1)}>Back</button> : null}{step === 1 && !game ? <button type="button" className="hunt-host__primary" disabled={busy} onClick={saveDraft}>{busy ? 'Saving…' : 'Save event details'} <ChevronRight /></button> : null}{step === 2 ? <button type="button" className="hunt-host__primary" disabled={busy} onClick={saveDraft}>{busy ? 'Saving…' : 'Save Hunt'} <Send /></button> : null}</div>
     </section>
   );
 }
@@ -251,11 +245,6 @@ export function CampusHuntHostDashboardPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  const [announcement, setAnnouncement] = useState({ title: '', message: '' });
-  const [operator, setOperator] = useState({ role: 'emergency_operator', label: '', password: '', checkpointId: '' });
-  const [issuedPassword, setIssuedPassword] = useState('');
-  const [editing, setEditing] = useState(false);
-  const [wizardStep, setWizardStep] = useState(1);
   const packKey = `campus_hunt_checkin_pack_${gameId}`;
   const [checkInPack, setCheckInPack] = useState(() => { try { return JSON.parse(localStorage.getItem(packKey) || 'null'); } catch { return null; } });
   const [passToken, setPassToken] = useState('');
@@ -268,7 +257,11 @@ export function CampusHuntHostDashboardPage() {
   };
   useEffect(() => { load(); }, [gameId]);
   const openControl = async () => { setBusy('control'); setError(''); try { const session = await createHostedHuntControlSession(gameId); localStorage.setItem('campus_hunt_admin_token', session.accessToken); navigate(`/campus-hunt/admin/${session.eventId}`); } catch (err) { setError(err.message); } finally { setBusy(''); } };
-  const submitSetup = async () => { setBusy('submit'); setError(''); try { await submitHostedCampusHunt(gameId); await load(); } catch (err) { setError(err.message); } finally { setBusy(''); } };
+  const deleteDraft = async () => {
+    if (!window.confirm('Delete this draft and all of its setup? This cannot be undone.')) return;
+    setBusy('delete'); setError('');
+    try { await deleteHostedCampusHunt(gameId); navigate('/host-a-game', { replace: true }); } catch (err) { setError(err.message); } finally { setBusy(''); }
+  };
   const runLifecycle = async (action) => {
     const labels = {
       'close-registration': 'Close registration and lock the final roster?',
@@ -290,37 +283,32 @@ export function CampusHuntHostDashboardPage() {
       setBusy('');
     }
   };
-  const broadcast = async (event) => { event.preventDefault(); setBusy('announce'); try { await sendHostedHuntAnnouncement(gameId, announcement); setAnnouncement({ title: '', message: '' }); await load(); } catch (err) { setError(err.message); } finally { setBusy(''); } };
-  const addOperator = async (event) => { event.preventDefault(); setBusy('operator'); try { const payload = { ...operator, checkpointIds: operator.role === 'checkpoint_volunteer' ? [operator.checkpointId] : [] }; const result = await createHostedHuntOperator(gameId, payload); setIssuedPassword(result.password); setOperator({ role: 'emergency_operator', label: '', password: '', checkpointId: '' }); await load(); } catch (err) { setError(err.message); } finally { setBusy(''); } };
   const activateCheckIn = async () => { setBusy('checkin-pack'); try { const deviceId = localStorage.getItem('campus_hunt_host_device') || cryptoRandomId(); localStorage.setItem('campus_hunt_host_device', deviceId); const response = await activateHostedHuntCheckInPack(gameId, deviceId); const next = { ...response.pack, deviceId, queue: [] }; localStorage.setItem(packKey, JSON.stringify(next)); setCheckInPack(next); } catch (err) { setError(err.message); } finally { setBusy(''); } };
   const queueCheckIn = async (event) => { event.preventDefault(); if (!checkInPack || !passToken.trim()) return; const passHash = await hashText(passToken.trim()); const known = checkInPack.passes.find((entry) => entry.passHash === passHash); if (!known) { setError('Pass is not in this final roster, or it was revoked.'); return; } const sequence = Math.max(checkInPack.lastSequence || 0, ...checkInPack.queue.map((item) => item.sequence), 0) + 1; const next = { ...checkInPack, queue: [...checkInPack.queue, { sequence, passHash }] }; localStorage.setItem(packKey, JSON.stringify(next)); setCheckInPack(next); setPassToken(''); setError(''); };
   const syncCheckIns = async () => { if (!checkInPack?.queue?.length) return; setBusy('checkin-sync'); try { const result = await syncHostedHuntCheckInPack(gameId, { packId: checkInPack.id, deviceId: checkInPack.deviceId, actions: checkInPack.queue }); const next = { ...checkInPack, queue: [], lastSequence: result.lastSequence }; localStorage.setItem(packKey, JSON.stringify(next)); setCheckInPack(next); if (result.conflicts?.length) setError(`${result.conflicts.length} offline check-in conflict(s) need admin review.`); await load(); } catch (err) { setError(err.message); } finally { setBusy(''); } };
   if (!data) return <HostShell title="Hunt workspace" back>{error ? <Notice type="error">{error}</Notice> : <div className="hunt-host__loading"><RefreshCw /> Loading Hunt…</div>}</HostShell>;
   const { game, readiness, finance } = { ...data, finance: data.readiness?.finance || {} };
   const blockedChecks = Object.entries(readiness.checks || {}).filter(([, passed]) => !passed);
+  const canDeleteDraft = game.operationalStatus === 'draft' && ['draft', 'changes_required', 'rejected'].includes(game.approvalStatus);
   return (
     <HostShell title={game.title} back>
       <section className="hunt-host__content hunt-host__dashboard">
         {error ? <Notice type="error">{error}</Notice> : null}
         {game.emergencyStoppedAt ? <Notice type="error">Emergency stop active · {game.emergencyStopReason}</Notice> : null}
         <div className="hunt-host__owner"><div><span><strong>{dateTime(game.startsAt)}</strong><small>{game.venue} · {game.city}</small></span></div><div><StatusChip value={game.approvalStatus} /><StatusChip value={game.operationalStatus} /></div></div>
-        {!['live', 'completed', 'cancelled'].includes(game.operationalStatus) ? <div className="hunt-host__actions"><button type="button" className="hunt-host__text-link" onClick={() => { setWizardStep(1); setEditing(!editing); }}>{editing ? 'Close revision editor' : 'Edit draft / submit revision'}</button></div> : null}
-        {editing ? <HuntWizard collegeName={data.profile?.college?.name || data.profile?.collegeName || ''} initial={game} gameId={gameId} initialStep={wizardStep} onCreated={() => { setEditing(false); load(); }} /> : null}
         <article className="hunt-host__panel hunt-host__launch-card">
           <div><span className="hunt-host__eyebrow">Next step</span><h2>{['draft', 'changes_required'].includes(game.approvalStatus) ? 'Build your Hunt in Campus Hunt control' : game.approvalStatus === 'pending_approval' ? 'Waiting for CrwdCtrl approval' : 'Open Campus Hunt control'}</h2><p>{['draft', 'changes_required'].includes(game.approvalStatus) ? 'Open the real control room to create Locations, Clues, Teams, Links and test the Hunt. Return here when ready to submit.' : game.approvalStatus === 'pending_approval' ? 'Your Hunt setup is being reviewed. You can still open the control room to review it.' : 'Use the proven Campus Hunt control room for Places, Clues, Teams, Links, testing and Live operations.'}</p></div>
           <div className="hunt-host__actions">
             {data.profile?.status === 'approved' ? <button type="button" className="hunt-host__primary" onClick={openControl} disabled={busy === 'control'}>{busy === 'control' ? 'Preparing…' : 'Open Campus Hunt control'} <ChevronRight /></button> : null}
-            {['draft', 'changes_required'].includes(game.approvalStatus) ? <button type="button" onClick={submitSetup} disabled={busy === 'submit'}>{busy === 'submit' ? 'Submitting…' : 'Submit setup for approval'} <Send /></button> : null}
+            {canDeleteDraft ? <button type="button" className="hunt-host__danger" onClick={deleteDraft} disabled={busy === 'delete'}><Trash2 /> {busy === 'delete' ? 'Deleting…' : 'Delete draft'}</button> : null}
           </div>
           {game.approvalStatus === 'approved' && blockedChecks.length ? <div className="hunt-host__launch-blockers">{blockedChecks.map(([key]) => <span key={key}><X /> {READINESS_LABELS[key] || key.replace(/([A-Z])/g, ' $1')}</span>)}</div> : null}
         </article>
         <div className="hunt-host__stats"><div><Users /><b>{finance.paidTeams || 0}/{game.capacity}</b><span>Paid teams</span></div><div><CircleDollarSign /><b>{money(finance.netCollected)}</b><span>Net collected</span></div><div><Trophy /><b>{money(finance.hostPayout)}</b><span>Host payout</span></div><div><ShieldCheck /><b>{readiness.ready ? 'Ready' : 'Blocked'}</b><span>Launch status</span></div></div>
         {game.approvalStatus === 'approved' && !['completed', 'cancelled'].includes(game.operationalStatus) ? <article className="hunt-host__panel"><div className="hunt-host__section-title"><Play /><div><h3>Run event</h3><p>Use these in order. Online players and offline packs stay on the same scoreboard.</p></div></div><div className="hunt-host__actions">{game.operationalStatus === 'published' ? <button type="button" onClick={() => runLifecycle('close-registration')} disabled={Boolean(busy)}>1. Close registration</button> : null}{game.operationalStatus === 'registration_closed' ? <button type="button" onClick={() => runLifecycle('ready')} disabled={Boolean(busy)}>2. Mark ready</button> : null}{game.operationalStatus === 'ready' ? <button type="button" className="hunt-host__primary" onClick={() => runLifecycle('start')} disabled={Boolean(busy)}><Play /> 3. Start Hunt</button> : null}{game.operationalStatus === 'live' ? <><button type="button" onClick={() => runLifecycle('pause')} disabled={Boolean(busy)}><Pause /> Pause releases</button><button type="button" onClick={() => runLifecycle('resume')} disabled={Boolean(busy)}><Play /> Resume releases</button><button type="button" className="hunt-host__primary" onClick={() => runLifecycle('complete')} disabled={Boolean(busy)}><Flag /> Complete &amp; finalize</button></> : null}</div>{game.operationalStatus === 'registration_closed' && blockedChecks.length ? <Notice type="error">Finish the launch blockers shown above before marking ready.</Notice> : null}</article> : null}
         <article id="host-workflow-links" className="hunt-host__panel"><div className="hunt-host__section-title"><Smartphone /><div><h3>Offline pass check-in</h3><p>Activate online once. Only pass hashes and queued sequence numbers stay on this device.</p></div></div>{!checkInPack ? <button type="button" onClick={activateCheckIn} disabled={busy === 'checkin-pack'}>Activate final roster pack</button> : <><Notice>Batch {checkInPack.exportBatchId} · {checkInPack.passes.length} passes · expires {dateTime(checkInPack.expiresAt)}</Notice><form className="hunt-host__inline-form" onSubmit={queueCheckIn}><input value={passToken} onChange={(e) => setPassToken(e.target.value)} placeholder="Scan or paste signed pass token" required /><button>Queue offline</button><button type="button" className="hunt-host__primary" onClick={syncCheckIns} disabled={!checkInPack.queue.length || busy === 'checkin-sync'}>Sync {checkInPack.queue.length || ''}</button></form></>}</article>
-        <article className="hunt-host__panel"><div className="hunt-host__section-title"><Smartphone /><div><h3>Emergency operator and volunteers</h3><p>Temporary, expiring and device-bound access.</p></div></div><form className="hunt-host__inline-form" onSubmit={addOperator}><select value={operator.role} onChange={(e) => setOperator({ ...operator, role: e.target.value, checkpointId: '' })}><option value="emergency_operator">Emergency operator</option><option value="checkpoint_volunteer">Checkpoint volunteer</option></select>{operator.role === 'checkpoint_volunteer' ? <select required value={operator.checkpointId} onChange={(e) => setOperator({ ...operator, checkpointId: e.target.value })}><option value="">Choose one checkpoint</option>{data.checkpoints.map((checkpoint) => <option key={checkpoint._id} value={checkpoint._id}>{checkpoint.locationName} · {checkpoint.progressionKey || checkpoint.checkpointKey}</option>)}</select> : null}<input placeholder="Name / label" value={operator.label} onChange={(e) => setOperator({ ...operator, label: e.target.value })} required /><input placeholder="Password or auto-generate" value={operator.password} onChange={(e) => setOperator({ ...operator, password: e.target.value })} /><button disabled={busy === 'operator'}>Create access</button></form>{issuedPassword ? <Notice>Show once: <strong>{issuedPassword}</strong></Notice> : null}<div className="hunt-host__list">{data.operators.map((item) => <div key={item._id}><span><strong>{item.label}</strong><small>{item.role.replace(/_/g, ' ')} · {item.code} · expires {dateTime(item.expiresAt)}</small></span><button onClick={async () => { await revokeHostedHuntOperator(gameId, item._id); load(); }}>Revoke</button></div>)}</div><Link className="hunt-host__text-link" to="/campus-hunt/host-mode">Open emergency Host Mode <ChevronRight /></Link></article>
         <article className="hunt-host__panel"><div className="hunt-host__section-title"><Users /><div><h3>Participants</h3><p>Teammate emails stay hidden.</p></div></div><div className="hunt-host__table">{data.registrations.map((registration) => <div key={registration.id}><span><strong>{registration.teamName}</strong><small>{registration.captainName} · {registration.captainEmail} · {registration.verifiedTeammates}/{registration.teammateCount} teammates verified</small></span><span><StatusChip value={registration.status} /><b>{money(registration.amountPaid)}</b>{!['cancelled'].includes(registration.status) ? <button onClick={async () => { const reason = window.prompt('Refund reason'); if (reason) { await requestHostedHuntRefund(gameId, registration.id, reason); load(); } }}>Request refund</button> : null}</span></div>)}</div></article>
-        <article className="hunt-host__panel"><div className="hunt-host__section-title"><Bell /><div><h3>Announcements</h3><p>Five broadcasts per event per day.</p></div></div><form className="hunt-host__form" onSubmit={broadcast}><input placeholder="Announcement title" value={announcement.title} onChange={(e) => setAnnouncement({ ...announcement, title: e.target.value })} required /><textarea placeholder="Message to registered captains" value={announcement.message} onChange={(e) => setAnnouncement({ ...announcement, message: e.target.value })} required /><button className="hunt-host__primary" disabled={busy === 'announce'}><Send /> Send in-app + email</button></form><div className="hunt-host__list">{data.announcements.map((item) => <div key={item._id}><span><strong>{item.title}</strong><small>{item.message}</small></span><small>{item.emailSent}/{item.emailAttempted} emails</small></div>)}</div></article>
-        <article className="hunt-host__panel"><div className="hunt-host__section-title"><CircleDollarSign /><div><h3>Finance</h3><p>Final payout waits for settlement, disputes and refunds.</p></div></div><div className="hunt-host__money-grid"><div><small>Gross paid</small><b>{money(finance.grossPaid)}</b></div><div><small>Refunds</small><b>{money(finance.successfulRefunds)}</b></div><div><small>Gateway fees</small><b>{money(finance.gatewayFees)}</b></div><div><small>CrwdCtrl fee</small><b>{money(finance.platformFee)}</b></div><div><small>Prize funded</small><b>{money(finance.prizeFunded)}</b></div><div><small>Your payout</small><b>{money(finance.hostPayout)}</b></div></div><Notice>Payout status: <strong>{finance.payoutStatus}</strong>{game.payoutEligibleAt ? ` · earliest ${dateTime(game.payoutEligibleAt)}` : ''}</Notice></article>
+        <article className="hunt-host__panel"><div className="hunt-host__section-title"><CircleDollarSign /><div><h3>Finance</h3><p>Final payout waits for settlement, disputes and refunds.</p></div></div><div className="hunt-host__money-grid"><div><small>Gross paid</small><b>{money(finance.grossPaid)}</b></div><div><small>Refunds</small><b>{money(finance.successfulRefunds)}</b></div><div><small>Gateway fees</small><b>{money(finance.gatewayFees)}</b></div><div><small>Prize funded</small><b>{money(finance.prizeFunded)}</b></div><div><small>Your payout</small><b>{money(finance.hostPayout)}</b></div></div><Notice>Payout status: <strong>{finance.payoutStatus}</strong>{game.payoutEligibleAt ? ` · earliest ${dateTime(game.payoutEligibleAt)}` : ''}</Notice></article>
       </section>
     </HostShell>
   );

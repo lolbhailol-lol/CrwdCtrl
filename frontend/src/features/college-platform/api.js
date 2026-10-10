@@ -148,6 +148,13 @@ export function updateHostedCampusHunt(gameId, payload) {
   });
 }
 
+export function deleteHostedCampusHunt(gameId) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}`, {
+    method: 'DELETE',
+    cacheBust: false,
+  });
+}
+
 export function saveHostedHuntPermission(gameId, payload) {
   return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/permission`, {
     method: 'PUT',
