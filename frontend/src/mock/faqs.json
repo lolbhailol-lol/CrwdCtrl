@@ -1,0 +1,166 @@
+{
+  "categories": [
+    { "id": "all", "label": "All Questions" },
+    { "id": "general", "label": "About CrwdCtrl" },
+    { "id": "fests", "label": "College Fests" },
+    { "id": "treks", "label": "Treks & Adventure" },
+    { "id": "sports", "label": "Sports & Runs" },
+    { "id": "events", "label": "Events & Shows" },
+    { "id": "organizers", "label": "For Organizers" },
+    { "id": "payments", "label": "Payments & Tickets" }
+  ],
+  "items": [
+    {
+      "id": "general-1",
+      "category": "general",
+      "categoryLabel": "About CrwdCtrl",
+      "icon": "Sparkles",
+      "question": "What is CrwdCtrl?",
+      "answer": "CrwdCtrl is India's premier community and event discovery platform where students and young adults can discover, explore, and register for college fests, tech hackathons, sports tournaments, running clubs, fitness communities, treks, and local cultural meetups."
+    },
+    {
+      "id": "general-2",
+      "category": "general",
+      "categoryLabel": "About CrwdCtrl",
+      "icon": "Sparkles",
+      "question": "Is CrwdCtrl free to use?",
+      "answer": "Yes! Browsing, bookmarking, and discovering events on CrwdCtrl is 100% free. Certain paid events, competitions, or treks charge an official organizer entry fee, which is always shown transparently before registration with no hidden fees."
+    },
+    {
+      "id": "general-3",
+      "category": "general",
+      "categoryLabel": "About CrwdCtrl",
+      "icon": "Sparkles",
+      "question": "Which cities and colleges does CrwdCtrl cover?",
+      "answer": "CrwdCtrl covers colleges, universities, and student communities across all major regions in India, including Delhi NCR, Mumbai, Pune, Bengaluru, Chennai, Kolkata, and Hyderabad. You can browse nearby events or explore nationwide fest listings."
+    },
+    {
+      "id": "general-4",
+      "category": "general",
+      "categoryLabel": "About CrwdCtrl",
+      "icon": "Sparkles",
+      "question": "How does CrwdCtrl make event discovery easier?",
+      "answer": "Instead of tracking scattered Google Forms, unorganized WhatsApp groups, and fleeting Instagram stories, CrwdCtrl brings all official fests, competitions, treks, and sports tournaments into one unified, clean platform with instant digital booking and QR entry."
+    },
+    {
+      "id": "fest-1",
+      "category": "fests",
+      "categoryLabel": "College Fests",
+      "icon": "Trophy",
+      "question": "How do I register for a college fest on CrwdCtrl?",
+      "answer": "Navigate to the fest page, browse its competitions and schedules, click 'Register' on your preferred event, and complete the instant registration form. You receive instant confirmation and a digital QR ticket in your profile."
+    },
+    {
+      "id": "fest-2",
+      "category": "fests",
+      "categoryLabel": "College Fests",
+      "icon": "Trophy",
+      "question": "Can students from other colleges attend a fest?",
+      "answer": "Yes! Most collegiate festivals featured on CrwdCtrl welcome inter-college participants from all accredited institutions across India. Specific eligibility guidelines and college ID requirements are listed on each competition card."
+    },
+    {
+      "id": "fest-3",
+      "category": "fests",
+      "categoryLabel": "College Fests",
+      "icon": "Trophy",
+      "question": "What types of competitions are available?",
+      "answer": "You can participate in cultural competitions (dance, music, drama, fashion), technical events (hackathons, robotics, coding, AI challenges), sports tournaments (cricket, football, esports), and business/literary modules (quizzing, debates, case studies)."
+    },
+    {
+      "id": "fest-4",
+      "category": "fests",
+      "categoryLabel": "College Fests",
+      "icon": "Trophy",
+      "question": "How do team registrations work for group competitions?",
+      "answer": "For group events like Battle of the Bands, Group Dance, or Hackathons, the team leader registers the group, inputs team member details, and receives the consolidated team pass."
+    },
+    {
+      "id": "trek-1",
+      "category": "treks",
+      "categoryLabel": "Treks & Adventure",
+      "icon": "Compass",
+      "question": "How do I book a trek on CrwdCtrl?",
+      "answer": "Open the trek page, review the day-by-day itinerary, difficulty rating, mandatory packing list, and batch dates, then tap 'Book Now' to secure your spot with verified mountain communities."
+    },
+    {
+      "id": "trek-2",
+      "category": "treks",
+      "categoryLabel": "Treks & Adventure",
+      "icon": "Compass",
+      "question": "Are the listed treks suitable for beginners?",
+      "answer": "Yes! Every trek card displays an easy-to-read difficulty badge (Beginner, Moderate, or Challenging). Day hikes and weekend camping treks are ideal for beginners, with certified trek leads guiding throughout."
+    },
+    {
+      "id": "trek-3",
+      "category": "treks",
+      "categoryLabel": "Treks & Adventure",
+      "icon": "Compass",
+      "question": "What safety precautions are in place for treks?",
+      "answer": "All featured trekking clubs are verified communities led by certified mountaineers equipped with first-aid kits, emergency rescue protocols, and local forest department permits."
+    },
+    {
+      "id": "sports-1",
+      "category": "sports",
+      "categoryLabel": "Sports & Runs",
+      "icon": "Activity",
+      "question": "How do I join a running club or weekend marathon?",
+      "answer": "Visit the Sports & Running hub on CrwdCtrl, select a local run club or upcoming 5K/10K race, check the pace group details, and RSVP directly for free community runs or register for competitive marathons."
+    },
+    {
+      "id": "sports-2",
+      "category": "sports",
+      "categoryLabel": "Sports & Runs",
+      "icon": "Activity",
+      "question": "Are running clubs beginner friendly?",
+      "answer": "Absolutely! Most community run clubs offer multiple pace groups ranging from walk-joggers (8:00+ min/km) to intermediate runners (6:00 min/km) and speedy pacers."
+    },
+    {
+      "id": "events-1",
+      "category": "events",
+      "categoryLabel": "Events & Shows",
+      "icon": "Calendar",
+      "question": "What live events and shows can I find on CrwdCtrl?",
+      "answer": "CrwdCtrl lists stand-up comedy shows, college pronites, live band gigs, electronic music festivals, open mics, creative workshops, and student networking summits happening in your city."
+    },
+    {
+      "id": "events-2",
+      "category": "events",
+      "categoryLabel": "Events & Shows",
+      "icon": "Calendar",
+      "question": "How do tickets work for live shows?",
+      "answer": "Upon completing your booking, an instant digital pass with a unique QR code is generated. Present this digital ticket on your phone at the entry gate for quick contactless verification."
+    },
+    {
+      "id": "organizers-1",
+      "category": "organizers",
+      "categoryLabel": "For Organizers",
+      "icon": "Building2",
+      "question": "How can our college committee list our fest on CrwdCtrl?",
+      "answer": "Head to the 'List Your Fest' link in the footer or navigation. Fill in your college name, fest details, and contact person. Our team will verify and activate your official public fest listing within 24 hours."
+    },
+    {
+      "id": "organizers-2",
+      "category": "organizers",
+      "categoryLabel": "For Organizers",
+      "icon": "Building2",
+      "question": "What tools do organizers get?",
+      "answer": "Organizers get access to a dedicated dashboard featuring real-time registration counts, ticket export sheets (CSV/Excel), custom registration form builders, and a live QR scanner app for seamless on-ground gate check-ins."
+    },
+    {
+      "id": "payments-1",
+      "category": "payments",
+      "categoryLabel": "Payments & Tickets",
+      "icon": "Ticket",
+      "question": "What payment methods are supported?",
+      "answer": "All payments are processed securely via verified gateways supporting UPI (Google Pay, PhonePe, Paytm), Credit/Debit cards, Net Banking, and digital wallets."
+    },
+    {
+      "id": "payments-2",
+      "category": "payments",
+      "categoryLabel": "Payments & Tickets",
+      "icon": "Ticket",
+      "question": "What is the cancellation and refund policy?",
+      "answer": "Refund policies depend on the specific fest or event guidelines. Most paid events allow cancellations up to 48 hours before the start date. Detailed refund terms are displayed on each event's checkout screen."
+    }
+  ]
+}

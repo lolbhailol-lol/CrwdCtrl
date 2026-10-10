@@ -1,0 +1,72 @@
+{
+  "heading": "Loved by Students & Organizers Across India",
+  "subheading": "See what community members, festival leads, and campus ambassadors have to say about CrwdCtrl.",
+  "stats": [
+    { "label": "Campus Fests Listed", "value": "120+" },
+    { "label": "Active Students", "value": "45,000+" },
+    { "label": "Registrations Powered", "value": "150K+" },
+    { "label": "Average Rating", "value": "4.9/5" }
+  ],
+  "reviews": [
+    {
+      "id": "rev-1",
+      "name": "Aman Singh",
+      "role": "College Ambassador",
+      "college": "DTU Delhi",
+      "location": "Delhi NCR",
+      "rating": 5,
+      "avatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80",
+      "quote": "CrwdCtrl made it effortlessly simple to discover college events near me. I've participated in 3 hackathons already, and the registration process was completely seamless!"
+    },
+    {
+      "id": "rev-2",
+      "name": "Priya Sharma",
+      "role": "Student & Marathoner",
+      "college": "COEP Pune",
+      "location": "Pune",
+      "rating": 5,
+      "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+      "quote": "The location-based fest & club discovery is an absolute game changer. Found an active weekend running club and registered in under 30 seconds!"
+    },
+    {
+      "id": "rev-3",
+      "name": "Rohit Verma",
+      "role": "Cultural Secretary",
+      "college": "IIT Bombay",
+      "location": "Mumbai",
+      "rating": 5,
+      "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      "quote": "We listed our cultural fest on CrwdCtrl and saw a 50% jump in outstation registrations. The live check-in scanner and attendee export tools saved us hours."
+    },
+    {
+      "id": "rev-4",
+      "name": "Sneha Kapoor",
+      "role": "Design Lead",
+      "college": "Symbiosis Institute",
+      "location": "Pune",
+      "rating": 5,
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "quote": "The clean dark mode UI and detailed fest breakdown (rules, prize pool, schedule) make this the only platform college students need."
+    },
+    {
+      "id": "rev-5",
+      "name": "Ankit Patel",
+      "role": "Trek Leader",
+      "college": "Himalayan Adventures",
+      "location": "Dehradun",
+      "rating": 5,
+      "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+      "quote": "Hosting our youth camping treks through CrwdCtrl brought hundreds of passionate college students to our trails. Transparent, fast, and reliable."
+    },
+    {
+      "id": "rev-6",
+      "name": "Riya Sen",
+      "role": "Pronites Head",
+      "college": "Jadavpur University",
+      "location": "Kolkata",
+      "rating": 5,
+      "avatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
+      "quote": "Managing artist announcements, competition registrations, and gate check-ins was so stress-free. Highly recommend every college fest committee to use CrwdCtrl!"
+    }
+  ]
+}

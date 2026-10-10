@@ -1,0 +1,774 @@
+﻿{
+    "_id":  "69592d5b9e72cc00e7b6925b",
+    "organizer":  null,
+    "festName":  "PUNE STARTUP FEST",
+    "subtitle":  "",
+    "collegeName":  "COEP Technological University",
+    "festType":  "technical",
+    "festDate":  "17th-18th Jan",
+    "venue":  "COEP ,Shivajinagar, Pune",
+    "ticketPrice":  "",
+    "description":  "Pune Startup Fest, started in 2019, is COEP Technological University’s annual entrepreneurship initiative organized by COEP Tech\u0027s E-Cell. Over the years, Pune Startup Fest has grown into a prominent platform for startups, investors, mentors, and students.\nAt its core, Pune Startup Fest ’26 aims to bring together startups, students, investors, mentors, industry leaders, C-level executives, and the wider public from across the country, creating a collaborative ecosystem that fuels innovation and accelerates entrepreneurial growth.\nPSF ’26 is more than a festival, it is a platform where ideas evolve into impact, and pioneers ascend.",
+    "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1768070159/crwdctrl/fests/mhvt3w58f3ryjtjpvmxp.jpg",
+    "galleryImages":  [
+                          "https://res.cloudinary.com/dyonimhgb/image/upload/v1768070159/crwdctrl/fests/mhvt3w58f3ryjtjpvmxp.jpg",
+                          "https://res.cloudinary.com/dyonimhgb/image/upload/v1768070167/crwdctrl/fests/rgvmdbw77dt3mnyvvgqq.jpg",
+                          "https://res.cloudinary.com/dyonimhgb/image/upload/v1768070172/crwdctrl/fests/ow9kspnmt12qpvgxnge6.jpg",
+                          "https://res.cloudinary.com/dyonimhgb/image/upload/v1768070177/crwdctrl/fests/clahn0ktx3hkezrjr46w.jpg"
+                      ],
+    "registrationLink":  "",
+    "registration":  {
+                         "mode":  "CLOSED",
+                         "externalLink":  "https://punestartupfest.in/register/events",
+                         "paymentQR":  "",
+                         "paymentQRMessage":  "",
+                         "whatsappCommunityLink":  "",
+                         "formInstructions":  "",
+                         "formType":  "SINGLE_STEP",
+                         "formSchema":  [
+
+                                        ],
+                         "steps":  [
+
+                                   ]
+                     },
+    "status":  "completed",
+    "artists":  [
+                    {
+                        "name":  "SHISHYA",
+                        "genre":  "by Fateh",
+                        "image":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767528039/crwdctrl/fests/gdh7ghqccuqxbxq6lvbq.jpg",
+                        "collegeName":  "COEP Technological University",
+                        "message":  "An engaging competition for students that test GK and Quick thinking.",
+                        "_id":  "6a7f1043ed26d983b34e56f9"
+                    }
+                ],
+    "artistsHeading":  "Events",
+    "contacts":  [
+                     {
+                         "name":  "Neha Agrawal",
+                         "phone":  "+91 8208496291",
+                         "email":  "secretary.psf@coeptech.ac.in",
+                         "instagramId":  "",
+                         "role":  "Secretary",
+                         "_id":  "69597aedff49acb9fa898c48"
+                     },
+                     {
+                         "name":  "Preet Damani",
+                         "phone":  "+91 7387907335",
+                         "email":  "bec@coeptech.ac.in",
+                         "instagramId":  "",
+                         "role":  "Joint Secretary",
+                         "_id":  "69597aedff49acb9fa898c49"
+                     },
+                     {
+                         "name":  "Instagram handle",
+                         "phone":  "",
+                         "email":  "",
+                         "instagramId":  "@coep_ecell",
+                         "role":  "",
+                         "_id":  "695a30fee5e26e68712533c6"
+                     }
+                 ],
+    "sponsors":  [
+                     {
+                         "name":  "",
+                         "logo":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767701262/crwdctrl/fests/yhhrs0lkniesdd04emhp.png",
+                         "_id":  "6a7f1043ed26d983b34e56fd"
+                     },
+                     {
+                         "name":  "",
+                         "logo":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767701380/crwdctrl/fests/pkrz1cngnlbutwsjfvmb.png",
+                         "_id":  "6a7f1043ed26d983b34e56fe"
+                     }
+                 ],
+    "competitions":  [
+                         {
+                             "_id":  "695981efff49acb9fa898cf3",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "BULLRUN",
+                             "subtitle":  "",
+                             "competitionType":  "business",
+                             "description":  "BullRun is a trading competition ",
+                             "prizePool":  "₹10,000",
+                             "dateTime":  "12th -16th January ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767473377/crwdctrl/competitions/zanhfwhvr9o3o6yub0iz.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767473377/crwdctrl/competitions/zanhfwhvr9o3o6yub0iz.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "1.\tEligibility: All undergraduate and postgraduate students are allowed to participate.\n2.\tTeam Size: Individual\n3.\tThe actual event will start one week before “Pune Startup Fest 26”.\n4.\tThe event will last for 5 trading days.\n5.\tThe login information for the trading account will be made available to\n6.\tthe registered participants only.\n7.\tDetails regarding login and registration on the online platform would\n8.\tbe communicated via email.\n9.\tParticipants will be ranked based on their performances.\n10.\tWe will give a fixed amount of virtual money of 1,00,000 Rs.\n11.\tThe individual achieving maximum gain in portfolio value at the end of\n12.\tfive days will be the overall winner of “BullRun”.",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Rules and Guidelines; description=1. Any malpractice or collusion results in disqualification.\n2. The organizing committee reserves the right to:\n- Adjust multipliers or probabilities if needed\n- Finalize all rules and decisions\n- Declare results\n; rules=System.Object[]; roundRulesMessage=1.\tThis is an open-internet competition; use of mobile phones and electronic devices is permitted.\n2.\tEach participant will be allotted ₹1,00,000 virtual money, which will be used throughout the event for buying and selling shares.\n3.\tAll transactions must be recorded on the provided Transaction Sheet before entering the transaction floor. Once submitted, transactions cannot be altered.\n4.\tCarry a valid college ID and registration receipt to the venue.\n5.\tParticipants must reach the venue 10 minutes prior to the event start for any rule updates.\n6.\tThe organizers reserve the right to modify rules, change the event format, or disqualify participants at any stage.\n7.\tIn case of disputes, decisions made by the judges and organizing committee of Pune Startup Fest ’26, COEP Technological University will be final and binding.; dateTime=; venue=COEP Technological University; _id=696f37896f11efa023d0245a}"
+                                        ],
+                             "registrationFee":  "69",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/J0taEKP96897cWDzUjPV",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Aryan",
+                                             "email":  "",
+                                             "phone":  "+91 93730 95020",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-03T20:54:07.503Z",
+                             "updatedAt":  "2026-01-20T08:06:33.335Z",
+                             "__v":  13,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "69598593ff49acb9fa898d27",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "INNOVATOR\u0027S RELAY",
+                             "subtitle":  "",
+                             "competitionType":  "management",
+                             "description":  "A multi-stage innovation challenge designed to test originality, adaptability, teamwork, and strategic thinking.\n",
+                             "prizePool":  "₹8,000",
+                             "dateTime":  "17th January ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767474251/crwdctrl/competitions/tnq7qojhb1krioljoisn.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767474251/crwdctrl/competitions/tnq7qojhb1krioljoisn.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "Eligibility: Open to all college students.\nIndividual Participation: Round 1 begins with solo participants.\nTeams are formed only in later rounds through random selection.\n\n1.\tAll team assignments are random and final.\n2.\tTime limits are strictly enforced.\n3.\tAll submitted ideas must be original.\n4.\tProfessional and respectful conduct is mandatory.\n5.\tJudges\u0027 decisions are final.\n6.\tFailure to participate in assigned teams may result in disqualification.\n7.\tPlagiarism or misconduct results in immediate disqualification.\n8.\tThe number of advancing teams may vary based on participation.\n9.\tThe organizing committee holds the right to modify rules if required.\n10.\tFinal decisions regarding disputes or violations rest with the organizers.",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Solo Innovation; description=; rules=System.Object[]; roundRulesMessage=Round 1 is based on 18 curated problem statements related to real college ecosystem challenges. Teams will receive their prompt through a random chit-selection, ensuring fairness and encouraging creativity and adaptability.\nObjective: Create an original and innovative product.\nParticipants get 10 minutes to ideate and 60 seconds to pitch, covering the problem, solution, target users, and key features (sketch optional).\nIdeas will be judged on creativity, practical viability, and wow factor (1–10 each).\nThe top 50% of participants will qualify for Round 2.; dateTime=; venue=COEP Technological University; _id=696f37926f11efa023d02477}",
+                                            "@{roundNumber=2; title=Team Fusion (Teams of Two); description=; rules=System.Object[]; roundRulesMessage=Advancing participants are paired through random chit selection. Each team must merge their Round 1 ideas into a single hybrid innovation.\nTeams get 10–15 minutes to collaborate and develop the concept, followed by a 2-minute pitch. The final output should include an integrated product idea, a unified brand name, and a clear market purpose.\nThe pitch must explain how the ideas were merged, why the combined product is stronger, and its unique value proposition. Evaluation is based on integration quality, innovation, market potential, and team collaboration.\nThe top 50% of teams advance to Round 3.; dateTime=; venue=COEP Technological University; _id=696f37926f11efa023d02478}",
+                                            "@{roundNumber=3; title=Expansion Innovation (Teams of Four); description=; rules=System.Object[]; roundRulesMessage=Advancing participants are regrouped through random selection, forming teams of four by merging two winning pairs. This ensures fresh collaboration dynamics.\nObjective: Build a comprehensive, multi-component product ecosystem.\nTeams get 20 minutes for discussion and integration, followed by a 5-minute final pitch. The solution should present a connected ecosystem (such as product + app or service + platform), supported by use cases, a clear brand story, and market impact.\nThe pitch must explain ecosystem integration, key differentiators, scalability, and potential impact. Teams are evaluated on cohesion, creativity, business feasibility, and presentation quality.\nOutcome: One team is crowned the overall winner.; dateTime=; venue=COEP Technological University; _id=696f37926f11efa023d02479}"
+                                        ],
+                             "registrationFee":  "59",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/Ujq4iVOMwbiuxI5O1JSS",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Nischal",
+                                             "email":  "",
+                                             "phone":  "+91 77424 30913",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-03T21:09:39.794Z",
+                             "updatedAt":  "2026-01-20T08:06:42.491Z",
+                             "__v":  11,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "6959884aff49acb9fa898d64",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "LOGO MAKING",
+                             "subtitle":  "",
+                             "competitionType":  "art",
+                             "description":  "Optify is Pune Startup Fest’s dedicated creative arena.",
+                             "prizePool":  "₹5,000",
+                             "dateTime":  "17th-18th Jan ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767475522/crwdctrl/competitions/onwjgh2lwrla4y9hmow7.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767475522/crwdctrl/competitions/onwjgh2lwrla4y9hmow7.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "Eligibility:\n• Open to all participants.\n• Individual participation only.\n• Live presence on campus is required on the day(s) of shooting.\n\n1.\tAll content must be created by the participant.\n2.\tPlagiarism results in disqualification.\n3.\tShooting must not disturb other events or participants.\n4.\tConsent is mandatory before filming or photographing individuals.\n5.\tVulgar or obscene content is strictly prohibited.\n6.\tPSF may use submitted content for promotional purposes.\n7.\tAll entries must relate to the PSF environment.\n8.\tSubmissions must be clear, visible, and suitable for judging.",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=; description=Submission Guidelines\n• Format: JPEG, PNG, or PDF\n• One submission per participant; rules=System.Object[]; roundRulesMessage=Logo Making – Design the Identity\nCraft bold, creative, and meaningful brand identities for fictional startups.\nParticipants will design logos that capture the essence, vision, and purpose of an\nimaginary company.\nRequirements:\n• Create a unique, original logo\n• Reflect creativity and brand understanding\n• Submission in high-quality image or PDF format\nJudging Parameters:\n• Creativity\n• Relevance to the fictional brand\n• Visual appeal and clarity\n• Concept explanation (if asked); dateTime=; venue=COEP Technological University; _id=696f379b6f11efa023d02494}"
+                                        ],
+                             "registrationFee":  "49",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/eOML6fUmWvrkcEqXjniW",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "",
+                                             "email":  "",
+                                             "phone":  "",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-03T21:21:14.535Z",
+                             "updatedAt":  "2026-01-20T08:06:51.889Z",
+                             "__v":  8,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "69598baaff49acb9fa898dce",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "PHOTOGRAPHY",
+                             "subtitle":  "",
+                             "competitionType":  "art",
+                             "description":  "Optify is Pune Startup Fest’s dedicated creative arena.",
+                             "prizePool":  "₹4,000",
+                             "dateTime":  "17th-18th Jan",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767476074/crwdctrl/competitions/e3jl3qnykgaz2nbldlp1.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767476074/crwdctrl/competitions/e3jl3qnykgaz2nbldlp1.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "Eligibility:\n• Open to all participants.\n• Individual participation only.\n• Live presence on campus is required on the day(s) of shooting.\n\n1.\tAll content must be created by the participant.\n2.\tPlagiarism results in disqualification.\n3.\tShooting must not disturb other events or participants.\n4.\tConsent is mandatory before filming or photographing individuals.\n5.\tVulgar or obscene content is strictly prohibited.\n6.\tPSF may use submitted content for promotional purposes.\n7.\tAll entries must relate to the PSF environment.\n8.\tSubmissions must be clear, visible, and suitable for judging.",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=; description=Submission Guidelines\n• Format: JPEG, PDF\n• Maximum 3 submissions; rules=System.Object[]; roundRulesMessage=Participants must take photographs that showcase the essence of Pune Startup Fest.\nEach photo must reflect storytelling, creativity, and relevance to the event environment.\nRequirements:\n• Submit up to 3 photographs\n• Must be related to PSF\n• Images must be clear and well-composed\n• Formats: JPEG, PDF\nJudging Parameters:\n• Creativity \u0026 Originality\n• Relevance to Theme\n• Technical Quality\n• Visual \u0026 Emotional Impact; dateTime=; venue=COEP Technological University; _id=696f37a66f11efa023d024af}"
+                                        ],
+                             "registrationFee":  "79",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/MinL9cXMhFWCdOZbSIEX",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Ronak",
+                                             "email":  "",
+                                             "phone":  "+91 9588483404",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-03T21:35:38.062Z",
+                             "updatedAt":  "2026-01-20T08:07:02.319Z",
+                             "__v":  3,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "69598c98ff49acb9fa898de6",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "VIDEOGRAPHY",
+                             "subtitle":  "",
+                             "competitionType":  "art",
+                             "description":  "Optify is Pune Startup Fest’s dedicated creative arena.",
+                             "prizePool":  "₹4,000",
+                             "dateTime":  "17th-18th Jan",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767476322/crwdctrl/competitions/z9v3d4qqwo7fmobiivc9.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767476322/crwdctrl/competitions/z9v3d4qqwo7fmobiivc9.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "Eligibility:\n• Open to all participants.\n• Individual participation only.\n• Live presence on campus is required on the day(s) of shooting.\n\n1.\tAll content must be created by the participant.\n2.\tPlagiarism results in disqualification.\n3.\tShooting must not disturb other events or participants.\n4.\tConsent is mandatory before filming or photographing individuals.\n5.\tVulgar or obscene content is strictly prohibited.\n6.\tPSF may use submitted content for promotional purposes.\n7.\tAll entries must relate to the PSF environment.\n8.\tSubmissions must be clear, visible, and suitable for judging.",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=; description=Submission Guidelines\n• Format: MP4, MOV\n• Max file size: 200 MB\n• File name: Optify_ParticipantName\n• If using Google Drive:– Upload to personal Drive– Share with “Anyone with the link can view/edit”– Submit link through the official form; rules=System.Object[]; roundRulesMessage=Create short videos that capture the energy, innovation, and spirit of PSF.\nParticipants must narrate visually compelling stories through motion, editing, and\ndirection.\nRequirements:\n• Short video duration: 30–90 seconds\n• Must be related to PSF\n• Format: MP4, MOV\n• File size must be ≤ 200 MB\n• Only 1 short video submission allowed\n• Can be shot using any device\nJudging Parameters:\n• Creativity \u0026 Concept\n• Storytelling Strength\n• Visual Composition\n• Technical Execution (editing, flow, clarity); dateTime=; venue=COEP Technological University; _id=696f37b16f11efa023d024ca}"
+                                        ],
+                             "registrationFee":  "49",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/3LYlqTbC8YkXtLOUNGZW",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Ronak",
+                                             "email":  "",
+                                             "phone":  "+91 9588483404",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-03T21:39:36.437Z",
+                             "updatedAt":  "2026-01-20T08:07:13.653Z",
+                             "__v":  4,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "695a1beae5e26e6871253103",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "CEO CHALLENGE",
+                             "subtitle":  "",
+                             "competitionType":  "business",
+                             "description":  "Get ready to tackle real-world scenarios and prove your mettle in the CEO Challenge! sponsored by EIRIS",
+                             "prizePool":  "₹10,000",
+                             "dateTime":  "18th Jan",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767512860/crwdctrl/competitions/jvdnesgt8dsujhd11rx3.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767512860/crwdctrl/competitions/jvdnesgt8dsujhd11rx3.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "• The decisions of the organizers will be final and binding on all participants. \n• The participants must carefully read through and agree to the following Terms \u0026 Conditions: \n1. All decisions in matters of eligibility, authenticity, and final judgments will \nrest with the organizing committee of Pune Startup Fest 26, COEP \nTechnological University Pune (Formerly known as College of Engineering Pune). \n2. The format and structure of the event could be subject to change before the actual beginning of the event. \n3. Prize money and positions may be reduced in case of lesser participation (less than 10 teams). \n4. NO REFUND will be given under any circumstances except in cases where registrations are less than 10 teams. \n5. Entry fees are inclusive of ticketing charges. \n6. Organizers will not be responsible for any injuries or mishaps that occur during the event.",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Business Quiz (Online) ; description=Organiser’s Rights \n1.\tThe number of teams advancing may change depending on participation. \n2.\tThe organizing committee’s decision is final in case of disputes or violations.\n; rules=System.Object[]; roundRulesMessage=1.\tRound 1 will be conducted as an online MCQ-based business quiz. \n2.\tThe quiz will test participants on business fundamentals, management concepts, and \n3.\tmarket awareness. \n4.\tA total of 30 questions will be asked and the time duration for the test would be 30 \n5.\tminutes. \n6.\tTop teams will qualify for Round 2.; dateTime=; venue=COEP Technological University; _id=696f37ba6f11efa023d024e6}",
+                                            "@{roundNumber=2; title=Business Analytics Case Study ; description=; rules=System.Object[]; roundRulesMessage=1.\tRound 2 will be conducted on COEP Campus. \n2.\tQualified teams will be provided with 3 business problem statements, from which any \n3.\tone can be chosen. \n4.\tEach team will deliver a 15-minute presentation to the jury panel. \n5.\tPresentations will be evaluated on: – Analytical depth – Innovation and originality \na.\tFeasibility of the solution – Business impact and clarity of execution \n6.\tThe team that demonstrates exceptional analytical rigor, strategic thinking, and practical \n7.\tbusiness insight will be declared the CEO Challenge Winners.; dateTime=; venue=COEP Technological University; _id=696f37ba6f11efa023d024e7}"
+                                        ],
+                             "registrationFee":  "89 / team",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/QfKdvA1vgHhONy044vLa",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Ajinkya",
+                                             "email":  "",
+                                             "phone":  "+91 9730132501",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-04T07:51:06.189Z",
+                             "updatedAt":  "2026-01-20T08:07:22.643Z",
+                             "__v":  4,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "695a208ae5e26e68712531bc",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "BIDWARS",
+                             "subtitle":  "",
+                             "competitionType":  "business",
+                             "description":  "Put your analytical skills to the test and bid for players to create your cricket team. \n",
+                             "prizePool":  "₹10,000",
+                             "dateTime":  "17th January ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767513690/crwdctrl/competitions/bwcmahuvkcxho1hlo04x.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767513690/crwdctrl/competitions/bwcmahuvkcxho1hlo04x.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "General Rules\n1. Event is open to all participants\n2. Team size must be exactly 2 members\n3. Each team will be given a virtual budget of ₹50 Crore\n4. Each team can buy a maximum of 5 players\n5. Team composition must include:\n   a. At least one batsman\n   b. At least one bowler\n   c. At least one wicket-keeper\n   d. At least one all-rounder\n6. Buying a 3rd player of the same type may lead to disqualification\n7. A maximum of 2 overseas players is allowed per team\n8. Bidding for a 3rd overseas player will lead to disqualification\n\nPlayer Tiers \u0026 Base Prices\n1. Players are divided into four tiers:\n2. Tier 1: 85–100 points | Base Price: ₹5 Crore\n3. Tier 2: 70–84 points | Base Price: ₹3 Crore\n4. Tier 3: 55–69 points | Base Price: ₹1 Crore\n5. Tier 4: 25–54 points | Base Price: ₹20 Lakhs\n6. Player value points will be disclosed 15 minutes before the auction\n7. Player valuations are final and decided by auction managers\n\nElimination \u0026 Tie-Breaker Rules\n1. Top 2 teams from each group qualify for Round 2\n2. Top 3 teams in Round 2 are declared winners\n3. Tie-breaker priority:\n4. Higher remaining budget\n5. Fewer overseas players\n6. Teams exceeding budget will be disqualified immediately\n7. Teams violating player type or overseas limits may be reviewed and disqualified",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Group Stage Auction; description=Auction Procedure\n1. Player name, role, value points, overseas/home status, and base price will be announced\n2. A countdown of 3 will be given before closing each bid\n3. Teams must record their purchases on the sheet provided\n4. Details to be recorded include:\n   a. Player name\n   b. Player role\n   c. Purchase price\n   d. Overseas or home status\n   e. Remaining budget calculation\n5. Calculators are allowed; rules=System.Object[]; roundRulesMessage=1. All registered teams will be divided into groups\n2. Group structure may vary based on total registrations\n3. Each group will conduct its auction independently\n4. Teams will bid for players using a virtual budget\n5. Team composition and budget rules must be followed strictly\n6. Teams earn cumulative points based on players bought\n7. Top 2 teams from each group qualify for Round 2; dateTime=; venue=COEP Technological University; _id=696f37c86f11efa023d02503}",
+                                            "@{roundNumber=2; title=Final Auction Round; description=; rules=System.Object[]; roundRulesMessage=1. Qualified teams from Round 1 participate\n2. Auction rules remain the same as Round 1\n3. Teams compete to maximize total value points\n4. Top 3 teams based on cumulative points are declared winners; dateTime=; venue=COEP Technological University; _id=696f37c86f11efa023d02504}"
+                                        ],
+                             "registrationFee":  "99",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/Lg6d5JWQXxAOHUOGN64f",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Affan",
+                                             "email":  "",
+                                             "phone":  "+91 8591077045",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-04T08:10:50.180Z",
+                             "updatedAt":  "2026-01-20T08:07:36.164Z",
+                             "__v":  4,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "695a23e5e5e26e687125326f",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "FUND ARCADE",
+                             "subtitle":  "",
+                             "competitionType":  "business",
+                             "description":  "A strategic startup–investment simulation where participants act as venture capital investors.",
+                             "prizePool":  "₹10,000",
+                             "dateTime":  "18th Jan ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767642594/crwdctrl/competitions/ja2pj1a4d9bhcxfnxha3.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767642594/crwdctrl/competitions/ja2pj1a4d9bhcxfnxha3.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "1. Event is open to all students\n2. Team size must be between 1 and 3 members\n3. Portfolios cannot be modified after submission\n4. Risk outcomes will be decided publicly and are final\n5. Any malpractice, collusion, or misconduct will lead to disqualification\n6. Organizing committee reserves the right to modify rules and declare results\n7. All decisions of the organizing committee are final and binding",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Startup Investment Simulation; description=Fund Arcade consists of two rounds:; rules=System.Object[]; roundRulesMessage=Description\n1. Teams receive 8 startup canvases displayed for 2 minutes each\n2. Each team gets ₹100 Cr virtual currency to invest\n3. Minimum investment is ₹5 Cr and maximum is ₹45 Cr per startup\n4. Teams must invest in at least 3 startups\n5. Startup outcomes are hidden and revealed after portfolio lock\n6. Returns are calculated using predefined multipliers\n7. Performance is scored based on total ROI\n\nRules\n1. Investment limits and diversification are mandatory\n2. Portfolios cannot be changed after submission\n3. Any malpractice will lead to disqualification; dateTime=; venue=COEP Technological University; _id=696f37d26f11efa023d02520}",
+                                            "@{roundNumber=2; title=Exit Strategy Simulation; description=; rules=System.Object[]; roundRulesMessage=Description\n1. Teams qualify based on Round 1 ROI\n2. Each team receives a Base Score (highest ROI = 100)\n3. Teams choose one exit strategy with fixed multiplier and risk\n4. Risk outcome is decided publicly\n5. Final Score = Base Score × Multiplier × Risk\n6. Highest Final Score wins the event\n\nRules\n1. Exit strategy choice is final\n2. Risk outcome must be accepted\n3. Organisers’ decisions are final; dateTime=; venue=COEP Technological University; _id=696f37d26f11efa023d02521}"
+                                        ],
+                             "registrationFee":  "59",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/6xmKE0PAgR8i9X8QBRXA",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Kavish",
+                                             "email":  "",
+                                             "phone":  "+91 9371075677",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-04T08:25:09.021Z",
+                             "updatedAt":  "2026-01-20T08:07:46.371Z",
+                             "__v":  3,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "695a2e06e5e26e687125335f",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "SURVIVE \u0026 THRIVE",
+                             "subtitle":  "",
+                             "competitionType":  "management",
+                             "description":  "A startup crisis simulation challenge where participants act as founders making tough decisions under pressure.",
+                             "prizePool":  "₹10,000",
+                             "dateTime":  "18th January ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767517454/crwdctrl/competitions/nrkh86cj81tjykayr61f.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767517454/crwdctrl/competitions/nrkh86cj81tjykayr61f.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "1. Evaluation is 30% subjective and 70% objective\n2. Subjective evaluation includes adaptability, reasoning, analysis, and clarity\n3. Objective scoring is based on survival score formula\n4. Survival Score = (Funds – Cost – Churn Loss) × Reputation Multiplier\n5. Objective Marks = (Survival Score ÷ Max Score) × 70\n6. Each round tests finance, customer trust, and operations\n7. Misconduct or unfair practices lead to disqualification\n8. Organizers’ decisions are final and binding",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Crisis Announcement; description=; rules=System.Object[]; roundRulesMessage=1. Each round begins with a startup crisis scenario\n2. Teams receive 4 strategic options (A–D)\n3. Each option includes details of funds gained, costs incurred, churn percentage, and reputation score\n4. Teams must analyze the options and select one within the given time; dateTime=; venue=COEP Technological University; _id=695a92be7035e620403c8b39}",
+                                            "@{roundNumber=2; title=The Twist; description=; rules=System.Object[]; roundRulesMessage=1. A mid-round twist is announced affecting the chosen options\n2. The twist modifies either churn percentage or reputation score\n3. Teams are given 2 minutes to adapt their strategy\n4. Teams must justify how they respond to the twist; dateTime=; venue=COEP Technological University; _id=695a92be7035e620403c8b3a}",
+                                            "@{roundNumber=3; title=Team Presentation; description=; rules=System.Object[]; roundRulesMessage=1. Each team presents their final strategy\n2. Teams explain calculations using the given formula\n3. Teams describe how they handled the twist\n4. Teams justify their final decision-making\n5. Presentation time is limited to 3 minutes per team; dateTime=; venue=COEP Technological University; _id=695a92be7035e620403c8b3b}"
+                                        ],
+                             "registrationFee":  "59",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "external_link",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/i4NzFo45ZRa43oBsEIDN",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Snigdha",
+                                             "email":  "",
+                                             "phone":  "+91 8652486688",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-04T09:08:22.072Z",
+                             "updatedAt":  "2026-01-04T16:18:06.893Z",
+                             "__v":  2,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "695a2ffae5e26e6871253377",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "BRANDSCAN",
+                             "subtitle":  "",
+                             "competitionType":  "art",
+                             "description":  "A dynamic and engaging branding challenge designed to test participants’ recall, brand awareness, logical reasoning, and strategic deduction.",
+                             "prizePool":  "₹8,000",
+                             "dateTime":  "17th January ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767517915/crwdctrl/competitions/ijmlkis5qnemkwvtfa0o.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767517915/crwdctrl/competitions/ijmlkis5qnemkwvtfa0o.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "1. Participants must strictly follow the time limits and instructions for each round\n2. No external help is allowed during the competition\n3. Note-taking during Round 1 is strictly prohibited\n4. Use of electronic devices is not permitted during the event\n5. In Round 2, teams must solve the grid without using any external references\n6. Any violation of rules may lead to immediate disqualification\n7. The number of participants advancing to subsequent rounds is fixed as per the event structure\n8. The organising committee reserves the right to modify progression criteria if required\n9. In case of disputes or rule violations, the organising committee’s decision will be final and binding",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Flash Recall– The Memory Logo Challenge; description=; rules=System.Object[]; roundRulesMessage=1. Participants view a time-bound slideshow of brand logos\n2. Each slide contains 2–3 logos\n3. No writing, recording, or note-taking is allowed\n4. After the slideshow, participants list all brands they remember\n5. This round tests visual memory and brand recall\n6. Top 16 participants qualify for Round 2\n7. Tiebreaker will be announced on the event day; dateTime=; venue=COEP Technological University; _id=696f37db6f11efa023d0253e}",
+                                            "@{roundNumber=2; title=Brand Logic Grid Challenge; description=; rules=System.Object[]; roundRulesMessage=1. 16 qualified participants are divided into 4 teams of 4\n2. Teams are formed through random chit selection\n3. Teams solve a brand-based logic grid\n4. Each correct cell must satisfy both row and column criteria\n5. This round tests logic, teamwork, and brand analysis\n6. The fastest correct team qualifies for the final round; dateTime=; venue=COEP Technological University; _id=696f37db6f11efa023d0253f}",
+                                            "@{roundNumber=3; title=Brand Deduction Arena; description=; rules=System.Object[]; roundRulesMessage=1. Finalist team must identify a hidden brand or startup\n2. Only Yes / No / Maybe questions are allowed\n3. Questions must relate to industry, branding, or positioning\n4. Performance is judged on accuracy, time taken, and number of questions\n5. Top 3 individual winners are selected from this round; dateTime=; venue=COEP Technological University; _id=696f37db6f11efa023d02540}"
+                                        ],
+                             "registrationFee":  "79",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/oE97ZDy8nfdSOImPM9vv",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Mitesh",
+                                             "email":  "",
+                                             "phone":  "+91 9820197655",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-04T09:16:42.227Z",
+                             "updatedAt":  "2026-01-20T08:07:55.399Z",
+                             "__v":  2,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "695a52ea969f012e95c8dc8f",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "COURTROOM CLASH",
+                             "subtitle":  "",
+                             "competitionType":  "debate",
+                             "description":  "A dynamic, two-round IPR advocacy event designed to assess participants’ legal reasoning, argumentation skills, commercial awareness, and strategic adaptability.",
+                             "prizePool":  "₹8,000",
+                             "dateTime":  "18th January ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767526848/crwdctrl/competitions/n6qlo7e8g9zcmftuyxzu.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767526848/crwdctrl/competitions/n6qlo7e8g9zcmftuyxzu.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "1. Event is open to all participants\n2. Team size must be exactly 2 members\n3. Participants must adhere strictly to allotted time limits\n4. Arguments and presentations must remain relevant to the proposition\n5. Any form of misconduct or unprofessional behavior may lead to disqualification\n6. The organizing committee reserves the right to modify rounds or guidelines if required\n7. Judges’ and organizers’ decisions are final and binding",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=Preliminary Round; description=; rules=System.Object[]; roundRulesMessage=Round Description\n1. Ten teams will argue a structured IPR proposition\n2. Teams will be assigned roles as either Appellant or Respondent\n3. Teams will present oral arguments based on statutory interpretation and legal precedents\n4. Arguments must be structured, reasoned, and professionally delivered\n5. Top 4 teams will advance to the Final Round\n\nEvaluation Criteria\n1. Legal understanding and use of statutory provisions\n2. Application of relevant precedents\n3. Structure and clarity of arguments\n4. Persuasiveness and legal reasoning\n5. Courtroom etiquette and professionalism; dateTime=; venue=COEP Technological University; _id=696f37e46f11efa023d0255c}",
+                                            "@{roundNumber=2; title=Final Round; description=; rules=System.Object[]; roundRulesMessage=Round Description\n1. The final round combines prepared strategy with spontaneous legal adaptability\n2. Teams will address the same dispute from the Preliminary Round\n\nPhase 1 – Strategic Resolution Pitch\n1. Teams must propose a legally sound and commercially viable resolution\n2. Solutions may include:\n   1. Licensing or royalty frameworks\n   2. Revenue-sharing or damages models\n   3. Strategic modifications or design changes\n   4. Business-focused settlements or coexistence strategies\n3. This phase evaluates legal reasoning and business intelligence\n\nPhase 2 – 30-Minute Twist Addendum\n1. Teams receive a new factual or legal twist 30 minutes before presentation\n2. The twist may involve:\n   1. New prior art or registration\n   2. Entry of a competing product\n   3. Change in client business priorities\n   4. New infringement or procedural issues\n3. Teams must adapt their strategy accordingly; dateTime=; venue=COEP Technological University; _id=696f37e46f11efa023d0255d}"
+                                        ],
+                             "registrationFee":  "59",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/Xa1UQQ60TuzeB2WcKClu",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Swapnil",
+                                             "email":  "",
+                                             "phone":  "+91 7666365513",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-04T11:45:46.313Z",
+                             "updatedAt":  "2026-01-20T08:08:04.589Z",
+                             "__v":  2,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         },
+                         {
+                             "_id":  "695a5517969f012e95c8dcac",
+                             "fest":  {
+                                          "buffer":  "@{type=Buffer; data=System.Object[]}"
+                                      },
+                             "name":  "SPECTRA",
+                             "subtitle":  "",
+                             "competitionType":  "business",
+                             "description":  "A platform for students to present their entrepreneurial ideas and receive feedback from industry experts.",
+                             "prizePool":  "2.5 lakhs (inclusive of goodies)",
+                             "dateTime":  "17th January ",
+                             "venue":  "COEP Technological University",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1767527463/crwdctrl/competitions/tl6rjjefkdnyf7zsf9kp.jpg",
+                             "gallery":  [
+                                             "https://res.cloudinary.com/dyonimhgb/image/upload/v1767527463/crwdctrl/competitions/tl6rjjefkdnyf7zsf9kp.jpg"
+                                         ],
+                             "commonRules":  [
+
+                                             ],
+                             "commonRulesMessage":  "1. Event is open to all students\n2. Team size must be between 1 and 5 members\n3. Teams must present within the allotted time limits\n4. Maximum presentation length is 10–12 slides\n5. Slides should cover problem, solution, market, product, business model, finances, and scalability\n6. Judges will evaluate innovation, market feasibility, business model viability, team potential, presentation clarity, and financial soundness\n7. Any form of malpractice or collusion will result in disqualification\n8. Top-performing teams may receive mentorship, funding opportunities, or incubation support\n9. The organising committee reserves the right to modify rules or event structure if required\n10. Decisions of the organisers and judges are final and binding",
+                             "rounds":  [
+                                            "@{roundNumber=1; title=; description=1. Pitching Round\n2. Each team presents their business idea to the judging panel\n3. Presentation consists of:\n4. 10 minutes for core business pitch\n5. 5 minutes for judge Q\u0026A\n6. Evaluation is based on innovation, feasibility, business model, team strength, and execution; rules=System.Object[]; roundRulesMessage=Presentation Guidelines\n\n1. Maximum presentation length is 10–12 slides\n2. Slide structure should include:\n3. Executive summary\n4. Company description\n5. Problem statement and solution\n6. Market analysis\n7. Product or service overview\n8. Competitive analysis and USP\n9. Revenue model\n10. Marketing and distribution plan\n11. Financial overview\n12. Scalability roadmap and SWOT analysis; dateTime=; venue=COEP Technological University; _id=696f37f46f11efa023d02578}"
+                                        ],
+                             "registrationFee":  "49",
+                             "registrationLink":  "",
+                             "registration":  {
+                                                  "status":  "registration_closed",
+                                                  "externalUrl":  "https://punestartupfest.in/register/events/VTDwIuDwLKVB62WDjxGd",
+                                                  "formSchema":  "",
+                                                  "qrCode":  "",
+                                                  "qrCodeMessage":  "",
+                                                  "settings":  "@{allowMultipleRegistrations=True; requireEmailVerification=False; autoConfirmation=True; maxRegistrations=; registrationDeadline=}"
+                                              },
+                             "registrationFields":  [
+
+                                                    ],
+                             "contact":  {
+                                             "name":  "Ronak",
+                                             "email":  "",
+                                             "phone":  "+91 9588483402",
+                                             "instagram":  ""
+                                         },
+                             "isApproved":  true,
+                             "createdAt":  "2026-01-04T11:55:03.722Z",
+                             "updatedAt":  "2026-01-20T08:08:20.139Z",
+                             "__v":  2,
+                             "legacyRegistration":  {
+                                                        "status":  "NOT_STARTED"
+                                                    },
+                             "registrationType":  "custom"
+                         }
+                     ],
+    "competitionsHeading":  "Competitions",
+    "isApproved":  true,
+    "createdAt":  "2026-01-03T14:53:15.197Z",
+    "updatedAt":  "2026-08-14T12:55:31.981Z",
+    "__v":  0,
+    "priority":  3,
+    "feeAmount":  0,
+    "relatedFests":  [
+                         {
+                             "_id":  "6a9dcf19cf388513f6be608d",
+                             "festName":  "Techfest",
+                             "collegeName":  "IIT Bombay",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1789666369/crwdctrl/fests/pzuh5jkzvybdobebgrdd.jpg",
+                             "coverImages":  {
+                                                 "page":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1788729288/crwdctrl/fests/techfest/gallery/exhi1.jpg",
+                                                 "portrait":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1788729288/crwdctrl/fests/techfest/gallery/exhi1.jpg",
+                                                 "wide":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1788729288/crwdctrl/fests/techfest/gallery/exhi1.jpg",
+                                                 "hero":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1788729288/crwdctrl/fests/techfest/gallery/exhi1.jpg",
+                                                 "square":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1788729288/crwdctrl/fests/techfest/gallery/exhi1.jpg",
+                                                 "landscape":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1788729288/crwdctrl/fests/techfest/gallery/exhi1.jpg",
+                                                 "video":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1788729283/crwdctrl/fests/techfest/theme-logo.webp"
+                                             },
+                             "slug":  "techfest-iit-bombay-2026",
+                             "festType":  "technical",
+                             "festDate":  "16–18 December 2026",
+                             "feeAmount":  0,
+                             "registration":  {
+                                                  "mode":  "INTERNAL_FORM",
+                                                  "externalLink":  ""
+                                              },
+                             "sampleCompetitions":  [
+                                                        "@{_id=6a9dcf1acf388513f6be60a5; name=Security of Drones; slug=; coverImage=https://techfest.org/media/compiImg/ChatGPT_Image_Aug_22_2026_03_00_42_PM_11zon.webp; registrationFee=Free; feeAmount=0; feeTiers=System.Object[]; module=Pushpak Grand Challenge 2026; competitionType=technical; registrationType=fest}",
+                                                        "@{_id=6a9dcf1acf388513f6be60ae; name=CycloProp: Advanced UAV Propulsion Challenge; slug=; coverImage=https://techfest.org/media/compiImg/ChatGPT_Image_Aug_21_2026_10_25_57_PM_11zon_11zon.webp; registrationFee=Free; feeAmount=0; feeTiers=System.Object[]; module=Pushpak Grand Challenge 2026; competitionType=technical; registrationType=fest}"
+                                                    ]
+                         },
+                         {
+                             "_id":  "6a7f1010ed26d983b34e55c2",
+                             "festName":  "MindSpark 2026",
+                             "collegeName":  "COEP",
+                             "coverImage":  "https://res.cloudinary.com/dyonimhgb/image/upload/v1786712007/crwdctrl/fests/vbrblruixwesynsg3hli.jpg",
+                             "coverImages":  {
+                                                 "page":  "",
+                                                 "portrait":  "",
+                                                 "wide":  "",
+                                                 "hero":  "",
+                                                 "square":  "",
+                                                 "landscape":  "",
+                                                 "video":  ""
+                                             },
+                             "slug":  "mindspark-2026",
+                             "festType":  "technical",
+                             "festDate":  "3–4 Oct 2026",
+                             "feeAmount":  0,
+                             "registration":  {
+                                                  "mode":  "INTERNAL_FORM",
+                                                  "externalLink":  ""
+                                              },
+                             "sampleCompetitions":  [
+                                                        "@{_id=6a7f158e0e5ff505e2a4c48d; name=FLASH; slug=; coverImage=https://res.cloudinary.com/dyonimhgb/image/upload/v1786721649/crwdctrl/competitions/ccvohpfzite4h4gi2zvy.jpg; registrationFee=₹99; feeAmount=99; feeTiers=System.Object[]; module=AMUZIA; competitionType=cultural; registrationType=fest}",
+                                                        "@{_id=6a7f158e0e5ff505e2a4c48f; name=TAKE OFF; slug=; coverImage=https://res.cloudinary.com/dyonimhgb/image/upload/v1786721852/crwdctrl/competitions/zcrnwbpy6zkmck76jlb5.jpg; registrationFee=₹299 per person; feeAmount=299; feeTiers=System.Object[]; module=AVIONICA; competitionType=technical; registrationType=fest}"
+                                                    ]
+                         }
+                     ],
+    "cached":  false,
+    "timestamp":  "2026-10-05T08:08:19.398Z"
+}
