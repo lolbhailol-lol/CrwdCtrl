@@ -1,6 +1,10 @@
 import { goToBookings } from '../../../../utils/paymentNavigation';
 import { getFestPluginFromAny } from '../../plugins/registry';
 import { RegistrationStatusVisual, SuccessRevealGate } from '../../../../components/RegistrationStatusVisual';
+<<<<<<< HEAD
+import AlsoRegisterForSection from '../../../../components/AlsoRegisterForSection';
+=======
+>>>>>>> 8dfd6601511bd0bc17b6bc2bfaf76613f56f2114
 import StallCouponCard from '../../../../components/StallCouponCard';
 
 export default function SuccessStep({
@@ -56,11 +60,19 @@ export default function SuccessStep({
               isDark={isDark}
             />
 
+<<<<<<< HEAD
+            {stallCoupon && (
+              <div className="mt-6">
+                <StallCouponCard isDark={isDark} stallCoupon={stallCoupon} />
+              </div>
+            )}
+=======
             {stallCoupon ? (
               <div className="mt-6">
                 <StallCouponCard isDark={isDark} stallCoupon={stallCoupon} />
               </div>
             ) : null}
+>>>>>>> 8dfd6601511bd0bc17b6bc2bfaf76613f56f2114
 
             <div className="flex flex-col gap-3 mt-8">
               {registrationId && (

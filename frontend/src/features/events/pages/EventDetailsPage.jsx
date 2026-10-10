@@ -642,9 +642,8 @@ export default function EventDetailsPage() {
               {heroSlides.slice(0, 4).map((_, i) => (
                 <div
                   key={i}
-                  className={`rounded-2xl transition-all duration-300 ${
-                    i === imgPg ? 'h-2.5 w-6 bg-white' : 'size-2.5 bg-transparent border-2 border-white/60'
-                  }`}
+                  className={`rounded-2xl transition-all duration-300 ${i === imgPg ? 'h-2.5 w-6 bg-white' : 'size-2.5 bg-transparent border-2 border-white/60'
+                    }`}
                 />
               ))}
             </div>
@@ -759,11 +758,10 @@ export default function EventDetailsPage() {
                       key={t.key}
                       type="button"
                       onClick={() => setActiveTab(t.key)}
-                      className={`relative shrink-0 whitespace-nowrap px-3.5 py-1 text-sm font-medium tracking-tight transition-colors duration-200 ${
-                        activeTab === t.key
-                          ? 'text-blue-700'
-                          : isDark ? 'text-gray-400' : 'text-gray-800'
-                      }`}
+                      className={`relative shrink-0 whitespace-nowrap px-3.5 py-1 text-sm font-medium tracking-tight transition-colors duration-200 ${activeTab === t.key
+                        ? 'text-blue-700'
+                        : isDark ? 'text-gray-400' : 'text-gray-800'
+                        }`}
                     >
                       {t.label}
                       {activeTab === t.key ? (
@@ -775,145 +773,142 @@ export default function EventDetailsPage() {
               </div>
 
               <div key={activeTab} className="animate-step-enter">
-              {activeTab === 'details' ? (
-                <div className="space-y-2.5">
-                  {detailCards.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {detailCards.map((card) => (
-                        <div
-                          key={card.id}
-                          className={`rounded-2xl px-3 py-3.5 flex items-start gap-2.5 shadow-sm ${
-                            isDark ? 'bg-[#111213]' : 'bg-white'
-                          }`}
+                {activeTab === 'details' ? (
+                  <div className="space-y-2.5">
+                    {detailCards.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {detailCards.map((card) => (
+                          <div
+                            key={card.id}
+                            className={`rounded-2xl px-3 py-3.5 flex items-start gap-2.5 shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'
+                              }`}
+                          >
+                            <span className="shrink-0 mt-0.5" aria-hidden>
+                              <TrekDetailIcon icon={card.icon || 'default'} size={24} />
+                            </span>
+                            <div className="min-w-0">
+                              <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {card.label}
+                              </p>
+                              <p className={`text-xs font-semibold leading-4 tracking-tight mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {card.value}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {entryLines.length > 0 ? (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setEntryOpen((o) => !o)}
+                          className={`w-full rounded-2xl flex items-center justify-between px-4 py-3.5 shadow-sm transition-colors ${isDark ? 'bg-[#111213] hover:bg-[#1D1E20]' : 'bg-white hover:bg-gray-50'
+                            }`}
                         >
-                          <span className="shrink-0 mt-0.5" aria-hidden>
-                            <TrekDetailIcon icon={card.icon || 'default'} size={24} />
-                          </span>
-                          <div className="min-w-0">
-                            <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                              {card.label}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <LayoutGrid size={18} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
+                            <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              Entry &amp; Check-in
                             </p>
-                            <p className={`text-xs font-semibold leading-4 tracking-tight mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                              {card.value}
+                          </div>
+                          <ChevronRight
+                            size={16}
+                            className={`transition-transform duration-200 shrink-0 ${entryOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                          />
+                        </button>
+                        {entryOpen ? (
+                          <div className={`mt-2 rounded-2xl px-4 py-3.5 shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
+                            {renderList(entryLines)}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {activeTab === 'schedule' ? (
+                  <div className={`rounded-2xl border p-4 space-y-4 ${cardBg} ${cardBorder}`}>
+                    {event.showTimings.filter((s) => s?.date || s?.time).map((slot, idx) => {
+                      const d = slot.date ? new Date(slot.date) : null;
+                      const dateStr = d && !Number.isNaN(d.getTime())
+                        ? d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+                        : 'Date TBA';
+                      return (
+                        <div key={idx} className="flex items-start gap-3">
+                          <div className="size-9 rounded-xl bg-[#0ECCEE]/15 flex items-center justify-center shrink-0">
+                            <Clock3 size={16} className="text-[#0ECCEE]" />
+                          </div>
+                          <div>
+                            <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dateStr}</p>
+                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {slot.time || 'Time TBA'}
                             </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : null}
+                      );
+                    })}
+                    {event.process ? (
+                      <div>
+                        <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Process</p>
+                        <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {event.process}
+                        </p>
+                      </div>
+                    ) : null}
+                    {event.rounds.map((r, idx) => (
+                      <div key={idx}>
+                        <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {r.title || `Round ${idx + 1}`}
+                        </p>
+                        {r.content ? renderList(toLines(r.content)) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
 
-                  {entryLines.length > 0 ? (
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setEntryOpen((o) => !o)}
-                        className={`w-full rounded-2xl flex items-center justify-between px-4 py-3.5 shadow-sm transition-colors ${
-                          isDark ? 'bg-[#111213] hover:bg-[#1D1E20]' : 'bg-white hover:bg-gray-50'
-                        }`}
+                {activeTab === 'included' && includedLines.length > 0 ? (
+                  <div className={`rounded-2xl border p-4 ${cardBg} ${cardBorder}`}>
+                    {renderList(includedLines)}
+                  </div>
+                ) : null}
+
+                {activeTab === 'dress' && event.dressCode ? (
+                  <div className="space-y-2.5">
+                    {parseDressCodeLines(event.dressCode).map((row) => (
+                      <div
+                        key={row.id}
+                        className={`rounded-2xl px-3.5 py-3.5 flex items-start gap-3 shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'
+                          }`}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <LayoutGrid size={18} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
-                          <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            Entry &amp; Check-in
+                        {row.emoji ? (
+                          <span className="text-[22px] leading-none mt-0.5 shrink-0 select-none" aria-hidden>
+                            {row.emoji}
+                          </span>
+                        ) : (
+                          <span className="mt-0.5 shrink-0" aria-hidden>
+                            <TrekDetailIcon icon="dress" size={22} />
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm font-semibold leading-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {row.title}
                           </p>
-                        </div>
-                        <ChevronRight
-                          size={16}
-                          className={`transition-transform duration-200 shrink-0 ${entryOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
-                        />
-                      </button>
-                      {entryOpen ? (
-                        <div className={`mt-2 rounded-2xl px-4 py-3.5 shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
-                          {renderList(entryLines)}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {activeTab === 'schedule' ? (
-                <div className={`rounded-2xl border p-4 space-y-4 ${cardBg} ${cardBorder}`}>
-                  {event.showTimings.filter((s) => s?.date || s?.time).map((slot, idx) => {
-                    const d = slot.date ? new Date(slot.date) : null;
-                    const dateStr = d && !Number.isNaN(d.getTime())
-                      ? d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
-                      : 'Date TBA';
-                    return (
-                      <div key={idx} className="flex items-start gap-3">
-                        <div className="size-9 rounded-xl bg-[#0ECCEE]/15 flex items-center justify-center shrink-0">
-                          <Clock3 size={16} className="text-[#0ECCEE]" />
-                        </div>
-                        <div>
-                          <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dateStr}</p>
-                          <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {slot.time || 'Time TBA'}
+                          <p className={`text-xs font-medium leading-5 mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {row.body}
                           </p>
                         </div>
                       </div>
-                    );
-                  })}
-                  {event.process ? (
-                    <div>
-                      <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Process</p>
-                      <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {event.process}
-                      </p>
-                    </div>
-                  ) : null}
-                  {event.rounds.map((r, idx) => (
-                    <div key={idx}>
-                      <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {r.title || `Round ${idx + 1}`}
-                      </p>
-                      {r.content ? renderList(toLines(r.content)) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+                    ))}
+                  </div>
+                ) : null}
 
-              {activeTab === 'included' && includedLines.length > 0 ? (
-                <div className={`rounded-2xl border p-4 ${cardBg} ${cardBorder}`}>
-                  {renderList(includedLines)}
-                </div>
-              ) : null}
-
-              {activeTab === 'dress' && event.dressCode ? (
-                <div className="space-y-2.5">
-                  {parseDressCodeLines(event.dressCode).map((row) => (
-                    <div
-                      key={row.id}
-                      className={`rounded-2xl px-3.5 py-3.5 flex items-start gap-3 shadow-sm ${
-                        isDark ? 'bg-[#111213]' : 'bg-white'
-                      }`}
-                    >
-                      {row.emoji ? (
-                        <span className="text-[22px] leading-none mt-0.5 shrink-0 select-none" aria-hidden>
-                          {row.emoji}
-                        </span>
-                      ) : (
-                        <span className="mt-0.5 shrink-0" aria-hidden>
-                          <TrekDetailIcon icon="dress" size={22} />
-                        </span>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-sm font-semibold leading-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                          {row.title}
-                        </p>
-                        <p className={`text-xs font-medium leading-5 mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {row.body}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {activeTab === 'prize' && event.prizePool ? (
-                <div className={`rounded-2xl border p-4 ${cardBg} ${cardBorder}`}>
-                  {renderList(toLines(event.prizePool))}
-                </div>
-              ) : null}
+                {activeTab === 'prize' && event.prizePool ? (
+                  <div className={`rounded-2xl border p-4 ${cardBg} ${cardBorder}`}>
+                    {renderList(toLines(event.prizePool))}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -1056,9 +1051,8 @@ export default function EventDetailsPage() {
               className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
               style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
             >
-              <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${
-                isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'
-              }`}>
+              <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'
+                }`}>
                 <div className="min-w-0 shrink-0">
                   <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                     {tiersPricing ? 'From' : 'Registration Fee'}
@@ -1082,11 +1076,10 @@ export default function EventDetailsPage() {
                   type="button"
                   onClick={handleRegister}
                   disabled={registrationClosed}
-                  className={`flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition-all duration-200 ease-out ${
-                    registrationClosed
-                      ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                      : 'bg-[#0ECCEE] text-black active:scale-[0.98] active:opacity-90'
-                  }`}
+                  className={`flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition-all duration-200 ease-out ${registrationClosed
+                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    : 'bg-[#0ECCEE] text-black active:scale-[0.98] active:opacity-90'
+                    }`}
                 >
                   {registrationClosed
                     ? 'Registration Closed'
@@ -1119,9 +1112,8 @@ export default function EventDetailsPage() {
                 }}
               />
               <div
-                className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] flex flex-col rounded-t-3xl pt-3 tier-sheet-in ${
-                  isDark ? 'bg-[#161718]' : 'bg-white'
-                }`}
+                className={`relative w-full max-w-md md:max-w-2xl max-h-[85vh] flex flex-col rounded-t-3xl pt-3 tier-sheet-in ${isDark ? 'bg-[#161718]' : 'bg-white'
+                  }`}
               >
                 <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-gray-500/40 shrink-0" />
                 <div className="flex items-start justify-between gap-3 px-4 mb-3 shrink-0">
@@ -1219,13 +1211,12 @@ export default function EventDetailsPage() {
                                   setTierBucketFilter(b.key);
                                   setSelectedTierId(null);
                                 }}
-                                className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all duration-200 ease-out ${
-                                  tierBucketFilter === b.key
-                                    ? 'bg-[#0ECCEE] text-black shadow-sm'
-                                    : isDark
-                                      ? 'text-gray-400 hover:text-gray-200'
-                                      : 'text-gray-500 hover:text-gray-700'
-                                }`}
+                                className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all duration-200 ease-out ${tierBucketFilter === b.key
+                                  ? 'bg-[#0ECCEE] text-black shadow-sm'
+                                  : isDark
+                                    ? 'text-gray-400 hover:text-gray-200'
+                                    : 'text-gray-500 hover:text-gray-700'
+                                  }`}
                               >
                                 {b.label}
                               </button>
@@ -1259,20 +1250,18 @@ export default function EventDetailsPage() {
                                   ? toggleMulti(tier.id)
                                   : setSelectedTierId(tier.id)
                               )}
-                              className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 ease-out active:scale-[0.99] ${
-                                selected
-                                  ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
-                                  : isDark
-                                    ? 'bg-[#111213] border-white/10 hover:border-white/20'
-                                    : 'bg-white border-gray-200 hover:border-gray-300'
-                              }`}
+                              className={`w-full flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 ease-out active:scale-[0.99] ${selected
+                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                : isDark
+                                  ? 'bg-[#111213] border-white/10 hover:border-white/20'
+                                  : 'bg-white border-gray-200 hover:border-gray-300'
+                                }`}
                             >
                               <span
-                                className={`${multiSelect ? 'rounded-md' : 'rounded-full'} size-4.5 border-2 flex items-center justify-center shrink-0 transition-colors duration-200 ${
-                                  selected
-                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]'
-                                    : isDark ? 'border-gray-600' : 'border-gray-300'
-                                }`}
+                                className={`${multiSelect ? 'rounded-md' : 'rounded-full'} size-4.5 border-2 flex items-center justify-center shrink-0 transition-colors duration-200 ${selected
+                                  ? 'border-[#0ECCEE] bg-[#0ECCEE]'
+                                  : isDark ? 'border-gray-600' : 'border-gray-300'
+                                  }`}
                                 aria-hidden
                               >
                                 {selected ? <Check size={10} className="text-black" strokeWidth={3} /> : null}
@@ -1286,11 +1275,10 @@ export default function EventDetailsPage() {
                                   {perPerson != null ? ` · ~${formatInr(perPerson)} / person` : ''}
                                 </p>
                               </div>
-                              <p className={`text-[15px] font-bold tabular-nums shrink-0 ${
-                                Number(tier.fee) > 0
-                                  ? (isDark ? 'text-white' : 'text-gray-900')
-                                  : 'text-green-500'
-                              }`}>
+                              <p className={`text-[15px] font-bold tabular-nums shrink-0 ${Number(tier.fee) > 0
+                                ? (isDark ? 'text-white' : 'text-gray-900')
+                                : 'text-green-500'
+                                }`}>
                                 {feeLabel}
                               </p>
                             </button>
@@ -1319,15 +1307,14 @@ export default function EventDetailsPage() {
                           type="button"
                           disabled={!canContinue || tierNavigating}
                           onClick={goNext}
-                          className={`w-full h-12 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-200 ease-out ${
-                            !canContinue
-                              ? isDark
-                                ? 'bg-white/10 text-gray-500 cursor-not-allowed'
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : tierNavigating
-                                ? 'bg-[#0ECCEE]/80 text-black'
-                                : 'bg-[#0ECCEE] text-black active:scale-[0.98] shadow-md shadow-[#0ECCEE]/25'
-                          }`}
+                          className={`w-full h-12 rounded-2xl text-[15px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-200 ease-out ${!canContinue
+                            ? isDark
+                              ? 'bg-white/10 text-gray-500 cursor-not-allowed'
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : tierNavigating
+                              ? 'bg-[#0ECCEE]/80 text-black'
+                              : 'bg-[#0ECCEE] text-black active:scale-[0.98] shadow-md shadow-[#0ECCEE]/25'
+                            }`}
                         >
                           {tierNavigating ? (
                             <>

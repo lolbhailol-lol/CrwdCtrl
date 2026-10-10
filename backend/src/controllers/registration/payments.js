@@ -1,8 +1,13 @@
 const Registration = require('../../model/registration_model');
 const FestOrganizer = require('../../model/fest_organizer_model');
 const User = require('../../model/usermodel');
+const StallCoupon = require('../../model/stall_coupon_model');
 const { appendPaymentOnlyToSheets } = require('../../services/googleSheetsService');
-const { sendCompetitionRegistrationEmailForRecord } = require('../../services/emailService');
+const {
+  sendCompetitionRegistrationEmailForRecord,
+  sendRegistrationThankYouEmail,
+  sendRegistrationConfirmationEmail,
+} = require('../../services/emailService');
 const { consumeCouponUsageForOrder } = require('../../utils/couponPricing');
 const { buildPriceBreakdown, parseTicketPrice } = require('../../utils/platformFee');
 const { resolveTrekPlatformFeePercent } = require('../../utils/trekRegistrationFee');
@@ -12,6 +17,7 @@ const { findByIdOrSlug } = require('../../utils/slug');
 const { saveRegistrationIdempotent } = require('../../utils/registrationIdempotency');
 const { cashfreeSettlementFields } = require('../../utils/cashfreeGatewayFee');
 const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
+
 const {
   parseResponsesBody,
   mergeRegistrationResponses,
@@ -53,17 +59,19 @@ const payAndRegisterFest = async (req, res) => {
     // Scoped to this fest + user so an unrelated order id can never falsely match.
     const alreadyPaid = payment_order_id
       ? await Registration.findOne({
-          payment_order_id,
-          fest: festObjectId,
-          user: userId,
-          competitionId: null,
-        })
+        payment_order_id,
+        fest: festObjectId,
+        user: userId,
+        competitionId: null,
+      })
       : null;
+
     if (alreadyPaid) {
       const extraResponses = parseResponsesBody(req.body);
       if (Object.keys(extraResponses).length > 0) {
         await maybeEnrichExistingResponses(alreadyPaid, extraResponses);
       }
+      const existingCoupon = await StallCoupon.findOne({ festId: festObjectId, userId });
       return res.status(200).json({
         success: true,
         message: 'Registration already completed',
@@ -71,6 +79,9 @@ const payAndRegisterFest = async (req, res) => {
         registrationId: alreadyPaid._id,
         festName: fest.festName,
         amountPaid: alreadyPaid.amountPaid,
+        stallCoupon: existingCoupon
+          ? { code: existingCoupon.code, brand: existingCoupon.brand }
+          : null,
       });
     }
 
@@ -116,9 +127,10 @@ const payAndRegisterFest = async (req, res) => {
       logger.debug('✅ Fest pay-and-register saved:', persistedFest._id);
     }
     if (payment_order_id) {
-      consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
+      consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => { });
     }
 
+    // 🎟️ Fest ka brand configured hai to stall coupon assign karo
     const festRegistrationLink = `/registration-details/${persistedFest._id}`;
     const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
 
@@ -153,15 +165,19 @@ const payAndRegisterFest = async (req, res) => {
       },
     });
 
+    // Background: emails + sheets
     setImmediate(async () => {
       try {
         await sendRegistrationThankYouEmail(user.email, user.name, fest.festName, {
           type: 'fest',
           ticketLink: festRegistrationLink,
-        }).catch(() => {});
+        }).catch(() => { });
+
         await sendRegistrationConfirmationEmail(
-          user.email, user.name,
-          fest.festName, null,
+          user.email,
+          user.name,
+          fest.festName,
+          null,
           persistedFest._id.toString(),
           new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           {
@@ -171,7 +187,7 @@ const payAndRegisterFest = async (req, res) => {
             ticketLink: festRegistrationLink,
             stallCoupon: stallCoupon || null,
           },
-        ).catch(() => {});
+        ).catch(() => { });
 
         // Google Sheets
         if (fest.registration?.googleSheetsUrl) {
@@ -228,11 +244,11 @@ const payAndRegister = async (req, res) => {
     // Scoped to this fest + competition + user so an unrelated order id can't match.
     const alreadyPaid = payment_order_id
       ? await Registration.findOne({
-          payment_order_id,
-          fest: competition.fest._id,
-          competitionId: competition._id,
-          user: userId,
-        })
+        payment_order_id,
+        fest: competition.fest._id,
+        competitionId: competition._id,
+        user: userId,
+      })
       : null;
     if (alreadyPaid) {
       const extraResponses = parseResponsesBody(req.body);
@@ -292,7 +308,7 @@ const payAndRegister = async (req, res) => {
       logger.debug('✅ Pay-and-register saved:', persistedComp._id);
     }
     if (payment_order_id) {
-      consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => {});
+      consumeCouponUsageForOrder({ paymentOrderId: payment_order_id, userId }).catch(() => { });
     }
 
     const payCompRegistrationLink = `/registration-details/${persistedComp._id}`;
@@ -345,7 +361,7 @@ const payAndRegister = async (req, res) => {
           competition,
           registration: persistedComp,
           extras: { stallCoupon: stallCoupon || null },
-        }).catch(() => {});
+        }).catch(() => { });
 
         // Google Sheets — use the fest's Google Sheets URL if configured
         const sheetsUrl = competition.fest?.registration?.googleSheetsUrl;
