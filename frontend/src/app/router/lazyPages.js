@@ -177,3 +177,9 @@ export const OfflineHuntTeamPage = lazyWithRetry(() => import('../../features/ca
 export const OfflineHuntRoundsPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntRoundsPage'));
 export const OfflineHuntPlayPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntPlayPage'));
 export const OfflineHuntInstallPage = lazyWithRetry(() => import('../../features/campus-hunt/offline/pages/OfflineHuntInstallPage'));
+export const MysteryLandingPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryLandingPage'));
+export const MysteryTeamRegisterPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryTeamRegisterPage'));
+export const MysteryTeamEnterPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryTeamEnterPage'));
+export const MysteryPracticePage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryPracticePage'));
+export const MysteryPlayPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryPlayPage'));
+export const MysteryLeaderboardPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryLeaderboardPage'));
