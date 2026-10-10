@@ -60,7 +60,7 @@ const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 const MIT_WPU_CAMPUS_HUNT = {
   id: 'mit-wpu-campus-hunt-coming-soon',
   title: 'Campus Hunt: MIT-WPU',
-  coverImage: '/campus-hunt/v2/hunt-hero.png',
+  coverImage: '/campus-hunt/v2/mit-wpu-hunt.svg',
   venue: 'MIT-WPU',
   city: 'Pune',
   teamSize: 4,

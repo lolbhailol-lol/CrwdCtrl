@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1376 768" role="img" aria-label="MIT-WPU Campus Hunt">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1630"/>
+      <stop offset="0.55" stop-color="#101F45"/>
+      <stop offset="1" stop-color="#2A1446"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.32" r="0.55">
+      <stop offset="0" stop-color="#0ECCEE" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#0ECCEE" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.18" cy="0.85" r="0.5">
+      <stop offset="0" stop-color="#C026D3" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#C026D3" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#5B7BD6" stroke-opacity="0.16" stroke-width="1"/>
+    </pattern>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+
+  <rect width="1376" height="768" fill="url(#sky)"/>
+  <rect width="1376" height="768" fill="url(#grid)"/>
+  <rect width="1376" height="768" fill="url(#glow)"/>
+  <rect width="1376" height="768" fill="url(#glow2)"/>
+
+  <g fill="#1B2C5C" stroke="#3E5AA8" stroke-opacity="0.6" stroke-width="2">
+    <rect x="120" y="150" width="210" height="130" rx="14"/>
+    <rect x="380" y="110" width="150" height="190" rx="14"/>
+    <rect x="590" y="200" width="260" height="110" rx="14"/>
+    <rect x="930" y="120" width="190" height="160" rx="14"/>
+    <rect x="160" y="400" width="170" height="170" rx="14"/>
+    <rect x="420" y="430" width="240" height="120" rx="14"/>
+    <rect x="740" y="400" width="160" height="190" rx="14"/>
+    <rect x="990" y="420" width="250" height="140" rx="14"/>
+  </g>
+  <g fill="#0ECCEE" fill-opacity="0.18">
+    <rect x="140" y="170" width="30" height="20" rx="3"/><rect x="185" y="170" width="30" height="20" rx="3"/><rect x="230" y="170" width="30" height="20" rx="3"/>
+    <rect x="400" y="135" width="26" height="20" rx="3"/><rect x="440" y="135" width="26" height="20" rx="3"/><rect x="400" y="170" width="26" height="20" rx="3"/>
+    <rect x="955" y="145" width="30" height="20" rx="3"/><rect x="1000" y="145" width="30" height="20" rx="3"/><rect x="1045" y="145" width="30" height="20" rx="3"/>
+    <rect x="1010" y="440" width="30" height="20" rx="3"/><rect x="1055" y="440" width="30" height="20" rx="3"/><rect x="1100" y="440" width="30" height="20" rx="3"/>
+  </g>
+
+  <path d="M90 690 C 250 640, 300 360, 470 360 S 700 520, 820 360 S 1010 240, 1080 330 S 1180 600, 1290 560"
+        fill="none" stroke="#0ECCEE" stroke-width="16" stroke-opacity="0.25" filter="url(#soft)"/>
+  <path d="M90 690 C 250 640, 300 360, 470 360 S 700 520, 820 360 S 1010 240, 1080 330 S 1180 600, 1290 560"
+        fill="none" stroke="#0ECCEE" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 22"/>
+
+  <g>
+    <circle cx="90" cy="690" r="18" fill="#0B1630" stroke="#0ECCEE" stroke-width="5"/>
+    <circle cx="470" cy="360" r="22" fill="#0ECCEE"/>
+    <text x="470" y="368" text-anchor="middle" font-family="Poppins, Arial, sans-serif" font-size="22" font-weight="700" fill="#0B1630">1</text>
+    <circle cx="820" cy="360" r="22" fill="#0ECCEE"/>
+    <text x="820" y="368" text-anchor="middle" font-family="Poppins, Arial, sans-serif" font-size="22" font-weight="700" fill="#0B1630">2</text>
+    <circle cx="1080" cy="330" r="22" fill="#0ECCEE"/>
+    <text x="1080" y="338" text-anchor="middle" font-family="Poppins, Arial, sans-serif" font-size="22" font-weight="700" fill="#0B1630">3</text>
+  </g>
+
+  <g transform="translate(1290 560)">
+    <circle r="70" fill="#F472B6" fill-opacity="0.18" filter="url(#soft)"/>
+    <path d="M0 -92 C -38 -92 -60 -64 -60 -34 C -60 6 0 52 0 52 C 0 52 60 6 60 -34 C 60 -64 38 -92 0 -92 Z" fill="#F472B6"/>
+    <circle cx="0" cy="-36" r="22" fill="#0B1630"/>
+  </g>
+
+  <g transform="translate(560 560) rotate(-8)">
+    <rect x="0" y="0" width="190" height="130" rx="14" fill="#F5E6C8"/>
+    <rect x="0" y="0" width="190" height="130" rx="14" fill="none" stroke="#C9A56A" stroke-width="3"/>
+    <rect x="22" y="26" width="120" height="12" rx="6" fill="#8B6B3A" fill-opacity="0.55"/>
+    <rect x="22" y="52" width="146" height="10" rx="5" fill="#8B6B3A" fill-opacity="0.35"/>
+    <rect x="22" y="72" width="100" height="10" rx="5" fill="#8B6B3A" fill-opacity="0.35"/>
+    <text x="150" y="112" font-family="Poppins, Arial, sans-serif" font-size="34" font-weight="800" fill="#8B6B3A">?</text>
+  </g>
+
+</svg>

@@ -21,7 +21,7 @@ import { setHomeShellReady } from '../../utils/homeShellReady';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
 import { useAuth } from '../../context/AuthContext';
-import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
+import { TRENDING_CARD_GAP, useIsLgUp } from '../../hooks/useHomeCarousel';
 import HeroBanner from '../../components/HeroBanner';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import HomeCategoryBar from '../../components/HomeCategoryBar';
@@ -278,6 +278,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
 });
 
 const Dashboard = () => {
+    const isLgUp = useIsLgUp();
     const { isDark } = useDarkMode();
     const { confirm } = useDialog();
     const navigate = useNavigate();
@@ -819,7 +820,7 @@ const Dashboard = () => {
                 subtitle: fest?.collegeName || '',
                 description: fest?.description || '',
                 status: fest?.status || 'upcoming',
-                date: fest?.festDate || fest?.date || fest?.dateTime,
+                date: fest?.festDate || 'Date TBA',
                 location: fest?.venue || 'Venue TBA',
                 category: type === 'cultural' ? 'Cultural Fest' :
                           type === 'technical' ? 'Tech Fest' :
@@ -829,8 +830,8 @@ const Dashboard = () => {
                 participants: fest?.estimatedParticipants || '',
                 duration: fest?.duration || '',
                 venue: fest?.venue || 'Venue TBA',
-                dateTime: fest?.festDate || fest?.date || fest?.dateTime,
-                ticketPrice: fest?.ticketPrice || fest?.price || fest?.registrationFee || fest?.feeAmount,
+                dateTime: fest?.festDate || 'Date TBA',
+                ticketPrice: fest?.ticketPrice || 'Free',
 
                 priority: fest?.priority || 999,
                 homePriority: fest?.homePriority || 999,
@@ -1519,7 +1520,14 @@ const Dashboard = () => {
                 </div>
             </main>
 
-            <ReviewsSection reviews={publicConfig?.reviews || publicConfig?.testimonials} />
+            {isLgUp && (publicConfig?.reviews || publicConfig?.testimonials)?.length
+                ? <ReviewsSection reviews={publicConfig?.reviews || publicConfig?.testimonials} />
+                : (
+                    <>
+                        <FaqSection items={HOME_FAQ} />
+                        <div className="pb-20 md:pb-0" />
+                    </>
+                )}
             </div>
 
 

@@ -33,9 +33,9 @@ export default {
                     500: '#64748b',
                     600: '#475569',
                     700: '#334155',
-                    800: '#121215',
-                    900: '#09090b',
-                    950: '#000000', // Pure pitch-black background
+                    800: '#1e293b',
+                    900: '#0f172a',
+                    950: '#0E0E0F', // Custom dark background color
                 }
             },
             animation: {

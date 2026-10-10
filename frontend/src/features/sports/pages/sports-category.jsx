@@ -15,7 +15,6 @@ import MobileHeroSearchField from '../../../components/MobileHeroSearchField';
 import AppLogo from '../../../components/AppLogo';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
 import CardShareButton from '../../../components/CardShareButton';
-import HomeEventCard from '../../../components/HomeEventCard';
 import HomeCarouselSection from '../../../components/HomeCarouselSection';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
 import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRenderer';
@@ -109,29 +108,51 @@ function SportsAutoRetryError({ isDark, message, onRetry }) {
     );
 }
 
-function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick }) {
+function RunClubCard({ club, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
     const imgSrc = getCoverImageUrl(club, 'cardPortraitFit');
     const shareUrl = typeof window !== 'undefined'
         ? `${window.location.origin}${runClubPath(club)}`
         : runClubPath(club);
-
     return (
-        <HomeEventCard
-            event={{
-                id: club.id || club._id,
-                title: club.title || club.name,
-                subtitle: club.subtitle || club.basedIn,
-                communityName: club.subtitle || club.basedIn || 'Run Club',
-                image: imgSrc,
-                isClub: true,
-                _type: 'runclub',
-            }}
-            isDark={isDark}
-            isFavorite={isFavorite}
-            onToggleFavorite={onToggleFavorite}
-            onViewDetails={onClick}
-            shareUrl={shareUrl}
-        />
+        <div
+            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200 shrink-0"
+            onClick={onClick}
+        >
+            <div className="card-portrait-image relative">
+                {imgSrc ? (
+                    <ContentImage
+                        src={imgSrc}
+                        alt={club.title}
+                        preset="cardPortraitFit"
+                        loading={eager ? 'eager' : 'lazy'}
+                        fetchPriority={eager ? 'high' : undefined}
+                        showPlaceholderUntilLoad
+                        className="absolute inset-0 z-0 w-full h-full object-contain object-center pointer-events-none"
+                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', club.title || 'Run Club')}
+                    />
+                ) : (
+                    <div className="w-full h-full bg-[#1A1B1D]" />
+                )}
+                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
+            </div>
+            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full">
+                <div className="flex-1 min-w-0 pr-1">
+                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {toCardText(club.title)}
+                    </p>
+                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {toCardText(club.subtitle || 'Based in')}
+                    </p>
+                </div>
+                <CardShareButton
+                    isDark={isDark}
+                    className="mt-0.5 shrink-0"
+                    onClick={() => {
+                        shareContent({ title: club.title, url: shareUrl });
+                    }}
+                />
+            </div>
+        </div>
     );
 }
 

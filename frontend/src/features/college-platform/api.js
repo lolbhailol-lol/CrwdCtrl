@@ -2,13 +2,25 @@ import { publicFetchJSON, resolveUrl } from '../../services/api/client';
 import { userFetchJSONStrict } from '../../services/api/auth.api';
 import { getBearerAuthHeaders, resolveAuthToken } from '../../utils/authToken';
 
-export async function listGames(params = {}) {
-  const search = new URLSearchParams(Object.entries(params).filter(([, value]) => value));
-  return publicFetchJSON(`/games${search.size ? `?${search}` : ''}`);
+const PAST_GAME_GRACE_MS = 24 * 60 * 60 * 1000;
+
+// A published game whose day has passed is shown as completed even before an admin closes it.
+function withPastGamesCompleted(game) {
+  if (!game || game.status !== 'published') return game;
+  const endsAt = new Date(game.endsAt || game.startsAt || 0).getTime();
+  if (!endsAt || Date.now() - endsAt < PAST_GAME_GRACE_MS) return game;
+  return { ...game, status: 'completed', spotsLeft: 0 };
 }
 
-export function getGame(id) {
-  return publicFetchJSON(`/games/${encodeURIComponent(id)}`);
+export async function listGames(params = {}) {
+  const search = new URLSearchParams(Object.entries(params).filter(([, value]) => value));
+  const data = await publicFetchJSON(`/games${search.size ? `?${search}` : ''}`);
+  return { ...data, games: (data?.games || []).map(withPastGamesCompleted) };
+}
+
+export async function getGame(id) {
+  const data = await publicFetchJSON(`/games/${encodeURIComponent(id)}`);
+  return data?.game ? { ...data, game: withPastGamesCompleted(data.game) } : data;
 }
 
 export async function listColleges(city = '') {

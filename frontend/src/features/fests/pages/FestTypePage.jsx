@@ -6,7 +6,6 @@ import { useFavorites } from '../../../context/FavoritesContext';
 import { getImageUrl } from '../../../utils/imageImports';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { toCardText } from '../../../utils/cardText';
-import HomeEventCard from '../../../components/HomeEventCard';
 import { FestSubpageLoadingSkeleton } from '../../../components/HomeEventCardSkeleton';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
 import CarouselDotPagination from '../../../components/CarouselDotPagination';
@@ -223,24 +222,41 @@ export default function FestTypePage({
                                         {featured.map((fest) => {
                                             const img = fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
                                             return (
-                                                <HomeEventCard
+                                                <div
                                                     key={fest._id}
-                                                    event={{
-                                                        id: fest._id,
-                                                        title: festCardName(fest),
-                                                        subtitle: festCardCollegeName(fest),
-                                                        communityName: festCardCollegeName(fest),
-                                                        image: img,
-                                                        displayDate: fest.festDate,
-                                                        date: fest.festDate,
-                                                        category: festType,
-                                                    }}
-                                                    isDark={isDark}
-                                                    isFavorite={isFavorite(fest._id)}
-                                                    onToggleFavorite={() => toggleFavorite(fest._id, fest)}
-                                                    onViewDetails={() => openFestDetails(fest)}
-                                                    shareUrl={`${window.location.origin}${festPath(fest)}`}
-                                                />
+                                                    className="card-surface card-carousel-fest rounded-2xl overflow-hidden snap-start"
+                                                    onPointerDown={() => prefetchFestDetail(fest)}
+                                                >
+                                                    <div className="fest-card-image">
+                                                        {img ? (
+                                                            <img
+                                                                src={getImageUrl(img, { preset: 'cardPortrait' })}
+                                                                alt={fest.festName}
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => handleImageErrorWithFallback(e, 320, 175, imageFallbackColor, fest.festName)}
+                                                            />
+                                                        ) : (
+                                                            <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#1D1E20]' : 'bg-gray-100'}`}>
+                                                                <span className="text-5xl">{emoji}</span>
+                                                            </div>
+                                                        )}
+                                                        <StatusBadge status={fest.status} />
+                                                        <CardFavoriteButton
+                                                            isFavorite={isFavorite(fest._id)}
+                                                            onClick={() => toggleFavorite(fest._id, fest)}
+                                                        />
+                                                    </div>
+                                                    <div className="px-4 pt-3 pb-4">
+                                                        <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{toCardText(festCardName(fest))}</p>
+                                                        <p className={`card-event-subtitle mb-3 line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{festCardCollegeName(fest)}</p>
+                                                        <button
+                                                            onClick={() => openFestDetails(fest)}
+                                                            className="w-full h-11 rounded-2xl bg-[#0ECCEE] text-black text-sm font-medium shadow-md"
+                                                        >
+                                                            View details
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             );
                                         })}
                                     </div>
