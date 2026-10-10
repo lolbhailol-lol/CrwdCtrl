@@ -4,7 +4,7 @@ const organizerPayoutSchema = new mongoose.Schema(
   {
     organizerType: {
       type: String,
-      enum: ['fest', 'run_club', 'trek_community', 'event_show', 'unknown'],
+      enum: ['fest', 'run_club', 'trek_community', 'event_show', 'college_game', 'unknown'],
       required: true,
     },
     organizerId: { type: String, required: true, trim: true },

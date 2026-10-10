@@ -554,6 +554,11 @@ const socialAuth = async (req, res) => {
 
         if (existingUser) {
             // User already exists with this social auth, just generate token and login
+            if (existingUser.email !== firebaseIdentity.email || existingUser.isVerified !== firebaseIdentity.emailVerified) {
+                existingUser.email = firebaseIdentity.email || existingUser.email;
+                existingUser.isVerified = firebaseIdentity.emailVerified;
+                await existingUser.save();
+            }
             const token = generateToken(existingUser._id);
 
             recordLogin(existingUser._id, req, provider.toLowerCase(), existingUser);

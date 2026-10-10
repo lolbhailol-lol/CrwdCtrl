@@ -169,10 +169,9 @@ export default function CampusStationNamesEditor({
     <section className="rounded-2xl border border-white/15 bg-white/5 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-white">Places · layout</h2>
+          <h2 className="text-base font-semibold text-white">Event layout</h2>
           <p className="mt-1 text-xs text-white/50">
-            Default: 20 teams · 20 campus places · 1 gather. Save here, then set plant join-words below,
-            then open Clues and update each color.
+            Set team size, starting points and the number of hunt places.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -181,8 +180,7 @@ export default function CampusStationNamesEditor({
             onClick={applySuggested}
             className="rounded-lg bg-[#0ECCEE]/15 px-2.5 py-1.5 text-[11px] font-semibold text-[#0ECCEE]"
           >
-            Suggest starts/places for {preview.teamCapacity} teams
-            ({suggested.startCount} start · {suggested.stationCount} places)
+            Use recommended layout
           </button>
           <button
             type="button"
@@ -261,9 +259,8 @@ export default function CampusStationNamesEditor({
         </label>
       </div>
       <p className="mt-2 text-[11px] text-white/40">
-        {preview.totalPlayers} players total · {preview.teamCapacity} teams × {activeStations.length} places
-        {' · '}offline hunt · then Send links (one WhatsApp pack per leader).
-        Raise campus places with + to unlock more scan locations (then Save setup + bootstrap QRs).
+        {preview.totalPlayers} players · {preview.teamCapacity} teams · {activeStations.length} places
+        {' · '}{suggested.startCount} recommended start{suggested.startCount === 1 ? '' : 's'}.
       </p>
 
       <div className="mt-4">
@@ -293,32 +290,35 @@ export default function CampusStationNamesEditor({
         </div>
       </div>
 
-      <div className="mt-4">
-        <h3 className="text-sm font-semibold text-white">
-          Campus place names · {activeStations.length} active
-        </h3>
-        <p className="mt-0.5 text-[11px] text-white/40">
-          Hunt QR cards live here (not at starting points). Each place gets 1 shared QR per scan stage.
-        </p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {activeStations.map((row, index) => (
-            <label key={row.code} className="block text-[11px] text-white/45">
-              {row.code}
-              <input
-                value={row.name}
-                onChange={(e) => {
-                  const name = e.target.value;
-                  setStationDraft((prev) => prev.map((item, i) => (
-                    i === index ? { ...item, name } : item
-                  )));
-                }}
-                className={`mt-1 ${inputClass}`}
-                placeholder={CAMPUS_STATIONS[index]?.name || 'Place name'}
-              />
-            </label>
-          ))}
+      <details className="group mt-4 rounded-xl border border-white/10 bg-black/15">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-white marker:hidden">
+          <span>Campus place names · {activeStations.length} active</span>
+          <span className="text-[#0ECCEE] transition group-open:rotate-45">+</span>
+        </summary>
+        <div className="border-t border-white/10 p-3">
+          <p className="text-[11px] text-white/40">
+            Hunt QR cards live here. Each place gets one shared QR per scan stage.
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {activeStations.map((row, index) => (
+              <label key={row.code} className="block text-[11px] text-white/45">
+                {row.code}
+                <input
+                  value={row.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setStationDraft((prev) => prev.map((item, i) => (
+                      i === index ? { ...item, name } : item
+                    )));
+                  }}
+                  className={`mt-1 ${inputClass}`}
+                  placeholder={CAMPUS_STATIONS[index]?.name || 'Place name'}
+                />
+              </label>
+            ))}
+          </div>
         </div>
-      </div>
+      </details>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button

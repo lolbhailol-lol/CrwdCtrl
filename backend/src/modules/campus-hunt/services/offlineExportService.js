@@ -455,6 +455,7 @@ async function exportOfflinePacks(eventId) {
       signingKey: bundleSigningKey(String(event._id), team.teamCode),
       event: {
         id: String(event._id),
+        hosted: Boolean(event.hosted),
         slug: event.slug,
         name: event.name,
         college: event.college || '',
@@ -586,16 +587,101 @@ async function publishInstallLinks(eventId, bundles, exportBatchId = '') {
   return installs;
 }
 
-async function getInstallBundle(token) {
-  const row = await CampusHuntOfflineInstall.findOne({
+function offlineDeviceHash(deviceId) {
+  return crypto.createHash('sha256').update(String(deviceId || '')).digest('hex');
+}
+
+async function activateHostedInstall(row, deviceId, deviceHint = '') {
+  const event = await CampusHuntEvent.findById(row.eventId)
+    .select('hosted offlineExportBatchId')
+    .lean();
+  if (!event?.hosted) return row;
+
+  const normalizedDeviceId = String(deviceId || '').trim().slice(0, 64);
+  if (!normalizedDeviceId) {
+    const err = new Error('This hosted hunt pack must be activated on one trusted device while online.');
+    err.status = 400;
+    err.code = 'DEVICE_REQUIRED';
+    throw err;
+  }
+  const activeBatchId = String(event.offlineExportBatchId || '');
+  const installBatchId = String(row.exportBatchId || row.bundle?.exportBatchId || '');
+  if (!activeBatchId || installBatchId !== activeBatchId) {
+    const err = new Error('This offline pack is stale. Install the latest event pack.');
+    err.status = 409;
+    err.code = 'STALE_PACK';
+    throw err;
+  }
+
+  const deviceIdHash = offlineDeviceHash(normalizedDeviceId);
+  if (row.deviceIdHash && row.deviceIdHash !== deviceIdHash) {
+    const err = new Error('This install link is already bound to another device.');
+    err.status = 409;
+    err.code = 'DEVICE_BOUND';
+    throw err;
+  }
+
+  const team = await CampusHuntTeam.findOneAndUpdate(
+    {
+      eventId: row.eventId,
+      teamCode: row.teamCode,
+      $or: [
+        { offlineDeviceId: '' },
+        { offlineDeviceId: { $exists: false } },
+        { offlineDeviceId: normalizedDeviceId },
+      ],
+    },
+    { $set: { offlineDeviceId: normalizedDeviceId } },
+    { new: true },
+  );
+  if (!team) {
+    const err = new Error('Another device is already activated for this team. Ask the host to reset the pack.');
+    err.status = 409;
+    err.code = 'DEVICE_BOUND';
+    throw err;
+  }
+
+  const activatedAt = new Date();
+  const activated = await CampusHuntOfflineInstall.findOneAndUpdate(
+    {
+      _id: row._id,
+      expiresAt: { $gt: activatedAt },
+      $or: [
+        { deviceIdHash: '' },
+        { deviceIdHash: { $exists: false } },
+        { deviceIdHash },
+      ],
+    },
+    {
+      $set: {
+        deviceIdHash,
+        trustedTimeActivatedAt: activatedAt,
+        installedAt: row.installedAt || activatedAt,
+        installDeviceHint: String(deviceHint || '').slice(0, 120),
+      },
+    },
+    { new: true },
+  );
+  if (!activated) {
+    const err = new Error('This install link is already bound to another device.');
+    err.status = 409;
+    err.code = 'DEVICE_BOUND';
+    throw err;
+  }
+  return activated;
+}
+
+async function getInstallBundle(token, deviceId = '', deviceHint = '') {
+  let row = await CampusHuntOfflineInstall.findOne({
     token: String(token || '').trim(),
     expiresAt: { $gt: new Date() },
-  }).lean();
+  });
   if (!row) {
     const err = new Error('This install link is invalid or expired. Ask admin to export packs again.');
     err.status = 404;
     throw err;
   }
+  row = await activateHostedInstall(row, deviceId, deviceHint);
   return {
     teamCode: row.teamCode,
     expiresAt: row.expiresAt,
@@ -605,8 +691,8 @@ async function getInstallBundle(token) {
   };
 }
 
-async function ackOfflineInstall(token, deviceHint = '') {
-  const row = await CampusHuntOfflineInstall.findOne({
+async function ackOfflineInstall(token, deviceId = '', deviceHint = '') {
+  let row = await CampusHuntOfflineInstall.findOne({
     token: String(token || '').trim(),
     expiresAt: { $gt: new Date() },
   });
@@ -615,6 +701,7 @@ async function ackOfflineInstall(token, deviceHint = '') {
     err.status = 404;
     throw err;
   }
+  row = await activateHostedInstall(row, deviceId, deviceHint);
   if (!row.installedAt) {
     row.installedAt = new Date();
     row.installDeviceHint = String(deviceHint || '').slice(0, 120);
@@ -910,6 +997,15 @@ async function ingestOfflineProgress(eventId, payload) {
     throw err;
   }
 
+  const event = await CampusHuntEvent.findById(eventId)
+    .select('hosted offlineExportBatchId')
+    .lean();
+  if (!event) {
+    const err = new Error('Campus Hunt event not found');
+    err.status = 404;
+    throw err;
+  }
+
   const team = await CampusHuntTeam.findOne({
     eventId,
     teamCode: String(body.team || '').toUpperCase(),
@@ -924,8 +1020,55 @@ async function ingestOfflineProgress(eventId, payload) {
   const incomingSeq = Number(body.seq) || 0;
   const storedSeq = Number(team.offlineProgressSeq) || 0;
   const incomingDevice = String(body.deviceId || '').slice(0, 64);
+  const boundDevice = String(team.offlineDeviceId || '').slice(0, 64);
   const startScore = Number(team.startingScore) > 0 ? Number(team.startingScore) : 100;
   const maxPlausible = startScore + (6 * 120);
+
+  if (event.hosted) {
+    if (startOver) {
+      const err = new Error('Only the host can reset a self-service Campus Hunt team.');
+      err.status = 403;
+      err.code = 'HOST_RESET_REQUIRED';
+      throw err;
+    }
+    const activeBatchId = String(event.offlineExportBatchId || '');
+    if (!activeBatchId || String(body.exportBatchId || '') !== activeBatchId) {
+      const err = new Error('This offline pack is stale. Install the latest event pack.');
+      err.status = 409;
+      err.code = 'STALE_PACK';
+      throw err;
+    }
+    if (!incomingDevice || !boundDevice || incomingDevice !== boundDevice) {
+      const err = new Error('This team pack is not activated on this device.');
+      err.status = 409;
+      err.code = 'DEVICE_BOUND';
+      err.preview = { boundDeviceHint: boundDevice ? `${boundDevice.slice(0, 8)}…` : undefined };
+      throw err;
+    }
+    const activatedInstall = await CampusHuntOfflineInstall.exists({
+      eventId,
+      teamCode: team.teamCode,
+      exportBatchId: activeBatchId,
+      deviceIdHash: offlineDeviceHash(incomingDevice),
+      trustedTimeActivatedAt: { $ne: null },
+      expiresAt: { $gt: new Date() },
+    });
+    if (!activatedInstall) {
+      const err = new Error('Reconnect once to activate the latest offline pack before playing.');
+      err.status = 409;
+      err.code = 'PACK_NOT_ACTIVATED';
+      throw err;
+    }
+    if (incomingSeq <= storedSeq) {
+      return {
+        teamCode: team.teamCode,
+        ignored: true,
+        reason: 'DUPLICATE_OR_OUT_OF_ORDER',
+        accepted: false,
+        seq: storedSeq,
+      };
+    }
+  }
 
   // Start over from leader phone — reset live board + unlock score lock for retest.
   if (startOver) {
@@ -1043,17 +1186,21 @@ async function ingestOfflineProgress(eventId, payload) {
     };
   }
 
-  const bound = String(team.offlineDeviceId || '').slice(0, 64);
   // Soft bind: allow takeover when score/stage advanced, or explicit takeover flag.
   const advancing = incomingSeq > storedSeq
     || Number(body.score) > Number(team.currentScore || 0);
-  if (bound && incomingDevice && bound !== incomingDevice && !body.takeover && !advancing) {
+  if (!event.hosted
+    && boundDevice
+    && incomingDevice
+    && boundDevice !== incomingDevice
+    && !body.takeover
+    && !advancing) {
     const err = new Error(
       'Another phone is bound to this team. Restore a backup on this phone, then tap Take over.',
     );
     err.status = 409;
     err.code = 'DEVICE_BOUND';
-    err.preview = { boundDeviceHint: `${bound.slice(0, 8)}…` };
+    err.preview = { boundDeviceHint: `${boundDevice.slice(0, 8)}…` };
     throw err;
   }
 

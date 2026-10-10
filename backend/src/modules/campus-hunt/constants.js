@@ -20,6 +20,7 @@ const EVENT_STATUSES = [
   'danger_level',
   'finale',
   'completed',
+  'cancelled',
 ];
 
 const ROUND_STATUSES = ['scheduled', 'live', 'locked', 'finalized'];

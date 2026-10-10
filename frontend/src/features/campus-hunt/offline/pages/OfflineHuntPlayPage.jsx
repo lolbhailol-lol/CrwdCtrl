@@ -624,7 +624,7 @@ export default function OfflineHuntPlayPage() {
         roundLabel="Campus Hunt Challenge"
         backTo={CAMPUS_HUNT_PATHS.offline}
         backLabel="← Home"
-        onStartOver={session.role === 'leader' ? onResetHunt : null}
+        onStartOver={session.role === 'leader' && !bundle.event.hosted ? onResetHunt : null}
         startOverBusy={resetting}
         checkpointExtra={null}
       />
@@ -659,7 +659,7 @@ export default function OfflineHuntPlayPage() {
               >
                 Push score to live board
               </button>
-              {deviceBound ? (
+              {deviceBound && !bundle.event.hosted ? (
                 <button
                   type="button"
                   className="rounded-lg bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-100"
@@ -682,7 +682,7 @@ export default function OfflineHuntPlayPage() {
               ) : null}
             </div>
 
-            {backupPayload ? (
+            {backupPayload && !bundle.event.hosted ? (
               <div>
                 <p className="text-[11px] text-white/50">Phone backup — paste below to restore</p>
                 <textarea
@@ -702,14 +702,16 @@ export default function OfflineHuntPlayPage() {
               </div>
             ) : null}
 
-            <button
-              type="button"
-              disabled={resetting}
-              className="mt-2 w-full rounded-lg border border-white/10 py-2 text-xs text-white/45 disabled:opacity-40"
-              onClick={onResetHunt}
-            >
-              {resetting ? 'Starting over…' : 'Start over'}
-            </button>
+            {!bundle.event.hosted ? (
+              <button
+                type="button"
+                disabled={resetting}
+                className="mt-2 w-full rounded-lg border border-white/10 py-2 text-xs text-white/45 disabled:opacity-40"
+                onClick={onResetHunt}
+              >
+                {resetting ? 'Starting over…' : 'Start over'}
+              </button>
+            ) : null}
           </div>
         </details>
       ) : null}

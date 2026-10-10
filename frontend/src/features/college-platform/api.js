@@ -1,5 +1,6 @@
 import { publicFetchJSON, resolveUrl } from '../../services/api/client';
 import { userFetchJSONStrict } from '../../services/api/auth.api';
+import { getBearerAuthHeaders, resolveAuthToken } from '../../utils/authToken';
 
 export async function listGames(params = {}) {
   const search = new URLSearchParams(Object.entries(params).filter(([, value]) => value));
@@ -10,8 +11,15 @@ export function getGame(id) {
   return publicFetchJSON(`/games/${encodeURIComponent(id)}`);
 }
 
-export function listColleges(city = '') {
-  return publicFetchJSON(`/games/colleges${city ? `?city=${encodeURIComponent(city)}` : ''}`);
+export async function listColleges(city = '') {
+  const data = await publicFetchJSON(`/games/colleges${city ? `?city=${encodeURIComponent(city)}` : ''}`);
+  return {
+    ...data,
+    colleges: (data?.colleges || []).map((college) => ({
+      ...college,
+      id: String(college.id || college._id || ''),
+    })).filter((college) => college.id),
+  };
 }
 
 export async function getRankings(params = {}) {
@@ -49,6 +57,30 @@ export function getGamePass(id) {
   return userFetchJSONStrict(`/games/passes/${id}`, { cacheBust: false });
 }
 
+export function requestMyGameRefund(registrationId, reason) {
+  return userFetchJSONStrict(`/games/me/registrations/${registrationId}/refunds`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function createMyGameDispute(registrationId, reason) {
+  return userFetchJSONStrict(`/games/me/registrations/${registrationId}/disputes`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function reportGame(gameId, type, message) {
+  return userFetchJSONStrict(`/games/${gameId}/reports`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify({ type, message }),
+  });
+}
+
 export function getCollegeProfile() {
   return userFetchJSONStrict('/games/me/profile', { cacheBust: false });
 }
@@ -82,4 +114,178 @@ export function createGamePaymentOrder(gameId, registrationId) {
       registrationDraft: { registrationId },
     }),
   });
+}
+
+export function getCampusHostProfile() {
+  return userFetchJSONStrict('/games/host/profile', { cacheBust: false });
+}
+
+export function saveCampusHostProfile(payload) {
+  return userFetchJSONStrict('/games/host/profile', {
+    method: 'PUT',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listHostedCampusHunts() {
+  return userFetchJSONStrict('/games/host/campus-hunts', { cacheBust: false });
+}
+
+export function createHostedCampusHunt(payload) {
+  return userFetchJSONStrict('/games/host/campus-hunts', {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateHostedCampusHunt(gameId, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}`, {
+    method: 'PUT',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function saveHostedHuntPermission(gameId, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/permission`, {
+    method: 'PUT',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function submitHostedCampusHunt(gameId) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/submit`, {
+    method: 'POST',
+    cacheBust: false,
+  });
+}
+
+export function getHostedHuntDashboard(gameId) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/dashboard`, { cacheBust: false });
+}
+
+export function createHostedHuntControlSession(gameId) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/control-session`, {
+    method: 'POST',
+    cacheBust: false,
+  });
+}
+
+export function getHostedHuntSetup(gameId) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/setup`, { cacheBust: false });
+}
+
+export function updateHostedHuntSetup(gameId, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/setup`, {
+    method: 'PATCH', cacheBust: false, body: JSON.stringify(payload),
+  });
+}
+
+export function updateHostedHuntChallenge(gameId, challengeId, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/setup/challenges/${challengeId}`, {
+    method: 'PATCH', cacheBust: false, body: JSON.stringify(payload),
+  });
+}
+
+export function createHostedHuntOperator(gameId, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/operators`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function revokeHostedHuntOperator(gameId, grantId) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/operators/${grantId}`, {
+    method: 'DELETE',
+    cacheBust: false,
+  });
+}
+
+export function runHostedHuntOperation(gameId, action, payload = {}) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/operations/${action}`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function runHostedHuntTeamOperation(gameId, teamId, action, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/teams/${teamId}/${action}`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function activateHostedHuntCheckInPack(gameId, deviceId) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/check-in-pack/activate`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify({ deviceId }),
+  });
+}
+
+export function syncHostedHuntCheckInPack(gameId, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/check-in-pack/sync`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function sendHostedHuntAnnouncement(gameId, payload) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/announcements`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function requestHostedHuntRefund(gameId, registrationId, reason) {
+  return userFetchJSONStrict(`/games/host/campus-hunts/${gameId}/registrations/${registrationId}/refunds`, {
+    method: 'POST',
+    cacheBust: false,
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function uploadHostPermissionDocument(gameId, file) {
+  const body = new FormData();
+  body.append('file', file);
+  const response = await fetch(resolveUrl(`/games/host/campus-hunts/${gameId}/permission-document`), {
+    method: 'POST',
+    credentials: 'include',
+    headers: getBearerAuthHeaders(resolveAuthToken()),
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || data.error || 'Permission upload failed');
+  return data;
+}
+
+export async function emergencyOperatorLogin(payload) {
+  const response = await fetch(resolveUrl('/games/host-access/login'), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || 'Operator login failed');
+  return data;
+}
+
+export async function emergencyOperatorAction(gameId, action, token) {
+  const response = await fetch(resolveUrl(`/games/host-access/${gameId}/operations/${action}`), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: '{}',
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || 'Operator action failed');
+  return data;
 }

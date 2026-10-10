@@ -7,7 +7,6 @@ import { fetchEventBySlug } from '../services/campusHunt.api';
 import {
   HuntPageShell,
   HuntPrimaryButton,
-  HuntSectionLabel,
   MissionProgress,
 } from '../components/HuntV2Shell';
 
@@ -70,7 +69,6 @@ export default function CampusHuntLandingPage() {
           <h1 className="hunt-v2-title">{eventName}</h1>
           <p className="hunt-v2-subtitle">Race. Solve. Scan. Win.</p>
           <p className="hunt-v2-status">Registration open • game access from your team link</p>
-          <HuntSectionLabel>Mission brief</HuntSectionLabel>
 
           <div className="hunt-v2-stats">
             {[
@@ -92,7 +90,6 @@ export default function CampusHuntLandingPage() {
           </section>
 
           <h2 className="text-lg font-extrabold">How it works</h2>
-          <HuntSectionLabel>Mission path</HuntSectionLabel>
           <div className="hunt-v2-steps">
             {[
               ['01', 'Check in', 'Meet your team and verify college IDs.'],

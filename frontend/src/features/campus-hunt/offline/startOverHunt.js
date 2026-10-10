@@ -19,6 +19,7 @@ import {
   clearOfflineProgressQueue,
   enqueueOfflineProgress,
   ensureOfflineGridKey,
+  getOfflineDeviceId,
   pauseOfflineBoardSync,
   resumeOfflineBoardSync,
   pullOfflineBoardState,
@@ -65,14 +66,15 @@ export function readRememberedInstallToken(bundle) {
 async function refreshPackIfPossible(pack, token) {
   if (!token) return { pack, packUpdated: false };
   try {
-    const res = await fetchOfflineInstallPack(token);
+    const deviceId = getOfflineDeviceId();
+    const res = await fetchOfflineInstallPack(token, deviceId);
     const fresh = res.data?.bundle || res.bundle;
     if (fresh?.team?.teamCode) {
       const next = { ...fresh, installToken: token };
       await saveOfflineBundle(next);
       rememberInstallToken(token);
       try {
-        await ackOfflineInstallPack(token, navigator.userAgent || '');
+        await ackOfflineInstallPack(token, deviceId, navigator.userAgent || '');
       } catch { /* best-effort */ }
       return { pack: next, packUpdated: true };
     }
@@ -181,6 +183,16 @@ export async function startOverHunt({
       gridReset: false,
       updateWaiting: false,
       message: 'No team pack on this phone.',
+    };
+  }
+  if (pack?.event?.hosted) {
+    return {
+      ok: false,
+      packUpdated: false,
+      boardReset: false,
+      gridReset: false,
+      updateWaiting: false,
+      message: 'Ask the host to reset this team from Host Mode.',
     };
   }
 

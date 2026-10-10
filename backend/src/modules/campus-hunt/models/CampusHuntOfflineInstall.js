@@ -19,6 +19,8 @@ const schema = new mongoose.Schema(
     /** First successful pack open on a phone (install preflight). */
     installedAt: { type: Date, default: null },
     installDeviceHint: { type: String, default: '', trim: true },
+    deviceIdHash: { type: String, default: '', trim: true, index: true },
+    trustedTimeActivatedAt: { type: Date, default: null },
     exportBatchId: { type: String, default: '', trim: true, index: true },
   },
   { timestamps: true },

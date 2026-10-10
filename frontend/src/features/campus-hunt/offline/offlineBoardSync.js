@@ -154,6 +154,7 @@ export async function enqueueOfflineProgress(bundle, state, { startOver = false 
     clue6Points: state.currentStage === 'SCORE_LOCKED'
       ? Number(state.clueProgress?.[6]?.awardedPoints) || 0
       : undefined,
+    exportBatchId: bundle.exportBatchId || undefined,
     deviceId: getOfflineDeviceId(),
     takeover: takeover || undefined,
     startOver: startOver || undefined,
@@ -257,7 +258,7 @@ export async function flushOfflineProgressQueue(bundle) {
             if (body?.seq != null) lastSeq = Number(body.seq);
             // A locked score is final on the server. Retrying the same snapshot
             // on every reconnect can never change it, so acknowledge and drop it.
-            terminalAck = lastIgnoreReason === 'SCORE_LOCKED';
+            terminalAck = ['SCORE_LOCKED', 'DUPLICATE_OR_OUT_OF_ORDER'].includes(lastIgnoreReason);
             break;
           }
           ok = true;

@@ -22,6 +22,12 @@ const campusHuntVolunteerAccessSchema = new mongoose.Schema(
       default: [],
     },
     enabled: { type: Boolean, default: true },
+    scope: { type: String, enum: ['checkpoint', 'emergency_operator'], default: 'checkpoint' },
+    expiresAt: { type: Date, default: null, index: true },
+    deviceIdHash: { type: String, default: '', trim: true },
+    createdByHostProfileId: { type: mongoose.Schema.Types.ObjectId, ref: 'CampusHostProfile', default: null },
+    revokedAt: { type: Date, default: null },
+    lastUsedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

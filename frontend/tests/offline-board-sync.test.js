@@ -58,6 +58,7 @@ const {
 const bundle = {
   event: { id: 'event-1', apiBase: 'https://api.example.test/api' },
   team: { teamCode: 'TEAM1' },
+  exportBatchId: 'batch-1',
 };
 
 function state(overrides = {}) {
@@ -86,18 +87,24 @@ test('keeps the latest score locally while offline, then syncs it on reconnect',
   assert.equal(offlineBoardPendingCount(), 1);
 
   online = true;
-  globalThis.fetch = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      data: { accepted: true, seq: 8, score: 250, rank: 3, fieldSize: 12 },
-    }),
-  });
+  let sentPayload;
+  globalThis.fetch = async (_url, options) => {
+    sentPayload = JSON.parse(options.body);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: { accepted: true, seq: 8, score: 250, rank: 3, fieldSize: 12 },
+      }),
+    };
+  };
 
   const result = await flushOfflineProgressQueue(bundle);
   assert.equal(result.syncedOk, true);
   assert.equal(result.rank, 3);
   assert.equal(result.fieldSize, 12);
+  assert.equal(sentPayload.exportBatchId, 'batch-1');
+  assert.match(sentPayload.deviceId, /^dev_/);
   assert.equal(offlineBoardPendingCount(), 0);
   assert.equal(dispatched.at(-1)?.type, 'ch-offline-board-synced');
 });
@@ -141,6 +148,22 @@ test('keeps a recoverable stale-sequence snapshot queued', async () => {
   assert.equal(result.ignoredReason, 'STALE_SEQ');
   assert.equal(result.seq, 20);
   assert.equal(offlineBoardPendingCount(), 1);
+});
+
+test('drops a duplicate hosted snapshot after the server accepted the first copy', async () => {
+  await enqueueOfflineProgress(bundle, state());
+  online = true;
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      data: { ignored: true, reason: 'DUPLICATE_OR_OUT_OF_ORDER', seq: 8 },
+    }),
+  });
+
+  const result = await flushOfflineProgressQueue(bundle);
+  assert.equal(result.ignoredReason, 'DUPLICATE_OR_OUT_OF_ORDER');
+  assert.equal(offlineBoardPendingCount(), 0);
 });
 
 test('keeps Grid and finish reconciliation snapshots queued until the server verifies them', async () => {

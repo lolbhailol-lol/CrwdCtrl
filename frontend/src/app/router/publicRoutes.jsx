@@ -10,6 +10,8 @@ import {
   RankingsPage,
   CrwdCtrlIdPage,
   HostGamePage,
+  CampusHuntHostDashboardPage,
+  CampusHuntEmergencyModePage,
   GameInvitePage,
   Booking,
   CulturalFestPage,
@@ -100,6 +102,8 @@ export const publicRoutes = (
       <Route path="/game-invite/:token" element={<GameInvitePage />} />
       <Route path="/rankings" element={<RankingsPage />} />
       <Route path="/host-a-game" element={<HostGamePage />} />
+      <Route path="/host-a-game/:gameId" element={<CampusHuntHostDashboardPage />} />
+      <Route path="/campus-hunt/host-mode" element={<CampusHuntEmergencyModePage />} />
       <Route path="/cultural-fest" element={<CulturalFestPage />} />
       <Route path="/tech-fest" element={<TechFestPage />} />
       <Route path="/sports" element={<SportsCategoryPage />} />

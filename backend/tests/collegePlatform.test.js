@@ -11,6 +11,16 @@ const {
   verifyPassToken,
 } = require('../src/modules/college-platform/service');
 const { GameRegistration } = require('../src/modules/college-platform/models');
+const {
+  College,
+  CollegeGame,
+  CampusHostProfile,
+  CampusHuntOperatorGrant,
+  CampusHuntHostCheckInPack,
+} = require('../src/modules/college-platform/models');
+const CampusHuntOfflineInstall = require('../src/modules/campus-hunt/models/CampusHuntOfflineInstall');
+const collegePlatformController = require('../src/modules/college-platform/controller');
+const { economicsForDraft, normalizeDraft, hostIsApproved } = require('../src/modules/college-platform/hostService');
 
 test('college email verification requires an exact approved domain', () => {
   const college = { emailDomains: ['college.edu', 'students.college.ac.in'] };
@@ -87,4 +97,57 @@ test('college rankings count only the best three teams per game and break ties b
   assert.equal(ranking.colleges[0].points, 240);
   assert.equal(ranking.colleges[0].teams, 3);
   assert.equal(ranking.colleges[1].points, 240);
+});
+
+test('hosted Campus Hunt draft enforces the V1 team and capacity limits', () => {
+  const draft = normalizeDraft({ teamSize: 99, capacity: 99, minimumTeams: 99, feePerTeam: 500, prizeAmount: 1000 });
+  assert.equal(draft.teamSize, 12);
+  assert.equal(draft.capacity, 20);
+  assert.equal(draft.minimumTeams, 20);
+  assert.equal(economicsForDraft(draft).platformFeePercent, 40);
+  assert.equal(economicsForDraft(draft).gatewayFeeEstimatePercent, 1.6);
+});
+
+test('host approval requires an unexpired annual verification and verified phone', () => {
+  assert.equal(hostIsApproved({ status: 'approved', phoneVerifiedAt: new Date(), verifiedUntil: new Date(Date.now() + 1000) }), true);
+  assert.equal(hostIsApproved({ status: 'approved', verifiedUntil: new Date(Date.now() + 1000) }), false);
+  assert.equal(hostIsApproved({ status: 'approved', phoneVerifiedAt: new Date(), verifiedUntil: new Date(Date.now() - 1000) }), false);
+});
+
+test('self-service host records retain scoped roles and device-bound check-in batches', () => {
+  assert.deepEqual(CampusHostProfile.schema.path('status').enumValues, ['pending', 'changes_required', 'approved', 'suspended', 'expired', 'rejected']);
+  assert.deepEqual(CampusHuntOperatorGrant.schema.path('role').enumValues, ['emergency_operator', 'checkpoint_volunteer']);
+  assert.ok(CampusHuntHostCheckInPack.schema.path('deviceIdHash'));
+  assert.ok(CampusHuntHostCheckInPack.schema.path('exportBatchId'));
+  assert.ok(CollegeGame.schema.path('turnoutDecisionRequested'));
+  assert.ok(CampusHuntOfflineInstall.schema.path('deviceIdHash'));
+  assert.ok(CampusHuntOfflineInstall.schema.path('trustedTimeActivatedAt'));
+});
+
+test('admin college save is idempotent by normalized slug', async () => {
+  const originalFindOneAndUpdate = College.findOneAndUpdate;
+  let received;
+  College.findOneAndUpdate = async (query, update, options) => {
+    received = { query, update, options };
+    return { _id: 'college1', ...update.$set };
+  };
+  const response = {
+    statusCode: 0,
+    body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return body; },
+  };
+  let nextError;
+  try {
+    await collegePlatformController.adminCreateCollege({
+      body: { name: 'Example College', city: 'Pune', emailDomains: ['example.edu'] },
+    }, response, (error) => { nextError = error; });
+    assert.equal(nextError, undefined);
+    assert.equal(response.statusCode, 200);
+    assert.equal(received.query.slug, 'example-college');
+    assert.equal(received.options.upsert, true);
+    assert.deepEqual(received.update.$set.emailDomains, ['example.edu']);
+  } finally {
+    College.findOneAndUpdate = originalFindOneAndUpdate;
+  }
 });

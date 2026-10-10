@@ -45,8 +45,11 @@ import {
   getGame,
   getGamePass,
   getRankings,
+  createMyGameDispute,
   listColleges,
   listGames,
+  reportGame,
+  requestMyGameRefund,
   reserveGame,
   submitHostGame,
 } from './api';
@@ -487,7 +490,9 @@ export function GamePassPage() {
   const [registration, setRegistration] = useState(null);
   const [qr, setQr] = useState('');
   const [error, setError] = useState('');
-  useEffect(() => { getGamePass(id).then((data) => setRegistration(data.registration)).catch((err) => setError(err.message)); }, [id]);
+  const [support, setSupport] = useState({ announcements: [], refundRequests: [], disputes: [], huntAccess: null });
+  const loadPass = useCallback(() => { getGamePass(id).then((data) => { setRegistration(data.registration); setSupport({ announcements: data.announcements || [], refundRequests: data.refundRequests || [], disputes: data.disputes || [], huntAccess: data.huntAccess || null }); }).catch((err) => setError(err.message)); }, [id]);
+  useEffect(() => { loadPass(); }, [loadPass]);
   useEffect(() => { if (registration?.qrToken) QRCode.toDataURL(registration.qrToken, { width: 220, margin: 1 }).then(setQr); }, [registration]);
   if (error) return <Page><BrandHeader title="Game Pass" back /><EmptyState title="Pass unavailable" text={error} /></Page>;
   if (!registration) return <Page><BrandHeader title="Game Pass" back /><div className="college-skeleton college-skeleton--card" /></Page>;
@@ -507,8 +512,15 @@ export function GamePassPage() {
           </div>
         </article>
         {!registration.allMembersVerified ? <div className="college-warning"><ShieldCheck /><div><strong>Teammate verification pending</strong><p>Every teammate must claim their invite before check-in.</p></div></div> : null}
+        {support.huntAccess ? <div className="college-info-card"><strong>Campus Hunt access</strong><p>Team code: <b>{support.huntAccess.teamCode}</b><br />Password: <b>{support.huntAccess.password}</b></p><small>Use online play when the network is stable. Install the offline pack once before game day for weak or unavailable network.</small>{support.huntAccess.onlinePath ? <Link className="college-primary-button" to={support.huntAccess.onlinePath}>Play online</Link> : null}{support.huntAccess.offlineInstallPath ? <Link className="college-secondary-button" to={support.huntAccess.offlineInstallPath}>Install offline pack</Link> : <div className="college-offline-note">Offline pack appears here after the organizer locks the final roster.</div>}</div> : null}
+        {support.announcements.length ? <div className="college-info-card"><strong>Host announcements</strong>{support.announcements.map((item) => <p key={item._id}><b>{item.title}</b><br />{item.message}</p>)}</div> : null}
+        {support.refundRequests.map((item) => <div className="college-info-card" key={item._id}><strong>Refund · {item.status}</strong><p>{item.reason}</p></div>)}
+        {support.disputes.map((item) => <div className="college-info-card" key={item._id}><strong>Result dispute · {item.status}</strong><p>{item.reason}{item.resolution ? ` · ${item.resolution}` : ''}</p></div>)}
         <button className="college-primary-button" onClick={() => window.print()}><Download size={18} /> Download Game Pass</button>
         {game.engine?.eventSlug ? <Link className="college-secondary-button" to={`/campus-hunt/${game.engine.eventSlug}`}>Prepare for {game.title}</Link> : null}
+        {!support.refundRequests.some((item) => ['pending', 'approved', 'processing', 'refunded'].includes(item.status)) && !['cancelled'].includes(registration.status) ? <button className="college-secondary-button" onClick={async () => { const reason = window.prompt('Why are you requesting a full registration refund?'); if (!reason) return; try { await requestMyGameRefund(registration.id, reason); await loadPass(); } catch (err) { setError(err.message); } }}>Request full refund</button> : null}
+        {game.status === 'completed' && !support.disputes.some((item) => item.status === 'open') ? <button className="college-secondary-button" onClick={async () => { const reason = window.prompt('Describe the result issue'); if (!reason) return; try { await createMyGameDispute(registration.id, reason); await loadPass(); } catch (err) { setError(err.message); } }}>Dispute result within 48 hours</button> : null}
+        <button className="college-secondary-button" onClick={async () => { const type = window.prompt('Issue type: host, content, safety, payment, cancellation', 'host'); const message = window.prompt('Describe the issue'); if (!type || !message) return; try { await reportGame(game.id, type, message); } catch (err) { setError(err.message); } }}>Report an issue</button>
       </section>
     </Page>
   );

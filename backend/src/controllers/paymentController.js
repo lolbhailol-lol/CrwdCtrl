@@ -172,9 +172,14 @@ const resolvePricedEntity = async ({
 
   if (resolvedGameId) {
     const game = await CollegeGame.findById(resolvedGameId)
-      .select('title feePerTeam platformFeePercent status registrationClosesAt')
+      .select('title feePerTeam platformFeePercent status registrationClosesAt ownerHostProfileId operationalStatus emergencyStoppedAt')
       .lean();
     if (!game || game.status !== 'published') return null;
+    if (game.ownerHostProfileId && (game.emergencyStoppedAt || game.operationalStatus !== 'published')) {
+      const err = new Error(game.emergencyStoppedAt ? 'Payments are frozen by a CrwdCtrl safety stop' : 'Game registration is closed');
+      err.status = 409;
+      throw err;
+    }
     if (game.registrationClosesAt && new Date(game.registrationClosesAt).getTime() <= Date.now()) {
       const err = new Error('Game registration is closed');
       err.status = 409;

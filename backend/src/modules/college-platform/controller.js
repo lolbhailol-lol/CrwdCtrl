@@ -7,6 +7,9 @@ const {
   GameInvite,
   GameResult,
   HostGameRequest,
+  GameAnnouncement,
+  GameRefundRequest,
+  GameResultDispute,
 } = require('./models');
 const {
   sha256,
@@ -19,6 +22,10 @@ const {
   verifyPassToken,
   buildRankings,
 } = require('./service');
+const { decryptCredential } = require('../campus-hunt/utils/credentialCipher');
+const CampusHuntTeam = require('../campus-hunt/models/CampusHuntTeam');
+const CampusHuntEvent = require('../campus-hunt/models/CampusHuntEvent');
+const CampusHuntOfflineInstall = require('../campus-hunt/models/CampusHuntOfflineInstall');
 
 function asId(value) {
   return mongoose.isValidObjectId(value) ? value : null;
@@ -50,6 +57,17 @@ function gamePublic(game) {
     capacity: game.capacity,
     spotsLeft: Math.max(0, Number(game.capacity) - Number(game.reservedSlots || 0)),
     feePerTeam: game.feePerTeam,
+    minimumTeams: game.minimumTeams || 1,
+    prizeAmount: game.prizeAmount || 0,
+    requirements: game.requirements || [],
+    safetyNotes: game.safetyNotes || [],
+    operationalStatus: game.operationalStatus || game.status,
+    host: game.ownerHostProfileId?._id ? {
+      name: game.ownerHostProfileId.fullName,
+      clubName: game.ownerHostProfileId.clubName,
+      roleTitle: game.ownerHostProfileId.roleTitle,
+      verified: game.ownerHostProfileId.status === 'approved',
+    } : null,
     rules: game.rules || [],
     steps: game.steps || [],
     status: game.status,
@@ -125,6 +143,7 @@ exports.listGames = async (req, res, next) => {
     }
     const games = await CollegeGame.find(query)
       .populate('hostCollegeId', 'name shortName city')
+      .populate('ownerHostProfileId', 'fullName clubName roleTitle status publicContactMode publicContactValue')
       .sort({ startsAt: 1, createdAt: -1 })
       .lean();
     return res.json({ success: true, games: games.map(gamePublic) });
@@ -138,6 +157,7 @@ exports.getGame = async (req, res, next) => {
     const selector = asId(req.params.id) ? { _id: req.params.id } : { slug: String(req.params.id).toLowerCase() };
     const game = await CollegeGame.findOne({ ...selector, status: { $in: ['published', 'completed'] } })
       .populate('hostCollegeId', 'name shortName city')
+      .populate('ownerHostProfileId', 'fullName clubName roleTitle status publicContactMode publicContactValue')
       .lean();
     if (!game) return res.status(404).json({ success: false, message: 'Game not found' });
     return res.json({ success: true, game: gamePublic(game) });
@@ -221,7 +241,22 @@ exports.myRegistrations = async (req, res, next) => {
       .populate('collegeId')
       .sort({ createdAt: -1 })
       .lean();
-    return res.json({ success: true, registrations: rows.map((row) => registrationPublic(row)) });
+    const registrationIds = rows.map((row) => row._id);
+    const gameIds = [...new Set(rows.map((row) => String(row.gameId?._id || row.gameId)))];
+    const [announcements, refunds, disputes] = await Promise.all([
+      GameAnnouncement.find({ gameId: { $in: gameIds } }).sort({ createdAt: -1 }).lean(),
+      GameRefundRequest.find({ registrationId: { $in: registrationIds } }).sort({ createdAt: -1 }).lean(),
+      GameResultDispute.find({ registrationId: { $in: registrationIds } }).sort({ createdAt: -1 }).lean(),
+    ]);
+    return res.json({
+      success: true,
+      registrations: rows.map((row) => ({
+        ...registrationPublic(row),
+        announcements: announcements.filter((item) => String(item.gameId) === String(row.gameId?._id || row.gameId)),
+        refundRequests: refunds.filter((item) => String(item.registrationId) === String(row._id)),
+        disputes: disputes.filter((item) => String(item.registrationId) === String(row._id)),
+      })),
+    });
   } catch (err) {
     return next(err);
   }
@@ -230,14 +265,53 @@ exports.myRegistrations = async (req, res, next) => {
 exports.getPass = async (req, res, next) => {
   try {
     const registration = await GameRegistration.findById(req.params.id)
-      .select('+qrToken')
+      .select('+qrToken +encryptedHuntPassword')
       .populate('gameId')
       .populate('collegeId');
     if (!registration) return res.status(404).json({ success: false, message: 'Game pass not found' });
     const allowed = String(registration.captainUserId) === String(req.user.userId)
       || registration.members.some((member) => String(member.userId) === String(req.user.userId));
     if (!allowed) return res.status(403).json({ success: false, message: 'This pass belongs to another team' });
-    return res.json({ success: true, registration: registrationPublic(registration, { includeQr: true }) });
+    const [announcements, refundRequests, disputes, huntTeam] = await Promise.all([
+      GameAnnouncement.find({ gameId: registration.gameId._id }).sort({ createdAt: -1 }).limit(50).lean(),
+      GameRefundRequest.find({ registrationId: registration._id }).sort({ createdAt: -1 }).lean(),
+      GameResultDispute.find({ registrationId: registration._id }).sort({ createdAt: -1 }).lean(),
+      registration.huntTeamId
+        ? CampusHuntTeam.findById(registration.huntTeamId).select('teamCode eventId').lean()
+        : null,
+    ]);
+    const huntEvent = huntTeam?.eventId
+      ? await CampusHuntEvent.findById(huntTeam.eventId).select('slug offlineExportBatchId').lean()
+      : null;
+    const install = huntTeam?.teamCode && huntEvent?.offlineExportBatchId
+      ? await CampusHuntOfflineInstall.findOne({
+        eventId: huntTeam.eventId,
+        teamCode: huntTeam.teamCode,
+        exportBatchId: huntEvent.offlineExportBatchId,
+        expiresAt: { $gt: new Date() },
+      }).select('token expiresAt exportBatchId').lean()
+      : null;
+    if (registration.encryptedHuntPassword) {
+      await GameRegistration.updateOne(
+        { _id: registration._id },
+        { $push: { audit: { action: 'hunt_credentials_revealed', actor: String(req.user.userId) } } },
+      );
+    }
+    return res.json({
+      success: true,
+      registration: registrationPublic(registration, { includeQr: true }),
+      huntAccess: registration.encryptedHuntPassword && huntTeam ? {
+        teamCode: huntTeam.teamCode,
+        password: decryptCredential(registration.encryptedHuntPassword),
+        onlinePath: huntEvent?.slug ? `/campus-hunt/${huntEvent.slug}/team/${huntTeam.teamCode}` : '',
+        offlineInstallPath: install?.token ? `/campus-hunt/offline/i/${install.token}` : '',
+        offlinePackExpiresAt: install?.expiresAt || null,
+        offlineExportBatchId: install?.exportBatchId || '',
+      } : null,
+      announcements,
+      refundRequests,
+      disputes,
+    });
   } catch (err) {
     return next(err);
   }
@@ -374,7 +448,12 @@ exports.adminCreateCollege = async (req, res, next) => {
   try {
     const payload = collegePayload(req.body);
     if (!payload.name || !payload.slug || !payload.emailDomains.length) return res.status(400).json({ message: 'Name, slug and email domains are required' });
-    return res.status(201).json({ success: true, college: await College.create(payload) });
+    const college = await College.findOneAndUpdate(
+      { slug: payload.slug },
+      { $set: payload },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    );
+    return res.status(200).json({ success: true, college });
   } catch (err) { return next(err); }
 };
 

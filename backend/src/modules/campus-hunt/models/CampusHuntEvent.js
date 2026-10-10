@@ -51,6 +51,10 @@ const scoringConfigSchema = new mongoose.Schema(
 const campusHuntEventSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
+    gameId: { type: mongoose.Schema.Types.ObjectId, ref: 'CollegeGame', default: null },
+    hostProfileId: { type: mongoose.Schema.Types.ObjectId, ref: 'CampusHostProfile', default: null, index: true },
+    hosted: { type: Boolean, default: false, index: true },
+    templateVersion: { type: String, default: '', trim: true },
     college: { type: String, required: true, trim: true },
     slug: {
       type: String,
@@ -150,6 +154,8 @@ const campusHuntEventSchema = new mongoose.Schema(
     /** Monotonic id for each offline pack export batch (reinstall clears local STATE). */
     offlineExportBatchId: { type: String, default: '', trim: true },
     featureNotes: { type: String, default: '' },
+    emergencyStoppedAt: { type: Date, default: null },
+    emergencyStopReason: { type: String, default: '', trim: true },
   },
   { timestamps: true },
 );
@@ -157,6 +163,7 @@ const campusHuntEventSchema = new mongoose.Schema(
 campusHuntEventSchema.index({ college: 1, status: 1 });
 campusHuntEventSchema.index({ publicLeaderboardLive: 1, status: 1 });
 campusHuntEventSchema.index({ publicLoginLive: 1, status: 1 });
+campusHuntEventSchema.index({ gameId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.models.CampusHuntEvent
   || mongoose.model('CampusHuntEvent', campusHuntEventSchema);

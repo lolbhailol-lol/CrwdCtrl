@@ -148,56 +148,62 @@ export default function StationPlantFragmentsPanel({
         </button>
       </div>
 
-      <div className="mt-4 space-y-3">
-        {active.map((row) => (
-          <div key={row.code} className="rounded-xl border border-white/10 bg-black/30 p-3">
-            <p className="font-mono text-xs font-bold text-[#0ECCEE]">
-              {row.code}
-              {' · '}
-              <span className="font-sans text-white">{row.name}</span>
-            </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {Array.from({ length: slipCount }, (_, i) => (
-                <label key={`${row.code}-f${i}`} className="block text-[11px] text-white/50">
-                  Digit slip {i + 1}
-                  <input
-                    className={`${inputClass} mt-1 font-mono text-center text-xl tracking-widest`}
-                    value={row.plantFragments?.[i] || ''}
-                    onChange={(e) => setFrag(row.code, i, e.target.value)}
-                    placeholder={`${i + 1}`}
-                    inputMode="numeric"
-                    maxLength={1}
-                  />
-                </label>
-              ))}
+      <details className="group mt-4 rounded-xl border border-white/10 bg-black/20">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-white marker:hidden">
+          <span>Review or customize {active.length} stop codes</span>
+          <span className="text-[#0ECCEE] transition group-open:rotate-45">+</span>
+        </summary>
+        <div className="space-y-3 border-t border-white/10 p-3">
+          {active.map((row) => (
+            <div key={row.code} className="rounded-xl border border-white/10 bg-black/30 p-3">
+              <p className="font-mono text-xs font-bold text-[#0ECCEE]">
+                {row.code}
+                {' · '}
+                <span className="font-sans text-white">{row.name}</span>
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {Array.from({ length: slipCount }, (_, i) => (
+                  <label key={`${row.code}-f${i}`} className="block text-[11px] text-white/50">
+                    Digit {i + 1}
+                    <input
+                      className={`${inputClass} mt-1 font-mono text-center text-xl tracking-widest`}
+                      value={row.plantFragments?.[i] || ''}
+                      onChange={(e) => setFrag(row.code, i, e.target.value)}
+                      placeholder={`${i + 1}`}
+                      inputMode="numeric"
+                      maxLength={1}
+                    />
+                  </label>
+                ))}
+              </div>
+              <label className="mt-2 block text-[11px] text-white/50">
+                3-digit answer
+                <input
+                  className={`${inputClass} mt-1 font-mono tracking-[0.3em]`}
+                  value={row.joinedWord || ''}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 3);
+                    setDraft((prev) => prev.map((r) => (
+                      r.code === row.code
+                        ? {
+                          ...r,
+                          joinedWord: value,
+                          plantFragments: value.length === 3
+                            ? splitDigitSlips(value, slipCount)
+                            : r.plantFragments,
+                        }
+                        : r
+                    )));
+                  }}
+                  placeholder="e.g. 847"
+                  inputMode="numeric"
+                  maxLength={3}
+                />
+              </label>
             </div>
-            <label className="mt-2 block text-[11px] text-white/50">
-              3-digit answer (leaders type this)
-              <input
-                className={`${inputClass} mt-1 font-mono tracking-[0.3em]`}
-                value={row.joinedWord || ''}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '').slice(0, 3);
-                  setDraft((prev) => prev.map((r) => (
-                    r.code === row.code
-                      ? {
-                        ...r,
-                        joinedWord: value,
-                        plantFragments: value.length === 3
-                          ? splitDigitSlips(value, slipCount)
-                          : r.plantFragments,
-                      }
-                      : r
-                  )));
-                }}
-                placeholder="e.g. 847"
-                inputMode="numeric"
-                maxLength={3}
-              />
-            </label>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </details>
 
       {msg ? <p className="mt-2 text-sm text-[#0ECCEE]">{msg}</p> : null}
     </section>

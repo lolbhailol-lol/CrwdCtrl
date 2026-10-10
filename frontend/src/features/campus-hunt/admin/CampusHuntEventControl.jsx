@@ -26,7 +26,6 @@ import { CAMPUS_HUNT_PATHS } from '../config';
 import TeamManagerPanel from './TeamManagerPanel';
 import StartingSystemPanel from './StartingSystemPanel';
 import AdminWorkflowNav from './AdminWorkflowNav';
-import AdminSetupGuide from './AdminSetupGuide';
 import PlaytestPanel from './PlaytestPanel';
 import Round1ClueFormat from './Round1ClueFormat';
 import FinishReturnBoard from './FinishReturnBoard';
@@ -41,6 +40,14 @@ import { STATION_TARGET_COUNT } from './campusHuntFormat';
 
 export default function CampusHuntEventControl() {
   const { eventId } = useParams();
+  const hostGameId = useMemo(() => {
+    try {
+      const token = localStorage.getItem('campus_hunt_admin_token');
+      const payload = JSON.parse(atob(String(token || '').split('.')[1] || ''));
+      return payload.role === 'campus_hunt_host' ? payload.gameId : '';
+    } catch { return ''; }
+  }, []);
+  const controlBackPath = hostGameId ? `/campus-hunt/host/${hostGameId}` : CAMPUS_HUNT_PATHS.admin;
   const validEventId = Boolean(eventId && /^[a-f\d]{24}$/i.test(String(eventId)));
   const [overview, setOverview] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -304,59 +311,53 @@ export default function CampusHuntEventControl() {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 bg-[#0b0c0d] px-4 text-center text-white">
         <p className="text-lg font-semibold">Invalid event link</p>
-        <Link to={CAMPUS_HUNT_PATHS.admin} className="text-[#0ECCEE] underline">
-          Back to Campus Hunt admin
+        <Link to={controlBackPath} className="text-[#0ECCEE] underline">
+          {hostGameId ? 'Back to Host dashboard' : 'Back to Campus Hunt admin'}
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 p-4 text-white md:p-6">
+    <div className="min-h-screen space-y-4 bg-[#0b0c0d] p-4 text-white md:space-y-5 md:p-6">
       {(!activeRound || activeRound === 'round1') && (
-        <>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <Link to={CAMPUS_HUNT_PATHS.admin} className="text-xs text-white/40 hover:text-white">
-                ← All events
-              </Link>
-              <h1 className="text-2xl font-bold uppercase tracking-wide">{overview?.event?.name || 'Campus Hunt'}</h1>
-              <p className="text-sm uppercase tracking-wide text-white/50">
+        <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 shadow-xl shadow-black/10">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              {activeRound ? (
+                <button type="button" onClick={() => setActiveRound(null)} className="mb-1 text-xs text-white/45 hover:text-white">
+                  ← Event hub
+                </button>
+              ) : (
+                <Link to={controlBackPath} className="mb-1 inline-block text-xs text-white/45 hover:text-white">
+                  {hostGameId ? '← Host dashboard' : '← All events'}
+                </Link>
+              )}
+              <h1 className="truncate text-xl font-bold tracking-tight md:text-2xl">{overview?.event?.name || 'Campus Hunt'}</h1>
+              <p className="truncate text-xs text-white/45 md:text-sm">
                 {overview?.event?.college} · {overview?.event?.slug || overview?.event?.status}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full bg-white/10 px-3 py-1.5">
-                Hunt: {round1?.status || 'not created'}
-              </span>
-              <span className="rounded-full bg-white/10 px-3 py-1.5">
-                Teams {Math.min(
-                  overview?.counts?.teams ?? teams.length,
-                  competitionFormat.teamCapacity,
-                )}/{competitionFormat.teamCapacity}
-                {(overview?.counts?.teams ?? teams.length) > competitionFormat.teamCapacity
-                  ? ` (+${(overview?.counts?.teams ?? teams.length) - competitionFormat.teamCapacity} extra)`
-                  : ''}
-                {' · '}
-                {competitionFormat.teamSize}/team
-              </span>
-              <span className={`rounded-full px-3 py-1.5 ${
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${
                 readiness?.ready
                   ? 'bg-emerald-500/15 text-emerald-200'
                   : 'bg-amber-500/15 text-amber-100'
-              }`}>
-                {readiness?.ready ? 'Ready to launch' : 'Setup incomplete'}
-              </span>
-            </div>
+              }`}
+            >
+              {readiness?.ready ? 'Ready' : 'Setup needed'}
+            </span>
           </div>
 
-          {msg && <p className="text-sm text-[#0ECCEE]">{msg}</p>}
-          <p className="text-xs text-white/40">
-            {refreshError
-              ? `Refresh error: ${refreshError}`
-              : `Last refreshed: ${lastRefresh?.toLocaleTimeString() || '—'}`}
-          </p>
-        </>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+            <div className="rounded-xl bg-white/5 px-3 py-2"><span className="block text-white/40">Hunt</span><strong>{round1?.status || 'Not created'}</strong></div>
+            <div className="rounded-xl bg-white/5 px-3 py-2"><span className="block text-white/40">Teams</span><strong>{Math.min(overview?.counts?.teams ?? teams.length, competitionFormat.teamCapacity)}/{competitionFormat.teamCapacity} · {competitionFormat.teamSize} each</strong></div>
+            <div className="col-span-2 rounded-xl bg-white/5 px-3 py-2 sm:col-span-1" title={lastRefresh ? `Updated ${lastRefresh.toLocaleTimeString()}` : undefined}><span className="block text-white/40">Current view</span><strong>{activeRound ? 'Round 1 control' : 'Event setup'}</strong></div>
+          </div>
+
+          {msg && <p className="mt-3 rounded-xl bg-[#0ECCEE]/10 px-3 py-2 text-sm text-[#7cecff]">{msg}</p>}
+          {refreshError && <p className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-100">Refresh error: {refreshError}</p>}
+        </section>
       )}
 
       {!activeRound && (
@@ -391,16 +392,6 @@ export default function CampusHuntEventControl() {
 
       {activeRound === 'round1' && (
         <>
-          <button
-            type="button"
-            onClick={() => setActiveRound(null)}
-            className="text-xs text-white/50 hover:text-white"
-          >
-            ← Event hub
-          </button>
-
-          <AdminSetupGuide />
-
           <AdminWorkflowNav
             current={tab}
             onChange={setTab}

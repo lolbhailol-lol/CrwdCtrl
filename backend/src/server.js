@@ -74,6 +74,13 @@ async function startServer() {
       }
 
       try {
+        const { initHostMaintenanceCron } = require('./modules/college-platform/hostMaintenanceService');
+        initHostMaintenanceCron();
+      } catch (hostMaintenanceErr) {
+        logger.warn('Campus Hunt host maintenance failed to start', { error: hostMaintenanceErr.message });
+      }
+
+      try {
         const { initKeepAlive } = require('./services/keepAliveService');
         initKeepAlive();
       } catch (keepAliveErr) {

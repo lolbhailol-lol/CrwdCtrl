@@ -13,6 +13,11 @@ const {
 } = require('../services/checkpointService');
 const { validateIssueBody } = require('../validators/adminValidators');
 const { writeAudit } = require('../services/auditService');
+const crypto = require('crypto');
+
+function deviceHash(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
 
 function parseHuntQrPayload(raw) {
   const trimmed = String(raw || '').trim();
@@ -35,7 +40,7 @@ function parseHuntQrPayload(raw) {
 
 async function login(req, res, next) {
   try {
-    const { eventId, code, password } = req.body || {};
+    const { eventId, code, password, deviceId } = req.body || {};
     if (!eventId || !code || !password) {
       return res.status(400).json({
         success: false,
@@ -55,6 +60,21 @@ async function login(req, res, next) {
     if (!access || !(await access.verifyPassword(password))) {
       return res.status(401).json({ success: false, message: 'Invalid volunteer credentials' });
     }
+    if (access.expiresAt && new Date(access.expiresAt).getTime() <= Date.now()) {
+      return res.status(403).json({ success: false, message: 'Volunteer access expired' });
+    }
+    if (access.createdByHostProfileId && !deviceId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required for hosted Hunt volunteer access' });
+    }
+    const boundDeviceHash = deviceId ? deviceHash(deviceId) : '';
+    if (access.deviceIdHash && access.deviceIdHash !== boundDeviceHash) {
+      return res.status(403).json({ success: false, message: 'This code is already bound to another device' });
+    }
+    if (!access.deviceIdHash && boundDeviceHash) {
+      access.deviceIdHash = boundDeviceHash;
+    }
+    access.lastUsedAt = new Date();
+    await access.save();
 
     const token = jwt.sign(
       {
@@ -63,6 +83,7 @@ async function login(req, res, next) {
         eventId: String(access.eventId),
         label: access.label,
         code: access.code,
+        deviceIdHash: access.deviceIdHash,
       },
       getJwtSecret(),
       { expiresIn: '12h' },
@@ -88,6 +109,7 @@ async function login(req, res, next) {
           code: access.code,
           eventId: String(access.eventId),
           checkpointIds: (access.checkpointIds || []).map(String),
+          expiresAt: access.expiresAt,
         },
       },
     });

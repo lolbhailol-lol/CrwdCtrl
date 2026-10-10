@@ -7,7 +7,6 @@ import {
   HuntPageHeader,
   HuntPageShell,
   HuntPrimaryButton,
-  HuntSectionLabel,
   MissionProgress,
 } from '../components/HuntV2Shell';
 
@@ -65,7 +64,6 @@ export default function CampusHuntEnterPage() {
         <div className="hunt-v2-content">
           <MissionProgress label="Loadout" step={5} />
           <p className="mt-4 text-sm text-[color:var(--hunt-muted)]">Pick the mode that fits your campus connection.</p>
-          <HuntSectionLabel>Choose your loadout</HuntSectionLabel>
 
           <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-mode">
             <div className="hunt-v2-mode-head">

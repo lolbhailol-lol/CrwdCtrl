@@ -9,7 +9,6 @@ import {
   HuntPageHeader,
   HuntPageShell,
   HuntPrimaryButton,
-  HuntSectionLabel,
   MissionProgress,
 } from '../../components/HuntV2Shell';
 
@@ -70,7 +69,6 @@ export default function OfflineHuntLandingPage() {
         <HuntPageHeader title="Offline Pack" backTo={CAMPUS_HUNT_PATHS.profileLogin} />
         <div className="hunt-v2-content">
           <MissionProgress label="Offline kit" step={6} />
-          <HuntSectionLabel>Offline kit</HuntSectionLabel>
           <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-pack-hero">
             <img src="/campus-hunt/v2/pack-hero.svg" alt="" />
             <h1>{hasPack ? 'Ready for game day' : 'Install your team pack'}</h1>

@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken, optionalAuthenticateToken } = require('../../../middleware/authmiddleware');
-const { requireTeamMember, requireTeamLeader } = require('../middleware/playerAuthz');
+const { requireTeamMember, requireTeamLeader, blockEmergencyStopped } = require('../middleware/playerAuthz');
 const {
   campusHuntLoginLimiter,
   campusHuntOfflineSyncLimiter,
@@ -43,9 +43,9 @@ const router = express.Router();
 
 router.get('/offline-install/:token', campusHuntLoginLimiter, getOfflineInstallPack);
 router.post('/offline-install/:token/ack', campusHuntLoginLimiter, ackOfflineInstall);
-router.post('/events/:eventId/offline-progress', campusHuntOfflineSyncLimiter, postOfflineProgress);
+router.post('/events/:eventId/offline-progress', campusHuntOfflineSyncLimiter, blockEmergencyStopped, postOfflineProgress);
 router.post('/events/:eventId/offline-pull', campusHuntOfflineSyncLimiter, postOfflinePull);
-router.post('/events/:eventId/offline-grid-ensure', campusHuntOfflineSyncLimiter, postOfflineGridEnsure);
+router.post('/events/:eventId/offline-grid-ensure', campusHuntOfflineSyncLimiter, blockEmergencyStopped, postOfflineGridEnsure);
 router.get('/colleges', listColleges);
 router.get('/profile-entries', optionalAuthenticateToken, listProfileEntries);
 router.get('/events/:eventId/leaderboard/public', getPublicLeaderboard);
@@ -86,6 +86,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   campusHuntAnswerLimiter,
   submitClue1,
 );
@@ -94,6 +95,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   campusHuntAnswerLimiter,
   submitChallengeAnswer,
 );
@@ -102,6 +104,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   campusHuntHintLimiter,
   requestChallengeHint,
 );
@@ -110,6 +113,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   campusHuntAnswerLimiter,
   revealTimedChallenge,
 );
@@ -118,6 +122,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   campusHuntAnswerLimiter,
   startHuntWithCode,
 );
@@ -126,6 +131,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   campusHuntAnswerLimiter,
   submitFinishCode,
 );
@@ -133,6 +139,7 @@ router.post(
   '/teams/:teamId/checkpoints/scan',
   authenticateToken,
   requireTeamMember,
+  blockEmergencyStopped,
   campusHuntVerifyLimiter,
   scanStation,
 );
@@ -140,6 +147,7 @@ router.post(
   '/teams/:teamId/checkpoints/confirm',
   authenticateToken,
   requireTeamMember,
+  blockEmergencyStopped,
   campusHuntVerifyLimiter,
   confirmStation,
 );
@@ -148,12 +156,14 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   rewindStep,
 );
 router.post(
   '/teams/:teamId/dev/force-clue2',
   authenticateToken,
   requireTeamMember,
+  blockEmergencyStopped,
   forceUnlockClue2,
 );
 router.get(
@@ -174,6 +184,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   finaleController.requireFinaleParticipant,
   finaleController.startFinaleMission,
 );
@@ -181,6 +192,7 @@ router.post(
   '/teams/:teamId/finale/missions/:missionId/submit',
   authenticateToken,
   requireTeamMember,
+  blockEmergencyStopped,
   campusHuntAnswerLimiter,
   finaleController.requireFinaleParticipant,
   finaleController.submitFinaleMission,
@@ -190,6 +202,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   finaleController.requireFinaleParticipant,
   finaleController.abandonFinaleMission,
 );
@@ -198,6 +211,7 @@ router.post(
   authenticateToken,
   requireTeamMember,
   requireTeamLeader,
+  blockEmergencyStopped,
   finaleController.requireFinaleParticipant,
   finaleController.stopFinaleTeam,
 );

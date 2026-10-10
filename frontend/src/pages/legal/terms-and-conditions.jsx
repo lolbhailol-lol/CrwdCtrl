@@ -11,7 +11,7 @@ export default function TermsAndConditions() {
     const goBack = useInAppBack();
 
     const termsData = {
-        last_updated: "2026-08-20",
+        last_updated: "2026-10-06",
         introduction: {
             description: `${LEGAL_OPERATOR_LINE} These Terms govern the access and use of the CrwdCtrl website, platform and services.`,
             agreement_required: true,
@@ -63,6 +63,12 @@ export default function TermsAndConditions() {
                 "Responsibility for disputes, cancellations, delays or issues"
             ]
         },
+        hosted_campus_hunts: [
+            "The verified student host is responsible for college permission, venue access, safety, emergency response and physical operation.",
+            "CrwdCtrl supplies the preset game software, registration, payment, team access, offline synchronization, disputes, refunds, prizes and payout infrastructure.",
+            "Hosts and participants must follow conduct, safety, restricted-location, cancellation, prize and full-registration refund rules shown for the hunt.",
+            "CrwdCtrl may pause gameplay, registration, login, payment or payout where safety, fraud, permission, reconciliation or dispute risks exist.",
+        ],
         intellectual_property: {
             ownership: "All platform content belongs to Crwdctrl unless stated otherwise.",
             restrictions: "Users may not reproduce or modify platform content without consent.",
@@ -282,6 +288,16 @@ export default function TermsAndConditions() {
                                 ))}
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div className={`${isDark ? 'bg-[#111111] border-gray-800' : 'bg-white border-gray-200'} border rounded-lg p-6 mb-6`}>
+                    <div className="flex items-center gap-3 mb-4">
+                        <Shield className="w-6 h-6 text-cyan-500" />
+                        <h2 className="text-lg font-semibold">Self-Service Campus Hunts</h2>
+                    </div>
+                    <div className="space-y-3">
+                        {termsData.hosted_campus_hunts.map((term) => <div key={term} className="flex items-start gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-500 shrink-0 mt-0.5" /><span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{term}</span></div>)}
                     </div>
                 </div>
 

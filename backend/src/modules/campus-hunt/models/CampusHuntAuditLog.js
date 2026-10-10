@@ -9,7 +9,7 @@ const campusHuntAuditLogSchema = new mongoose.Schema(
     },
     actorType: {
       type: String,
-      enum: ['admin', 'volunteer', 'system', 'player'],
+      enum: ['admin', 'host', 'emergency_operator', 'volunteer', 'system', 'player'],
       required: true,
     },
     actorId: { type: String },

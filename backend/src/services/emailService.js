@@ -2222,6 +2222,43 @@ async function sendCollegeGameInviteEmail({ email, name, captainName, gameTitle,
     });
 }
 
+async function sendCampusHuntHostAnnouncementEmail({ email, name, gameTitle, teamName, title, message }) {
+    const frontend = String(process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '');
+    return sendEmail({
+        from: getDefaultFrom(),
+        to: email,
+        subject: `${title} · ${gameTitle}`,
+        html: buildEmailShell({
+            preheader: `${gameTitle} update for ${teamName}`,
+            eyebrow: 'Campus Hunt update',
+            title: escapeHtml(title),
+            subtitle: `${escapeHtml(gameTitle)} · ${escapeHtml(teamName)}`,
+            bodyHtml: `<p>Hi ${escapeHtml(name || 'captain')},</p><p>${escapeHtml(message).replace(/\n/g, '<br />')}</p>`,
+            ctaLabel: 'Open My Registrations',
+            ctaHref: `${frontend}/booking`,
+        }),
+    });
+}
+
+async function sendCampusHuntAuthorityConfirmationEmail({ email, authorityName, gameTitle, hostName, venue, eventDate, token }) {
+    const frontend = String(process.env.FRONTEND_URL || 'https://www.crwdctrl.in').replace(/\/$/, '');
+    const confirmationUrl = `${frontend}/api/games/host-permissions/confirm/${encodeURIComponent(token)}`;
+    return sendEmail({
+        from: getDefaultFrom(),
+        to: email,
+        subject: `Confirm campus permission for ${gameTitle}`,
+        html: buildEmailShell({
+            preheader: `${hostName} requested permission confirmation for a Campus Hunt`,
+            eyebrow: 'Campus permission',
+            title: `Confirm ${escapeHtml(gameTitle)}`,
+            subtitle: `${escapeHtml(venue)} · ${new Date(eventDate).toLocaleDateString('en-IN')}`,
+            bodyHtml: `<p>Hi ${escapeHtml(authorityName)},</p><p>${escapeHtml(hostName)} listed you as the approving college authority. Confirm only if the venue, date and physical operation are authorized by your college.</p>`,
+            ctaLabel: 'Confirm event permission',
+            ctaHref: confirmationUrl,
+        }),
+    });
+}
+
 module.exports = {
     // Generalized functions (ACTIVE)
     sendWelcomeEmail,
@@ -2245,6 +2282,8 @@ module.exports = {
     sendAdminCampaignEmails,
     sendAuditoriumOtpEmail,
     sendCollegeGameInviteEmail,
+    sendCampusHuntHostAnnouncementEmail,
+    sendCampusHuntAuthorityConfirmationEmail,
     previewAdminCampaignEmailHTML,
     previewLoginEmailHTML: generateLoginConfirmationEmailHTML,
     previewWelcomeEmailHTML: generateWelcomeEmailHTML,

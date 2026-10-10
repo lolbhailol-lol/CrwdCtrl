@@ -57,3 +57,66 @@ test('host game requests capture club details and remain actionable in admin', (
   assert.match(admin, />Approve</);
   assert.match(admin, />Reject</);
 });
+
+test('verified hosts get a preset wizard, simple submission flow, and scoped operations', () => {
+  const host = read('../src/features/college-platform/CampusHuntHostPage.jsx');
+  const api = read('../src/features/college-platform/api.js');
+  const routes = read('../src/app/router/publicRoutes.jsx');
+  const control = read('../src/features/campus-hunt/admin/CampusHuntEventControl.jsx');
+  const workflow = read('../src/features/campus-hunt/admin/AdminWorkflowNav.jsx');
+  const guard = read('../src/features/campus-hunt/admin/CampusHuntAdminGuard.jsx');
+  const hostRoutes = read('../../backend/src/modules/college-platform/routes.js');
+  const huntAuth = read('../../backend/src/modules/campus-hunt/middleware/adminAuth.js');
+  for (const copy of ['Places', 'Clues', 'Teams', 'Links', 'Live']) {
+    assert.match(workflow, new RegExp(copy));
+  }
+  assert.match(control, /AdminWorkflowNav/);
+  for (const copy of ['Campus Hunt', 'Offline pass check-in', 'Emergency operator']) assert.match(host, new RegExp(copy));
+  assert.match(api, /check-in-pack\/activate/);
+  assert.match(host, /1\. Close registration/);
+  assert.match(host, /3\. Start Hunt/);
+  assert.match(host, /Complete &amp; finalize/);
+  assert.match(routes, /campus-hunt\/host-mode/);
+  assert.doesNotMatch(host, /Campus Hunt admin password|admin credentials/i);
+  assert.match(api, /college\.id \|\| college\._id/);
+  assert.match(host, /Type your college name/);
+  assert.match(host, /Create from start/);
+  assert.match(host, /Open Campus Hunt control/);
+  assert.match(host, /Submit setup for approval/);
+  assert.match(api, /control-session/);
+  assert.match(hostRoutes, /control-session/);
+  assert.match(read('../../backend/src/modules/college-platform/hostController.js'), /allowIncomplete: true/);
+  assert.match(guard, /campus_hunt_host/);
+  assert.match(huntAuth, /Hunt access is limited to your event/);
+  assert.doesNotMatch(host, /getHostedHuntSetup/);
+  assert.doesNotMatch(host, /Event permission/);
+  assert.doesNotMatch(host, /Your college email proves affiliation/);
+});
+
+test('game pass provides explicit online and offline Campus Hunt handoff', () => {
+  const platform = read('../src/features/college-platform/CollegePlatform.jsx');
+  const controller = read('../../backend/src/modules/college-platform/controller.js');
+  assert.match(platform, /Play online/);
+  assert.match(platform, /Install offline pack/);
+  assert.match(controller, /CampusHuntTeam\.findById/);
+  assert.match(controller, /CampusHuntOfflineInstall\.findOne/);
+  assert.match(controller, /offlineInstallPath/);
+});
+
+test('participants can receive announcements and request moderated support', () => {
+  const page = read('../src/features/college-platform/CollegePlatform.jsx');
+  const controller = read('../../backend/src/modules/college-platform/controller.js');
+  for (const copy of ['Host announcements', 'Request full refund', 'Dispute result within 48 hours', 'Report an issue']) {
+    assert.match(page, new RegExp(copy));
+  }
+  assert.match(controller, /GameAnnouncement\.find/);
+  assert.match(controller, /GameResultDispute\.find/);
+});
+
+test('admin moderation covers provisioning, emergency, refunds, disputes, and host suspension', () => {
+  const admin = read('../src/pages/admin/CollegePlatformPage.jsx');
+  for (const copy of ['Approve 1 year', 'Approve and provision', 'Emergency stop', 'Full refund']) {
+    assert.match(admin, new RegExp(copy));
+  }
+  assert.match(admin, /Resolve \+ suspend host/);
+});

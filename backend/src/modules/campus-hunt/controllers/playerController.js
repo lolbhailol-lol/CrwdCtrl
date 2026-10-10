@@ -1002,11 +1002,15 @@ async function rewindStep(req, res, next) {
 async function getOfflineInstallPack(req, res, next) {
   try {
     const { getInstallBundle } = require('../services/offlineExportService');
-    const data = await getInstallBundle(req.params.token);
+    const data = await getInstallBundle(
+      req.params.token,
+      req.query?.deviceId || '',
+      req.get('user-agent') || '',
+    );
     return res.json({ success: true, data });
   } catch (err) {
     if (err.status) {
-      return res.status(err.status).json({ success: false, message: err.message });
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
     }
     return next(err);
   }
@@ -1015,11 +1019,15 @@ async function getOfflineInstallPack(req, res, next) {
 async function ackOfflineInstall(req, res, next) {
   try {
     const { ackOfflineInstall: ack } = require('../services/offlineExportService');
-    const data = await ack(req.params.token, req.body?.deviceHint || req.get('user-agent') || '');
+    const data = await ack(
+      req.params.token,
+      req.body?.deviceId || '',
+      req.body?.deviceHint || req.get('user-agent') || '',
+    );
     return res.json({ success: true, data });
   } catch (err) {
     if (err.status) {
-      return res.status(err.status).json({ success: false, message: err.message });
+      return res.status(err.status).json({ success: false, message: err.message, code: err.code });
     }
     return next(err);
   }

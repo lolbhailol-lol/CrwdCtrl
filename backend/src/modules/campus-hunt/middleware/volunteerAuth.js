@@ -31,11 +31,17 @@ async function volunteerAuth(req, res, next) {
     }
 
     const access = await CampusHuntVolunteerAccess.findById(decoded.volunteerAccessId);
-    if (!access || !access.enabled) {
+    if (!access || !access.enabled || access.revokedAt) {
       return res.status(403).json({ success: false, message: 'Volunteer access disabled' });
+    }
+    if (access.expiresAt && new Date(access.expiresAt).getTime() <= Date.now()) {
+      return res.status(403).json({ success: false, message: 'Volunteer access expired' });
     }
     if (String(access.eventId) !== String(decoded.eventId)) {
       return res.status(403).json({ success: false, message: 'Volunteer session mismatch' });
+    }
+    if (access.deviceIdHash && access.deviceIdHash !== decoded.deviceIdHash) {
+      return res.status(403).json({ success: false, message: 'Volunteer device binding changed' });
     }
 
     req.huntVolunteer = {

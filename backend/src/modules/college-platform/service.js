@@ -9,6 +9,7 @@ const {
   GameRegistration,
   GameInvite,
   GameResult,
+  GameRefundRequest,
 } = require('./models');
 
 const RESERVATION_MS = 15 * 60 * 1000;
@@ -85,6 +86,12 @@ async function reserveTeamSlot({ gameId, collegeId, user, body }) {
   if (!game) {
     const err = new Error('Game not found or registration is unavailable');
     err.status = 404;
+    throw err;
+  }
+  if (game.ownerHostProfileId && (game.emergencyStoppedAt || game.operationalStatus !== 'published')) {
+    const err = new Error(game.emergencyStoppedAt ? 'Registration is frozen by a CrwdCtrl safety stop' : 'Registration is not open');
+    err.status = 409;
+    err.code = game.emergencyStoppedAt ? 'EMERGENCY_STOP' : 'REGISTRATION_CLOSED';
     throw err;
   }
   if (!college) {
@@ -344,6 +351,20 @@ async function fulfillGameRegistration(paymentOrderInput) {
       College.findById(claimed.collegeId),
     ]);
     if (!game || !college) throw new Error('Game or college was removed');
+    if (game.ownerHostProfileId && (game.emergencyStoppedAt || game.operationalStatus !== 'published')) {
+      claimed.status = 'manual_review';
+      claimed.fulfillmentState = 'review';
+      claimed.paymentOrderId = paymentOrder.orderId;
+      claimed.amountPaid = Number(paymentOrder.totalAmount) || 0;
+      claimed.audit.push({ action: 'paid_after_hosted_hunt_closed', actor: 'payment', detail: { orderId: paymentOrder.orderId, operationalStatus: game.operationalStatus, emergencyStopped: Boolean(game.emergencyStoppedAt) } });
+      await claimed.save();
+      await GameRefundRequest.findOneAndUpdate(
+        { registrationId: claimed._id, status: { $in: ['pending', 'approved', 'processing', 'refunded'] } },
+        { $setOnInsert: { gameId: game._id, requestedByUserId: claimed.captainUserId, reason: 'Payment completed after registration or safety controls closed the Hunt', orderId: paymentOrder.orderId, amount: claimed.amountPaid, status: 'pending', audit: [{ action: 'late_payment_refund_queued', actor: 'payment' }] } },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+      return { registration: claimed, manualReview: true, refundQueued: true };
+    }
     if (claimed.status === 'expired' && !claimed.slotHeld) {
       game = await CollegeGame.findOneAndUpdate(
         { _id: game._id, $expr: { $lt: ['$reservedSlots', '$capacity'] } },

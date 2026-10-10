@@ -5,7 +5,7 @@ const inputClass = 'w-full rounded-lg border border-gray-700 bg-[#191b1d] px-3 p
 const buttonClass = 'rounded-lg bg-[#0ECCEE] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50';
 
 export default function CollegePlatformPage() {
-  const [data, setData] = useState({ games: [], colleges: [], hostRequests: [], registrations: [] });
+  const [data, setData] = useState({ games: [], colleges: [], hostRequests: [], registrations: [], hostPlatform: { hosts: [], games: [], permissions: [], refunds: [], disputes: [], reports: [], payouts: [] } });
   const [college, setCollege] = useState({ name: '', shortName: '', city: '', emailDomains: '' });
   const [game, setGame] = useState({ title: '', slug: '', venue: '', city: '', startsAt: '', teamSize: 4, capacity: 20, feePerTeam: 0, status: 'draft', hostCollegeId: '' });
   const [result, setResult] = useState({ registrationId: '', placement: 1, points: '' });
@@ -15,8 +15,11 @@ export default function CollegePlatformPage() {
 
   const load = async () => {
     try {
-      const response = await adminFetchJSON('/admin/college-platform');
-      setData(response);
+      const [response, hostPlatform] = await Promise.all([
+        adminFetchJSON('/admin/college-platform'),
+        adminFetchJSON('/admin/college-platform/host-platform'),
+      ]);
+      setData({ ...response, hostPlatform });
       setMessage('');
     } catch (error) {
       setMessage(error.message);
@@ -31,14 +34,24 @@ export default function CollegePlatformPage() {
       await adminFetchJSON(path, options);
       await load();
       setMessage('Saved successfully');
+      return true;
     } catch (error) {
       setMessage(error.message);
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
   const post = (path, body, method = 'POST') => run(path, { method, body: JSON.stringify(body) });
+  const saveCollege = async (event) => {
+    event.preventDefault();
+    const saved = await post('/admin/college-platform/colleges', {
+      ...college,
+      emailDomains: college.emailDomains.split(',').map((value) => value.trim()).filter(Boolean),
+    });
+    if (saved) setCollege({ name: '', shortName: '', city: '', emailDomains: '' });
+  };
   const approveSubstitution = (registration, member) => {
     const name = window.prompt('Substitute name', member.name);
     if (!name) return;
@@ -55,8 +68,29 @@ export default function CollegePlatformPage() {
         {message ? <p className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-[#0ECCEE]">{message}</p> : null}
       </div>
 
+      <section className="space-y-4 rounded-xl border border-gray-800 bg-[#111213] p-5">
+        <div><h2 className="text-lg font-semibold">Campus Hunt host approvals</h2><p className="text-sm text-gray-400">Approve verified hosts, then review each submitted Hunt setup.</p></div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {data.hostPlatform.hosts.map((host) => <article key={host._id} className="rounded-lg border border-gray-800 p-4 text-sm"><div className="flex justify-between gap-3"><strong>{host.fullName}</strong><span className="uppercase text-[#0ECCEE]">{host.status}</span></div><p className="mt-2 text-gray-400">{host.collegeId?.shortName || host.collegeId?.name} · {host.clubName || host.roleTitle}</p><div className="mt-3 flex flex-wrap gap-2"><button className="rounded bg-emerald-700 px-3 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosts/${host._id}`, { status: 'approved' }, 'PATCH')}>Approve 1 year</button><button className="rounded bg-amber-700 px-3 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosts/${host._id}`, { status: 'changes_required', adminNotes: window.prompt('Required changes') || '' }, 'PATCH')}>Changes</button><button className="rounded bg-red-900 px-3 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosts/${host._id}`, { status: 'suspended', adminNotes: window.prompt('Suspension reason') || '' }, 'PATCH')}>Suspend</button></div></article>)}
+        </div>
+        {data.hostPlatform.games.filter((item) => item.turnoutDecisionRequested).map((item) => <article key={item._id} className="rounded-lg border border-amber-700/60 p-4 text-sm"><strong>{item.title} · {item.turnoutDecisionRequested} requested</strong><p className="mt-1 text-gray-400">{item.turnoutDecisionReason}</p><div className="mt-3 flex gap-2">{item.turnoutDecisionRequested === 'continuation' ? <button className="rounded bg-emerald-700 px-3 py-1 text-xs" onClick={() => { const topUp = window.prompt('Verified top-up amount'); const paymentReference = window.prompt('Top-up payment reference'); if (topUp && paymentReference) post(`/admin/college-platform/hosted-games/${item._id}/turnout-decision`, { decision: 'continuation', topUp: Number(topUp), paymentReference }); }}>Approve funded continuation</button> : null}<button className="rounded bg-red-900 px-3 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosted-games/${item._id}/turnout-decision`, { decision: 'cancellation' })}>Cancel and queue refunds</button></div></article>)}
+      </section>
+
+      <section className="space-y-4 rounded-xl border border-gray-800 bg-[#111213] p-5">
+        <h2 className="text-lg font-semibold">Submitted Hunts</h2>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {data.hostPlatform.games.filter((item) => ['pending_approval', 'changes_required'].includes(item.approvalStatus)).map((item) => <article key={item._id} className="rounded-lg border border-gray-800 p-4 text-sm"><div className="flex justify-between gap-3"><strong>{item.title}</strong><span className="uppercase text-[#0ECCEE]">{item.approvalStatus.replace(/_/g, ' ')}</span></div><p className="mt-2 text-gray-400">{item.venue} · {item.city}<br />{item.capacity} teams · {item.teamSize} people/team</p><div className="mt-3 flex flex-wrap gap-2"><button className={buttonClass} onClick={() => post(`/admin/college-platform/hosted-games/${item._id}/review`, { status: 'approved' }, 'PATCH')}>Approve and provision</button><button className="rounded bg-amber-700 px-3 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosted-games/${item._id}/review`, { status: 'changes_required', adminNotes: window.prompt('Required changes') || '' }, 'PATCH')}>Request changes</button><button className="rounded bg-red-900 px-3 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosted-games/${item._id}/review`, { status: 'rejected', adminNotes: window.prompt('Rejection reason') || '' }, 'PATCH')}>Reject</button></div></article>)}
+          {!data.hostPlatform.games.some((item) => ['pending_approval', 'changes_required'].includes(item.approvalStatus)) ? <p className="text-sm text-gray-400">No Hunts waiting for review.</p> : null}
+        </div>
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-2">
-        <form className="space-y-3 rounded-xl border border-gray-800 bg-[#111213] p-5" onSubmit={(event) => { event.preventDefault(); post('/admin/college-platform/colleges', { ...college, emailDomains: college.emailDomains.split(',').map((value) => value.trim()).filter(Boolean) }); }}>
+        <div className="space-y-3 rounded-xl border border-gray-800 bg-[#111213] p-5"><h2 className="text-lg font-semibold">Refunds and disputes</h2>{data.hostPlatform.refunds.map((item) => <article key={item._id} className="rounded-lg border border-gray-800 p-3 text-sm"><strong>{item.registrationId?.teamName || 'Registration refund'}</strong><p className="text-gray-400">{item.reason} · ₹{item.amount} · {item.status}</p>{!['refunded', 'rejected'].includes(item.status) ? <div className="mt-2 flex gap-2"><button className="rounded bg-emerald-700 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/refunds/${item._id}/process`, { status: 'approved' })}>Full refund</button><button className="rounded bg-red-900 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/refunds/${item._id}/process`, { status: 'rejected', adminNotes: window.prompt('Reason') || '' })}>Reject</button></div> : null}</article>)}{data.hostPlatform.disputes.map((item) => <article key={item._id} className="rounded-lg border border-gray-800 p-3 text-sm"><strong>{item.registrationId?.teamName || 'Result dispute'}</strong><p className="text-gray-400">{item.reason} · {item.status}</p>{item.status === 'open' ? <div className="mt-2 flex gap-2"><button className="rounded bg-emerald-700 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/disputes/${item._id}/resolve`, { status: 'upheld', resolution: window.prompt('Resolution') || 'Upheld' })}>Uphold</button><button className="rounded bg-gray-700 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/disputes/${item._id}/resolve`, { status: 'rejected', resolution: window.prompt('Resolution') || 'Rejected' })}>Reject</button></div> : null}</article>)}</div>
+        <div className="space-y-3 rounded-xl border border-gray-800 bg-[#111213] p-5"><h2 className="text-lg font-semibold">Safety reports and emergency</h2>{data.hostPlatform.reports.map((item) => <article key={item._id} className="rounded-lg border border-gray-800 p-3 text-sm"><strong>{item.type}</strong><p className="text-gray-400">{item.message} · {item.status}</p>{!['resolved', 'dismissed'].includes(item.status) ? <div className="mt-2 flex gap-2"><button className="rounded bg-gray-700 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/reports/${item._id}/resolve`, { status: 'resolved', resolution: window.prompt('Resolution') || 'Resolved' })}>Resolve</button><button className="rounded bg-red-900 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/reports/${item._id}/resolve`, { status: 'resolved', resolution: window.prompt('Suspension reason') || 'Safety moderation', suspendHost: true })}>Resolve + suspend host</button></div> : null}</article>)}{data.hostPlatform.games.filter((item) => item.operationalStatus === 'live').map((item) => <article key={item._id} className="rounded-lg border border-red-900/60 p-3 text-sm"><strong>{item.title}</strong><div className="mt-2 flex gap-2">{item.emergencyStoppedAt ? <button className="rounded bg-emerald-700 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosted-games/${item._id}/clear-emergency-stop`, {})}>Clear stop</button> : <button className="rounded bg-red-800 px-2 py-1 text-xs" onClick={() => post(`/admin/college-platform/hosted-games/${item._id}/emergency-stop`, { reason: window.prompt('Emergency reason') || 'Admin emergency stop' })}>Emergency stop</button>}<button className="rounded bg-gray-700 px-2 py-1 text-xs" onClick={() => run(`/admin/college-platform/hosted-games/${item._id}/reconcile`)}>Reconcile</button></div></article>)}</div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <form className="space-y-3 rounded-xl border border-gray-800 bg-[#111213] p-5" onSubmit={saveCollege}>
           <h2 className="text-lg font-semibold">Add approved college</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <input className={inputClass} placeholder="College name" required value={college.name} onChange={(event) => setCollege({ ...college, name: event.target.value })} />

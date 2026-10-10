@@ -17,7 +17,6 @@ import {
   HuntPageHeader,
   HuntPageShell,
   HuntPrimaryButton,
-  HuntSectionLabel,
   MissionProgress,
 } from './HuntV2Shell';
 
@@ -301,8 +300,6 @@ export default function TeamLoginForm({
         <HuntPageHeader title="Join Your Team" backTo={eventBackPath} />
         <div className="hunt-v2-content">
           <MissionProgress label="Team access" step={7} />
-          <HuntSectionLabel>Team access</HuntSectionLabel>
-
           <section className="hunt-v2-card hunt-v2-card-accent p-4">
             <div className="flex items-center gap-3">
               <img src="/campus-hunt/v2/team-hero.svg" alt="" className="h-12 w-12" />

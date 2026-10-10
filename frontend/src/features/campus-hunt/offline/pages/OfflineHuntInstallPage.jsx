@@ -18,12 +18,12 @@ import {
   purgeHuntAppCaches,
 } from '../refreshHuntAppShell';
 import { rememberInstallToken, applyServerStartOverIfNeeded } from '../startOverHunt';
+import { getOfflineDeviceId } from '../offlineBoardSync';
 import { dismissBootOverlays } from '../../../../utils/dismissBootOverlays';
 import {
   HuntPageHeader,
   HuntPageShell,
   HuntPrimaryButton,
-  HuntSectionLabel,
   MissionProgress,
 } from '../../components/HuntV2Shell';
 
@@ -131,7 +131,8 @@ export default function OfflineHuntInstallPage() {
           return;
         }
 
-        const res = await fetchOfflineInstallPack(token);
+        const deviceId = getOfflineDeviceId();
+        const res = await fetchOfflineInstallPack(token, deviceId);
         const pack = res.data?.bundle || res.bundle;
         if (!pack?.team?.teamCode) throw new Error('Install pack is empty');
 
@@ -158,7 +159,7 @@ export default function OfflineHuntInstallPage() {
         setStatus('ready');
         setPackNote('Pack saved — caching Hunt for airplane mode…');
         try {
-          await ackOfflineInstallPack(token, navigator.userAgent || '');
+          await ackOfflineInstallPack(token, deviceId, navigator.userAgent || '');
         } catch { /* best-effort */ }
         await warmupOfflineHunt({ timeoutMs: 16000 }).catch(() => {});
         if (!cancelled) {
@@ -229,7 +230,6 @@ export default function OfflineHuntInstallPage() {
         <HuntPageHeader title="Offline Pack" backTo={CAMPUS_HUNT_PATHS.offline} />
         <div className="hunt-v2-content">
           <MissionProgress label="Offline kit" step={6} />
-          <HuntSectionLabel>Offline kit</HuntSectionLabel>
 
           {status === 'loading' ? (
             <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-pack-hero">

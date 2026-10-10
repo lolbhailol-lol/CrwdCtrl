@@ -144,6 +144,24 @@ async function userJson(url, options = {}) {
   return data;
 }
 
+function hostControlGameId() {
+  try {
+    const token = localStorage.getItem('campus_hunt_admin_token');
+    const payload = JSON.parse(atob(String(token || '').split('.')[1] || ''));
+    return payload.role === 'campus_hunt_host' ? payload.gameId : '';
+  } catch { return ''; }
+}
+
+function hostControlOperation(action, body = {}) {
+  const gameId = hostControlGameId();
+  if (!gameId) return null;
+  return userJson(`/games/host/campus-hunts/${gameId}/operations/${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 export async function fetchCampusHuntStatus() {
   return publicFetchJSON(`${BASE}/status`);
 }
@@ -651,6 +669,8 @@ export async function adminListAudit(eventId) {
 }
 
 export async function adminStartRound(roundId, body = {}) {
+  const hostRequest = hostControlOperation('start', body);
+  if (hostRequest) return hostRequest;
   return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/start`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -658,6 +678,8 @@ export async function adminStartRound(roundId, body = {}) {
 }
 
 export async function adminLockRound(roundId, body = {}) {
+  const hostRequest = hostControlOperation('complete', body);
+  if (hostRequest) return hostRequest;
   return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/lock`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -665,6 +687,7 @@ export async function adminLockRound(roundId, body = {}) {
 }
 
 export async function adminReopenRound(roundId, body = {}) {
+  if (hostControlGameId()) throw new Error('Only CrwdCtrl admin can reopen and reset a completed Hunt');
   return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/reopen`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -672,6 +695,8 @@ export async function adminReopenRound(roundId, body = {}) {
 }
 
 export async function adminFinalizeLeaderboard(roundId, body = {}) {
+  const hostRequest = hostControlOperation('complete', body);
+  if (hostRequest) return hostRequest;
   return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/finalize-leaderboard`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -812,6 +837,8 @@ export async function adminGetStartDashboard(eventId) {
 }
 
 export async function adminSetRoundReleasesPaused(roundId, paused, body = {}) {
+  const hostRequest = hostControlOperation(paused ? 'pause' : 'resume', body);
+  if (hostRequest) return hostRequest;
   return adminFetchJSON(`${BASE}/admin/rounds/${roundId}/releases/${paused ? 'pause' : 'resume'}`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -1020,14 +1047,15 @@ export async function adminListOfflineInstalls(eventId) {
 }
 
 /** Public: one-time-prep install link (home Wi‑Fi). After save, play is local. */
-export async function fetchOfflineInstallPack(token) {
-  return publicFetchJSON(`${BASE}/offline-install/${encodeURIComponent(token)}`);
+export async function fetchOfflineInstallPack(token, deviceId = '') {
+  const query = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
+  return publicFetchJSON(`${BASE}/offline-install/${encodeURIComponent(token)}${query}`);
 }
 
-export async function ackOfflineInstallPack(token, deviceHint = '') {
+export async function ackOfflineInstallPack(token, deviceId = '', deviceHint = '') {
   return publicFetchJSON(`${BASE}/offline-install/${encodeURIComponent(token)}/ack`, {
     method: 'POST',
-    body: JSON.stringify({ deviceHint }),
+    body: JSON.stringify({ deviceId, deviceHint }),
   });
 }
 

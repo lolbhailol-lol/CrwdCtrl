@@ -15,7 +15,7 @@ function hasUsableAdminSession() {
     if (!token) continue;
     const payload = parseJwt(token);
     if (!payload || payload.type === 'refresh') continue;
-    if (payload.role !== 'campus_hunt_admin' && payload.role !== 'admin') continue;
+    if (!['campus_hunt_admin', 'campus_hunt_host', 'admin'].includes(payload.role)) continue;
     if (payload.exp && payload.exp * 1000 < Date.now()) continue;
     return true;
   }
