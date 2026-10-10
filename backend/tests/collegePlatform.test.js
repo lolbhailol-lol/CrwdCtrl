@@ -158,3 +158,51 @@ test('admin college save is idempotent by normalized slug', async () => {
     College.findOneAndUpdate = originalFindOneAndUpdate;
   }
 });
+
+test('pre-registration accepts a valid MIT-WPU team and normalizes the phone', () => {
+  const { value, error } = collegePlatformController.validatePreRegistration({
+    gameKey: 'mit-wpu-campus-hunt',
+    teamName: '  Clue   Crew ',
+    captainName: 'Asha Patil',
+    phone: '+91 98765 43210',
+    email: 'Asha@Example.com',
+    collegeName: 'MIT-WPU',
+    teamSize: '4',
+  });
+  assert.equal(error, undefined);
+  assert.deepEqual(value, {
+    gameKey: 'mit-wpu-campus-hunt',
+    teamName: 'Clue Crew',
+    captainName: 'Asha Patil',
+    phone: '9876543210',
+    email: 'asha@example.com',
+    collegeName: 'MIT-WPU',
+    teamSize: 4,
+  });
+});
+
+test('pre-registration rejects unknown games, bad phones and oversized teams', () => {
+  const base = { gameKey: 'mit-wpu-campus-hunt', teamName: 'A', captainName: 'B', phone: '9876543210', email: 'a@b.co', collegeName: 'C' };
+  assert.match(collegePlatformController.validatePreRegistration({ ...base, gameKey: 'coep-campus-hunt' }).error, /not open/);
+  assert.match(collegePlatformController.validatePreRegistration({ ...base, phone: '12345' }).error, /mobile/);
+  assert.match(collegePlatformController.validatePreRegistration({ ...base, email: 'nope' }).error, /email/);
+  assert.match(collegePlatformController.validatePreRegistration({ ...base, teamSize: 5 }).error, /Team size/);
+});
+
+test('pre-registration returns 409 when the same phone registers twice', async () => {
+  const { GamePreRegistration } = require('../src/modules/college-platform/models');
+  const originalCreate = GamePreRegistration.create;
+  GamePreRegistration.create = async () => { const err = new Error('dup'); err.code = 11000; throw err; };
+  let statusCode;
+  let body;
+  const res = { status(code) { statusCode = code; return this; }, json(payload) { body = payload; return this; } };
+  try {
+    await collegePlatformController.createPreRegistration({
+      body: { gameKey: 'mit-wpu-campus-hunt', teamName: 'A', captainName: 'B', phone: '9876543210', email: 'a@b.co', collegeName: 'C' },
+    }, res, (err) => { throw err; });
+  } finally {
+    GamePreRegistration.create = originalCreate;
+  }
+  assert.equal(statusCode, 409);
+  assert.equal(body.success, false);
+});

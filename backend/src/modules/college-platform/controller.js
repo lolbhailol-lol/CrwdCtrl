@@ -7,6 +7,7 @@ const {
   GameInvite,
   GameResult,
   HostGameRequest,
+  GamePreRegistration,
   GameAnnouncement,
   GameRefundRequest,
   GameResultDispute,
@@ -391,6 +392,49 @@ exports.createHostRequest = async (req, res, next) => {
   }
 };
 
+const PRE_REGISTRATION_GAMES = {
+  'mit-wpu-campus-hunt': { maxTeamSize: 4 },
+};
+
+function validatePreRegistration(body = {}) {
+  const gameKey = String(body.gameKey || '').trim().toLowerCase();
+  const game = PRE_REGISTRATION_GAMES[gameKey];
+  if (!game) return { error: 'Pre-registration is not open for this game' };
+  const teamName = String(body.teamName || '').trim().replace(/\s+/g, ' ');
+  const captainName = String(body.captainName || '').trim().replace(/\s+/g, ' ');
+  const email = String(body.email || '').trim().toLowerCase();
+  const collegeName = String(body.collegeName || '').trim().replace(/\s+/g, ' ');
+  const phone = String(body.phone || '').replace(/\D/g, '').replace(/^(91|0)(?=\d{10}$)/, '');
+  if (!teamName || teamName.length > 60) return { error: 'Enter a team name up to 60 characters' };
+  if (!captainName || captainName.length > 80) return { error: 'Enter the captain name' };
+  if (!/^[6-9]\d{9}$/.test(phone)) return { error: 'Enter a valid 10-digit mobile number' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) return { error: 'Enter a valid email address' };
+  if (!collegeName || collegeName.length > 120) return { error: 'Enter your college name' };
+  let teamSize = null;
+  if (body.teamSize !== undefined && body.teamSize !== null && body.teamSize !== '') {
+    teamSize = Number(body.teamSize);
+    if (!Number.isInteger(teamSize) || teamSize < 1 || teamSize > game.maxTeamSize) {
+      return { error: `Team size must be between 1 and ${game.maxTeamSize}` };
+    }
+  }
+  return { value: { gameKey, teamName, captainName, phone, email, collegeName, teamSize } };
+}
+exports.validatePreRegistration = validatePreRegistration;
+
+exports.createPreRegistration = async (req, res, next) => {
+  try {
+    const { error, value } = validatePreRegistration(req.body);
+    if (error) return res.status(400).json({ success: false, message: error });
+    const entry = await GamePreRegistration.create({ ...value, submittedByUserId: req.user?.userId || null });
+    return res.status(201).json({ success: true, preRegistrationId: String(entry._id) });
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ success: false, message: 'This mobile number has already pre-registered a team' });
+    }
+    return next(err);
+  }
+};
+
 function collegePayload(body = {}, { partial = false } = {}) {
   const output = {};
   const put = (key, value) => { if (!partial || body[key] !== undefined) output[key] = value; };
@@ -432,13 +476,14 @@ function gamePayload(body = {}) {
 
 exports.adminList = async (req, res, next) => {
   try {
-    const [games, colleges, hostRequests, registrations] = await Promise.all([
+    const [games, colleges, hostRequests, registrations, preRegistrations] = await Promise.all([
       CollegeGame.find().populate('hostCollegeId', 'name shortName').sort({ createdAt: -1 }).lean(),
       College.find().sort({ name: 1 }).lean(),
       HostGameRequest.find().sort({ createdAt: -1 }).limit(100).lean(),
       GameRegistration.find().populate('gameId', 'title').populate('collegeId', 'name shortName').sort({ createdAt: -1 }).limit(200).lean(),
+      GamePreRegistration.find().sort({ createdAt: -1 }).limit(500).lean(),
     ]);
-    return res.json({ success: true, games, colleges, hostRequests, registrations });
+    return res.json({ success: true, games, colleges, hostRequests, registrations, preRegistrations });
   } catch (err) {
     return next(err);
   }
@@ -489,6 +534,17 @@ exports.adminUpdateHostRequest = async (req, res, next) => {
     const request = await HostGameRequest.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!request) return res.status(404).json({ message: 'Host request not found' });
     return res.json({ success: true, request });
+  } catch (err) { return next(err); }
+};
+
+exports.adminUpdatePreRegistration = async (req, res, next) => {
+  try {
+    if (!['new', 'contacted', 'converted', 'cancelled'].includes(req.body.status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+    const entry = await GamePreRegistration.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
+    if (!entry) return res.status(404).json({ message: 'Pre-registration not found' });
+    return res.json({ success: true, preRegistration: entry });
   } catch (err) { return next(err); }
 };
 

@@ -116,3 +116,11 @@
 .college-host-game-card{grid-template-columns:auto 1fr auto;padding:.75rem}
 .college-host-game-card>a{grid-column:auto;min-height:2.35rem;padding:0 .8rem;white-space:nowrap}
 .college-status-chip--soon{display:inline-flex;align-items:center;gap:.3rem;background:#fff4d6;color:#6c4b00}.college-game-card__interest{display:flex;align-items:center;justify-content:center;gap:.45rem;border-top:1px solid #dde0e7;padding:.75rem;color:#087a82;font-size:.76rem;font-weight:600}.college-page--dark .college-status-chip--soon{background:#493b16;color:#ffe59a}.college-page--dark .college-game-card__interest{border-color:#353840;color:#42d6df}
+.college-game-card__interest--button{width:100%;background:transparent;border-left:0;border-right:0;border-bottom:0;cursor:pointer;font:inherit;font-size:.82rem;font-weight:700}
+.college-game-card__interest--button:hover{background:rgba(14,204,238,.08)}
+.college-prereg-form{display:grid;gap:.75rem;max-width:none;padding:1rem;border-top:1px solid #dde0e7}
+.college-prereg-form__actions{display:flex;gap:.6rem;justify-content:flex-end}
+.college-prereg-form__actions .college-primary-button{flex:1}
+html.dark .college-prereg-form,.college-page--dark .college-prereg-form{border-color:#353840}
+html.dark .college-prereg-form input,html.dark .college-prereg-form select{background:#1c1e22;border-color:#33585c}
+@media(min-width:768px){.college-prereg-form{grid-template-columns:repeat(2,minmax(0,1fr))}.college-prereg-form .college-error,.college-prereg-form__actions{grid-column:1/-1}}

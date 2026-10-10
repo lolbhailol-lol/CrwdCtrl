@@ -200,12 +200,26 @@ const hostRequestSchema = new mongoose.Schema({
   submittedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 }, { timestamps: true });
 
+const preRegistrationSchema = new mongoose.Schema({
+  gameKey: { type: String, required: true, trim: true, index: true },
+  teamName: { type: String, required: true, trim: true, maxlength: 60 },
+  captainName: { type: String, required: true, trim: true, maxlength: 80 },
+  phone: { type: String, required: true, trim: true },
+  email: { type: String, required: true, trim: true, lowercase: true, maxlength: 120 },
+  collegeName: { type: String, required: true, trim: true, maxlength: 120 },
+  teamSize: { type: Number, min: 1, max: 10, default: null },
+  status: { type: String, enum: ['new', 'contacted', 'converted', 'cancelled'], default: 'new', index: true },
+  submittedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+}, { timestamps: true });
+preRegistrationSchema.index({ gameKey: 1, phone: 1 }, { unique: true });
+
 const College = mongoose.models.College || mongoose.model('College', collegeSchema);
 const CollegeGame = mongoose.models.CollegeGame || mongoose.model('CollegeGame', gameSchema);
 const GameRegistration = mongoose.models.GameRegistration || mongoose.model('GameRegistration', registrationSchema);
 const GameInvite = mongoose.models.GameInvite || mongoose.model('GameInvite', inviteSchema);
 const GameResult = mongoose.models.GameResult || mongoose.model('GameResult', resultSchema);
 const HostGameRequest = mongoose.models.HostGameRequest || mongoose.model('HostGameRequest', hostRequestSchema);
+const GamePreRegistration = mongoose.models.GamePreRegistration || mongoose.model('GamePreRegistration', preRegistrationSchema);
 
 module.exports = {
   College,
@@ -214,5 +228,6 @@ module.exports = {
   GameInvite,
   GameResult,
   HostGameRequest,
+  GamePreRegistration,
   ...require('./hostModels'),
 };

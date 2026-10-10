@@ -5,13 +5,14 @@ const inputClass = 'w-full rounded-lg border border-gray-700 bg-[#191b1d] px-3 p
 const buttonClass = 'rounded-lg bg-[#0ECCEE] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50';
 
 export default function CollegePlatformPage() {
-  const [data, setData] = useState({ games: [], colleges: [], hostRequests: [], registrations: [], hostPlatform: { hosts: [], games: [], permissions: [], refunds: [], disputes: [], reports: [], payouts: [] } });
+  const [data, setData] = useState({ games: [], colleges: [], hostRequests: [], registrations: [], preRegistrations: [], hostPlatform: { hosts: [], games: [], permissions: [], refunds: [], disputes: [], reports: [], payouts: [] } });
   const [college, setCollege] = useState({ name: '', shortName: '', city: '', emailDomains: '' });
   const [game, setGame] = useState({ title: '', slug: '', venue: '', city: '', startsAt: '', teamSize: 4, capacity: 20, feePerTeam: 0, status: 'draft', hostCollegeId: '' });
   const [result, setResult] = useState({ registrationId: '', placement: 1, points: '' });
   const [qrToken, setQrToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [preRegCsv, setPreRegCsv] = useState('');
 
   const load = async () => {
     try {
@@ -44,6 +45,13 @@ export default function CollegePlatformPage() {
   };
 
   const post = (path, body, method = 'POST') => run(path, { method, body: JSON.stringify(body) });
+  const preRegistrations = data.preRegistrations || [];
+  const buildPreRegCsv = () => {
+    const cell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const rows = [['Game', 'Team', 'Captain', 'Phone', 'Email', 'College', 'Team size', 'Status', 'Submitted']]
+      .concat(preRegistrations.map((item) => [item.gameKey, item.teamName, item.captainName, item.phone, item.email, item.collegeName, item.teamSize || '', item.status, new Date(item.createdAt).toLocaleString('en-IN')]));
+    setPreRegCsv(rows.map((row) => row.map(cell).join(',')).join('\n'));
+  };
   const saveCollege = async (event) => {
     event.preventDefault();
     const saved = await post('/admin/college-platform/colleges', {
@@ -188,6 +196,31 @@ export default function CollegePlatformPage() {
             <button className={buttonClass} disabled={busy}>Validate and check in</button>
           </form>
         </div>
+      </section>
+
+      <section className="rounded-xl border border-gray-800 bg-[#111213] p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="text-lg font-semibold">Pre-registrations</h2><p className="text-sm text-gray-400">{preRegistrations.length} teams waiting for coming-soon games.</p></div>
+          {preRegistrations.length ? <button className="rounded bg-gray-700 px-3 py-1.5 text-xs" onClick={buildPreRegCsv}>Show CSV</button> : null}
+        </div>
+        {preRegCsv ? <textarea readOnly className={`${inputClass} mb-4 h-32 font-mono text-xs`} value={preRegCsv} onFocus={(event) => event.target.select()} /> : null}
+        {!preRegistrations.length ? <p className="rounded-lg border border-dashed border-gray-700 p-4 text-sm text-gray-500">No pre-registrations yet.</p> : (
+          <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-sm"><thead className="text-gray-500"><tr><th className="pb-3">Game</th><th>Team</th><th>Captain</th><th>Phone</th><th>Email</th><th>College</th><th>Size</th><th>Status</th><th>Submitted</th></tr></thead><tbody>
+            {preRegistrations.map((item) => (
+              <tr key={item._id} className="border-t border-gray-800 align-top">
+                <td className="py-3 text-gray-400">{item.gameKey}</td>
+                <td className="font-semibold">{item.teamName}</td>
+                <td>{item.captainName}</td>
+                <td>{item.phone}</td>
+                <td className="break-all">{item.email}</td>
+                <td>{item.collegeName}</td>
+                <td>{item.teamSize || '—'}</td>
+                <td><select className="rounded border border-gray-700 bg-[#191b1d] px-2 py-1 text-xs" value={item.status} disabled={busy} onChange={(event) => post(`/admin/college-platform/pre-registrations/${item._id}`, { status: event.target.value }, 'PUT')}>{['new', 'contacted', 'converted', 'cancelled'].map((status) => <option key={status} value={status}>{status}</option>)}</select></td>
+                <td className="text-xs text-gray-400">{new Date(item.createdAt).toLocaleString('en-IN')}</td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        )}
       </section>
 
       <section className="rounded-xl border border-gray-800 bg-[#111213] p-5">

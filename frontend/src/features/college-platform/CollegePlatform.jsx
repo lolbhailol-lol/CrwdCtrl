@@ -52,6 +52,7 @@ import {
   requestMyGameRefund,
   reserveGame,
   submitHostGame,
+  submitPreRegistration,
 } from './api';
 import './collegePlatform.css';
 
@@ -59,6 +60,7 @@ const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
 const MIT_WPU_CAMPUS_HUNT = {
   id: 'mit-wpu-campus-hunt-coming-soon',
+  preRegistrationKey: 'mit-wpu-campus-hunt',
   title: 'Campus Hunt: MIT-WPU',
   coverImage: '/campus-hunt/v2/mit-wpu-hunt.svg',
   venue: 'MIT-WPU',
@@ -141,7 +143,34 @@ function GameCard({ game }) {
   );
 }
 
+const EMPTY_PRE_REGISTRATION = { teamName: '', captainName: '', phone: '', email: '', collegeName: '', teamSize: '' };
+
 function ComingSoonGameCard({ game }) {
+  const storageKey = `crwdctrl_prereg_${game.preRegistrationKey}`;
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_PRE_REGISTRATION);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [doneTeam, setDoneTeam] = useState(() => {
+    try { return localStorage.getItem(storageKey) || ''; } catch { return ''; }
+  });
+  const updateField = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError('');
+    try {
+      await submitPreRegistration({ ...form, gameKey: game.preRegistrationKey });
+      try { localStorage.setItem(storageKey, form.teamName.trim()); } catch { /* storage unavailable */ }
+      setDoneTeam(form.teamName.trim());
+      setOpen(false);
+      setForm(EMPTY_PRE_REGISTRATION);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
   return (
     <article className="college-game-card college-game-card--coming-soon">
       <div className="college-game-card__main">
@@ -161,7 +190,25 @@ function ComingSoonGameCard({ game }) {
           </div>
         </div>
       </div>
-      <div className="college-game-card__interest"><Sparkles size={16} />Pre-register your team name · opening soon</div>
+      {doneTeam ? (
+        <div className="college-game-card__interest"><Check size={16} />{doneTeam} is pre-registered · we will message you when registration opens</div>
+      ) : open ? (
+        <form className="college-form college-prereg-form" onSubmit={submit}>
+          <label>Team name *<input value={form.teamName} onChange={updateField('teamName')} maxLength={60} required /></label>
+          <label>Captain name *<input value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" required /></label>
+          <label>Mobile number *<input type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" required /></label>
+          <label>Email *<input type="email" value={form.email} onChange={updateField('email')} autoComplete="email" required /></label>
+          <label>College *<input value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} required /></label>
+          <label>Team size<select value={form.teamSize} onChange={updateField('teamSize')}><option value="">Not sure yet</option>{Array.from({ length: game.teamSize }, (_, index) => index + 1).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+          {error ? <p className="college-error">{error}</p> : null}
+          <div className="college-prereg-form__actions">
+            <button type="button" className="college-secondary-button" onClick={() => { setOpen(false); setError(''); }}>Cancel</button>
+            <button className="college-primary-button" disabled={submitting}>{submitting ? 'Saving…' : 'Pre-register team'}</button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className="college-game-card__interest college-game-card__interest--button" onClick={() => setOpen(true)}><Sparkles size={16} />Pre-register your team name</button>
+      )}
     </article>
   );
 }

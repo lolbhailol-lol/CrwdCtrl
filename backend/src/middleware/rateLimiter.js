@@ -223,6 +223,14 @@ const competitionRegisterLimiter = rateLimit({
   message: { success: false, message: 'Too many registration attempts. Please try again later.' },
 });
 
+const gamePreRegistrationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 200 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many pre-registration attempts. Please try again later.' },
+});
+
 /** Registration uploads — same user/IP split as payments for fest rush */
 const registrationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -363,6 +371,7 @@ module.exports = {
   paymentLimiter,
   paymentQuoteLimiter,
   competitionRegisterLimiter,
+  gamePreRegistrationLimiter,
   registrationLimiter,
   auditoriumOtpLimiter,
   auditoriumActionLimiter,
