@@ -2,18 +2,22 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchMysteryCases, fetchMysteryEvents } from '../services/mystery.api';
 import { MYSTERY_PATHS } from '../config';
+import MysteryCaseCard from '../components/MysteryCaseCard';
 
 export default function MysteryLandingPage() {
   const [cases, setCases] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
         const [c, e] = await Promise.all([fetchMysteryCases(), fetchMysteryEvents()]);
-        setCases(c.data || c || []);
+        setCases((c.data || c || []).filter((x) => x.status === 'published'));
         setEvents(e.data || e || []);
+      } catch (err) {
+        setError(err.message || 'Could not load cases');
       } finally {
         setLoading(false);
       }
@@ -21,40 +25,29 @@ export default function MysteryLandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-5 py-10 text-white">
-      <div className="mx-auto max-w-2xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">CTRL Mystery</p>
-        <h1 className="mt-2 text-3xl font-bold">Crack the case</h1>
-        <p className="mt-2 text-white/60">
-          Already have a team? <Link to={MYSTERY_PATHS.enter} className="text-[#0ECCEE] underline">Enter with team code</Link>
-        </p>
+    <div className="min-h-screen bg-[#0b0c0d] px-5 py-8 text-white">
+      <div className="mx-auto max-w-3xl">
+        <div className="relative overflow-hidden rounded-2xl border border-white/10 p-6">
+          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, #0ECCEE2e, transparent 60%)' }} />
+          <div className="relative">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">CTRL Mystery</p>
+            <h1 className="mt-2 text-3xl font-bold">Crack the case</h1>
+            <p className="mt-2 max-w-md text-sm text-white/60">Evidence unlock karo, leads follow karo, aur sahi theory solve karke apni team ko top pe le jao.</p>
+            <Link to={MYSTERY_PATHS.enter} className="mt-4 inline-block text-sm text-[#0ECCEE] underline">Already have a team? Enter with team code →</Link>
+          </div>
+        </div>
 
         {loading && <p className="mt-8 text-white/40">Loading cases…</p>}
+        {error && <p className="mt-8 text-sm text-rose-300">{error}</p>}
+        {!loading && !error && cases.length === 0 && (
+          <p className="mt-8 rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/40">Abhi koi case published nahi hai.</p>
+        )}
 
-        <div className="mt-8 grid gap-4">
-          {cases.map((c) => (
-            <div key={c._id} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <h2 className="text-lg font-bold">{c.title}</h2>
-              <p className="mt-1 text-sm text-white/60">{c.tagline}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link
-                  to={MYSTERY_PATHS.practice(c._id)}
-                  className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold"
-                >
-                  Try solo (practice)
-                </Link>
-                {events.filter((ev) => ev.caseId === c._id).map((ev) => (
-                  <Link
-                    key={ev._id}
-                    to={MYSTERY_PATHS.register(c._id) + `?eventId=${ev._id}`}
-                    className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black"
-                  >
-                    Register — {ev.college || 'Live event'}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          {cases.map((c) => {
+            const liveEvent = events.find((ev) => (ev.caseId === c._id || ev.caseId?._id === c._id) && ev.status === 'registration_open');
+            return <MysteryCaseCard key={c._id} mysteryCase={c} event={liveEvent} />;
+          })}
         </div>
       </div>
     </div>

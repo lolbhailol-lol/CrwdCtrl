@@ -3,7 +3,6 @@ import { Camera, X } from 'lucide-react';
 import jsQR from 'jsqr';
 
 const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 let mysterySessionStream = null;
 
 async function acquireCameraStream() {
@@ -47,13 +46,8 @@ export function releaseMysteryCameraSession() {
   }
 }
 
-/** QR scanner for CTRL Mystery evidence unlock — web-only (no native app yet). */
 export default function MysteryQrScanner({
-  onScan,
-  onClose,
-  active = true,
-  accentHex = '#0ECCEE',
-  keepSessionOnUnmount = true,
+  onScan, onClose, active = true, accentHex = '#0ECCEE', keepSessionOnUnmount = true,
 }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -66,10 +60,7 @@ export default function MysteryQrScanner({
   useEffect(() => { onScanRef.current = onScan; }, [onScan]);
 
   const pauseDecode = useCallback(() => {
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     setRunning(false);
   }, []);
 
@@ -88,9 +79,7 @@ export default function MysteryQrScanner({
     if (!value || value === lastPayloadRef.current) return;
     lastPayloadRef.current = value;
     onScanRef.current?.(value);
-    setTimeout(() => {
-      if (lastPayloadRef.current === value) lastPayloadRef.current = '';
-    }, 1600);
+    setTimeout(() => { if (lastPayloadRef.current === value) lastPayloadRef.current = ''; }, 1600);
   }, []);
 
   const startDecodeLoop = useCallback(() => {
@@ -100,10 +89,7 @@ export default function MysteryQrScanner({
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
     const tick = () => {
-      if (!video.videoWidth) {
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
+      if (!video.videoWidth) { rafRef.current = requestAnimationFrame(tick); return; }
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -171,9 +157,7 @@ export default function MysteryQrScanner({
           style={{ borderColor: accentHex, boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)' }}
         />
         {!running && !error && (
-          <div className="absolute inset-0 flex items-center justify-center text-sm text-white/50">
-            Starting camera…
-          </div>
+          <div className="absolute inset-0 flex items-center justify-center text-sm text-white/50">Starting camera…</div>
         )}
       </div>
       {error && <p className="px-3 pb-3 text-sm text-red-300">{error}</p>}

@@ -37,14 +37,7 @@ export default function MysteryFinalSubmitForm({ onSubmit, busy }) {
       </label>
       <label className="mt-3 block text-xs text-white/50">
         Confidence: {confidenceLevel}%
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={confidenceLevel}
-          onChange={(e) => setConfidenceLevel(e.target.value)}
-          className="mt-2 w-full"
-        />
+        <input type="range" min={0} max={100} value={confidenceLevel} onChange={(e) => setConfidenceLevel(e.target.value)} className="mt-2 w-full" />
       </label>
       <button
         type="button"

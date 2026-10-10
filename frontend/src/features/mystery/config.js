@@ -8,4 +8,6 @@ export const MYSTERY_PATHS = {
   practice: (caseId) => `/mystery/case/${caseId}/practice`,
   play: '/mystery/play',
   leaderboard: (eventId) => `/mystery/leaderboard/${eventId}`,
+  adminDashboard: '/admin/mystery',
+  adminCase: (caseId) => `/admin/mystery/case/${caseId}`,
 };

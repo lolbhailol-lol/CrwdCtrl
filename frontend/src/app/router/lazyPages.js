@@ -183,3 +183,5 @@ export const MysteryTeamEnterPage = lazyWithRetry(() => import('../../features/m
 export const MysteryPracticePage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryPracticePage'));
 export const MysteryPlayPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryPlayPage'));
 export const MysteryLeaderboardPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryLeaderboardPage'));
+export const MysteryAdminDashboard = lazyWithRetry(() => import('../../features/mystery/admin/MysteryAdminDashboard'));
+export const MysteryCaseBuilder = lazyWithRetry(() => import('../../features/mystery/admin/MysteryCaseBuilder'));

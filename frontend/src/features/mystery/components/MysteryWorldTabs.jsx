@@ -14,9 +14,7 @@ export default function MysteryWorldTabs({ active, onChange }) {
           key={w.id}
           type="button"
           onClick={() => onChange(w.id)}
-          className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-            active === w.id ? 'bg-[#0ECCEE] text-black' : 'bg-white/5 text-white/60'
-          }`}
+          className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition ${active === w.id ? 'bg-[#0ECCEE] text-black' : 'bg-white/5 text-white/60'}`}
         >
           {w.label}
         </button>

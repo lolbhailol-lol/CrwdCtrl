@@ -1,32 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  enqueueOfflineAction,
-  readQueuedActions,
-  removeQueuedAction,
-} from './mysteryOfflineDb';
-import {
-  chooseInvestigationBranch,
-  setEvidenceTrust,
-  submitFinalCase,
-  unlockEvidenceByQr,
-} from '../services/mystery.api';
+import { enqueueOfflineAction, readQueuedActions, removeQueuedAction } from './mysteryOfflineDb';
+import { chooseInvestigationBranch, setEvidenceTrust, submitFinalCase, unlockEvidenceByQr } from '../services/mystery.api';
 
 async function runAction(teamId, action) {
   switch (action.type) {
-    case 'unlock-qr':
-      return unlockEvidenceByQr(teamId, action.payload.qrSecret);
-    case 'branch':
-      return chooseInvestigationBranch(teamId, action.payload.branchId, action.payload.leadId);
-    case 'trust':
-      return setEvidenceTrust(teamId, action.payload.evidenceId, action.payload.decision);
-    case 'final-submit':
-      return submitFinalCase(teamId, action.payload);
-    default:
-      return null;
+    case 'unlock-qr': return unlockEvidenceByQr(teamId, action.payload.qrSecret);
+    case 'branch': return chooseInvestigationBranch(teamId, action.payload.branchId, action.payload.leadId);
+    case 'trust': return setEvidenceTrust(teamId, action.payload.evidenceId, action.payload.decision);
+    case 'final-submit': return submitFinalCase(teamId, action.payload);
+    default: return null;
   }
 }
 
-/** Queues Mystery actions while offline, auto-flushes them in order on reconnect. */
 export function useMysteryOfflineQueue(teamId) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
@@ -50,10 +35,7 @@ export function useMysteryOfflineQueue(teamId) {
           await runAction(teamId, item);
           // eslint-disable-next-line no-await-in-loop
           await removeQueuedAction(item.id);
-        } catch {
-          // Stop at first failure — keep order, retry next time we come online
-          break;
-        }
+        } catch { break; }
       }
     } finally {
       flushingRef.current = false;
@@ -67,9 +49,7 @@ export function useMysteryOfflineQueue(teamId) {
     refreshPendingCount();
   }, [teamId, refreshPendingCount]);
 
-  useEffect(() => {
-    refreshPendingCount();
-  }, [refreshPendingCount]);
+  useEffect(() => { refreshPendingCount(); }, [refreshPendingCount]);
 
   useEffect(() => {
     const onOnline = () => { setIsOnline(true); flush(); };

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchInvestigationState } from '../services/mystery.api';
 
-/** Simple polling hook — no SSE backend yet for Mystery, 4s interval is enough. */
 export function useMysteryTeam(teamId, { enabled = true } = {}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(Boolean(teamId) && enabled);
@@ -27,9 +26,7 @@ export function useMysteryTeam(teamId, { enabled = true } = {}) {
     }
   }, [teamId, enabled]);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
     if (!teamId || !enabled) return undefined;

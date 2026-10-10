@@ -3,14 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import useMysteryAuth from '../hooks/useMysteryAuth';
 import { useMysteryTeam } from '../hooks/useMysteryTeam';
 import {
-  acknowledgeFightsBack,
-  chooseInvestigationBranch,
-  connectEvidencePair,
-  fetchPendingFightsBack,
-  setEvidenceTrust,
-  startInvestigation,
-  submitFinalCase,
-  unlockEvidenceByQr,
+  acknowledgeFightsBack, chooseInvestigationBranch, fetchPendingFightsBack,
+  setEvidenceTrust, startInvestigation, submitFinalCase, unlockEvidenceByQr,
 } from '../services/mystery.api';
 import { MYSTERY_PATHS } from '../config';
 import MysteryQrScanner from '../components/MysteryQrScanner';
@@ -38,31 +32,24 @@ export default function MysteryPlayPage() {
   const [fightsBack, setFightsBack] = useState(null);
 
   useEffect(() => {
-    if (!isMysteryAuthenticated) {
-      navigate(MYSTERY_PATHS.enter, { replace: true });
-    }
+    if (!isMysteryAuthenticated) navigate(MYSTERY_PATHS.enter, { replace: true });
   }, [isMysteryAuthenticated, navigate]);
 
-  // First load: online → fetch + cache; offline → read cache
   useEffect(() => {
     if (!teamId) return;
     if (!data && !loading) {
       if (isOnline) {
         startInvestigation(teamId).catch(() => {}).finally(refresh);
       } else {
-        readCachedInvestigationState(teamId).then((cached) => {
-          if (cached) setData(cached);
-        });
+        readCachedInvestigationState(teamId).then((cached) => { if (cached) setData(cached); });
       }
     }
   }, [teamId, data, loading, isOnline, refresh, setData]);
 
-  // Cache every fresh state for offline fallback
   useEffect(() => {
     if (data && teamId) cacheInvestigationState(teamId, data);
   }, [data, teamId]);
 
-  // Poll for Mystery Fights Back twists only while online
   useEffect(() => {
     if (!teamId || !isOnline) return undefined;
     const id = setInterval(() => {
@@ -155,95 +142,51 @@ export default function MysteryPlayPage() {
   return (
     <div className="min-h-screen bg-[#0b0c0d] pb-28 text-white">
       <MysteryOfflineBanner isOnline={isOnline} pendingCount={pendingCount} />
-
       <div className="mx-auto max-w-2xl px-5 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">
-              {data?.team?.teamName || 'Investigation'}
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">{data?.team?.teamName || 'Investigation'}</p>
             <h1 className="mt-1 text-xl font-bold">{data?.case?.title || 'CTRL Mystery'}</h1>
           </div>
-          <button
-            type="button"
-            onClick={() => { clearMysteryAuth(); navigate(MYSTERY_PATHS.landing); }}
-            className="text-xs text-white/40 underline"
-          >
-            Exit
-          </button>
+          <button type="button" onClick={() => { clearMysteryAuth(); navigate(MYSTERY_PATHS.landing); }} className="text-xs text-white/40 underline">Exit</button>
         </div>
 
         {error && !data && <p className="mt-6 text-sm text-rose-300">{error}</p>}
         {loading && !data && <p className="mt-6 text-white/40">Loading investigation…</p>}
 
-        {activeBranch && (
-          <div className="mt-6">
-            <MysteryBranchPicker branch={activeBranch} onChoose={handleBranchChoice} />
-          </div>
-        )}
+        {activeBranch && <div className="mt-6"><MysteryBranchPicker branch={activeBranch} onChoose={handleBranchChoice} /></div>}
 
-        <div className="mt-6">
-          <MysteryWorldTabs active={worldFilter} onChange={setWorldFilter} />
-        </div>
+        <div className="mt-6"><MysteryWorldTabs active={worldFilter} onChange={setWorldFilter} /></div>
 
         <div className="mt-4 grid gap-3">
           {filtered.map((ev) => (
             <div key={ev._id || ev.id}>
               <MysteryEvidenceCard evidence={ev} />
               <div className="mt-2 flex gap-2 pl-1">
-                <button
-                  type="button"
-                  onClick={() => handleTrustDecision(ev._id || ev.id, 'reliable')}
-                  className="rounded-lg border border-emerald-400/30 px-3 py-1 text-xs text-emerald-300"
-                >
-                  Mark reliable
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTrustDecision(ev._id || ev.id, 'unreliable')}
-                  className="rounded-lg border border-rose-400/30 px-3 py-1 text-xs text-rose-300"
-                >
-                  Mark unreliable
-                </button>
+                <button type="button" onClick={() => handleTrustDecision(ev._id || ev.id, 'reliable')} className="rounded-lg border border-emerald-400/30 px-3 py-1 text-xs text-emerald-300">Mark reliable</button>
+                <button type="button" onClick={() => handleTrustDecision(ev._id || ev.id, 'unreliable')} className="rounded-lg border border-rose-400/30 px-3 py-1 text-xs text-rose-300">Mark unreliable</button>
               </div>
             </div>
           ))}
           {!loading && filtered.length === 0 && (
-            <p className="rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/40">
-              Abhi tak koi evidence unlock nahi hua — QR scan karke shuru karo.
-            </p>
+            <p className="rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/40">Abhi tak koi evidence unlock nahi hua — QR scan karke shuru karo.</p>
           )}
         </div>
 
-        {caseReadyToSubmit && (
-          <div className="mt-8">
-            <MysteryFinalSubmitForm onSubmit={handleFinalSubmit} busy={submitBusy} />
-          </div>
-        )}
+        {caseReadyToSubmit && <div className="mt-8"><MysteryFinalSubmitForm onSubmit={handleFinalSubmit} busy={submitBusy} /></div>}
       </div>
 
-      {/* Floating scan button */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#0b0c0d]/95 px-5 py-4 backdrop-blur">
         <div className="mx-auto max-w-2xl">
           {scanMessage && <p className="mb-2 text-center text-xs text-white/60">{scanMessage}</p>}
-          <button
-            type="button"
-            onClick={() => setScannerOpen(true)}
-            className="w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black"
-          >
-            Scan evidence QR
-          </button>
+          <button type="button" onClick={() => setScannerOpen(true)} className="w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black">Scan evidence QR</button>
         </div>
       </div>
 
       {scannerOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/80 px-5">
           <div className="w-full max-w-sm">
-            <MysteryQrScanner
-              active={scannerOpen}
-              onScan={handleScan}
-              onClose={() => setScannerOpen(false)}
-            />
+            <MysteryQrScanner active={scannerOpen} onScan={handleScan} onClose={() => setScannerOpen(false)} />
             {scanBusy && <p className="mt-2 text-center text-xs text-white/50">Checking…</p>}
           </div>
         </div>
@@ -254,13 +197,7 @@ export default function MysteryPlayPage() {
           <div className="w-full max-w-sm rounded-2xl border border-rose-400/40 bg-[#1a0d0d] p-5 text-center">
             <p className="text-xs font-bold uppercase tracking-wide text-rose-300">Mystery Fights Back</p>
             <p className="mt-2 text-sm text-white/80">{fightsBack.systemMessage || 'One of your evidence pieces has been invalidated.'}</p>
-            <button
-              type="button"
-              onClick={handleAckFightsBack}
-              className="mt-4 w-full rounded-xl bg-rose-400 py-2.5 text-sm font-bold text-black"
-            >
-              Acknowledge
-            </button>
+            <button type="button" onClick={handleAckFightsBack} className="mt-4 w-full rounded-xl bg-rose-400 py-2.5 text-sm font-bold text-black">Acknowledge</button>
           </div>
         </div>
       )}

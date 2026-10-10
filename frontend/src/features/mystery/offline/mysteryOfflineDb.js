@@ -8,12 +8,8 @@ function openDb() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STATE_STORE)) {
-        db.createObjectStore(STATE_STORE, { keyPath: 'teamId' });
-      }
-      if (!db.objectStoreNames.contains(QUEUE_STORE)) {
-        db.createObjectStore(QUEUE_STORE, { keyPath: 'id', autoIncrement: true });
-      }
+      if (!db.objectStoreNames.contains(STATE_STORE)) db.createObjectStore(STATE_STORE, { keyPath: 'teamId' });
+      if (!db.objectStoreNames.contains(QUEUE_STORE)) db.createObjectStore(QUEUE_STORE, { keyPath: 'id', autoIncrement: true });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -31,15 +27,10 @@ async function withStore(storeName, mode, fn) {
   });
 }
 
-/** Cache the latest investigation-state snapshot for offline viewing. */
 export async function cacheInvestigationState(teamId, state) {
   try {
-    await withStore(STATE_STORE, 'readwrite', (store) => {
-      store.put({ teamId, state, savedAt: Date.now() });
-    });
-  } catch {
-    // Browser storage can fail (private mode, quota) — never block the UI for this.
-  }
+    await withStore(STATE_STORE, 'readwrite', (store) => { store.put({ teamId, state, savedAt: Date.now() }); });
+  } catch { /* storage can fail — never block UI */ }
 }
 
 export async function readCachedInvestigationState(teamId) {
@@ -51,12 +42,9 @@ export async function readCachedInvestigationState(teamId) {
       req.onsuccess = () => resolve(req.result?.state || null);
       req.onerror = () => resolve(null);
     });
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-/** Queue an action taken while offline — flushed in order once back online. */
 export async function enqueueOfflineAction(teamId, action) {
   try {
     const db = await openDb();
@@ -66,9 +54,7 @@ export async function enqueueOfflineAction(teamId, action) {
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export async function readQueuedActions(teamId) {
@@ -80,15 +66,11 @@ export async function readQueuedActions(teamId) {
       req.onsuccess = () => resolve((req.result || []).filter((a) => a.teamId === teamId));
       req.onerror = () => resolve([]);
     });
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 export async function removeQueuedAction(id) {
   try {
     await withStore(QUEUE_STORE, 'readwrite', (store) => store.delete(id));
-  } catch {
-    // best-effort
-  }
+  } catch { /* best-effort */ }
 }
