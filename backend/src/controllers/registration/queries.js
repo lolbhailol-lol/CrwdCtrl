@@ -16,24 +16,33 @@ const getMyStallCoupon = async (req, res) => {
     const { festId } = req.params;
     const userId = req.user.userId;
 
-
-    const coupon = await StallCoupon.findOne({ festId, userId });
-
     const fest = await findByIdOrSlug(FestOrganizer, festId, {
       lean: true,
       pickName: (row) => row.festName || row.name || '',
       select: '_id stallBrand stallDiscountPercent festName',
     });
+
     if (!fest) {
       return res.status(404).json({ error: 'Fest not found' });
     }
 
-    let coupon = await StallCoupon.findOne({ festId: fest._id, userId });
+    let coupon = await StallCoupon.findOne({
+      festId: fest._id,
+      userId,
+    });
+
     if (!coupon && fest.stallBrand) {
-      // Heal: paid fulfillment paths used to skip coupons — assign on first fetch if eligible
-      const hasRegistration = await Registration.exists({ fest: fest._id, user: userId });
+      const hasRegistration = await Registration.exists({
+        fest: fest._id,
+        user: userId,
+      });
+
       if (hasRegistration) {
-        const assigned = await assignStallCouponIfEligible({ fest, userId });
+        const assigned = await assignStallCouponIfEligible({
+          fest,
+          userId,
+        });
+
         if (assigned) {
           return res.status(200).json({
             code: assigned.code,
@@ -43,33 +52,27 @@ const getMyStallCoupon = async (req, res) => {
           });
         }
       }
-      return res.status(404).json({ error: 'No coupon found for this fest' });
     }
-
 
     if (!coupon) {
-      return res.status(404).json({ error: 'No coupon found for this fest' });
+      return res.status(404).json({
+        error: 'No coupon found for this fest',
+      });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       code: coupon.code,
       brand: coupon.brand,
-
-      isRedeemed: coupon.isRedeemed,
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch coupon' });
-  }
-};
-
-module.exports = { getMyStallCoupon, /* ... baaki existing exports yahi rakho */ };
-
-      discountPercent: coupon.discountPercent || fest.stallDiscountPercent || 20,
+      discountPercent:
+        coupon.discountPercent || fest.stallDiscountPercent || 20,
       isRedeemed: coupon.isRedeemed,
     });
   } catch (err) {
     logger.error('getMyStallCoupon failed:', err.message);
-    res.status(500).json({ error: 'Failed to fetch coupon' });
+
+    return res.status(500).json({
+      error: 'Failed to fetch coupon',
+    });
   }
 };
 

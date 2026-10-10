@@ -9,9 +9,6 @@ const { findByIdOrSlug } = require('../../utils/slug');
 const { resolveFestCompetitionId, extractCompetitionChoice } = require('../../utils/festCompetitionAssignment');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
 
-const StallCoupon = require('../../model/stall_coupon_model');
-const { generateUniqueStallCouponCode } = require('../../utils/generateStallCouponCode');
-
 const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
 
 
@@ -277,37 +274,7 @@ const submitRegistration = async (req, res) => {
     logger.debug('✅ Registration saved:', registration._id);
 
 
-    // 🎟️ Fest ka brand configured hai to coupon assign karo (college se koi matlab nahi)
-    let stallCoupon = null;
-    if (fest.stallBrand) {
-      try {
-        stallCoupon = await StallCoupon.findOne({ festId: festObjectId, userId });
-
-        if (!stallCoupon) {
-          const code = await generateUniqueStallCouponCode();
-          try {
-            stallCoupon = await StallCoupon.create({
-              festId: festObjectId,
-              userId,
-              brand: fest.stallBrand,
-              code,
-            });
-            logger.debug('🎟️ Stall coupon assigned:', code);
-          } catch (dupErr) {
-            // Do parallel register-calls ek saath aa jayein to duplicate-key error;
-            // us case me jo pehle create hua wahi utha lo
-            if (dupErr.code === 11000) {
-              stallCoupon = await StallCoupon.findOne({ festId: festObjectId, userId });
-            } else {
-              throw dupErr;
-            }
-          }
-        }
-      } catch (couponErr) {
-        // Coupon fail hone se poori registration fail NAHI honi chahiye
-        logger.error('❌ Stall coupon assignment failed:', couponErr.message);
-      }
-    }
+   
 
     const stallCoupon = await assignStallCouponIfEligible({ fest, userId });
 
@@ -330,11 +297,11 @@ const submitRegistration = async (req, res) => {
         submittedAt: registration.submittedAt
       },
 
-      stallCoupon: stallCoupon
-        ? { code: stallCoupon.code, brand: stallCoupon.brand }
-        : null,
+      // stallCoupon: stallCoupon
+      //   ? { code: stallCoupon.code, brand: stallCoupon.brand }
+      //   : null,
 
-      stallCoupon: stallCoupon || null,
+      // stallCoupon: stallCoupon || null,
 
     });
 

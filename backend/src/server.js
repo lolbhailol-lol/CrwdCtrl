@@ -116,11 +116,24 @@ async function startServer() {
       });
       if (reason instanceof Error) captureException(reason);
     });
+  // } catch (err) {
+  //   logger.error('Failed to start server', { error: err.message });
+  //   captureException(err);
+  //   process.exit(1);
+  // }
   } catch (err) {
-    logger.error('Failed to start server', { error: err.message });
-    captureException(err);
-    process.exit(1);
-  }
+  console.error('❌ FAILED TO START SERVER');
+  console.error(err);
+  console.error(err.stack);
+
+  logger.error('Failed to start server', {
+    error: err.message,
+    stack: err.stack,
+  });
+
+  captureException(err);
+  process.exit(1);
+}
 }
 
 startServer();
