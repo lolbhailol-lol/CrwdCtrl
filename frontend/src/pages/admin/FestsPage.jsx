@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import FestTable from '../../components/admin/FestTable';
+import CatalogImageRecoveryPanel from '../../components/admin/CatalogImageRecoveryPanel';
 
 export default function FestsPage() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export default function FestsPage() {
           Section placement
         </button>
       </div>
+      <CatalogImageRecoveryPanel />
       <FestTable />
     </div>
   );

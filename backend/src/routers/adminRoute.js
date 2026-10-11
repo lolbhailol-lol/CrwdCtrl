@@ -12,6 +12,7 @@ const adminOutreachCtrl = require('../controllers/adminOutreachController');
 const adminSectionCtrl = require('../controllers/adminSectionController');
 const homepageSectionCtrl = require('../controllers/homepageSectionController');
 const uploadCtrl = require('../controllers/uploadController');
+const catalogImageRecoveryCtrl = require('../controllers/adminCatalogImageRecoveryController');
 const { parseTicketPrice } = require('../utils/platformFee');
 const {
   sanitizeCompetitionFeeTiers,
@@ -58,6 +59,9 @@ router.post('/clear-cache', adminAuth, (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to clear cache' });
   }
 });
+
+// ===== APPLY PREPARED, LICENSED FEST / COMPETITION IMAGE RECOVERY =====
+router.post('/catalog-images/recovery/apply', adminAuth, catalogImageRecoveryCtrl.applyRecovery);
 
 // ===== ADMIN LOGIN =====
 router.post('/login', adminAuthLimiter, adminAuthCtrl.adminLogin);
