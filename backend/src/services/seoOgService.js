@@ -110,6 +110,11 @@ function isBrandLogoFest(fest) {
     || name.includes('mindspark') || slug.includes('mindspark');
 }
 
+function isHalloweenSundowner(event = {}) {
+  return event.slug === 'halloween-sundowner-rush-31-oct-2026'
+    || String(event._id || event.id || '') === '6acb3e646d833eb479e3e403';
+}
+
 const ROUTES = [
   {
     test: /^\/view-details\/([^/]+)\/?$/,
@@ -227,6 +232,14 @@ async function loadSportsEvent(id, { preferPortrait = false } = {}) {
     lean: true,
   });
   if (!event) return null;
+  if (isHalloweenSundowner(event)) {
+    return {
+      title: event.title,
+      description: event.description,
+      image: `${SITE_URL}/images/halloween-sundowner-rush-poster-square.jpg`,
+      squareShareImage: true,
+    };
+  }
   return {
     title: event.title,
     description: event.description,
@@ -261,6 +274,7 @@ function buildOgHtml({
   path,
   containShareImage = true,
   portraitShareImage = false,
+  squareShareImage = false,
   padColor,
 }) {
   const safeTitle = title || SITE_NAME;
@@ -272,8 +286,8 @@ function buildOgHtml({
     portrait: portraitShareImage,
   });
   const fullTitle = safeTitle.includes(SITE_NAME) ? safeTitle : `${safeTitle} | ${SITE_NAME}`;
-  const ogW = portraitShareImage ? 800 : 1200;
-  const ogH = portraitShareImage ? 1040 : 630;
+  const ogW = 1200;
+  const ogH = squareShareImage ? 1200 : portraitShareImage ? 1040 : 630;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -327,6 +341,7 @@ async function resolveOgHtml(pathname) {
     image: item.image,
     containShareImage: item.containShareImage,
     portraitShareImage: item.portraitShareImage,
+    squareShareImage: item.squareShareImage,
     padColor: item.padColor,
     path,
   });

@@ -272,22 +272,25 @@ export default function RunEventDetailPage() {
 
     const club = event.runClub || null;
     const coverImg = resolveCoverImage(event, 'hero') || event.coverImage || null;
-    const shareRaw =
-        resolveCoverImage(event, 'cardPortrait')
-        || primaryCoverUrl(event.coverImages || {}, event.coverImage)
-        || coverImg;
-    const shareImage = toOgShareImageUrl(shareRaw, { contain: true, portrait: true });
-    // Keep the Halloween poster in its portrait gallery frame while excluding other cover leaks.
-    const coverSlots = event.coverImages || {};
-    const coverSet = new Set(
-        [coverImg, coverSlots.portrait, coverSlots.wide, coverSlots.hero, coverSlots.square, coverSlots.landscape, coverSlots.video]
-            .filter(Boolean),
-    );
     const isHalloweenSundowner = event.slug === 'halloween-sundowner-rush-31-oct-2026'
         || String(event._id || event.id || '') === '6acb3e646d833eb479e3e403';
     const posterGalleryImage = isHalloweenSundowner
         ? '/images/halloween-sundowner-rush-poster-square.webp'
         : null;
+    const shareRaw = isHalloweenSundowner
+        ? '/images/halloween-sundowner-rush-poster-square.jpg'
+        : resolveCoverImage(event, 'cardPortrait')
+            || primaryCoverUrl(event.coverImages || {}, event.coverImage)
+            || coverImg;
+    const shareImage = isHalloweenSundowner
+        ? toOgShareImageUrl(shareRaw)
+        : toOgShareImageUrl(shareRaw, { contain: true, portrait: true });
+    // Keep the Halloween poster in its own gallery frame; other cover leaks stay excluded.
+    const coverSlots = event.coverImages || {};
+    const coverSet = new Set(
+        [coverImg, coverSlots.portrait, coverSlots.wide, coverSlots.hero, coverSlots.square, coverSlots.landscape, coverSlots.video]
+            .filter(Boolean),
+    );
     const galleryImages = (event.images || []).filter((u) => u && (!coverSet.has(u) || u === posterGalleryImage));
     const images = posterGalleryImage
         ? [posterGalleryImage]
@@ -313,13 +316,13 @@ export default function RunEventDetailPage() {
     const termSections = groupTermsAndConditions(terms);
 
     const handleShare = () => {
-        shareContent({ title: event.title, url: window.location.href });
+        shareContent({ title: event.title, url: window.location.href, imageUrl: shareImage });
     };
 
     const canonicalPath = sportRunPath(event || { id });
 
     return (
-        <div className="crwdctrl-page flex flex-col min-h-screen" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
+        <div className="crwdctrl-page flex flex-col min-h-screen" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', paddingBottom: isHalloweenSundowner ? 'calc(6rem + var(--safe-bottom))' : undefined }}>
             <Seo
                 title={event.title || 'Run Event'}
                 description={desc}
@@ -345,7 +348,7 @@ export default function RunEventDetailPage() {
                 ]}
             />
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
-            <div className={`relative w-full ${posterIsActive ? 'aspect-square max-h-[90vh]' : 'h-[396px]'} shrink-0 overflow-hidden`}>
+            <div className={`relative w-full ${posterIsActive ? 'h-[min(125vw,calc(100svh-11rem))]' : 'h-[396px]'} shrink-0 overflow-hidden`}>
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
