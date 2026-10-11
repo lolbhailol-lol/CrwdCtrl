@@ -46,6 +46,17 @@ function filterRegistrationFields(fields = []) {
     return (fields || []).filter((f) => !isInternalFormKey(f?.fieldName));
 }
 
+function attendeeContactFields(people = 1) {
+    return Array.from({ length: Math.max(0, Number(people) - 1) }, (_, index) => {
+        const number = index + 2;
+        return [
+            { fieldName: `attendee_${number}_full_name`, label: `Ticket holder ${number} name`, type: 'text' },
+            { fieldName: `attendee_${number}_email`, label: `Ticket holder ${number} email`, type: 'email' },
+            { fieldName: `attendee_${number}_contact_no`, label: `Ticket holder ${number} mobile`, type: 'tel' },
+        ];
+    }).flat();
+}
+
 /** Post-game fuel + skill answers for confirmation emails (Touch Grass–style forms). */
 function pickRegistrationEmailExtras(formSchema = [], formData = {}) {
     const fields = filterRegistrationFields(
@@ -431,7 +442,10 @@ function applyOrganizerFormAnswers(formSchema = [], currentResponses = {}, answe
 
 function formatParticipantSheetRow(reg, event = null) {
     const row = formatParticipantRow(reg, event);
-    const formSchema = mergeFormSchemaForDisplay(event?.registration?.formSchema || []);
+    const formSchema = mergeFormSchemaForDisplay([
+        ...(event?.registration?.formSchema || []),
+        ...attendeeContactFields(row.people),
+    ]);
     const base = responsesToObject(reg);
     const formData = {
         ...base,
@@ -520,7 +534,10 @@ function buildParticipantTimeline(reg, event = null) {
 
 function formatParticipantDetail(reg, event = null) {
     const row = formatParticipantRow(reg, event);
-    const formSchema = mergeFormSchemaForDisplay(event?.registration?.formSchema || []);
+    const formSchema = mergeFormSchemaForDisplay([
+        ...(event?.registration?.formSchema || []),
+        ...attendeeContactFields(row.people),
+    ]);
     const baseForm = responsesToObject(reg);
     const formData = {
         ...baseForm,

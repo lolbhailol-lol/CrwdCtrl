@@ -1068,6 +1068,23 @@ export default function RunEventBookingPage() {
                 return !val;
             });
             if (missing.length > 0) { setError(`Please fill: ${missing.map((f) => f.label).join(', ')}`); return; }
+            for (let attendeeNumber = 2; attendeeNumber <= people; attendeeNumber += 1) {
+                const name = String(mergedFields[`attendee_${attendeeNumber}_full_name`] || '').trim();
+                const email = String(mergedFields[`attendee_${attendeeNumber}_email`] || '').trim();
+                const phone = String(mergedFields[`attendee_${attendeeNumber}_contact_no`] || '').replace(/\D/g, '');
+                if (!name || !email || !phone) {
+                    setError(`Please complete the name, email and mobile number for ticket holder ${attendeeNumber}.`);
+                    return;
+                }
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    setError(`Enter a valid email for ticket holder ${attendeeNumber}.`);
+                    return;
+                }
+                if (phone.length !== 10) {
+                    setError(`Enter a 10-digit mobile number for ticket holder ${attendeeNumber}.`);
+                    return;
+                }
+            }
 
             const customerEmail = String(
                 mergedFields.email || mergedFields.e_mail_id || mergedFields.e_mail || '',
@@ -1973,6 +1990,48 @@ export default function RunEventBookingPage() {
                                         {renderField(field)}
                                     </div>
                                 ))}
+
+                                {people > 1 ? (
+                                    <div className={`pt-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                        <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            Details for the other {people - 1} {people === 2 ? 'attendee' : 'attendees'}
+                                        </h3>
+                                        <p className={`text-xs mt-1 mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            Add each ticket holder so the club has everyone’s contact details.
+                                        </p>
+                                        <div className="space-y-4">
+                                            {Array.from({ length: people - 1 }, (_, index) => {
+                                                const attendeeNumber = index + 2;
+                                                const attendeeFields = [
+                                                    { key: `attendee_${attendeeNumber}_full_name`, label: 'Full name', type: 'text', autoComplete: 'name' },
+                                                    { key: `attendee_${attendeeNumber}_email`, label: 'Email', type: 'email', autoComplete: 'email' },
+                                                    { key: `attendee_${attendeeNumber}_contact_no`, label: 'Mobile number', type: 'tel', autoComplete: 'tel' },
+                                                ];
+                                                return (
+                                                    <section key={attendeeNumber} className={`rounded-xl border p-3 ${isDark ? 'border-gray-700 bg-[#0E0F10]' : 'border-gray-200 bg-gray-50'}`}>
+                                                        <h4 className={`text-xs font-semibold mb-3 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Ticket holder {attendeeNumber}</h4>
+                                                        <div className="space-y-3">
+                                                            {attendeeFields.map((field) => (
+                                                                <label key={field.key} className={`block text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                                    {field.label} <span className="text-red-400">*</span>
+                                                                    <input
+                                                                        type={field.type}
+                                                                        autoComplete={field.autoComplete}
+                                                                        value={extraFields[field.key] || ''}
+                                                                        onChange={(e) => setExtraFieldValue(field.key, field.type === 'tel' ? e.target.value.replace(/\D/g, '').slice(0, 10) : e.target.value)}
+                                                                        onFocus={scrollFieldIntoView}
+                                                                        required
+                                                                        className={`${inp} mt-1`}
+                                                                    />
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </section>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
                     )}

@@ -71,13 +71,44 @@ test('organizer row keeps gender, drink, skill, people and coupon', () => {
   assert.equal(byName.addOnSelected, undefined);
 });
 
+test('group booking attendee contacts are included in organizer registration fields', () => {
+  const row = formatParticipantSheetRow(sampleReg({
+    bookingPeople: 2,
+    responses: {
+      ...sampleReg().responses,
+      attendee_2_full_name: 'Mira Shah',
+      attendee_2_email: 'mira@example.com',
+      attendee_2_contact_no: '9123456789',
+    },
+  }), EVENT);
+  const fields = Object.fromEntries((row.registrationFields || []).map((field) => [field.fieldName, field]));
+  assert.equal(fields.attendee_2_full_name.value, 'Mira Shah');
+  assert.equal(fields.attendee_2_email.value, 'mira@example.com');
+  assert.equal(fields.attendee_2_contact_no.value, '9123456789');
+});
+
 test('organizer detail includes booking people and labeled form answers', () => {
-  const detail = formatParticipantDetail(sampleReg({ bookingPeople: 3, amountPaid: 1497, amountBeforeDiscount: 1587, couponDiscount: 90 }), EVENT);
+  const detail = formatParticipantDetail(sampleReg({
+    bookingPeople: 3,
+    amountPaid: 1497,
+    amountBeforeDiscount: 1587,
+    couponDiscount: 90,
+    responses: {
+      ...sampleReg().responses,
+      attendee_2_full_name: 'Mira Shah',
+      attendee_2_email: 'mira@example.com',
+      attendee_2_contact_no: '9123456789',
+    },
+  }), EVENT);
   assert.equal(detail.people, 3);
   assert.equal(detail.bookingDetails.people, 3);
   assert.equal(detail.participantGender, 'Female');
   const labels = (detail.registrationFields || []).map((f) => f.label);
   assert.ok(labels.includes('Post-Game Fuel at cafe Mokaroma'));
+  assert.ok(labels.includes('Ticket holder 2 name'));
+  assert.ok(labels.includes('Ticket holder 3 email'));
+  const byName = Object.fromEntries((detail.registrationFields || []).map((f) => [f.fieldName, f]));
+  assert.equal(byName.attendee_2_full_name.value, 'Mira Shah');
   assert.ok(labels.includes('How would you rate yourself as a badminton player?'));
 });
 

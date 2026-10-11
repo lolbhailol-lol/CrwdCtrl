@@ -238,6 +238,20 @@ exports.registerForEvent = async (req, res) => {
                     missingFields: missingRequired,
                 });
             }
+
+            if (event.runClubId && people > 1) {
+                const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                for (let attendeeNumber = 2; attendeeNumber <= people; attendeeNumber += 1) {
+                    const name = String(responses[`attendee_${attendeeNumber}_full_name`] || '').trim();
+                    const email = String(responses[`attendee_${attendeeNumber}_email`] || '').trim();
+                    const phone = String(responses[`attendee_${attendeeNumber}_contact_no`] || '').replace(/\D/g, '');
+                    if (!name || !EMAIL_REGEX.test(email) || phone.length !== 10) {
+                        return res.status(400).json({
+                            message: `Please enter a name, valid email and 10-digit mobile number for ticket holder ${attendeeNumber}.`,
+                        });
+                    }
+                }
+            }
         }
 
         const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
