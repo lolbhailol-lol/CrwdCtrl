@@ -277,15 +277,22 @@ export default function RunEventDetailPage() {
         || primaryCoverUrl(event.coverImages || {}, event.coverImage)
         || coverImg;
     const shareImage = toOgShareImageUrl(shareRaw, { contain: true, portrait: true });
-    // Gallery uploads only — strip any card/cover URLs that leaked into images[]
+    // Keep the Halloween poster in its portrait gallery frame while excluding other cover leaks.
     const coverSlots = event.coverImages || {};
     const coverSet = new Set(
         [coverImg, coverSlots.portrait, coverSlots.wide, coverSlots.hero, coverSlots.square, coverSlots.landscape, coverSlots.video]
             .filter(Boolean),
     );
-    const galleryImages = (event.images || []).filter((u) => u && !coverSet.has(u));
-    // Keep the card poster in cover slots; the detail carousel shows gallery uploads only.
-    const images = galleryImages.length ? galleryImages : [null];
+    const isHalloweenSundowner = event.slug === 'halloween-sundowner-rush-31-oct-2026'
+        || String(event._id || event.id || '') === '6acb3e646d833eb479e3e403';
+    const posterGalleryImage = isHalloweenSundowner
+        ? (event.images || []).find((url) => url?.includes('halloween-sundowner-rush-poster-2026.png')) || null
+        : null;
+    const galleryImages = (event.images || []).filter((u) => u && (!coverSet.has(u) || u === posterGalleryImage));
+    const images = posterGalleryImage
+        ? [posterGalleryImage, ...galleryImages.filter((url) => url !== posterGalleryImage)]
+        : galleryImages.length ? galleryImages : [null];
+    const posterIsActive = Boolean(posterGalleryImage && images[imgPg] === posterGalleryImage);
     const communityName = club?.name || event.organizer || '';
     const mapPin = resolveRunMapPin(event);
     const mapQuery = mapPin.query;
@@ -338,7 +345,7 @@ export default function RunEventDetailPage() {
                 ]}
             />
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
-            <div className="relative w-full h-[396px] shrink-0 overflow-hidden">
+            <div className={`relative w-full ${posterIsActive ? 'aspect-[1587/2245] max-h-[90vh]' : 'h-[396px]'} shrink-0 overflow-hidden`}>
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
@@ -365,9 +372,10 @@ export default function RunEventDetailPage() {
                                         <img
                                         src={getImageUrl(img, { preset: 'eventHeroFit' })}
                                         alt={event.title}
-                                        className={`w-full h-full object-contain object-center content-image pointer-events-none select-none ${
+                                        className={`${img === posterGalleryImage ? 'mx-auto w-auto max-w-full' : 'w-full'} h-full object-contain object-center content-image pointer-events-none select-none ${
                                             i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
                                         }`}
+                                        style={img === posterGalleryImage ? { objectFit: 'contain' } : undefined}
                                         draggable={false}
                                         loading={i === 0 ? 'eager' : 'lazy'}
                                         fetchPriority={i === 0 ? 'high' : 'auto'}
