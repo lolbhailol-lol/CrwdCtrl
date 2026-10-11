@@ -286,11 +286,11 @@ export default function RunEventDetailPage() {
     const isHalloweenSundowner = event.slug === 'halloween-sundowner-rush-31-oct-2026'
         || String(event._id || event.id || '') === '6acb3e646d833eb479e3e403';
     const posterGalleryImage = isHalloweenSundowner
-        ? (event.images || []).find((url) => url?.includes('halloween-sundowner-rush-poster-2026.png')) || null
+        ? '/images/halloween-sundowner-rush-poster-square.webp'
         : null;
     const galleryImages = (event.images || []).filter((u) => u && (!coverSet.has(u) || u === posterGalleryImage));
     const images = posterGalleryImage
-        ? [posterGalleryImage, ...galleryImages.filter((url) => url !== posterGalleryImage)]
+        ? [posterGalleryImage]
         : galleryImages.length ? galleryImages : [null];
     const posterIsActive = Boolean(posterGalleryImage && images[imgPg] === posterGalleryImage);
     const communityName = club?.name || event.organizer || '';
@@ -345,7 +345,7 @@ export default function RunEventDetailPage() {
                 ]}
             />
             <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
-            <div className={`relative w-full ${posterIsActive ? 'aspect-[1587/2245] max-h-[90vh]' : 'h-[396px]'} shrink-0 overflow-hidden`}>
+            <div className={`relative w-full ${posterIsActive ? 'aspect-square max-h-[90vh]' : 'h-[396px]'} shrink-0 overflow-hidden`}>
                 <div
                     ref={imgRef}
                     className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
