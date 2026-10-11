@@ -43,6 +43,7 @@ export default function SimilarCompetitionCard({
           <CompetitionCoverImage
             src={comp?.coverImage || comp?.image}
             alt={name}
+            category={`${comp?.competitionType || comp?.category || comp?.type || ''} ${comp?.festName || comp?.fest?.festName || ''} ${comp?._id || comp?.id || ''}`}
             preset="cardSm"
             placeholder="muted"
             eager={minimal}

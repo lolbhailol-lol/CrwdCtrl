@@ -247,6 +247,7 @@ const CompetitionListPage = () => {
                                     <CompetitionCoverImage
                                         src={comp.image}
                                         alt={typeof comp.name === 'string' ? comp.name : 'Competition'}
+                                        category={`${comp.competitionType || comp.category || activeTab} ${eventData?.festName || eventData?.title || ''} ${comp._id || comp.id || idx}`}
                                         preset="cardSm"
                                         containerClassName="w-full h-full"
                                         loaderSize="compact"

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { getImageUrl } from '../utils/imageImports';
 import { DetailLoader3DIcon } from './DetailPageLoader';
+import { createUniqueFallbackArtwork } from '../utils/fallbackImageGenerator';
 
 /**
  * Competition thumbnail / hero.
@@ -10,6 +11,7 @@ import { DetailLoader3DIcon } from './DetailPageLoader';
 export default function CompetitionCoverImage({
   src,
   alt = 'Competition',
+  category = '',
   preset = 'cardSm',
   className = 'absolute inset-0 w-full h-full object-cover object-center',
   containerClassName = '',
@@ -19,13 +21,12 @@ export default function CompetitionCoverImage({
 }) {
   const imageUrl = src ? getImageUrl(src, { preset }) : '';
   const imgRef = useRef(null);
-  const [status, setStatus] = useState(() => (imageUrl ? 'loading' : 'empty'));
+  const artworkUrl = createUniqueFallbackArtwork(alt, category);
+  const [displayUrl, setDisplayUrl] = useState(() => imageUrl || artworkUrl);
+  const [status, setStatus] = useState('loading');
 
   useLayoutEffect(() => {
-    if (!imageUrl) {
-      setStatus('empty');
-      return undefined;
-    }
+    setDisplayUrl(imageUrl || artworkUrl);
     setStatus('loading');
     // Cached images often finish before onLoad binds — sync from the DOM node.
     const id = window.requestAnimationFrame(() => {
@@ -35,7 +36,7 @@ export default function CompetitionCoverImage({
       }
     });
     return () => window.cancelAnimationFrame(id);
-  }, [imageUrl]);
+  }, [imageUrl, artworkUrl]);
 
   const showTrophy =
     placeholder === 'trophy' && (status === 'loading' || status === 'error' || status === 'empty');
@@ -52,10 +53,10 @@ export default function CompetitionCoverImage({
       {showMuted ? (
         <div className="absolute inset-0 z-0 bg-[#1A1B1D] pointer-events-none" aria-hidden="true" />
       ) : null}
-      {imageUrl ? (
+      {displayUrl ? (
         <img
           ref={imgRef}
-          src={imageUrl}
+          src={displayUrl}
           alt={alt}
           className={`z-0 pointer-events-none select-none ${className} ${
             status === 'loaded' ? 'opacity-100' : 'opacity-0'
@@ -65,7 +66,14 @@ export default function CompetitionCoverImage({
           decoding="async"
           draggable={false}
           onLoad={() => setStatus('loaded')}
-          onError={() => setStatus('error')}
+          onError={() => {
+            if (imageUrl && displayUrl === imageUrl) {
+              setDisplayUrl(artworkUrl);
+              setStatus('loading');
+              return;
+            }
+            setStatus('error');
+          }}
         />
       ) : null}
     </div>

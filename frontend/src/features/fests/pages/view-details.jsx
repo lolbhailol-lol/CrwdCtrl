@@ -243,6 +243,7 @@ function CompetitionScrollCard({
         <CompetitionCoverImage
           src={comp.image}
           alt={compName}
+          category={`${comp.competitionType || comp.category || comp.type || ''} ${pageEvent?.festName || pageEvent?.title || ''} ${comp._id || comp.id || ''}`}
           preset="cardSm"
           placeholder="muted"
           eager={eagerCover}

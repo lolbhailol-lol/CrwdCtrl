@@ -2032,6 +2032,7 @@ function EventPage() {
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
+                                        category={`${eventData.competitionType || eventData.category || ''} ${eventData.fest?.festName || eventData.festName || ''} ${eventData._id || eventData.id || competitionId || ''}`}
                                         preset={competitionHeroPreset}
                                         containerClassName="absolute inset-0 w-full h-full"
                                         className={`absolute inset-0 w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
@@ -2233,6 +2234,7 @@ function EventPage() {
                                         key={`${competitionId}-${eventData.image || 'placeholder'}`}
                                         src={showHeroImage ? eventData.image : null}
                                         alt={eventData.title || 'Competition'}
+                                        category={`${eventData.competitionType || eventData.category || ''} ${eventData.fest?.festName || eventData.festName || ''} ${eventData._id || eventData.id || competitionId || ''}`}
                                         preset={competitionHeroPreset}
                                         containerClassName="w-full h-full"
                                         className={`w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
