@@ -8,6 +8,8 @@ export const LEGAL_PHONE_DISPLAY = '+91 7006225981';
 export const LEGAL_PHONE_TEL = '+917006225981';
 export const WEBSITE_URL = 'https://www.crwdctrl.in';
 export const LEGAL_JURISDICTION = 'Pune, Maharashtra, India';
+export const INSTAGRAM_URL = 'https://www.instagram.com/crwdctrl.in';
+export const LINKEDIN_URL = 'https://www.linkedin.com/company/festbuzzz/';
 
 export const LEGAL_OPERATOR_LINE =
   'CrwdCtrl is owned and operated by KARAN BAPURAO JADHAV.';

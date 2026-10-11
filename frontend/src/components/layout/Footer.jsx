@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import AppLogo from '../AppLogo';
+import { SUPPORT_EMAIL, INSTAGRAM_URL, LINKEDIN_URL } from '../../constants/legalEntity';
 
 export default function Footer() {
   const { isDark } = useDarkMode();
@@ -43,19 +44,19 @@ export default function Footer() {
   const socialLinks = [
     {
       name: 'Instagram',
-      href: 'https://www.instagram.com/crwdctrl.in?igsh=ODZpb2tpaGR4Y2Rn',
+      href: INSTAGRAM_URL,
       icon: Instagram,
       hoverClass: 'hover:text-pink-500 hover:bg-pink-500/10',
     },
     {
       name: 'LinkedIn',
-      href: 'https://linkedin.com/company/crwdctrl',
+      href: LINKEDIN_URL,
       icon: Linkedin,
       hoverClass: 'hover:text-blue-500 hover:bg-blue-500/10',
     },
     {
       name: 'Support Mail',
-      href: 'mailto:support@crwdctrl.com',
+      href: `mailto:${SUPPORT_EMAIL}`,
       icon: Mail,
       hoverClass: 'hover:text-teal-400 hover:bg-teal-400/10',
     },

@@ -1,28 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import Sidebar from '../../components/layout/Sidebar';
-import Navbar from '../../components/layout/Navbar';
-import ProfileSidebar from '../../components/layout/ProfileSidebar';
-import { useDarkMode } from '../../context/DarkModeContext';
-import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+import { useDarkMode } from '../../context/DarkModeContext';
 import { useInAppBack } from '../../hooks/useInAppBack';
-import CrwdCtrlLogin from '../auth/login';
-import CrwdCtrlRegister from '../auth/register';
 import Seo from '../../components/Seo';
 import { breadcrumbSchema, webPageSchema } from '../../utils/seo';
+import CrwdCtrlLogin from '../auth/login';
+import CrwdCtrlRegister from '../auth/register';
+import {
+    ArrowLeft,
+    CheckCircle2,
+    AlertCircle,
+    Loader2
+} from 'lucide-react';
 
 const LIST_FEST_DESCRIPTION =
     'List your college fest, competition, trek or event on CrwdCtrl. Reach thousands of students, manage registrations, and grow your audience for free.';
 
-function ListYourFest() {
+export default function ListYourFest() {
     const { isDark } = useDarkMode();
     const goBack = useInAppBack();
-    const [isProfileOpen, setIsProfileOpen] = useState(false);
-    const [showLogin, setShowLogin] = useState(false);
-    const [showRegister, setShowRegister] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Form state
+    const [showLogin, setShowLogin] = useState(false);
+    const [showRegister, setShowRegister] = useState(false);
+
+    // Exact original form fields only
     const [formData, setFormData] = useState({
         festName: '',
         collegeName: '',
@@ -35,98 +37,104 @@ function ListYourFest() {
         message: ''
     });
 
+    const [touched, setTouched] = useState({});
     const [errors, setErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
 
-    // Check for login modal parameter
     useEffect(() => {
         if (searchParams.get('showLogin') === 'true') {
             setShowLogin(true);
         }
     }, [searchParams]);
 
-    // Handle login modal close
     const handleCloseLogin = () => {
         setShowLogin(false);
-        setSearchParams({}); // Clear URL parameters
+        setSearchParams({});
     };
 
-    // Handle register modal close
-    const handleCloseRegister = () => {
-        setShowRegister(false);
-    };
+    // Field-level validator
+    const validateField = (name, value) => {
+        const val = typeof value === 'string' ? value.trim() : value;
 
-    // Switch from login to register
-    const handleSwitchToRegister = () => {
-        setShowLogin(false);
-        setShowRegister(true);
-    };
+        switch (name) {
+            case 'festName':
+                if (!val) return 'Fest name is required';
+                if (val.length < 2) return 'Fest name must be at least 2 characters';
+                return '';
 
-    // Switch from register to login
-    const handleSwitchToLogin = () => {
-        setShowRegister(false);
-        setShowLogin(true);
-    };
+            case 'collegeName':
+                if (!val) return 'College name is required';
+                if (val.length < 2) return 'Please enter valid college name';
+                return '';
 
-    // Handle input changes
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
+            case 'festType':
+                if (!val) return 'Please select a fest type';
+                return '';
 
-        // Clear error when user starts typing
-        if (errors[name]) {
-            setErrors(prev => ({
-                ...prev,
-                [name]: ''
-            }));
+            case 'organizerName':
+                if (!val) return "Organizer's name is required";
+                if (val.length < 2) return 'Please enter your full name';
+                return '';
+
+            case 'position':
+                if (!val) return 'Position / Role is required';
+                return '';
+
+            case 'contactNumber': {
+                if (!val) return 'Contact number is required';
+                const digits = val.replace(/\D/g, '');
+                if (digits.length < 10 || digits.length > 13) {
+                    return 'Enter a valid 10-digit mobile number';
+                }
+                return '';
+            }
+
+            case 'email':
+                if (!val) return 'Email is required';
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                    return 'Please enter a valid email address';
+                }
+                return '';
+
+            default:
+                return '';
         }
     };
 
-    // Validate form
     const validateForm = () => {
+        const requiredFields = ['festName', 'collegeName', 'festType', 'organizerName', 'position', 'contactNumber', 'email'];
         const newErrors = {};
+        const allTouched = {};
 
-        if (!formData.festName.trim()) {
-            newErrors.festName = 'Fest name is required';
-        }
+        requiredFields.forEach((field) => {
+            allTouched[field] = true;
+            const err = validateField(field, formData[field]);
+            if (err) newErrors[field] = err;
+        });
 
-        if (!formData.collegeName.trim()) {
-            newErrors.collegeName = 'College name is required';
-        }
-
-        if (!formData.festType) {
-            newErrors.festType = 'Please select a fest type';
-        }
-
-        if (!formData.organizerName.trim()) {
-            newErrors.organizerName = 'Organizer name is required';
-        }
-
-        if (!formData.position.trim()) {
-            newErrors.position = 'Position/Role is required';
-        }
-
-        if (!formData.contactNumber.trim()) {
-            newErrors.contactNumber = 'Contact number is required';
-        } else if (!/^\+?[1-9]\d{1,14}$/.test(formData.contactNumber.replace(/\s/g, ''))) {
-            newErrors.contactNumber = 'Please enter a valid contact number';
-        }
-
-        if (!formData.email.trim()) {
-            newErrors.email = 'Email is required';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = 'Please enter a valid email address';
-        }
-
+        setTouched((prev) => ({ ...prev, ...allTouched }));
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    // Handle form submission
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData((prev) => ({ ...prev, [name]: value }));
+
+        if (touched[name]) {
+            const err = validateField(name, value);
+            setErrors((prev) => ({ ...prev, [name]: err }));
+        }
+    };
+
+    const handleBlur = (e) => {
+        const { name, value } = e.target;
+        setTouched((prev) => ({ ...prev, [name]: true }));
+        const err = validateField(name, value);
+        setErrors((prev) => ({ ...prev, [name]: err }));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -137,36 +145,19 @@ function ListYourFest() {
         setIsSubmitting(true);
 
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Show success message
+            // Simulate dispatch
+            await new Promise((resolve) => setTimeout(resolve, 1500));
             setShowSuccess(true);
 
-            // Reset form after success
-            setTimeout(() => {
-                setShowSuccess(false);
-                setFormData({
-                    festName: '',
-                    collegeName: '',
-                    festType: '',
-                    organizerName: '',
-                    position: '',
-                    contactNumber: '',
-                    email: '',
-                    festDescription: '',
-                    message: ''
-                });
-            }, 3000);
-
-        } catch (error) {
-            console.error('Error submitting form:', error);
+            // Auto-scroll to top of card for clear confirmation
+            window.scrollTo({ top: 80, behavior: 'smooth' });
+        } catch (err) {
+            console.error('Error submitting form:', err);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Handle form reset
     const handleReset = () => {
         setFormData({
             festName: '',
@@ -179,13 +170,17 @@ function ListYourFest() {
             festDescription: '',
             message: ''
         });
+        setTouched({});
         setErrors({});
+        setShowSuccess(false);
     };
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content min-h-screen flex transition-colors duration-300">
+        <div className={`crwdctrl-page crwdctrl-page--content min-h-screen transition-colors duration-300 font-sans ${
+            isDark ? 'bg-[#04060A] text-gray-100' : 'bg-[#F8FAFC] text-gray-900'
+        }`}>
             <Seo
-                title="List Your Fest or Event"
+                title="College Fest Registration — CrwdCtrl"
                 description={LIST_FEST_DESCRIPTION}
                 canonical="/list-your-fest"
                 keywords="list your fest, list event, organizer, host fest, promote college fest"
@@ -197,496 +192,366 @@ function ListYourFest() {
                     ]),
                 ]}
             />
-            <div className={`flex flex-1 flex-col transition-all duration-300 ${isProfileOpen ? 'blur-sm' : ''}`}>
 
-                {/* Back Navigation */}
-                <main className="flex-1">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-                        <button
-                            onClick={goBack}
-                            className={`flex items-center space-x-2 ${isDark ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition mb-4`}
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                            <span>Back</span>
-                        </button>
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+                {/* Back Button */}
+                <div className="mb-6">
+                    <button
+                        onClick={goBack}
+                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                            isDark
+                                ? 'text-gray-400 hover:text-white hover:bg-white/5'
+                                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Back</span>
+                    </button>
+                </div>
+
+                {/* Form Card */}
+                <div className={`rounded-2xl sm:rounded-3xl border p-6 sm:p-10 transition-all ${
+                    isDark
+                        ? 'bg-[#0B0F19] border-gray-800/90 shadow-[0_4px_30px_rgba(0,0,0,0.5)]'
+                        : 'bg-white border-gray-200 shadow-sm'
+                }`}>
+                    {/* Header */}
+                    <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10 space-y-2">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                            College Fest Registration
+                        </h1>
+                        <p className={`text-xs sm:text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Fill out the form below to list your college festival and reach thousands of students
+                        </p>
+                        <p className="text-xs sm:text-sm font-semibold bg-linear-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent pt-0.5">
+                            Join CrwdCtrl and showcase your college fest to thousands of students across India. Let's make your event unforgettable!
+                        </p>
                     </div>
 
-                    {/* Main Content */}
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8">
-                        <div className={`max-w-4xl mx-auto rounded-xl shadow-lg p-6 sm:p-8 ${isDark ? 'bg-[#111213]' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                            {/* Header */}
-                            <div className="text-center mb-8">
-                                <h1 className={`text-2xl sm:text-3xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    College Fest Registration
-                                </h1>
-                                <p className={`text-sm sm:text-base mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    Fill out the form below to list your college festival and reach thousands of students
-                                </p>
-                                <p className={`text-sm sm:text-base font-medium ${isDark ? 'text-[#00C2CB]' : 'text-[#00C2CB]'}`}>
-                                    Join CrwdCtrl and showcase your college fest to thousands of students across India. Let's make your event unforgettable!
+                    {/* Success Message Banner */}
+                    {showSuccess && (
+                        <div className={`mb-8 p-5 rounded-2xl border flex items-start gap-3.5 transition-all ${
+                            isDark
+                                ? 'bg-emerald-950/25 border-emerald-500/40 text-emerald-200'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        }`}>
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                                <h3 className="text-sm font-bold">Registration Submitted Successfully!</h3>
+                                <p className="text-xs leading-relaxed opacity-90">
+                                    Thank you for registering <strong className="font-semibold">{formData.festName || 'your fest'}</strong>. Our team will review the details and reach out on your provided contact number within 24 hours.
                                 </p>
                             </div>
-
-                            {/* Success Message */}
-                            {showSuccess && (
-                                <div className={`mb-6 p-4 rounded-lg border ${isDark ? 'bg-green-900/20 border-green-700 text-green-300' : 'bg-green-50 border-green-200 text-green-800'}`}>
-                                    <div className="flex items-center space-x-2">
-                                        <CheckCircle className="w-5 h-5" />
-                                        <span className="font-medium">Success!</span>
-                                    </div>
-                                    <p className="mt-1 text-sm">Your fest registration has been submitted successfully. We'll review it and get back to you soon.</p>
-                                </div>
-                            )}
-
-                            {/* Form */}
-                            <form onSubmit={handleSubmit}>
-                                {/* Mobile and Tablet View - Stack vertically */}
-                                <div className="block lg:hidden space-y-6">
-                                    {/* Row 1: Fest Name + College Name */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Fest Name <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="festName"
-                                                value={formData.festName}
-                                                onChange={handleInputChange}
-                                                placeholder="Enter fest name"
-                                                className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.festName ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.festName && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.festName}</p>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                College Name <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="collegeName"
-                                                value={formData.collegeName}
-                                                onChange={handleInputChange}
-                                                placeholder="Enter college name"
-                                                className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.collegeName ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.collegeName && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.collegeName}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Fest Type */}
-                                    <div>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                            Fest Type <span className="text-red-500">*</span>
-                                        </label>
-                                        <select
-                                            name="festType"
-                                            value={formData.festType}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#1D1E20] border-gray-700 text-white'
-                                                : 'bg-gray-50 border-gray-200 text-gray-900'
-                                                } ${errors.festType ? 'border-red-500' : ''}`}
-                                        >
-                                            <option value="">Select fest type</option>
-                                            <option value="cultural">Cultural</option>
-                                            <option value="technical">Technical</option>
-                                            <option value="sports">Sports</option>
-                                            <option value="others">Others</option>
-                                        </select>
-                                        {errors.festType && (
-                                            <p className="mt-1 text-sm text-red-500">{errors.festType}</p>
-                                        )}
-                                    </div>
-
-                                    {/* Organizer Name */}
-                                    <div>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                            Organizer's Name <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="organizerName"
-                                            value={formData.organizerName}
-                                            onChange={handleInputChange}
-                                            placeholder="Enter organizer's full name"
-                                            className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                } ${errors.organizerName ? 'border-red-500' : ''}`}
-                                        />
-                                        {errors.organizerName && (
-                                            <p className="mt-1 text-sm text-red-500">{errors.organizerName}</p>
-                                        )}
-                                    </div>
-
-                                    {/* Position */}
-                                    <div>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                            Position / Role <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="position"
-                                            value={formData.position}
-                                            onChange={handleInputChange}
-                                            placeholder="e.g., Event Coordinator, President, Secretary"
-                                            className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                } ${errors.position ? 'border-red-500' : ''}`}
-                                        />
-                                        {errors.position && (
-                                            <p className="mt-1 text-sm text-red-500">{errors.position}</p>
-                                        )}
-                                    </div>
-
-                                    {/* Row 2: Contact Number + Email */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Contact Number <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                name="contactNumber"
-                                                value={formData.contactNumber}
-                                                onChange={handleInputChange}
-                                                placeholder="+91 9876543210"
-                                                className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.contactNumber ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.contactNumber && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.contactNumber}</p>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Email <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleInputChange}
-                                                placeholder="organizer@college.edu"
-                                                className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.email ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.email && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Fest Description */}
-                                    <div>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                            Fest Description <span className={`text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>(Optional)</span>
-                                        </label>
-                                        <textarea
-                                            name="festDescription"
-                                            value={formData.festDescription}
-                                            onChange={handleInputChange}
-                                            rows="4"
-                                            placeholder="Describe your fest, events, highlights, and what makes it special..."
-                                            className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                }`}
-                                        />
-                                    </div>
-
-                                    {/* Message */}
-                                    <div>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                            Message / Query <span className={`text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>(Optional)</span>
-                                        </label>
-                                        <textarea
-                                            name="message"
-                                            value={formData.message}
-                                            onChange={handleInputChange}
-                                            rows="3"
-                                            placeholder="Any additional information, questions, or special requirements..."
-                                            className={`w-full px-4 py-2.5 sm:py-3 rounded-lg border text-sm sm:text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                }`}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Desktop View - Two columns (left and right) */}
-                                <div className="hidden lg:grid lg:grid-cols-2 lg:gap-8">
-                                    {/* Left Column */}
-                                    <div className="space-y-6">
-                                        {/* Fest Name */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Fest Name <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="festName"
-                                                value={formData.festName}
-                                                onChange={handleInputChange}
-                                                placeholder="Enter fest name"
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.festName ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.festName && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.festName}</p>
-                                            )}
-                                        </div>
-
-                                        {/* College Name */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                College Name <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="collegeName"
-                                                value={formData.collegeName}
-                                                onChange={handleInputChange}
-                                                placeholder="Enter college name"
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.collegeName ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.collegeName && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.collegeName}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Fest Type */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Fest Type <span className="text-red-500">*</span>
-                                            </label>
-                                            <select
-                                                name="festType"
-                                                value={formData.festType}
-                                                onChange={handleInputChange}
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 text-white'
-                                                    : 'bg-gray-50 border-gray-200 text-gray-900'
-                                                    } ${errors.festType ? 'border-red-500' : ''}`}
-                                            >
-                                                <option value="">Select fest type</option>
-                                                <option value="cultural">Cultural</option>
-                                                <option value="technical">Technical</option>
-                                                <option value="sports">Sports</option>
-                                                <option value="others">Others</option>
-                                            </select>
-                                            {errors.festType && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.festType}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Organizer Name */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Organizer's Name <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="organizerName"
-                                                value={formData.organizerName}
-                                                onChange={handleInputChange}
-                                                placeholder="Enter organizer's full name"
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.organizerName ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.organizerName && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.organizerName}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Position */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Position / Role <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="position"
-                                                value={formData.position}
-                                                onChange={handleInputChange}
-                                                placeholder="e.g., Event Coordinator, President, Secretary"
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.position ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.position && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.position}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Right Column */}
-                                    <div className="space-y-6">
-                                        {/* Contact Number */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Contact Number <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                name="contactNumber"
-                                                value={formData.contactNumber}
-                                                onChange={handleInputChange}
-                                                placeholder="+91 9876543210"
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.contactNumber ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.contactNumber && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.contactNumber}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Email */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Email <span className="text-red-500">*</span>
-                                            </label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleInputChange}
-                                                placeholder="organizer@college.edu"
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    } ${errors.email ? 'border-red-500' : ''}`}
-                                            />
-                                            {errors.email && (
-                                                <p className="mt-1 text-sm text-red-500">{errors.email}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Fest Description */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Fest Description <span className={`text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>(Optional)</span>
-                                            </label>
-                                            <textarea
-                                                name="festDescription"
-                                                value={formData.festDescription}
-                                                onChange={handleInputChange}
-                                                rows="4"
-                                                placeholder="Describe your fest, events, highlights, and what makes it special..."
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    }`}
-                                            />
-                                        </div>
-
-                                        {/* Message */}
-                                        <div>
-                                            <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                Message / Query <span className={`text-xs font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>(Optional)</span>
-                                            </label>
-                                            <textarea
-                                                name="message"
-                                                value={formData.message}
-                                                onChange={handleInputChange}
-                                                rows="3"
-                                                placeholder="Any additional information, questions, or special requirements..."
-                                                className={`w-full px-4 py-3 rounded-lg border text-base transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 resize-vertical ${isDark
-                                                    ? 'bg-[#1D1E20] border-gray-700 placeholder-gray-500 text-white'
-                                                    : 'bg-gray-50 border-gray-200 placeholder-gray-400 text-gray-900'
-                                                    }`}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Buttons */}
-                                <div className="flex flex-col sm:flex-row gap-4 pt-4 lg:col-span-2">
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting}
-                                        className="flex-1 bg-linear-to-r from-[#053780] to-[#0ECCEE] text-white font-semibold py-3 px-6 rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {isSubmitting ? 'Submitting...' : 'Submit Registration'}
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={handleReset}
-                                        disabled={isSubmitting}
-                                        className={`flex-1 sm:flex-initial px-6 py-3 rounded-lg font-semibold border transition-colors duration-200 ${isDark
-                                            ? 'border-gray-600 text-gray-300 hover:bg-gray-700 focus:ring-gray-500'
-                                            : 'border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-400'
-                                            } focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed`}
-                                    >
-                                        Clear Form
-                                    </button>
-                                </div>
-                            </form>
                         </div>
-                    </div>
-                </main>
+                    )}
+
+                    {/* The Clean Form */}
+                    <form onSubmit={handleSubmit} noValidate className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+
+                            {/* ================= LEFT COLUMN ================= */}
+                            <div className="space-y-5">
+                                {/* Fest Name */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Fest Name <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="festName"
+                                        value={formData.festName}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        placeholder="Enter fest name"
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none transition-all ${
+                                            touched.festName && errors.festName
+                                                ? 'border-red-500 bg-red-500/5 focus:ring-1 focus:ring-red-500'
+                                                : isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                    {touched.festName && errors.festName && (
+                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.festName}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* College Name */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        College Name <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="collegeName"
+                                        value={formData.collegeName}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        placeholder="Enter college name"
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none transition-all ${
+                                            touched.collegeName && errors.collegeName
+                                                ? 'border-red-500 bg-red-500/5 focus:ring-1 focus:ring-red-500'
+                                                : isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                    {touched.collegeName && errors.collegeName && (
+                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.collegeName}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Fest Type */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Fest Type <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        name="festType"
+                                        value={formData.festType}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none transition-all cursor-pointer ${
+                                            touched.festType && errors.festType
+                                                ? 'border-red-500 bg-red-500/5 focus:ring-1 focus:ring-red-500'
+                                                : isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    >
+                                        <option value="">Select fest type</option>
+                                        <option value="cultural">Cultural</option>
+                                        <option value="technical">Technical</option>
+                                        <option value="sports">Sports</option>
+                                        <option value="others">Others</option>
+                                    </select>
+                                    {touched.festType && errors.festType && (
+                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.festType}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Organizer's Name */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Organizer's Name <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="organizerName"
+                                        value={formData.organizerName}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        placeholder="Enter organizer's full name"
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none transition-all ${
+                                            touched.organizerName && errors.organizerName
+                                                ? 'border-red-500 bg-red-500/5 focus:ring-1 focus:ring-red-500'
+                                                : isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                    {touched.organizerName && errors.organizerName && (
+                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.organizerName}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Position / Role */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Position / Role <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="position"
+                                        value={formData.position}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        placeholder="e.g., Event Coordinator, President, Secretary"
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none transition-all ${
+                                            touched.position && errors.position
+                                                ? 'border-red-500 bg-red-500/5 focus:ring-1 focus:ring-red-500'
+                                                : isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                    {touched.position && errors.position && (
+                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.position}</span>
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* ================= RIGHT COLUMN ================= */}
+                            <div className="space-y-5">
+                                {/* Contact Number */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Contact Number <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        name="contactNumber"
+                                        value={formData.contactNumber}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        placeholder="+91 9876543210"
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none transition-all ${
+                                            touched.contactNumber && errors.contactNumber
+                                                ? 'border-red-500 bg-red-500/5 focus:ring-1 focus:ring-red-500'
+                                                : isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                    {touched.contactNumber && errors.contactNumber && (
+                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.contactNumber}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Email */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Email <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleInputChange}
+                                        onBlur={handleBlur}
+                                        placeholder="organizer@college.edu"
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none transition-all ${
+                                            touched.email && errors.email
+                                                ? 'border-red-500 bg-red-500/5 focus:ring-1 focus:ring-red-500'
+                                                : isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                    {touched.email && errors.email && (
+                                        <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.email}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Fest Description */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Fest Description <span className={`text-[11px] font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>(Optional)</span>
+                                    </label>
+                                    <textarea
+                                        name="festDescription"
+                                        value={formData.festDescription}
+                                        onChange={handleInputChange}
+                                        rows={4}
+                                        placeholder="Describe your fest, events, highlights, and what makes it special..."
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none resize-none transition-all ${
+                                            isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                </div>
+
+                                {/* Message / Query */}
+                                <div className="space-y-1.5">
+                                    <label className={`block text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Message / Query <span className={`text-[11px] font-normal ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>(Optional)</span>
+                                    </label>
+                                    <textarea
+                                        name="message"
+                                        value={formData.message}
+                                        onChange={handleInputChange}
+                                        rows={3}
+                                        placeholder="Any additional information, questions, or special requirements..."
+                                        className={`w-full px-4 py-2.5 sm:py-3 rounded-xl text-sm border outline-none resize-none transition-all ${
+                                            isDark
+                                                ? 'bg-[#050811] border-gray-800 text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        }`}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200/50 dark:border-gray-800/60">
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="flex-1 bg-linear-to-r from-blue-600 via-indigo-600 to-cyan-600 hover:opacity-95 text-white font-bold py-3.5 px-6 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span>Submitting Registration...</span>
+                                    </>
+                                ) : (
+                                    <span>Submit Registration</span>
+                                )}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                disabled={isSubmitting}
+                                className={`px-6 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider border transition-all cursor-pointer ${
+                                    isDark
+                                        ? 'bg-gray-900/60 border-gray-800 text-gray-300 hover:bg-gray-800'
+                                        : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
+                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                                Clear Form
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
 
-            {/* Profile Sidebar Overlay */}
-            {isProfileOpen && (
-                <>
-                    <div
-                        className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-                        onClick={() => setIsProfileOpen(false)}
-                    />
-                    <ProfileSidebar
-                        isOpen={isProfileOpen}
-                        onClose={() => setIsProfileOpen(false)}
-                        onShowLogin={() => setShowLogin(true)}
-                        onShowRegister={() => setShowRegister(true)}
-                    />
-                </>
-            )}
-
-            {/* Login Modal */}
+            {/* Login / Register Modals */}
             {showLogin && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlLogin onClose={handleCloseLogin} onSwitchToRegister={handleSwitchToRegister} />
+                    <CrwdCtrlLogin
+                        onClose={handleCloseLogin}
+                        onSwitchToRegister={() => {
+                            setShowLogin(false);
+                            setShowRegister(true);
+                        }}
+                    />
                 </div>
             )}
 
-            {/* Register Modal */}
             {showRegister && (
                 <div className="fixed inset-0 z-50">
-                    <CrwdCtrlRegister onClose={handleCloseRegister} onSwitchToLogin={handleSwitchToLogin} />
+                    <CrwdCtrlRegister
+                        onClose={() => setShowRegister(false)}
+                        onSwitchToLogin={() => {
+                            setShowRegister(false);
+                            setShowLogin(true);
+                        }}
+                    />
                 </div>
             )}
         </div>
     );
 }
-
-export default ListYourFest;
