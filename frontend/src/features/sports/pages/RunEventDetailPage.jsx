@@ -284,11 +284,8 @@ export default function RunEventDetailPage() {
             .filter(Boolean),
     );
     const galleryImages = (event.images || []).filter((u) => u && !coverSet.has(u));
-    // Lead with the event poster, then community gallery shots
-    const posterUrl = coverSlots.portrait || coverSlots.page || coverImg || null;
-    const images = galleryImages.length
-        ? (posterUrl ? [posterUrl, ...galleryImages.filter((u) => u !== posterUrl)] : galleryImages)
-        : (posterUrl ? [posterUrl] : [null]);
+    // Keep the card poster in cover slots; the detail carousel shows gallery uploads only.
+    const images = galleryImages.length ? galleryImages : [null];
     const communityName = club?.name || event.organizer || '';
     const mapPin = resolveRunMapPin(event);
     const mapQuery = mapPin.query;
