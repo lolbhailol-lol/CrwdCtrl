@@ -64,6 +64,24 @@ export const createFallbackImage = (width, height, backgroundColor, text, textCo
     }
 };
 
+const PHOTO_FALLBACKS = {
+    run: '/images/fallback-community-run.webp',
+    trek: '/images/fallback-trekking.webp',
+    festival: '/images/fallback-festival.webp',
+    campus: '/images/fallback-campus-tech.webp',
+};
+
+export const resolveFallbackImageUrl = (text = '', width = 0, height = 0) => {
+    // Keep compact logos, avatars, and thumbnails as simple text placeholders.
+    if (Math.min(Number(width) || 0, Number(height) || 0) < 100) return null;
+    const title = String(text).toLowerCase();
+    if (/trek|hike|mountain|waterfall|fort|trail/.test(title)) return PHOTO_FALLBACKS.trek;
+    if (/run|rush|runner|marathon|mile|lap|jog|fitness|sport/.test(title)) return PHOTO_FALLBACKS.run;
+    if (/tech|code|cyber|robot|blockchain|hack|innovation|workshop|startup|kart|game|competition|hunt/.test(title)) return PHOTO_FALLBACKS.campus;
+    if (/fest|festival|concert|music|dj|jalsa|navratri|dance|garba|rave|show|event|halloween/.test(title)) return PHOTO_FALLBACKS.festival;
+    return PHOTO_FALLBACKS.festival;
+};
+
 export const handleImageErrorWithFallback = (event, width, height, backgroundColor, text, textColor = '#ffffff') => {
     const img = event.target;
 
@@ -73,6 +91,12 @@ export const handleImageErrorWithFallback = (event, width, height, backgroundCol
     }
 
     img.dataset.fallbackApplied = 'true';
+    const photoFallback = resolveFallbackImageUrl(text, width, height);
+    if (photoFallback) {
+        img.alt = `Illustrative ${String(text || 'event').trim()} photo`;
+        img.src = photoFallback;
+        return;
+    }
     img.src = createFallbackImage(width, height, backgroundColor, text, textColor);
 };
 

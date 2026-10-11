@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef } from 'react';
 import { getImageUrl } from '../utils/imageImports';
 import { optimizeImageUrl, IMAGE_PRESET_SIZES, buildCloudinarySrcSet } from '../utils/imageOptimizer';
+import { resolveFallbackImageUrl } from '../utils/fallbackImageGenerator';
 
 const PLACEHOLDER_LIGHT = 'bg-[#E8EAED]';
 const PLACEHOLDER_DARK = 'dark:bg-[#1A1B1D]';
@@ -30,11 +31,13 @@ const ContentImage = forwardRef(function ContentImage({
     const localRef = useRef(null);
     const [displaySrc, setDisplaySrc] = useState(preferredSrc);
     const [usedFallback, setUsedFallback] = useState(false);
+    const [usedPhotoFallback, setUsedPhotoFallback] = useState(false);
     const [loaded, setLoaded] = useState(!showPlaceholderUntilLoad || !preferredSrc);
 
     useEffect(() => {
         setDisplaySrc(preferredSrc);
         setUsedFallback(false);
+        setUsedPhotoFallback(false);
     }, [preferredSrc]);
 
     const setRefs = useCallback((node) => {
@@ -70,6 +73,15 @@ const ContentImage = forwardRef(function ContentImage({
             setDisplaySrc(resolved);
             setLoaded(false);
             return;
+        }
+        if (!usedPhotoFallback && !onError) {
+            const photoFallback = resolveFallbackImageUrl(alt, 640, 360);
+            if (photoFallback && displaySrc !== photoFallback) {
+                setUsedPhotoFallback(true);
+                setDisplaySrc(photoFallback);
+                setLoaded(false);
+                return;
+            }
         }
         markLoaded();
         onError?.(e);

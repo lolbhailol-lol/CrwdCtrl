@@ -1,0 +1,15 @@
+Illustrative fallback photos (shown only when an event image is missing or cannot load):
+
+Community running — Joseph Prospere
+https://unsplash.com/photos/people-running-a-marathon-on-a-sunny-day-with-spectators-Jj7jkIC0y08
+
+Trekking — Tim D
+https://unsplash.com/photos/hikers-on-a-trail-with-a-waterfall-in-the-mountains-X5EZAHEIB24
+
+Festival crowd — Danny Howe
+https://unsplash.com/photos/a-large-crowd-of-people-in-front-of-a-stage-with-lights-W9vc6T0NLps
+
+Campus and technology — Raka Rahmadani
+https://unsplash.com/photos/students-working-on-laptops-at-a-shared-desk-rh4xapY-haI
+
+All sources are published under the Unsplash License at the time of selection. These images are illustrative fallbacks and do not replace event poster data.
