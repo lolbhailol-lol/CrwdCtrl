@@ -21,6 +21,12 @@ export default function CrwdCtrlRegister({ onClose, onSwitchToLogin }) {
     const [name, setName] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [errors, setErrors] = useState({});
+    const [showSocialFields, setShowSocialFields] = useState(false);
+    const [socialAuthData, setSocialAuthData] = useState(null);
+    const [authProvider, setAuthProvider] = useState('');
+    const [showOpenBrowserSheet, setShowOpenBrowserSheet] = useState(false);
+    const [inAppBrowserName, setInAppBrowserName] = useState('this app');
     const [fieldWarnings, setFieldWarnings] = useState({ name: '', phone: '' });
     const showWarning = (field, msg) => {
         setFieldWarnings(prev => ({ ...prev, [field]: msg }));

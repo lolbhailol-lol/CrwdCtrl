@@ -1,6 +1,4 @@
-/** Canonical production API — used by native builds and as fallback when same-origin proxy fails. */
-export const PRODUCTION_API_BASE_URL =
-  'https://crwdctrl-production-9c58.up.railway.app/api';
+export const PRODUCTION_API_BASE_URL = 'https://www.crwdctrl.in/api';
 
 export const LOCAL_DEV_API_BASE_URL = 'http://localhost:8080/api';
 
@@ -55,17 +53,10 @@ function envApiBase() {
  */
 export function getApiBaseUrl() {
   const sameOrigin = getSameOriginApiBase();
+
   if (sameOrigin) return sameOrigin;
-
-  // Local Vite must hit local backend — ignore production VITE_API_BASE_URL in .env
-  if (import.meta.env.DEV && typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return LOCAL_DEV_API_BASE_URL;
-    }
-  }
-
   const fromEnv = envApiBase();
+  if (fromEnv) return fromEnv;
 
   if (import.meta.env.PROD) {
     return PRODUCTION_API_BASE_URL;

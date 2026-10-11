@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader, CheckCircle, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Loader, CheckCircle, ImagePlus, ChevronLeft, ChevronRight, Check, Upload } from 'lucide-react';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useNotifications } from '../../../context/NotificationsContext';
@@ -487,7 +487,11 @@ export default function TrekBookingPage() {
         : { platformFee: 0, totalAmount: 0 };
     const payableAmount = isOrganizerQr ? total : (couponInfo?.amountAfterDiscount ?? total);
 
-    const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
+    const inp = `w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all duration-200 outline-none ${
+        isDark
+            ? 'bg-[#15171C] border-white/10 text-white placeholder-gray-500 hover:border-white/20 focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30 focus:bg-[#181B22]'
+            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 hover:border-gray-300 focus:bg-white focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30'
+    }`;
 
     const renderField = (field) => {
         const val = extraFields[field.fieldName] ?? (field.type === 'checkbox' ? [] : '');
@@ -499,7 +503,7 @@ export default function TrekBookingPage() {
                     value={val}
                     onChange={e => onChange(e.target.value)}
                     onFocus={scrollFieldIntoView}
-                    className={`${inp} resize-none`} />
+                    className={`${inp} resize-none leading-relaxed`} />
             );
         }
         if (field.type === 'select') {
@@ -513,19 +517,44 @@ export default function TrekBookingPage() {
         if (field.type === 'radio') {
             return (
                 <div className="space-y-2">
-                    {(field.options || []).filter(Boolean).map((o) => (
-                        <label key={o} className="flex items-center gap-2.5 cursor-pointer">
-                            <input
-                                type="radio"
-                                name={field.fieldName}
-                                value={o}
-                                checked={val === o}
-                                onChange={() => onChange(o)}
-                                className="accent-[#0ECCEE]"
-                            />
-                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
-                        </label>
-                    ))}
+                    {(field.options || []).filter(Boolean).map((o) => {
+                        const isChecked = val === o;
+                        return (
+                            <label
+                                key={o}
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                        : isDark
+                                            ? 'border-white/10 bg-[#151618] hover:border-white/20'
+                                            : 'border-gray-200 bg-gray-50/60 hover:border-gray-300'
+                                }`}
+                            >
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all shrink-0 ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]'
+                                        : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                                }`}>
+                                    {isChecked && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                                </div>
+                                <input
+                                    type="radio"
+                                    name={field.fieldName}
+                                    value={o}
+                                    checked={isChecked}
+                                    onChange={() => onChange(o)}
+                                    className="sr-only"
+                                />
+                                <span className={`text-sm font-medium ${
+                                    isChecked
+                                        ? (isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold')
+                                        : (isDark ? 'text-gray-300' : 'text-gray-700')
+                                }`}>
+                                    {o}
+                                </span>
+                            </label>
+                        );
+                    })}
                 </div>
             );
         }
@@ -534,17 +563,42 @@ export default function TrekBookingPage() {
             const toggle = (o) => onChange(arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o]);
             return (
                 <div className="space-y-2">
-                    {(field.options || []).filter(Boolean).map((o) => (
-                        <label key={o} className="flex items-center gap-2.5 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={arr.includes(o)}
-                                onChange={() => toggle(o)}
-                                className="accent-[#0ECCEE]"
-                            />
-                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
-                        </label>
-                    ))}
+                    {(field.options || []).filter(Boolean).map((o) => {
+                        const isChecked = arr.includes(o);
+                        return (
+                            <label
+                                key={o}
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                        : isDark
+                                            ? 'border-white/10 bg-[#151618] hover:border-white/20'
+                                            : 'border-gray-200 bg-gray-50/60 hover:border-gray-300'
+                                }`}
+                            >
+                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all shrink-0 ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                        : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                                }`}>
+                                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggle(o)}
+                                    className="sr-only"
+                                />
+                                <span className={`text-sm font-medium ${
+                                    isChecked
+                                        ? (isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold')
+                                        : (isDark ? 'text-gray-300' : 'text-gray-700')
+                                }`}>
+                                    {o}
+                                </span>
+                            </label>
+                        );
+                    })}
                 </div>
             );
         }
@@ -552,31 +606,52 @@ export default function TrekBookingPage() {
             const checked = val === true || val === 'yes' || val === 'true';
             return (
                 <label
-                    className={`flex items-start gap-3 cursor-pointer rounded-xl border-2 p-3.5 transition-colors ${
+                    className={`flex items-start gap-3 cursor-pointer rounded-xl border p-3.5 transition-all select-none ${
                         checked
-                            ? isDark ? 'border-[#0ECCEE]/50 bg-[#0ECCEE]/5' : 'border-[#0ECCEE]/40 bg-[#0ECCEE]/5'
-                            : isDark ? 'border-gray-600 bg-[#1D1E20] hover:border-gray-500' : 'border-gray-300 bg-white hover:border-gray-400'
+                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                            : isDark ? 'border-white/10 bg-[#151618] hover:border-white/20' : 'border-gray-200 bg-gray-50/60 hover:border-gray-300'
                     }`}
                 >
+                    <div className={`w-4 h-4 mt-0.5 rounded-md border flex items-center justify-center transition-all shrink-0 ${
+                        checked
+                            ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                            : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                    }`}>
+                        {checked && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
                     <input
                         type="checkbox"
                         checked={checked}
                         onChange={(e) => onChange(e.target.checked ? 'yes' : '')}
-                        className="accent-[#0ECCEE] mt-0.5 shrink-0 size-4"
+                        className="sr-only"
                     />
-                    <span className={`text-sm leading-relaxed ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    <span className={`text-sm leading-relaxed ${checked ? (isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold') : (isDark ? 'text-gray-300' : 'text-gray-700')}`}>
                         {field.label || 'I agree to the terms and conditions'}
-                        {field.required && <span className="text-red-400 ml-1">*</span>}
+                        {field.required && <span className="text-[#0ECCEE] font-bold ml-1">*</span>}
                     </span>
                 </label>
             );
         }
         if (field.type === 'file' || field.type === 'image') {
             return (
-                <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isDark ? 'border-gray-600 hover:border-[#0ECCEE] bg-[#1D1E20]' : 'border-gray-300 hover:border-[#0ECCEE] bg-white'}`}>
-                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {val ? String(val).slice(0, 24) + '…' : field.placeholder || (field.type === 'image' ? 'Choose image' : 'Choose file')}
-                    </span>
+                <label className={`flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border-2 border-dashed transition-all cursor-pointer group ${
+                    isDark
+                        ? 'border-white/15 bg-white/[0.02] hover:bg-white/[0.04] hover:border-[#0ECCEE]/50'
+                        : 'border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-[#0ECCEE]'
+                }`}>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                        isDark ? 'bg-white/5 text-[#0ECCEE] group-hover:bg-[#0ECCEE]/20' : 'bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                    }`}>
+                        <Upload className="w-5 h-5" />
+                    </div>
+                    <div className="text-center">
+                        <span className={`text-xs font-semibold block ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                            {val ? String(val) : (field.placeholder || (field.type === 'image' ? 'Click to upload image' : 'Click to upload document'))}
+                        </span>
+                        <span className={`text-[11px] mt-0.5 block ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                            {field.type === 'image' ? 'JPG, PNG, WebP supported' : 'PDF, DOC, Images supported'}
+                        </span>
+                    </div>
                     <input
                         type="file"
                         accept={field.type === 'image' ? 'image/*' : 'image/*,.pdf'}
@@ -1449,85 +1524,123 @@ export default function TrekBookingPage() {
                     retryCheckoutRef.current?.();
                 }}
             />
-            <div className="max-w-lg mx-auto px-4 sm:px-6">
+            <div className="max-w-xl mx-auto px-4 sm:px-6">
 
-                {/* Header */}
-                <div className="flex items-start gap-3 mb-4 sm:mb-6 pt-10">
-                    <button
-                        onClick={back}
-                        className={`p-2 rounded-lg transition-colors shrink-0 mt-1 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
-                    >
-                        <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-white' : 'text-gray-900'}`} />
-                    </button>
-                    <div className="min-w-0 flex-1">
-                        <h1 className={`text-lg sm:text-xl lg:text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            Book: {trekName}
-                        </h1>
-                        <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {STEPS[step - 1]}
-                        </p>
+                {/* Glassmorphic Header Card */}
+                <div className={`rounded-3xl p-4 sm:p-5 mb-5 border backdrop-blur-xl transition-all ${
+                    isDark
+                        ? 'bg-[#121215]/95 border-white/10 shadow-2xl text-white'
+                        : 'bg-white/95 border-gray-200/80 shadow-lg text-gray-900'
+                }`}>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={back}
+                            className={`p-2.5 rounded-2xl transition-all shrink-0 active:scale-95 ${
+                                isDark ? 'bg-white/10 hover:bg-white/15 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                            }`}
+                            aria-label="Go back"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/30">
+                                    Trek Booking
+                                </span>
+                                <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Step {step} of {STEPS.length}
+                                </span>
+                            </div>
+                            <h1 className={`text-lg sm:text-xl font-bold truncate mt-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {trekName}
+                            </h1>
+                        </div>
                     </div>
                 </div>
 
-                {/* Error */}
+                {/* Error Banner */}
                 {error && (
-                    <div className={`rounded-lg p-3 mb-4 text-sm border ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>
-                        {error}
+                    <div className={`rounded-2xl p-4 mb-5 text-sm border flex items-center gap-3 ${
+                        isDark ? 'bg-red-950/40 border-red-800/60 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
+                    }`}>
+                        <span className="shrink-0 text-base">⚠️</span>
+                        <span className="font-medium">{error}</span>
                     </div>
                 )}
 
                 {!loggedIn && requireLogin && (
-                    <div className={`rounded-xl p-4 mb-4 border text-center ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-white border-gray-200'}`}>
-                        <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            Log in to book this trek and receive booking notifications.
+                    <div className={`rounded-3xl p-5 mb-5 border text-center backdrop-blur-md ${
+                        isDark ? 'bg-[#121215] border-white/10 text-white' : 'bg-white border-gray-200 shadow-md text-gray-900'
+                    }`}>
+                        <p className={`text-sm mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                            Log in to book this trek and view your tickets under My Bookings.
                         </p>
                         <button
                             type="button"
                             onClick={() => openLogin()}
-                            className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                            className="w-full py-3 rounded-2xl font-bold text-black bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 shadow-lg shadow-[#0ECCEE]/20 transition-all active:scale-95"
                         >
-                            Log in to continue
+                            Log in with Google to continue
                         </button>
                     </div>
                 )}
 
                 {!loggedIn && !requireLogin && (
-                    <div className={`rounded-xl p-3 mb-4 border text-sm ${isDark ? 'bg-[#1D1E20] border-gray-700 text-gray-300' : 'bg-white border-gray-200 text-gray-600'}`}>
-                        Guest checkout is on — no account needed. Optionally{' '}
-                        <button type="button" onClick={() => openLogin()} className="text-[#0ECCEE] font-semibold underline">
-                            log in
+                    <div className={`rounded-2xl p-3.5 mb-5 border text-xs leading-relaxed ${
+                        isDark ? 'bg-[#121215] border-white/10 text-gray-300' : 'bg-blue-50/70 border-blue-200 text-blue-900'
+                    }`}>
+                        ⚡ Guest checkout is on — no account needed.{' '}
+                        <button type="button" onClick={() => openLogin()} className="text-[#0ECCEE] font-bold underline">
+                            Log in
                         </button>
                         {' '}to save this booking under My Bookings.
                     </div>
                 )}
 
-                {/* Card */}
-                <div className={`rounded-2xl p-4 sm:p-6 border ${isDark ? 'bg-[#1D1E20] border-gray-700/40' : 'bg-white border-gray-200 shadow-sm'} ${!loggedIn && requireLogin ? 'opacity-50 pointer-events-none' : ''}`}>
+                {/* Main Content Booking Card */}
+                <div className={`rounded-3xl p-5 sm:p-7 border backdrop-blur-xl transition-all ${
+                    isDark ? 'bg-[#121215] border-white/10 shadow-2xl' : 'bg-white border-gray-100 shadow-xl'
+                } ${!loggedIn && requireLogin ? 'opacity-50 pointer-events-none' : ''}`}>
 
-                    {/* Step Progress */}
-                    <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-[#111213]' : 'bg-gray-50'}`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
-                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step} of {STEPS.length}</span>
+                    {/* Step Progress Bar */}
+                    <div className={`rounded-2xl p-4 mb-6 border ${
+                        isDark ? 'bg-[#18181b] border-white/5' : 'bg-gray-50 border-gray-200/80'
+                    }`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                Booking Progress
+                            </h3>
+                            <span className="text-xs font-bold text-[#0ECCEE]">
+                                {Math.round((step / STEPS.length) * 100)}%
+                            </span>
                         </div>
-                        <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                        <div className={`w-full rounded-full h-2 mb-4 overflow-hidden ${isDark ? 'bg-gray-800' : 'bg-gray-200'}`}>
                             <div
-                                className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
+                                className="bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] h-2 rounded-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(14,204,238,0.5)]"
                                 style={{ width: `${(step / STEPS.length) * 100}%` }}
                             />
                         </div>
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                             {STEPS.map((s, i) => (
-                                <div key={s} className="flex flex-col items-center">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                                        i + 1 === step ? 'bg-[#0ECCEE] text-black'
-                                        : i + 1 < step  ? 'bg-green-600 text-white'
-                                        : isDark        ? 'bg-gray-600 text-gray-300'
-                                        :                  'bg-gray-300 text-gray-600'
+                                <div key={s} className="flex flex-col items-center gap-1">
+                                    <div className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                        i + 1 === step
+                                            ? 'bg-[#0ECCEE] text-black ring-4 ring-[#0ECCEE]/20 shadow-md scale-105'
+                                            : i + 1 < step
+                                            ? 'bg-emerald-500 text-white'
+                                            : isDark
+                                            ? 'bg-gray-800 text-gray-500'
+                                            : 'bg-gray-200 text-gray-500'
                                     }`}>
                                         {i + 1 < step ? '✓' : i + 1}
                                     </div>
-                                    <span className={`text-xs mt-1 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{s}</span>
+                                    <span className={`text-[11px] font-semibold ${
+                                        i + 1 === step
+                                            ? isDark ? 'text-white font-bold' : 'text-gray-900 font-bold'
+                                            : isDark ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                        {s}
+                                    </span>
                                 </div>
                             ))}
                         </div>
@@ -1535,111 +1648,139 @@ export default function TrekBookingPage() {
 
                     {/* ── Step 1: Date, Time, People ── */}
                     {step === 1 && (
-                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-                            <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
-                                {usesMeetingPoints ? 'Select Date & Meeting Point' : 'Select Date & Time'}
-                            </h3>
-                            <div className="space-y-5">
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between pb-3 border-b border-gray-700/30">
+                                <h3 className={`text-sm font-bold tracking-wide uppercase ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                    {usesMeetingPoints ? '1. Select Date & Meeting Point' : '1. Select Date & Time'}
+                                </h3>
+                            </div>
 
-                                {/* Date chips */}
-                                <div>
-                                    <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Choose Date</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {dates.map((d, i) => (
-                                            <button key={i} type="button" onClick={() => setSelDate(d)}
-                                                className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors whitespace-nowrap ${
-                                                    selDate === d
-                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]'
-                                                        : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'
-                                                }`}>
-                                                {d}
+                            {/* Date Chips */}
+                            <div>
+                                <label className={`block text-xs font-semibold uppercase tracking-wider mb-2.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Available Dates
+                                </label>
+                                <div className="flex gap-2 flex-wrap">
+                                    {dates.map((d, i) => {
+                                        const selected = selDate === d;
+                                        return (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                onClick={() => setSelDate(d)}
+                                                className={`px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 active:scale-95 ${
+                                                    selected
+                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE] shadow-[0_0_12px_rgba(14,204,238,0.2)] font-bold'
+                                                        : isDark
+                                                        ? 'border-white/10 bg-[#18181b] text-gray-300 hover:border-gray-600'
+                                                        : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
+                                                }`}
+                                            >
+                                                📅 {d}
                                             </button>
-                                        ))}
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Meeting point / Time */}
+                            {step1Choices.length > 0 ? (
+                                <div>
+                                    <label className={`block text-xs font-semibold uppercase tracking-wider mb-2.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {step1ChoiceLabel}
+                                    </label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {step1Choices.map((t) => {
+                                            const selected = selTime === t;
+                                            return (
+                                                <button
+                                                    key={t}
+                                                    type="button"
+                                                    onClick={() => setSelTime(t)}
+                                                    className={`px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 active:scale-95 ${
+                                                        selected
+                                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE] shadow-[0_0_12px_rgba(14,204,238,0.2)] font-bold'
+                                                            : isDark
+                                                            ? 'border-white/10 bg-[#18181b] text-gray-300 hover:border-gray-600'
+                                                            : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    📍 {t}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
+                            ) : null}
 
-                                {/* Meeting point (preferred) or departure time chips */}
-                                {step1Choices.length > 0 ? (
-                                    <div>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{step1ChoiceLabel}</label>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {step1Choices.map((t) => (
-                                                <button key={t} type="button" onClick={() => setSelTime(t)}
-                                                    className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors text-left ${
-                                                        selTime === t
-                                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 text-[#0ECCEE]'
-                                                            : isDark ? 'border-gray-600 text-gray-300 hover:border-gray-500' : 'border-gray-300 text-gray-600 hover:border-gray-400'
-                                                    }`}>
-                                                    {t}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : null}
+                            {phaseStepNotice ? (
+                                <p className={`text-xs leading-relaxed rounded-xl px-3.5 py-3 ${isDark ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/25' : 'bg-cyan-50 text-cyan-800 border border-cyan-200'}`}>
+                                    {phaseStepNotice}
+                                </p>
+                            ) : null}
 
-                                {phaseStepNotice ? (
-                                    <p className={`text-xs leading-relaxed rounded-lg px-3 py-2.5 ${isDark ? 'bg-[#0ECCEE]/10 text-[#0ECCEE] border border-[#0ECCEE]/25' : 'bg-cyan-50 text-cyan-800 border border-cyan-200'}`}>
-                                        {phaseStepNotice}
+                            <GenderQuickPick
+                                value={bookingGender}
+                                onChange={(g) => {
+                                    setBookingGender(g);
+                                    setError('');
+                                }}
+                                label="Gender"
+                                error={showGenderPhaseError ? genderAccess.message : undefined}
+                            />
+
+                            {/* Party Size Selector */}
+                            <div className={`rounded-2xl p-4 border flex items-center justify-between gap-4 ${
+                                isDark ? 'bg-[#18181b] border-white/10' : 'bg-gray-50 border-gray-200'
+                            }`}>
+                                <div>
+                                    <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        Number of Trekkers
                                     </p>
-                                ) : null}
-                                <GenderQuickPick
-                                    value={bookingGender}
-                                    onChange={(g) => {
-                                        setBookingGender(g);
-                                        setError('');
-                                    }}
-                                    label="You are"
-                                    error={showGenderPhaseError ? genderAccess.message : undefined}
-                                />
-
-                                {/* Party size */}
-                                <div className={`rounded-xl p-3 border flex items-center justify-between gap-4 ${isDark ? 'bg-[#1D1E20] border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
-                                    <div>
-                                        <p className={`text-xs font-medium mb-1.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>People</p>
-                                        <div className="flex items-center">
-                                            <button
-                                                type="button"
-                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.max(1, p - 1)); }}
-                                                className={`w-8 h-8 rounded-l-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
-                                            >
-                                                <ChevronLeft size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
-                                            </button>
-                                            <div className={`w-10 h-8 flex items-center justify-center border-y ${isDark ? 'bg-[#111213] border-gray-600' : 'bg-white border-gray-300'}`}>
-                                                <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{people}</span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxPeople, p + 1)); }}
-                                                className={`w-8 h-8 rounded-r-lg flex items-center justify-center border transition-colors ${isDark ? 'bg-[#111213] border-gray-600 hover:border-[#0ECCEE]' : 'bg-white border-gray-300 hover:border-[#0ECCEE]'}`}
-                                            >
-                                                <ChevronRight size={14} className={isDark ? 'text-gray-300' : 'text-gray-700'} />
-                                            </button>
+                                    <div className="flex items-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setCouponInfo(null); setPeople((p) => Math.max(1, p - 1)); }}
+                                            className={`size-9 rounded-l-xl flex items-center justify-center border transition-all active:scale-95 ${
+                                                isDark ? 'bg-[#121215] border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <div className={`w-12 h-9 flex items-center justify-center border-y font-bold text-sm ${
+                                            isDark ? 'bg-[#121215] border-white/10 text-white' : 'bg-white border-gray-300 text-gray-900'
+                                        }`}>
+                                            {people}
                                         </div>
-                                        <p className={`text-[10px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                            {Number.isFinite(configuredMax) && configuredMax > 0 && configuredMax !== 10
-                                                ? `Max ${maxPeople} per booking`
-                                                : 'You can book again anytime with the same account'}
-                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setCouponInfo(null); setPeople((p) => Math.min(maxPeople, p + 1)); }}
+                                            className={`size-9 rounded-r-xl flex items-center justify-center border transition-all active:scale-95 ${
+                                                isDark ? 'bg-[#121215] border-white/10 text-white hover:bg-white/10' : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-100'
+                                            }`}
+                                        >
+                                            <ChevronRight size={16} />
+                                        </button>
                                     </div>
-                                    <div className="text-right">
-                                        <p className={`text-xs font-medium mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                            {people > 1 ? 'Entry total' : 'Entry Fee'}
-                                        </p>
-                                        {fee > 0 ? (
-                                            <>
-                                                <p className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    ₹{baseFee.toLocaleString('en-IN')}
+                                </div>
+                                <div className="text-right">
+                                    <p className={`text-xs font-semibold mb-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {people > 1 ? 'Total Entry Fee' : 'Trek Fee'}
+                                    </p>
+                                    {fee > 0 ? (
+                                        <>
+                                            <p className={`text-xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                ₹{baseFee.toLocaleString('en-IN')}
+                                            </p>
+                                            {people > 1 ? (
+                                                <p className={`text-[11px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                    ₹{fee.toLocaleString('en-IN')} × {people} trekkers
                                                 </p>
-                                                {people > 1 ? (
-                                                    <p className={`text-[10px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                        ₹{fee.toLocaleString('en-IN')} × {people}
-                                                    </p>
-                                                ) : null}
-                                            </>
-                                        ) : (
-                                            <p className="text-lg font-bold text-green-500">Free</p>
-                                        )}
-                                    </div>
+                                            ) : null}
+                                        </>
+                                    ) : (
+                                        <p className="text-xl font-bold text-emerald-400">Free</p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1647,27 +1788,39 @@ export default function TrekBookingPage() {
 
                     {/* ── Step 2: Form Fields ── */}
                     {step === 2 && (
-                        <div className={`rounded-xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
-                            <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 pb-2.5 border-b ${isDark ? 'text-gray-400 border-gray-700/70' : 'text-gray-500 border-gray-200'}`}>
-                                Your Details
-                            </h3>
+                        <div className="space-y-5">
+                            <div className="flex items-center justify-between pb-3 border-b border-gray-700/30">
+                                <h3 className={`text-sm font-bold tracking-wide uppercase ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                                    2. Trekker Details
+                                </h3>
+                            </div>
 
                             {sheetsInstructions && (
-                                <div className={`rounded-lg p-3 mb-4 border text-xs ${isDark ? 'bg-amber-900/20 border-amber-700/40 text-amber-400' : 'bg-amber-50 border-amber-300 text-amber-700'}`}>
+                                <div className={`rounded-xl p-3.5 border text-xs leading-relaxed ${
+                                    isDark ? 'bg-amber-950/40 border-amber-800/60 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-800'
+                                }`}>
                                     {sheetsInstructions}
                                 </div>
                             )}
 
                             <div className="space-y-4">
-                                {regSchema.map(field => (
-                                    <div key={field.id || field.fieldName}>
+                                {regSchema.map((field) => (
+                                    <div key={field.id || field.fieldName} className="group">
                                         {field.type === 'agree' ? (
                                             renderField(field)
                                         ) : (
                                             <>
-                                                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                <label className={`block text-[11px] font-semibold uppercase tracking-wider mb-1 transition-colors ${
+                                                    isDark ? 'text-gray-300 group-focus-within:text-[#0ECCEE]' : 'text-gray-700 group-focus-within:text-[#0ECCEE]'
+                                                }`}>
                                                     {field.label}
-                                                    {field.required && <span className="text-red-400 ml-1">*</span>}
+                                                    {field.required ? (
+                                                        <span className="text-[#0ECCEE] font-bold ml-1">*</span>
+                                                    ) : (
+                                                        <span className={`text-[10px] lowercase tracking-normal ml-1 font-normal ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                            (optional)
+                                                        </span>
+                                                    )}
                                                 </label>
                                                 {renderField(field)}
                                             </>
@@ -1677,25 +1830,31 @@ export default function TrekBookingPage() {
                             </div>
 
                             {isOrganizerQr && fee > 0 ? (
-                                <div className={`mt-5 rounded-xl border p-4 space-y-3 ${isDark ? 'border-gray-700 bg-[#0E0E0F]' : 'border-gray-200 bg-white'}`}>
-                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        Pay ₹{payableAmount.toLocaleString('en-IN')} via UPI
-                                    </p>
-                                    <div className="flex gap-3 items-start">
+                                <div className={`mt-5 rounded-2xl border p-4 sm:p-5 space-y-4 ${
+                                    isDark ? 'border-white/10 bg-[#18181b]' : 'border-gray-200 bg-gray-50'
+                                }`}>
+                                    <div className="flex items-center justify-between">
+                                        <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            Pay ₹{payableAmount.toLocaleString('en-IN')} via UPI QR
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-4 items-start">
                                         {paymentQR ? (
-                                            <div className="shrink-0 size-[132px] rounded-xl overflow-hidden border border-gray-700 bg-white p-1">
+                                            <div className="shrink-0 size-[132px] rounded-2xl overflow-hidden border border-gray-700 bg-white p-1.5 shadow-md">
                                                 <img src={paymentQR} alt="Payment QR" className="size-full object-contain" />
                                             </div>
                                         ) : (
-                                            <div className={`shrink-0 size-[132px] rounded-xl flex items-center justify-center text-[10px] text-center px-2 ${isDark ? 'bg-gray-800 text-red-400' : 'bg-gray-100 text-red-500'}`}>
-                                                QR not set
+                                            <div className={`shrink-0 size-[132px] rounded-2xl flex items-center justify-center text-[10px] text-center px-2 font-medium ${
+                                                isDark ? 'bg-gray-800 text-red-400' : 'bg-gray-100 text-red-500'
+                                            }`}>
+                                                QR not configured
                                             </div>
                                         )}
-                                        <div className="min-w-0 flex-1 space-y-2">
-                                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        <div className="min-w-0 flex-1 space-y-2.5">
+                                            <p className={`text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                                 {trek?.registration?.qrAutoConfirm
-                                                    ? 'Scan QR or pay on UPI, then upload proof. Your booking confirms as soon as you submit.'
-                                                    : 'Scan QR or pay on UPI, then upload proof. The organizer will approve your booking.'}
+                                                    ? 'Scan QR on any UPI app, complete payment, then upload payment screenshot.'
+                                                    : 'Scan QR on UPI, pay the amount, and upload your payment screenshot.'}
                                             </p>
                                             {paymentUpiId ? (
                                                 <button
@@ -1709,39 +1868,40 @@ export default function TrekBookingPage() {
                                                             setError('Could not copy UPI ID');
                                                         }
                                                     }}
-                                                    className={`w-full flex items-center justify-between gap-2 h-10 px-3 rounded-lg text-left ${
-                                                        isDark ? 'bg-[#1D1E20] border border-gray-700' : 'bg-gray-50 border border-gray-200'
+                                                    className={`w-full flex items-center justify-between gap-2 h-10 px-3 rounded-xl text-left border transition-all ${
+                                                        isDark ? 'bg-[#121215] border-white/10 hover:border-gray-600' : 'bg-white border-gray-300 hover:border-gray-400'
                                                     }`}
                                                 >
                                                     <span className={`text-xs font-mono truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
                                                         {paymentUpiId}
                                                     </span>
                                                     <span className="text-xs font-bold text-[#0ECCEE] shrink-0">
-                                                        {upiCopied ? 'Copied' : 'Copy'}
+                                                        {upiCopied ? 'Copied ✓' : 'Copy'}
                                                     </span>
                                                 </button>
                                             ) : null}
-                                            {paymentQRMessage ? (
-                                                <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{paymentQRMessage}</p>
-                                            ) : null}
                                         </div>
                                     </div>
-                                    <label className={`flex items-center gap-3 px-1 py-2 cursor-pointer ${uploadingProof ? 'opacity-60 pointer-events-none' : ''}`}>
+                                    <label className={`flex items-center gap-3 p-3 rounded-xl border border-dashed cursor-pointer transition-all ${
+                                        isDark ? 'border-gray-700 hover:border-[#0ECCEE] bg-[#121215]' : 'border-gray-300 hover:border-[#0ECCEE] bg-white'
+                                    } ${uploadingProof ? 'opacity-60 pointer-events-none' : ''}`}>
                                         {paymentScreenshotUrl ? (
                                             <img src={paymentScreenshotUrl} alt="" className="size-11 rounded-lg object-cover shrink-0" />
                                         ) : (
-                                            <div className={`size-11 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20] border border-gray-700' : 'bg-gray-100'}`}>
+                                            <div className={`size-11 rounded-xl flex items-center justify-center shrink-0 ${
+                                                isDark ? 'bg-white/5' : 'bg-gray-100'
+                                            }`}>
                                                 {uploadingProof
-                                                    ? <Loader className="w-4 h-4 animate-spin text-[#0ECCEE]" />
-                                                    : <ImagePlus size={18} className="text-[#0ECCEE]" />}
+                                                    ? <Loader className="w-5 h-5 animate-spin text-[#0ECCEE]" />
+                                                    : <ImagePlus size={20} className="text-[#0ECCEE]" />}
                                             </div>
                                         )}
                                         <div className="min-w-0 flex-1">
-                                            <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                {uploadingProof ? 'Uploading…' : paymentScreenshotUrl ? 'Screenshot added' : 'Payment screenshot'}
+                                            <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {uploadingProof ? 'Uploading proof…' : paymentScreenshotUrl ? 'Screenshot Uploaded ✓' : 'Upload Payment Screenshot'}
                                             </p>
-                                            <p className={`text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                                {paymentScreenshotUrl ? 'Tap to change' : 'Gallery or camera'}
+                                            <p className={`text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                {paymentScreenshotUrl ? 'Tap to change screenshot' : 'Select image from gallery'}
                                             </p>
                                         </div>
                                         <input
@@ -1759,101 +1919,114 @@ export default function TrekBookingPage() {
                                         type="text"
                                         value={transactionId}
                                         onChange={(e) => setTransactionId(e.target.value)}
-                                        placeholder="UPI / Transaction ID"
+                                        placeholder="UPI Ref / Transaction ID"
                                         className={inp}
                                     />
                                 </div>
                             ) : null}
+
+                            {/* Payment Summary & Coupon Card */}
+                            {fee > 0 && !isOrganizerQr && (
+                                <div className={`mt-5 rounded-2xl p-4 sm:p-5 border transition-all ${
+                                    isDark ? 'bg-[#18181b] border-white/10' : 'bg-gray-50 border-gray-200'
+                                }`}>
+                                    <div className="mb-4 min-w-0">
+                                        <p className={`text-xs font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Apply Coupon
+                                        </p>
+                                        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 w-full items-center">
+                                            <input
+                                                value={couponCode}
+                                                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                                placeholder="Enter promo code"
+                                                className={`w-full min-w-0 h-10 px-3.5 rounded-xl border text-xs font-semibold focus:outline-none focus:border-[#0ECCEE] ${
+                                                    isDark ? 'bg-[#121215] border-white/10 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900'
+                                                }`}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={applyCoupon}
+                                                disabled={couponLoading || !couponCode.trim()}
+                                                className="h-10 shrink-0 px-4 rounded-xl bg-[#0ECCEE] text-black font-bold text-xs whitespace-nowrap active:scale-95 transition-all disabled:opacity-50"
+                                            >
+                                                {couponLoading ? '…' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied ✓' : 'Apply')}
+                                            </button>
+                                        </div>
+                                        {couponError ? <p className="text-xs text-red-400 mt-1.5 font-medium">{couponError}</p> : null}
+                                        {couponInfo?.couponApplied ? (
+                                            <div className={`mt-2 rounded-xl border px-3 py-2 text-xs font-medium ${
+                                                isDark ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                            }`}>
+                                                🎉 Coupon `{couponInfo.couponCode}` applied · You save ₹{couponInfo.discountAmount}!
+                                            </div>
+                                        ) : null}
+                                    </div>
+
+                                    <p className={`text-xs font-bold uppercase tracking-wider mb-2.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Payment Summary
+                                    </p>
+                                    <div className={`space-y-2 text-xs font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        <div className="flex justify-between gap-4">
+                                            <span>Ticket Price ({people} trekker{people > 1 ? 's' : ''})</span>
+                                            <span>₹{fee.toLocaleString('en-IN')}</span>
+                                        </div>
+                                        {platformFee > 0 ? (
+                                            <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                <span>Platform Convenience Fee ({platformPct}%)</span>
+                                                <span>₹{platformFee}</span>
+                                            </div>
+                                        ) : null}
+                                        {couponInfo?.couponApplied ? (
+                                            <div className="flex justify-between gap-4 text-emerald-400 font-bold">
+                                                <span>Coupon Discount</span>
+                                                <span>-₹{couponInfo.discountAmount}</span>
+                                            </div>
+                                        ) : null}
+                                        <div className="flex justify-between gap-4 pt-3 mt-1 border-t border-gray-700/50 font-bold text-base text-[#0ECCEE]">
+                                            <span>Total Amount Payable</span>
+                                            <span>₹{payableAmount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    </div>
+                                    <p className={`text-[11px] mt-2.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        🔒 {platformFee > 0
+                                            ? 'Includes all charges · Safe & encrypted checkout via Cashfree'
+                                            : usesRazorpay
+                                                ? 'Safe & encrypted checkout via Razorpay'
+                                                : 'Safe & encrypted checkout via Cashfree · No platform fee'}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {/* Payment breakdown (step 2, paid trek) */}
-                    {step === 2 && fee > 0 && !isOrganizerQr && (
-                        <div className={`mt-4 rounded-xl p-4 border overflow-hidden ${isDark ? 'bg-[#111213] border-[#0ECCEE]/30' : 'bg-gray-50 border-[#0ECCEE]/40'}`}>
-                            <div className="mb-3 min-w-0">
-                                <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Coupon code</p>
-                                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 w-full items-center">
-                                    <input
-                                        value={couponCode}
-                                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                        placeholder="Enter coupon"
-                                        className={`w-full min-w-0 h-10 px-3 rounded-lg border text-sm focus:outline-none focus:border-[#0ECCEE] ${isDark ? 'bg-[#1D1E20] border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-900'}`}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={applyCoupon}
-                                        disabled={couponLoading || !couponCode.trim()}
-                                        className="h-10 shrink-0 px-4 rounded-lg bg-[#0ECCEE] text-black font-semibold text-sm whitespace-nowrap disabled:opacity-50"
-                                    >
-                                        {couponLoading ? '…' : (couponInfo?.couponApplied && couponInfo?.couponCode === couponCode.trim().toUpperCase() ? 'Applied' : 'Apply')}
-                                    </button>
-                                </div>
-                                {couponError ? <p className="text-xs text-red-400 mt-1">{couponError}</p> : null}
-                                {couponInfo?.couponApplied ? (
-                                    <div className={`mt-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300 ${isDark ? 'bg-green-900/20 border-green-700/40 text-green-300' : 'bg-green-50 border-green-300 text-green-700'}`}>
-                                        Coupon `{couponInfo.couponCode}` applied · You save ₹{couponInfo.discountAmount}
-                                    </div>
-                                ) : null}
-                            </div>
-                            <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Payment Breakdown</p>
-                            <div className={`space-y-1.5 text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                <div className="flex justify-between gap-4">
-                                    <span>Ticket Price</span>
-                                    <span>₹{fee.toLocaleString('en-IN')}</span>
-                                </div>
-                                {platformFee > 0 ? (
-                                    <div className={`flex justify-between gap-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                        <span>Platform Fee ({platformPct}%)</span>
-                                        <span>₹{platformFee}</span>
-                                    </div>
-                                ) : null}
-                                {couponInfo?.couponApplied ? (
-                                    <div className="flex justify-between gap-4 text-green-400">
-                                        <span>Coupon Discount</span>
-                                        <span>-₹{couponInfo.discountAmount}</span>
-                                    </div>
-                                ) : null}
-                                <div className="flex justify-between gap-4 pt-2.5 mt-1 border-t border-gray-700 font-bold text-base text-[#0ECCEE]">
-                                    <span>Amount Payable</span>
-                                    <span>₹{payableAmount.toLocaleString('en-IN')}</span>
-                                </div>
-                            </div>
-                            <p className={`text-xs mt-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {platformFee > 0
-                                    ? 'Includes all charges · Secure payment via Cashfree'
-                                    : usesRazorpay
-                                        ? 'Secure payment via Razorpay'
-                                        : 'Secure payment via Cashfree · No platform fee'}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Nav buttons */}
-                    <div className="flex flex-col sm:flex-row gap-3 pt-5">
+                    {/* Action Navigation Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-700/30 mt-6">
                         <button
                             type="button"
                             onClick={back}
                             disabled={paying}
-                            className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
+                            className={`px-5 sm:px-6 py-3 rounded-xl border font-semibold text-sm transition-all duration-200 cursor-pointer active:scale-98 ${
+                                isDark ? 'border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/[0.08] hover:text-white' : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
                         >
-                            {step === 1 ? 'Cancel' : 'Previous Step'}
+                            {step === 1 ? 'Cancel' : '← Previous Step'}
                         </button>
                         <button
                             type="button"
                             onClick={next}
                             disabled={paying || (step === 1 && step1Blocked)}
-                            className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60"
+                            className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                         >
                             {paying ? (
-                                <><Loader className="w-4 h-4 animate-spin" /> Processing...</>
+                                <><Loader className="w-4 h-4 animate-spin text-black" /> Processing Payment...</>
                             ) : step === 2 && total > 0 ? (
                                 isOrganizerQr
-                                    ? `Submit payment · ₹${payableAmount.toLocaleString('en-IN')}`
-                                    : `Pay ₹${payableAmount.toLocaleString('en-IN')} & Book`
+                                    ? `Submit Payment · ₹${payableAmount.toLocaleString('en-IN')}`
+                                    : `Pay ₹${payableAmount.toLocaleString('en-IN')} & Confirm Trek`
                             ) : step === 2 ? (
-                                'Confirm Booking'
+                                'Confirm Free Trek Booking'
                             ) : (
-                                'Next Step'
+                                'Continue to Details →'
                             )}
                         </button>
                     </div>

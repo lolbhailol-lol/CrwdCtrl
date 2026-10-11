@@ -4,9 +4,6 @@ import { Calendar, MapPin, Heart } from "lucide-react";
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Phone, Instagram, Mail, ArrowLeft, Share, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
-import shareIcon from '../../../assets/share.svg';
-import calendarIcon from '../../../assets/calendar.svg';
-import locationIcon from '../../../assets/location-.svg';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useDialog } from '../../../context/DialogContext';
 import { useAuth } from '../../../context/AuthContext';
@@ -36,9 +33,10 @@ import FestPublicLiveStrip from '../components/FestPublicLiveStrip';
 import FestPublicAuditoriumTicketBox from '../components/FestPublicAuditoriumTicketBox';
 import SimilarFestsSection from '../components/SimilarFestsSection';
 import { getFestPlugin } from '../plugins/registry';
+import { isMindSparkFest } from '../mindspark/isMindSparkFest';
 import { useInAppBack } from '../../../hooks/useInAppBack';
 import { trackFestView } from '../../../services/analyticsService';
-import { isMindSparkFest } from '../mindspark/isMindSparkFest';
+import { getMockOrganizers, getGenderMatchedImage } from '../../../mock/organizersHelper';
 
 const CrwdCtrlLogin = lazy(() => import('../../../pages/auth/login'));
 const CrwdCtrlRegister = lazy(() => import('../../../pages/auth/register'));
@@ -103,35 +101,47 @@ function CompetitionScrollCard({
       }}
       aria-disabled={busy}
       aria-busy={busy}
-      className={`card-surface text-left rounded-2xl overflow-hidden transition active:scale-[0.98] flex flex-col ${
-        fill ? 'w-full h-full' : largeCover ? 'w-52 shrink-0' : 'w-44 shrink-0'
-      } ${largeCover ? 'hover:-translate-y-0.5' : ''} ${busy ? 'cursor-wait opacity-70' : ''} ${isDark ? 'bg-black!' : 'bg-white'}`}
+      className={`card-surface group text-left rounded-3xl overflow-hidden transition-all duration-300 active:scale-[0.98] flex flex-col border ${
+        fill ? 'w-full h-full' : largeCover ? 'w-56 shrink-0' : 'w-48 shrink-0'
+      } ${
+        isDark
+          ? 'bg-[#0B0D13] border-white/10 hover:border-cyan-400/40 hover:shadow-[0_10px_30px_rgba(6,182,212,0.15)]'
+          : 'bg-white border-gray-200 hover:border-cyan-500 hover:shadow-md'
+      } hover:-translate-y-1 ${busy ? 'cursor-wait opacity-70' : ''}`}
     >
-      <div className={`relative ${coverH} w-full shrink-0`}>
+      <div className={`relative ${coverH} w-full shrink-0 overflow-hidden`}>
         <CompetitionCoverImage
           src={comp.image}
           alt={compName}
           preset="cardSm"
           placeholder="muted"
-          containerClassName="absolute inset-0 w-full h-full"
+          containerClassName="absolute inset-0 w-full h-full group-hover:scale-105 transition-transform duration-300"
         />
-        <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
+        <div className="absolute top-2.5 right-2.5 z-10">
+          <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
+        </div>
+        {!hideFee ? (
+          <div className="absolute bottom-2.5 left-2.5 z-10">
+            <span
+              className={`text-[11px] font-black uppercase px-2.5 py-0.5 rounded-full backdrop-blur-md shadow-sm border ${
+                feeIsFree
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-black/60 text-cyan-300 border-cyan-400/30'
+              }`}
+            >
+              {feeLabel}
+            </span>
+          </div>
+        ) : null}
       </div>
-      <div className={`px-4 pt-3 pb-4 flex flex-col flex-1 min-h-0 ${isDark ? 'bg-black' : 'bg-white'}`}>
-        <h3 className={`text-[15px] font-bold leading-snug line-clamp-2 min-h-[2.5rem] ${isDark ? 'text-white' : 'text-gray-900'}`}>
+      <div className={`px-4 pt-3.5 pb-4 flex flex-col flex-1 min-h-0 ${isDark ? 'bg-[#0B0D13]' : 'bg-white'}`}>
+        <h3 className={`text-sm sm:text-[15px] font-black leading-snug line-clamp-2 min-h-[2.5rem] ${isDark ? 'text-white' : 'text-gray-900'} group-hover:text-cyan-400 transition-colors`}>
           {compName}
         </h3>
-        {!hideFee ? (
-          <p
-            className={`mt-auto pt-2.5 text-[15px] font-bold tracking-wide ${
-              feeIsFree
-                ? isDark ? 'text-emerald-400' : 'text-emerald-600'
-                : isDark ? 'text-[#0ECCEE]' : 'text-[#0099B8]'
-            }`}
-          >
-            {feeLabel}
-          </p>
-        ) : null}
+        <div className="mt-auto pt-2 flex items-center justify-between text-xs font-bold text-cyan-400">
+          <span>Register</span>
+          <span className="group-hover:translate-x-1 transition-transform">→</span>
+        </div>
       </div>
     </div>
   );
@@ -568,16 +578,20 @@ function EventDetailsPage() {
       })
     : '';
   const techfestHeroSrc = techfestPage ? festHeroSrc : '';
+  const totalCompetitionsCount = Object.values(pageEvent?.competitions || {}).reduce(
+    (acc, list) => acc + (Array.isArray(list) ? list.length : 0),
+    0
+  );
   const festHeroBoxClass = smoothFestLayout
-    ? (kshitijPage ? 'h-56 lg:h-[18rem] xl:h-[20rem]' : 'h-72 lg:h-[22rem] xl:h-[26rem]')
-    : 'h-64 sm:h-80 xl:h-96';
+    ? (kshitijPage ? 'h-44 lg:h-[12rem]' : 'h-48 lg:h-[13.5rem]')
+    : 'h-44 sm:h-48 lg:h-52';
   const festHeroMobileH = techfestPage
-    ? 'h-[320px]'
+    ? 'h-52'
     : kshitijPage
-      ? 'h-[240px]'
+      ? 'h-48'
       : mindSparkDesktop
-        ? 'h-[320px]'
-        : 'h-[280px]';
+        ? 'h-52'
+        : 'h-48 sm:h-52';
 
   const prefetchCompetition = (competition) => {
     const payload = buildCompetitionNavPayload(competition, pageEvent);
@@ -626,7 +640,27 @@ function EventDetailsPage() {
     setShowFullOverview(!showFullOverview);
   };
 
-  const primaryPhone = getPrimaryPhone(pageEvent.contacts);
+  const festContacts = React.useMemo(() => {
+    const festTarget = pageEvent || eventId;
+    const mockList = getMockOrganizers(festTarget, 'fest');
+    if (Array.isArray(pageEvent?.contacts) && pageEvent.contacts.length > 0) {
+      return pageEvent.contacts.map((c, i) => {
+        const match = mockList.find(m => m.name?.toLowerCase() === c.name?.toLowerCase()) || mockList[i];
+        const resolvedImage = c.image || match?.image || getGenderMatchedImage(c.name, c.gender, i);
+        return {
+          ...c,
+          image: resolvedImage,
+          role: c.role || match?.role || 'Organizer',
+          phone: c.phone || match?.phone || null,
+          email: c.email || match?.email || null,
+          instagramId: c.instagramId || match?.instagramId || null,
+        };
+      });
+    }
+    return mockList;
+  }, [pageEvent, eventId]);
+
+  const primaryPhone = getPrimaryPhone(festContacts);
   const galleryAll = pageEvent.galleryImages || [];
   // Cap thumbs — full set opens in lightbox after idle mount
   const galleryCap = kshitijPage ? 6 : smoothFestLayout ? 8 : galleryAll.length;
@@ -713,25 +747,25 @@ function EventDetailsPage() {
       <div className="hidden md:block">
         <div className={`transition-all duration-300`}>
           {/* Content */}
-          <div className={`mx-auto px-4 lg:px-8 ${smoothFestLayout ? 'max-w-[92rem] py-3' : 'max-w-7xl py-5'}`}>
+          <div className={`mx-auto px-4 lg:px-8 ${smoothFestLayout ? 'max-w-[92rem] py-3' : 'max-w-7xl py-3'}`}>
             {!smoothFestLayout ? (
             <button
               type="button"
               onClick={goBack}
-              className={`mb-4 inline-flex items-center gap-2 text-sm font-medium transition ${
+              className={`mb-3 inline-flex items-center gap-1.5 text-xs font-semibold transition ${
                 isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              <ArrowLeft size={16} />
+              <ArrowLeft size={14} />
               Back
             </button>
             ) : null}
             <div className={smoothFestLayout
-              ? 'grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_18rem] lg:grid-cols-[minmax(0,1fr)_22rem] gap-6 lg:gap-8 items-start'
-              : 'grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8'
+              ? 'grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_18rem] lg:grid-cols-[minmax(0,1fr)_22rem] gap-4 lg:gap-5 items-start'
+              : 'grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 items-start'
             }>
               {/* Left Column - Event Details */}
-              <div className={smoothFestLayout ? 'order-2 md:order-1 space-y-4 min-w-0' : 'md:col-span-2 space-y-4 sm:space-y-6'}>
+              <div className={smoothFestLayout ? 'order-2 md:order-1 space-y-3.5 min-w-0' : 'md:col-span-2 space-y-3.5'}>
                 {/* Hero — natural image size; techfest logo box; MindSpark photo frame */}
                 {techfestPage ? (
                 <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
@@ -786,39 +820,60 @@ function EventDetailsPage() {
                   </div>
                 </div>
                 ) : (
-                <div className={`relative rounded-2xl overflow-hidden ${heroShellClass}`}>
-                  <div className="w-full flex items-center justify-center px-4 sm:px-6 py-5 sm:py-6">
+                <div className={`relative rounded-3xl overflow-hidden border border-white/10 ${heroShellClass}`}>
+                  <div className="relative w-full h-44 sm:h-48 lg:h-52 flex items-center justify-center overflow-hidden">
                     {festHeroSrc ? (
-                    <img
-                      src={festHeroSrc}
-                      alt={pageEvent.title}
-                      className="w-full h-auto object-contain object-center"
-                    />
+                      <img
+                        src={festHeroSrc}
+                        alt={pageEvent.title}
+                        className="w-full h-full object-cover object-center"
+                      />
                     ) : (
-                      <div className="w-full h-40" />
+                      <div className="w-full h-full bg-[#0D0F14]" />
                     )}
+                    <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/85 via-black/25 to-black/35" />
+                    <button
+                      type="button"
+                      onClick={goBack}
+                      className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                    >
+                      <ArrowLeft size={15} />
+                      Back
+                    </button>
+                    <div className="absolute bottom-4 left-4 right-4 z-10">
+                      <h1 className="text-2xl sm:text-3xl font-black text-white drop-shadow-md">
+                        {pageEvent.title}
+                      </h1>
+                      <p className="mt-1 text-sm text-white/80">
+                        {[collegeLabel, dateLabel, venueLabel].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
                   </div>
                   {pageEvent.galleryImages?.length ? (
-                  <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex flex-col space-y-2 max-h-64 overflow-y-auto z-10">
-                    {pageEvent.galleryImages.slice(0, 6).map((img, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        aria-label={`Show gallery image ${idx + 1}`}
-                        onClick={() => handleGalleryImageClick(img)}
-                        className={`w-10 sm:w-12 h-10 sm:h-12 ${currentHeroImage === img ? 'ring-2 ring-blue-500 ring-offset-2' : ''} bg-white rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-300 hover:ring-offset-1 transition-all duration-200`}
-                      >
-                        <img
-                          src={getImageUrl(img, { preset: 'thumb' })}
-                          alt={`Gallery ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            handleImageErrorWithFallback(e, 100, 100, '#2A2B2E', 'Gallery');
-                          }}
-                        />
-                      </button>
-                    ))}
-                  </div>
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide p-3 bg-black/40 backdrop-blur-md border-t border-white/10">
+                      {pageEvent.galleryImages.slice(0, 8).map((img, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          aria-label={`Show gallery image ${idx + 1}`}
+                          onClick={() => handleGalleryImageClick(img)}
+                          className={`size-12 rounded-xl overflow-hidden border transition-all duration-200 shrink-0 ${
+                            currentHeroImage === img
+                              ? 'border-cyan-400 ring-2 ring-cyan-400/40 scale-105'
+                              : 'border-white/10 opacity-70 hover:opacity-100 hover:border-white/30'
+                          }`}
+                        >
+                          <img
+                            src={getImageUrl(img, { preset: 'thumb' })}
+                            alt={`Gallery ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              handleImageErrorWithFallback(e, 100, 100, '#2A2B2E', 'Gallery');
+                            }}
+                          />
+                        </button>
+                      ))}
+                    </div>
                   ) : null}
                 </div>
                 )}
@@ -870,20 +925,20 @@ function EventDetailsPage() {
                   </div>
                 ) : null}
 
-                {/* Fest Overview */}
+                {/* Fest Overview — compact */}
                 {overviewText ? (
-                <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-6 transition-colors duration-300`}>
-                  <h2 className={`text-xl sm:text-2xl font-bold mb-3 sm:mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
-                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed text-sm sm:text-base`}>
-                    {showFullOverview || overviewText.length <= (smoothFestLayout ? 520 : 200)
+                <div className={`${isDark ? 'bg-[#0B0D13]/90 border-white/10' : 'bg-white border-gray-200'} rounded-2xl p-3.5 border transition-colors duration-300`}>
+                  <h2 className={`text-sm font-bold uppercase tracking-wider mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
+                  <p className={`${isDark ? 'text-gray-300' : 'text-gray-700'} leading-relaxed text-xs sm:text-sm`}>
+                    {showFullOverview || overviewText.length <= 180
                       ? overviewText
-                      : `${overviewText.substring(0, smoothFestLayout ? 520 : 200)}...`}
-                    {overviewText.length > (smoothFestLayout ? 520 : 200) && (
+                      : `${overviewText.substring(0, 180)}...`}
+                    {overviewText.length > 180 && (
                       <button
                         onClick={toggleReadMore}
-                        className="text-blue-500 ml-1 font-semibold hover:text-blue-600 transition-colors"
+                        className="text-cyan-400 ml-1.5 font-bold hover:underline"
                       >
-                        {showFullOverview ? ' read less' : ' read more'}
+                        {showFullOverview ? 'read less' : 'read more'}
                       </button>
                     )}
                   </p>
@@ -894,39 +949,42 @@ function EventDetailsPage() {
                   <FestPublicLiveStrip festId={pageEvent.id || eventId} isDark={isDark} />
                 ) : null}
                 {(festPlugin.id === 'mindspark' || isMindSparkFest(pageEvent?.id || eventId)) ? (
-                  <div className="mt-3">
+                  <div className="mt-2">
                     <FestPublicAuditoriumTicketBox meta={auditoriumMeta} isDark={isDark} />
                   </div>
                 ) : null}
 
-                {/* Competitions */}
+                {/* Competitions — Single horizontal row to prevent page scrolling */}
                 {!fetchDone ? (
-                  <div className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6`}>
+                  <div className={`${isDark ? 'bg-[#0B0D13]/90 border-white/10' : 'bg-white border-gray-200'} rounded-2xl p-3.5 border`}>
                     <CompetitionSectionSkeleton isDark={isDark} />
                   </div>
                 ) : availableTabs.length > 0 ? (
-                  <div ref={eventsRef} className={`${isDark ? 'bg-[#111213]' : 'bg-gray-100'} ${festPlugin.id === 'kshitij' ? 'mt-3' : ''} rounded-2xl p-4 sm:p-6 transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`} style={kshitijPage ? { contentVisibility: 'auto', containIntrinsicSize: '420px' } : undefined}>
-                    <h2 className={`text-xl sm:text-2xl font-bold mb-4 sm:mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                      {pageEvent.competitionsHeading || "Competitions"}
-                    </h2>
+                  <div ref={eventsRef} className={`${isDark ? 'bg-[#0B0D13]/90 border-white/10' : 'bg-white border-gray-200'} rounded-2xl p-3.5 border transition-colors duration-300 scroll-mt-[calc(var(--desktop-navbar-h)+0.75rem)]`}>
+                    <div className="flex items-center justify-between mb-2.5">
+                      <h2 className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {pageEvent.competitionsHeading || "Competitions"}
+                      </h2>
+                      <span className="text-[11px] font-semibold text-cyan-400">
+                        {pageEvent.competitions[visibleTab]?.length || 0} Events
+                      </span>
+                    </div>
 
                     {/* Category pills */}
-                    <div className={`flex flex-wrap gap-2 mb-6 ${mindSparkDesktop ? 'gap-2.5' : ''}`}>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
                       {availableTabs.map(tab => (
                         <button
                           key={tab}
                           type="button"
                           onClick={() => setActiveTab(tab)}
-                          className={`rounded-full text-sm font-medium transition ${
-                            mindSparkDesktop ? 'px-3.5 py-2' : 'px-4 py-1.5'
-                          } ${
+                          className={`rounded-full text-xs font-semibold transition px-3 py-1 ${
                             visibleTab === tab
                               ? isDark
                                 ? 'border border-[#0ECCEE] text-[#0ECCEE] bg-[#0ECCEE]/10'
-                                : 'border border-sky-400 text-sky-600 bg-white'
+                                : 'border border-sky-400 text-sky-600 bg-white shadow-xs'
                               : isDark
-                              ? 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
-                              : 'text-gray-600 hover:text-gray-900'
+                              ? 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent'
+                              : 'text-gray-600 hover:text-gray-900 border border-gray-200'
                           }`}
                         >
                           {festPlugin.formatTabLabel(tab)}
@@ -934,16 +992,16 @@ function EventDetailsPage() {
                       ))}
                     </div>
 
-                    {/* Competition Cards — grid on MindSpark / Kshitij, scroll on other fests */}
-                    <div className={smoothFestLayout ? '' : 'overflow-x-auto scrollbar-hide -mx-1 px-1'}>
-                      <div className={smoothFestLayout ? 'grid grid-cols-2 xl:grid-cols-3 gap-4' : 'flex gap-4 pb-1'}>
+                    {/* Single horizontal scroll row — keeps page from scrolling excessively */}
+                    <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
+                      <div className="flex gap-3 pb-1">
                         {pageEvent.competitions[visibleTab]?.map((comp, idx) => (
                           <CompetitionScrollCard
                             key={comp.id || idx}
                             comp={comp}
-                            fill={smoothFestLayout}
+                            fill={false}
                             hideFee={false}
-                            largeCover={mindSparkDesktop}
+                            largeCover={false}
                             isDark={isDark}
                             isFavorite={isFavorite(comp.id)}
                             onToggleFavorite={() => toggleFavorite(comp.id, {
@@ -962,60 +1020,34 @@ function EventDetailsPage() {
                   </div>
                 ) : null}
 
-                {/* Our Past Sponsors */}
-                {pageEvent.sponsors && pageEvent.sponsors.length > 0 && (
-                  <div className=" rounded-2xl p-4 sm:p-6">
-                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Our Sponsors</h2>
-                    <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-                      {pageEvent.sponsors.map((sponsor, idx) => (
-                        <div
-                          key={idx}
-                          className={`aspect-square ${isDark ? 'bg-[#111213] hover:bg-gray-600' : 'bg-[#EDEDF2] '} rounded-lg flex items-center justify-center p-1 transition-all duration-300`}
-                        >
-                          <img
-                            src={getImageUrl(sponsor.logo, { preset: 'thumb' })}
-                            alt={sponsor.name}
-                            className="max-w-full max-h-full object-contain"
-                            onError={(e) => {
-                              handleImageErrorWithFallback(e, 100, 60, '#4285F4', sponsor.name || 'Sponsor');
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+
               </div>
 
               {/* Right Column - Registration Card & Artists */}
               <div className={smoothFestLayout ? 'order-1 md:order-2 space-y-5' : 'lg:col-span-1 space-y-4 sm:space-y-5'}>
-                <div className={`sticky top-4 lg:top-[calc(var(--desktop-navbar-h)+0.75rem)] ${isDark ? 'bg-[#111213]' : 'bg-gray-100'} rounded-2xl p-4 sm:p-5 mb-6 transition-colors duration-300`}>
-                  <div className={`flex items-start justify-between gap-3 ${smoothFestLayout ? 'mb-3' : 'mb-4 sm:mb-6'}`}>
-                    {smoothFestLayout ? (
-                      <h1 className={`text-2xl lg:text-3xl font-bold leading-tight tracking-tight min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                <div className={`relative ${
+                  isDark ? 'bg-[#0A0D14]/90 border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)]' : 'bg-white border-gray-200 shadow-xl'
+                } backdrop-blur-2xl border rounded-3xl p-5 sm:p-6 mb-6 transition-all duration-300`}>
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="min-w-0 flex-1">
+                      <h1 className={`text-2xl lg:text-3xl font-black leading-tight tracking-tight min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {mindSparkDesktop ? formatMindSparkTitle(pageEvent.title) : pageEvent.title}
-                        {collegeLabel ? (
-                          <span className={`block mt-1 text-sm font-semibold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {collegeLabel}
-                          </span>
-                        ) : null}
                       </h1>
-                    ) : (
-                      <h1
-                        className={`text-lg sm:text-2xl font-bold min-w-0 ${isDark ? 'text-white' : 'text-gray-900'}`}
-                        aria-label={collegeLabel ? `${pageEvent.title} — ${collegeLabel}` : pageEvent.title}
-                      >
-                        {pageEvent.title}
-                        {collegeLabel ? (
-                          <>
-                            <br />
-                            <span className={`text-sm sm:text-base font-semibold ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {collegeLabel}
-                            </span>
-                          </>
-                        ) : null}
-                      </h1>
-                    )}
+                      {collegeLabel ? (
+                        <p className={`mt-1.5 text-xs font-semibold inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full ${
+                          isDark ? 'bg-white/5 text-gray-300 border border-white/10' : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          🎓 {collegeLabel}
+                        </p>
+                      ) : null}
+                      {pageEvent.theme && !isFestPlaceholderCopy(pageEvent.theme) ? (
+                        <p className={`mt-1.5 text-[11px] font-semibold inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full ${
+                          isDark ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20' : 'bg-purple-50 text-purple-700'
+                        }`}>
+                          🎭 {pageEvent.theme}
+                        </p>
+                      ) : null}
+                    </div>
                     {LiveBadge ? <LiveBadge /> : null}
                   </div>
 
@@ -1023,68 +1055,124 @@ function EventDetailsPage() {
                     <button
                       type="button"
                       onClick={handleOpenMindSparkBundle}
-                      className="mb-4 flex w-full items-center justify-between gap-3 rounded-xl border border-[#0ECCEE]/35 bg-[#0ECCEE]/10 px-4 py-3 text-left transition hover:border-[#0ECCEE]/70"
+                      className="mb-3.5 flex w-full items-center justify-between gap-3 rounded-2xl border border-cyan-400/40 bg-cyan-500/10 px-3.5 py-2.5 text-left transition hover:bg-cyan-500/20 hover:border-cyan-400"
                     >
-                      <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>MindSpark Competition Bundle</span>
-                      <span className="shrink-0 text-xs font-bold text-[#0ECCEE]">65% OFF →</span>
+                      <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>MindSpark Competition Bundle</span>
+                      <span className="shrink-0 text-xs font-extrabold text-cyan-400">65% OFF →</span>
                     </button>
                   ) : null}
 
-                  <div className={smoothFestLayout ? 'space-y-2 mb-3' : 'space-y-3 sm:space-y-4 mb-4 sm:mb-6'}>
-                    {dateLabel ? (
-                    <div className="flex items-center space-x-3">
-                      <img src={calendarIcon} alt="Calendar" className={`w-[18px] h-[18px] ${isDark ? 'invert brightness-200' : ''}`}/>
-                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{dateLabel}</span>
+                  {/* 4-Box High-Density Metrics Grid */}
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {/* Date & Time */}
+                    <div className={`p-2.5 rounded-2xl border transition ${
+                      isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                        <Calendar size={12} className="text-cyan-400 shrink-0" />
+                        <span className="truncate">Date & Time</span>
+                      </div>
+                      <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {dateLabel || 'TBA'}
+                      </div>
                     </div>
-                    ) : null}
-                    {venueLabel ? (
-                    <div className="flex items-center space-x-3">
-                      <img src={locationIcon} alt="Location" className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'filter brightness-150 invert' : ''}`} />
-                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{venueLabel}</span>
+
+                    {/* Venue */}
+                    <div className={`p-2.5 rounded-2xl border transition ${
+                      isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                        <MapPin size={12} className="text-cyan-400 shrink-0" />
+                        <span className="truncate">Venue</span>
+                      </div>
+                      <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {venueLabel || 'Campus Venue'}
+                      </div>
                     </div>
-                    ) : null}
-                    {pageEvent.theme && !isFestPlaceholderCopy(pageEvent.theme) ? (
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>🎭</div>
-                      <span className={`text-sm sm:text-base ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{pageEvent.theme}</span>
+
+                    {/* Campus / Location */}
+                    <div className={`p-2.5 rounded-2xl border transition ${
+                      isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                        <span className="text-xs">🎓</span>
+                        <span className="truncate">Campus</span>
+                      </div>
+                      <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {collegeLabel || pageEvent.location || 'University Campus'}
+                      </div>
                     </div>
-                    ) : null}
+
+                    {/* Events / Competitions */}
+                    <div className={`p-2.5 rounded-2xl border transition ${
+                      isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                        <span className="text-xs">🏆</span>
+                        <span className="truncate">Events</span>
+                      </div>
+                      <div className={`text-xs font-bold leading-snug ${isDark ? 'text-cyan-400' : 'text-sky-600'}`}>
+                        {totalCompetitionsCount > 0 ? `${totalCompetitionsCount} Competitions` : 'All Categories'}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+                        {availableTabs.length > 0 ? `${availableTabs.length} Categories` : 'Multiple Domains'}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex space-x-2">
+                  <div className="space-y-2">
                     <button
                       type="button"
-                      aria-label="Share fest"
-                      onClick={handleShare}
-                      className={`p-2.5 sm:p-3 ${isDark ? 'bg-[#111213] hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition`}
+                      onClick={() => eventsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      className="w-full h-11 rounded-2xl bg-linear-to-r from-cyan-400 to-blue-500 text-black font-extrabold text-sm flex items-center justify-center gap-2 hover:from-cyan-300 hover:to-blue-400 shadow-[0_0_25px_rgba(6,182,212,0.35)] hover:shadow-[0_0_35px_rgba(6,182,212,0.5)] transition-all duration-300 active:scale-[0.98] cursor-pointer"
                     >
-                      <img src={shareIcon} alt="Share" className={`w-4 h-4 sm:w-5 sm:h-5 ${isDark ? 'filter brightness-150 invert' : ''}`} />
+                      <span>Explore Competitions {totalCompetitionsCount > 0 ? `(${totalCompetitionsCount})` : ''}</span>
+                      <span>↓</span>
                     </button>
-                    {smoothFestLayout ? (
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        aria-label="Share fest"
+                        onClick={handleShare}
+                        className={`flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-xs font-bold border transition-all ${
+                          isDark
+                            ? 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-cyan-400/40'
+                            : 'bg-gray-100 border-gray-200 text-gray-800 hover:bg-gray-200'
+                        } active:scale-95`}
+                      >
+                        <Share size={15} />
+                        <span>Share</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={handleFestFavorite}
-                        className={`p-2.5 sm:p-3 ${isDark ? 'bg-[#1D1E20] hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-xl transition`}
                         aria-label={isFavorite(pageEvent.id) ? 'Remove from favourites' : 'Add to favourites'}
+                        className={`flex-1 h-11 rounded-xl flex items-center justify-center gap-2 text-xs font-bold border transition-all ${
+                          isDark
+                            ? 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-red-400/40'
+                            : 'bg-gray-100 border-gray-200 text-gray-800 hover:bg-gray-200'
+                        } active:scale-95`}
                       >
                         <Heart
-                          size={18}
+                          size={16}
                           className={isFavorite(pageEvent.id) ? 'fill-red-500 text-red-500' : isDark ? 'text-white' : 'text-gray-800'}
                         />
+                        <span>{isFavorite(pageEvent.id) ? 'Saved' : 'Favorite'}</span>
                       </button>
-                    ) : null}
-                  </div>
-                  {smoothFestLayout ? (
-                    <div className="mt-3 grid gap-2">
-                      <button
-                        type="button"
-                        onClick={() => eventsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                        className="w-full h-10 rounded-xl border border-white/15 text-white font-medium hover:bg-white/5 transition"
-                      >
-                        Browse individual events
-                      </button>
+
+                      {primaryPhone && (
+                        <a
+                          href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
+                          className="size-11 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center shrink-0 transition-all active:scale-95"
+                          title="Call Organizer"
+                        >
+                          <Phone size={16} />
+                        </a>
+                      )}
                     </div>
-                  ) : null}
+                  </div>
                 </div>
 
                 {/* Artists Section */}
@@ -1097,9 +1185,9 @@ function EventDetailsPage() {
                 </div>
                     <div className={`${isDark ? 'bg-[#111213] rounded-2xl' : 'bg-[#EDEDF2] rounded-2xl'} w-full overflow-hidden`}>
 
-                      {/* Artist Card — image flush into sheet (no border ring gap) */}
-                      <div className={`w-full max-w-full rounded-2xl overflow-hidden ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
-                        <div className="relative detail-hero-height overflow-hidden bg-[#1A1B1D]">
+                      {/* Artist Card — compact and elegant */}
+                      <div className={`w-full max-w-full rounded-2xl overflow-hidden border ${isDark ? 'bg-[#111213] border-white/10' : 'bg-[#EDEDF2] border-gray-200'}`}>
+                        <div className="relative h-44 sm:h-48 overflow-hidden bg-[#1A1B1D]">
                           <img
                               src={getImageUrl(pageEvent.artists[currentArtist].image, { preset: 'card' })}
                               alt={pageEvent.artists[currentArtist].name}
@@ -1108,6 +1196,7 @@ function EventDetailsPage() {
                                 handleImageErrorWithFallback(e, 300, 300, '#2A2B2E', pageEvent.artists[currentArtist].name || 'Artist');
                               }}
                           />
+                          <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/25 to-transparent pointer-events-none" />
 
                           {/* Navigation arrows for multiple artists */}
                           {pageEvent.artists.length > 1 && (
@@ -1115,61 +1204,59 @@ function EventDetailsPage() {
                                 {/* Left Arrow */}
                                 <button
                                     onClick={() => setCurrentArtist(currentArtist === 0 ? pageEvent.artists.length - 1 : currentArtist - 1)}
-                                    className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-black/50 transition-all duration-300 flex items-center justify-center"
+                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 size-7 bg-black/40 backdrop-blur-sm text-white rounded-full hover:bg-black/60 transition-all flex items-center justify-center z-10"
                                     title="Previous Artist"
                                 >
-                                  <ChevronLeft size={16} className="sm:w-5 sm:h-5" />
+                                  <ChevronLeft size={14} />
                                 </button>
 
                                 {/* Right Arrow */}
                                 <button
                                     onClick={() => setCurrentArtist(currentArtist === pageEvent.artists.length - 1 ? 0 : currentArtist + 1)}
-                                    className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 w-8 h-8 sm:w-10 sm:h-10 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-black/50 transition-all duration-300 flex items-center justify-center"
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 size-7 bg-black/40 backdrop-blur-sm text-white rounded-full hover:bg-black/60 transition-all flex items-center justify-center z-10"
                                     title="Next Artist"
                                 >
-                                  <ChevronRight size={16} className="sm:w-5 sm:h-5" />
+                                  <ChevronRight size={14} />
                                 </button>
                               </>
                           )}
-                        </div>
 
-                        <div className={`p-4 sm:p-5 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
-                          {/* Artist Name */}
-                          <div className="mb-2">
-                            <h3 className={`text-lg sm:text-xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          <div className="absolute bottom-2.5 left-3 right-3 z-10">
+                            {pageEvent.artists[currentArtist].genre ? (
+                              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-400 text-black mb-1">
+                                {pageEvent.artists[currentArtist].genre}
+                              </span>
+                            ) : null}
+                            <h3 className="text-base font-extrabold text-white leading-tight truncate">
                               {pageEvent.artists[currentArtist].name}
                             </h3>
-                            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {pageEvent.artists[currentArtist].genre}
-                            </p>
                           </div>
+                        </div>
 
-                          {/* Event Details */}
-                          <div className="space-y-1 mb-3">
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                  {pageEvent.venue}
-                                </p>
-                                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-900'}`}>
-                                  {pageEvent.artists[currentArtist].message || 'No message available'}
-                                </p>
-                              </div>
-                            </div>
+                        <div className={`p-3 ${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'}`}>
+                          <div className="flex items-center justify-between text-xs font-semibold mb-1">
+                            <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                              📍 {pageEvent.venue || 'Festival Stage'}
+                            </span>
                           </div>
+                          {pageEvent.artists[currentArtist].message ? (
+                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} line-clamp-2 leading-relaxed`}>
+                              {pageEvent.artists[currentArtist].message}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 
                     {/* Carousel dots */}
                     {pageEvent.artists.length > 1 && (
-                      <div className="flex justify-center space-x-3 py-6">
+                      <div className="flex justify-center space-x-1.5 pt-2 pb-1">
                         {pageEvent.artists.map((_, idx) => (
                           <button
                             key={idx}
                             onClick={() => setCurrentArtist(idx)}
-                            className={`h-2 rounded-full transition-all duration-300 ${currentArtist === idx
-                              ? 'bg-cyan-400 w-8 shadow-lg'
-                              : `${isDark ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-300 hover:bg-gray-400'} w-2`
+                            className={`h-1.5 rounded-full transition-all duration-300 ${currentArtist === idx
+                              ? 'bg-cyan-400 w-6 shadow-sm'
+                              : `${isDark ? 'bg-gray-700 hover:bg-gray-500' : 'bg-gray-300 hover:bg-gray-400'} w-1.5`
                               }`}
                             title={`View ${pageEvent.artists[idx].name}`}
                           />
@@ -1180,87 +1267,165 @@ function EventDetailsPage() {
                   </>
                 )}
 
-                {/* Contact Details */}
-                {pageEvent.contacts && pageEvent.contacts.length > 0 && (
-                  <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-2xl p-4 border ${isDark ? 'border-white/10' : 'border-gray-200'} transition-colors duration-300`}>
-                    <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
-                    <div className="space-y-3">
-                      {pageEvent.contacts.map((contact, index) => (
-                        <div key={index} className={`${isDark ? 'bg-[#161718]' : 'bg-gray-50'} rounded-xl p-3.5 transition-colors duration-300`}>
-                          <div className="mb-2">
-                            <span className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                              {contact.name || 'Contact Person'}
-                            </span>
-                            {contact.role && (
-                              <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'} ml-2`}>
-                                - {contact.role}
+              </div>
+            </div>
+
+            {/* Full-width Sponsors Bar — "navbar ke jaisa lamba", slightly bigger logos */}
+            {pageEvent.sponsors && pageEvent.sponsors.length > 0 && (
+              <div className={`mt-4 w-full rounded-2xl sm:rounded-3xl p-4 sm:p-5 border transition-all duration-300 ${
+                isDark ? 'bg-[#0B0D13]/90 border-white/10 shadow-lg' : 'bg-white border-gray-200 shadow-sm'
+              }`}>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-4 rounded-full bg-cyan-400" />
+                    <h2 className={`text-xs sm:text-sm font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      Our Sponsors & Partners
+                    </h2>
+                  </div>
+                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                    isDark ? 'bg-white/5 text-cyan-300 border border-white/10' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {pageEvent.sponsors.length} Partners
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3.5 sm:gap-4.5">
+                  {pageEvent.sponsors.map((sponsor, idx) => (
+                    <div
+                      key={idx}
+                      className={`h-20 sm:h-24 px-6 sm:px-8 rounded-2xl border flex items-center justify-center transition-all duration-300 hover:scale-105 ${
+                        isDark
+                          ? 'bg-[#141721] border-white/10 hover:border-cyan-400/60 hover:bg-[#1A1F2D] hover:shadow-[0_0_25px_rgba(34,211,238,0.2)]'
+                          : 'bg-gray-50 border-gray-200 hover:border-cyan-400/60 hover:bg-white shadow-sm'
+                      }`}
+                      title={sponsor.name}
+                    >
+                      <img
+                        src={getImageUrl(sponsor.logo, { preset: 'square' }) || sponsor.logo}
+                        alt={sponsor.name}
+                        className="h-12 sm:h-14 w-auto max-w-[120px] sm:max-w-[150px] object-contain drop-shadow-md transition-transform duration-300"
+                        onError={(e) => {
+                          handleImageErrorWithFallback(e, 160, 80, '#4285F4', sponsor.name || 'Sponsor');
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Full-width Organizer Contacts Bar — "navbar ke jaisa lamba" */}
+            {festContacts && festContacts.length > 0 && (
+              <div className={`mt-4 w-full rounded-2xl sm:rounded-3xl p-4 sm:p-5 border transition-all duration-300 ${
+                isDark ? 'bg-[#0B0D13]/90 border-white/10 shadow-lg' : 'bg-white border-gray-200 shadow-sm'
+              }`}>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-4 rounded-full bg-emerald-400" />
+                    <h2 className={`text-xs sm:text-sm font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      Organizer Contacts
+                    </h2>
+                  </div>
+                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                    isDark ? 'bg-white/5 text-emerald-400 border border-white/10' : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {festContacts.length} Contacts
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {festContacts.map((contact, index) => {
+                    const rawPhones = contact.phone ? contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean) : [];
+                    const primaryPhoneNum = rawPhones[0] ? rawPhones[0].replace(/\s*\([^)]*\)/, '').trim() : null;
+                    const initials = contact.name
+                      ? contact.name.split(' ').filter(Boolean).map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                      : 'CC';
+                    const isGetInTouch = contact.name?.toLowerCase().includes('get in touch') || (!primaryPhoneNum && (contact.email || contact.instagramId));
+
+                    return (
+                      <div
+                        key={contact.id || index}
+                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all duration-200 hover:border-cyan-400/40 ${
+                          isDark
+                            ? 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06]'
+                            : 'bg-gray-50 border-gray-200 hover:bg-white shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+                          <div className={`size-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden border ${
+                            isGetInTouch
+                              ? 'bg-purple-500/10 border-purple-400/30 text-purple-400'
+                              : 'bg-cyan-500/10 border-cyan-400/30 text-cyan-400'
+                          }`}>
+                            {contact.image && !isGetInTouch ? (
+                              <img
+                                src={contact.image}
+                                alt={contact.name}
+                                className="size-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span className="text-xs font-bold">
+                                {isGetInTouch ? '💬' : initials}
                               </span>
                             )}
                           </div>
-
-                          <div className="space-y-2.5">
-                            {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
-                              const nameMatch = entry.match(/\(([^)]+)\)/);
-                              const name = nameMatch ? nameMatch[1].trim() : null;
-                              const rawNumber = entry.replace(/\s*\([^)]*\)/, '').trim();
-                              return (
-                                <a
-                                  key={pi}
-                                  href={`tel:${rawNumber.replace(/[\s-]/g, '')}`}
-                                  className="flex items-center gap-2.5"
-                                >
-                                  <span className="size-8 shrink-0 rounded-full bg-[#0060DF] flex items-center justify-center">
-                                    <Phone size={14} className="text-white" />
-                                  </span>
-                                  <span className="min-w-0">
-                                    {name ? (
-                                      <span className={`block text-[11px] leading-tight ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{name}</span>
-                                    ) : null}
-                                    <span className={`block text-sm font-medium tabular-nums ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-                                      {rawNumber}
-                                    </span>
-                                  </span>
-                                </a>
-                              );
-                            })}
-
-                            {contact.email && (
-                              <a
-                                href={`mailto:${contact.email}`}
-                                className="flex items-center gap-2.5"
-                              >
-                                <span className="size-8 shrink-0 rounded-full bg-emerald-600 flex items-center justify-center">
-                                  <Mail size={14} className="text-white" />
-                                </span>
-                                <span className={`text-sm font-medium truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-                                  {contact.email}
-                                </span>
-                              </a>
-                            )}
-
-                            {contact.instagramId && (
-                              <a
-                                href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2.5"
-                              >
-                                <span className="size-8 shrink-0 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center">
-                                  <Instagram size={14} className="text-white" />
-                                </span>
-                                <span className={`text-sm font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
-                                  {contact.instagramId.startsWith('@') ? contact.instagramId : `@${contact.instagramId}`}
-                                </span>
-                              </a>
-                            )}
+                          <div className="min-w-0 flex-1">
+                            <span className={`block font-bold text-xs truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              {contact.name || 'Contact Person'}
+                            </span>
+                            {contact.role ? (
+                              <span className={`block text-[11px] truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {contact.role}
+                              </span>
+                            ) : isGetInTouch ? (
+                              <span className={`block text-[11px] truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Direct Support
+                              </span>
+                            ) : null}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {primaryPhoneNum && (
+                            <a
+                              href={`tel:${primaryPhoneNum.replace(/[\s-]/g, '')}`}
+                              className="size-8 rounded-xl bg-cyan-400/10 border border-cyan-400/20 text-cyan-400 hover:bg-cyan-400/20 flex items-center justify-center transition active:scale-95"
+                              title={`Call ${contact.name || ''}`}
+                            >
+                              <Phone size={13} />
+                            </a>
+                          )}
+                          {contact.email && (
+                            <a
+                              href={`mailto:${contact.email}`}
+                              className="size-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 flex items-center justify-center transition active:scale-95"
+                              title="Send Email"
+                            >
+                              <Mail size={13} />
+                            </a>
+                          )}
+                          {contact.instagramId && (
+                            <a
+                              href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="size-8 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 flex items-center justify-center transition active:scale-95"
+                              title="Instagram"
+                            >
+                              <Instagram size={13} />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {showDeferredMedia ? (
             <SimilarFestsSection
@@ -1268,7 +1433,7 @@ function EventDetailsPage() {
               festType={pageEvent.type || pageEvent.category}
               isDark={isDark}
               limit={kshitijPage ? 2 : 4}
-              className="mt-8 mb-4"
+              className="mt-4 mb-3"
               fullWidthMobile={kshitijPage || mindSparkDesktop || techfestPage}
               title={kshitijPage ? 'Explore more Fests' : undefined}
               hideSubtitle={kshitijPage}
@@ -1280,7 +1445,7 @@ function EventDetailsPage() {
       </div>
 
       {/* Mobile Version - Show below 768px */}
-      <div className={`md:hidden pb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+      <div className={`md:hidden pb-28 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
         {/* Hero — edge-to-edge cover (techfest: logo contain) */}
         <div className={`relative w-full shrink-0 overflow-hidden bg-[#0B0C0D] ${festHeroMobileH}`}>
           {techfestPage ? (
@@ -1351,18 +1516,28 @@ function EventDetailsPage() {
         </div>
 
         {/* Content sheet — overlaps hero like competition detail */}
-        <div className={`relative z-10 overflow-hidden px-5 pt-6 pb-4 -mt-10 rounded-t-3xl ${
-          isDark ? 'bg-[#161718]' : 'bg-white'
+        {/* Content sheet — overlaps hero like competition detail */}
+        <div className={`relative z-10 overflow-hidden px-4 sm:px-5 pt-6 pb-5 -mt-8 rounded-t-[32px] border-t shadow-2xl transition-all ${
+          isDark ? 'bg-[#0A0D14] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900'
         }`}>
           <div className="flex items-start justify-between gap-3 mb-5">
             <div className="min-w-0 flex-1">
-              <h1 className={`text-2xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'} ${mindSparkDesktop ? 'text-[1.75rem] tracking-tight' : ''}`}>
+              <h1 className={`text-2xl sm:text-3xl font-black leading-tight tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 {mindSparkDesktop ? formatMindSparkTitle(pageEvent.title) : pageEvent.title}
               </h1>
               {collegeLabel ? (
-              <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
-                {collegeLabel}
-              </p>
+                <p className={`text-xs font-semibold mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full ${
+                  isDark ? 'bg-white/5 text-gray-300 border border-white/10' : 'bg-gray-100 text-gray-700'
+                }`}>
+                  🎓 {collegeLabel}
+                </p>
+              ) : null}
+              {pageEvent.theme && !isFestPlaceholderCopy(pageEvent.theme) ? (
+                <p className={`text-[11px] font-semibold mt-1.5 ml-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full ${
+                  isDark ? 'bg-purple-500/10 text-purple-300 border border-purple-500/20' : 'bg-purple-50 text-purple-700'
+                }`}>
+                  🎭 {pageEvent.theme}
+                </p>
               ) : null}
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -1370,42 +1545,83 @@ function EventDetailsPage() {
               {primaryPhone && (
                 <a
                   href={`tel:${primaryPhone.replace(/[\s-]/g, '')}`}
-                  className="size-11 rounded-full bg-[#0ECCEE] flex items-center justify-center shadow-md"
+                  className="size-10 rounded-2xl bg-cyan-400 text-black flex items-center justify-center shadow-md active:scale-95 transition-transform"
                   aria-label="Call organizer"
                 >
-                  <Phone size={20} className="text-black" />
+                  <Phone size={16} />
                 </a>
               )}
             </div>
           </div>
 
-          {(dateLabel || venueLabel) ? (
-          <div className="space-y-3 mb-5">
-            {dateLabel ? (
-            <div className="flex items-center gap-3">
-              <Calendar size={18} className={isDark ? 'text-gray-500' : 'text-gray-400'} />
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{dateLabel}</p>
+          {/* Mobile 4-Box High-Density Metrics Grid */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            {/* Date & Time */}
+            <div className={`p-2.5 rounded-2xl border transition ${
+              isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                <Calendar size={12} className="text-cyan-400 shrink-0" />
+                <span className="truncate">Date & Time</span>
+              </div>
+              <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {dateLabel || 'TBA'}
+              </div>
             </div>
-            ) : null}
-            {venueLabel ? (
-            <div className="flex items-center gap-3">
-              <MapPin size={18} className={isDark ? 'text-gray-500' : 'text-gray-400'} />
-              <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{venueLabel}</p>
+
+            {/* Venue */}
+            <div className={`p-2.5 rounded-2xl border transition ${
+              isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                <MapPin size={12} className="text-cyan-400 shrink-0" />
+                <span className="truncate">Venue</span>
+              </div>
+              <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {venueLabel || 'Campus Venue'}
+              </div>
             </div>
-            ) : null}
+
+            {/* Campus */}
+            <div className={`p-2.5 rounded-2xl border transition ${
+              isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                <span className="text-xs">🎓</span>
+                <span className="truncate">Campus</span>
+              </div>
+              <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {collegeLabel || pageEvent.location || 'University'}
+              </div>
+            </div>
+
+            {/* Events */}
+            <div className={`p-2.5 rounded-2xl border transition ${
+              isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                <span className="text-xs">🏆</span>
+                <span className="truncate">Events</span>
+              </div>
+              <div className={`text-xs font-bold leading-snug ${isDark ? 'text-cyan-400' : 'text-sky-600'}`}>
+                {totalCompetitionsCount > 0 ? `${totalCompetitionsCount} Competitions` : 'All Categories'}
+              </div>
+              <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+                {availableTabs.length > 0 ? `${availableTabs.length} Domains` : 'All Events'}
+              </div>
+            </div>
           </div>
-          ) : null}
 
           {overviewText ? (
-          <div>
-            <h2 className={`text-base font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Us</h2>
-            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+          <div className={`p-4 rounded-2xl border ${isDark ? 'bg-white/[0.02] border-white/[0.06]' : 'bg-gray-50 border-gray-200'}`}>
+            <h2 className={`text-sm font-black uppercase tracking-wider mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>About This Fest</h2>
+            <p className={`text-xs sm:text-sm leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               {showFullOverview || overviewText.length <= 160 ? overviewText : `${overviewText.substring(0, 160)}...`}
               {overviewText.length > 160 && (
                 <button
                   type="button"
                   onClick={toggleReadMore}
-                  className="text-[#0060DF] ml-1 font-semibold"
+                  className="text-cyan-400 ml-1.5 font-bold hover:underline"
                 >
                   {showFullOverview ? 'read less' : 'read more'}
                 </button>
@@ -1413,7 +1629,6 @@ function EventDetailsPage() {
             </p>
           </div>
           ) : null}
-
         </div>
 
         {/* Artists Over the Years — hidden when Pro Show / artists are off (e.g. MindSpark) */}
@@ -1492,24 +1707,27 @@ function EventDetailsPage() {
             <CompetitionSectionSkeleton isDark={isDark} mobile />
           </section>
         ) : availableTabs.length > 0 ? (
-          <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-            <h2 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {pageEvent.competitionsHeading || 'Competitions'}
-            </h2>
+          <section id="mobile-competitions-section" className={`px-4 mb-8 scroll-mt-6 ${isDark ? 'bg-transparent' : 'bg-white'}`}>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h2 className={`text-lg sm:text-xl font-black tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {pageEvent.competitionsHeading || 'Competitions'}
+              </h2>
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${isDark ? 'bg-white/10 text-cyan-300' : 'bg-gray-200 text-gray-700'}`}>
+                {pageEvent.competitions[visibleTab]?.length || 0} Events
+              </span>
+            </div>
             <div className="flex gap-2 overflow-x-auto scrollbar-hide mb-4 pb-1">
               {availableTabs.map((tab) => (
                 <button
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                  className={`shrink-0 px-4 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all duration-200 ${
                     visibleTab === tab
-                      ? isDark
-                        ? 'border border-[#0ECCEE] text-[#0ECCEE] bg-[#0ECCEE]/10'
-                        : 'border border-sky-400 text-sky-600 bg-white'
+                      ? 'bg-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]'
                       : isDark
-                      ? 'text-gray-400'
-                      : 'text-gray-600'
+                      ? 'bg-white/5 text-gray-300 border border-white/5'
+                      : 'bg-gray-100 text-gray-600'
                   }`}
                 >
                   {festPlugin.formatTabLabel(tab)}
@@ -1543,27 +1761,40 @@ function EventDetailsPage() {
         ) : null}
 
         {/* Contact Details */}
-        {pageEvent.contacts && pageEvent.contacts.length > 0 && (
+        {festContacts && festContacts.length > 0 && (
           <section className={`px-4 mb-8 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-            <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
+            <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Organizer Contacts</h2>
             <div className="space-y-3">
-              {pageEvent.contacts.map((contact, index) => (
+              {festContacts.map((contact, index) => (
                 <div
-                  key={index}
-                  className={`rounded-xl p-3 ${isDark ? 'bg-[#1f2021]' : 'bg-gray-100'}`}
+                  key={contact.id || index}
+                  className={`rounded-xl p-3.5 ${isDark ? 'bg-[#1f2021]' : 'bg-gray-100'}`}
                 >
-                  {(contact.name || contact.role) && (
-                    <div className="mb-2">
-                      <span className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  <div className="flex items-center gap-3 mb-2.5">
+                    {contact.image ? (
+                      <img
+                        src={contact.image}
+                        alt={contact.name}
+                        className="size-10 rounded-full object-cover shrink-0 border border-white/10"
+                        loading="lazy"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="size-10 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs shrink-0">
+                        {(contact.name?.[0] || 'C').toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <span className={`block font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
                         {contact.name || 'Contact Person'}
                       </span>
                       {contact.role && (
-                        <span className={`text-xs ml-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                          - {contact.role}
+                        <span className={`block text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {contact.role}
                         </span>
                       )}
                     </div>
-                  )}
+                  </div>
 
                   <div className="space-y-2">
                     {contact.phone && contact.phone.split(/\s*(?:,|\/)\s*/).filter(Boolean).map((entry, pi) => {
@@ -1720,6 +1951,30 @@ function EventDetailsPage() {
           compact={kshitijPage}
         />
         ) : null}
+
+        {/* Sticky Mobile Explore & Register Bar */}
+        <div className="fixed bottom-0 inset-x-0 z-40 p-3.5 bg-[#0A0D14]/90 backdrop-blur-xl border-t border-white/10 flex items-center justify-between gap-3 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+          <div className="min-w-0 flex-1">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-cyan-400 block truncate">
+              {pageEvent.dates?.display || 'Fest Registration'}
+            </span>
+            <p className="text-sm font-black text-white truncate">
+              {pageEvent.title}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('mobile-competitions-section');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className="shrink-0 px-4 py-2.5 rounded-full bg-linear-to-r from-cyan-400 to-blue-500 text-black font-extrabold text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(34,211,238,0.4)] active:scale-95 transition-all"
+          >
+            Explore Events ↓
+          </button>
+        </div>
       </div>
 
       {/* Gallery Lightbox */}

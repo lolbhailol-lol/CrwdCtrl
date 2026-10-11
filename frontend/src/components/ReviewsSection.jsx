@@ -2,57 +2,10 @@ import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Quote } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
 
-/** Default reviews matching design reference */
-const DEFAULT_REVIEWS = [
-    {
-        id: '1',
-        name: 'Aman Singh',
-        role: 'Student',
-        location: 'Meerut',
-        avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
-        quote: '"CrwdCtrl made it so easy to find college events near me. I\'ve been to 3 events already, and all were amazing!"',
-    },
-    {
-        id: '2',
-        name: 'Priya Sharma',
-        role: 'Student',
-        location: 'Meerut',
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-        quote: '"The location-based feature is a game changer. I found a local gym event just around the corner!"',
-    },
-    {
-        id: '3',
-        name: 'Rohit Verma',
-        role: 'Student',
-        location: 'Delhi',
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-        quote: '"I love how clean and simple the interface is. Booking and joining events is super easy!"',
-    },
-    {
-        id: '4',
-        name: 'Sneha Kapoor',
-        role: 'Student',
-        location: 'Noida',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        quote: '"CrwdCtrl helped me discover my college fest. It\'s now my go-to platform for all events!"',
-    },
-    {
-        id: '5',
-        name: 'Ankit Patel',
-        role: 'Organizer',
-        location: 'Pune',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-        quote: '"Hosting our marathon through CrwdCtrl increased our registrations by 40%. Fantastic management tools!"',
-    },
-    {
-        id: '6',
-        name: 'Riya Sen',
-        role: 'Community Lead',
-        location: 'Mumbai',
-        avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-        quote: '"Our music club found hundreds of local music lovers thanks to the CrwdCtrl community hub!"',
-    },
-];
+import reviewsData from '../mock/reviews.json';
+
+/** Default reviews matching mock data */
+const DEFAULT_REVIEWS = reviewsData.reviews || [];
 
 /**
  * ReviewsSection component
@@ -60,8 +13,8 @@ const DEFAULT_REVIEWS = [
  */
 export default function ReviewsSection({
     reviews: customReviews,
-    title = 'What our users say',
-    subheading = "Real experiences from the CrwdCtrl community. See how we're helping people discover, attend and enjoy the best events around them.",
+    title = reviewsData.heading || 'What our users say',
+    subheading = reviewsData.subheading || "Real experiences from the CrwdCtrl community. See how we're helping people discover, attend and enjoy the best events around them.",
     badgeText = 'Real People, Real Experiences',
     className = '',
 }) {

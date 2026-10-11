@@ -157,11 +157,11 @@ export default function RunCheckoutPanel({
                                         onApplyCoupon();
                                     }
                                 }}
-                                placeholder="Enter code"
+                                placeholder="Enter coupon code"
                                 autoComplete="off"
-                                className={`flex-1 min-w-0 px-3 py-2.5 rounded-lg border text-sm outline-none focus:border-[#0ECCEE] ${
+                                className={`flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border transition-all text-sm outline-none focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30 ${
                                     isDark
-                                        ? 'bg-[#1D1E20] border-gray-700 text-white placeholder:text-gray-600'
+                                        ? 'bg-[#15171C] border-white/10 text-white placeholder:text-gray-500'
                                         : 'bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400'
                                 }`}
                             />
@@ -169,7 +169,7 @@ export default function RunCheckoutPanel({
                                 type="button"
                                 onClick={() => onApplyCoupon()}
                                 disabled={couponLoading || !couponCode.trim()}
-                                className="shrink-0 px-4 py-2.5 rounded-lg bg-[#0ECCEE] text-black text-sm font-bold disabled:opacity-50"
+                                className="shrink-0 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] text-black text-sm font-extrabold disabled:opacity-50 cursor-pointer active:scale-95 transition-all shadow-md shadow-[#0ECCEE]/25 hover:shadow-lg hover:shadow-[#0ECCEE]/35"
                             >
                                 {couponLoading ? '…' : 'Apply'}
                             </button>

@@ -61,16 +61,13 @@ export default function RouteTracker() {
       trackPageView(location.pathname, { previousPage: previous || null });
     };
 
-    if (shouldDelayAnalyticsPageView(location.pathname, location.search)) {
-      const timer = setTimeout(() => {
-        if (prevPath.current === location.pathname) return;
-        if (window.location.pathname !== location.pathname) return;
-        commitPageView();
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-
-    commitPageView();
+    const delayMs = shouldDelayAnalyticsPageView(location.pathname, location.search) ? 2500 : 350;
+    const timer = setTimeout(() => {
+      if (prevPath.current === location.pathname) return;
+      if (window.location.pathname !== location.pathname) return;
+      commitPageView();
+    }, delayMs);
+    return () => clearTimeout(timer);
   }, [location.pathname, location.search]);
 
   return null;

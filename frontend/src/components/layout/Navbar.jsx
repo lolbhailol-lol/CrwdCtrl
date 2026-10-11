@@ -85,7 +85,7 @@ function GoogleIcon({ className = 'w-5 h-5' }) {
     );
 }
 
-const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
+const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile, onShowLogin }) => {
     const { isDark } = useDarkMode();
     const { isCollapsed, toggleCollapse } = useSidebar();
     const { user, isAuthenticated, logout } = useAuth();
@@ -217,6 +217,11 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
             return () => document.removeEventListener('mousedown', handleClickOutside);
         }
     }, [isNotificationOpen, isLocationDropdownOpen, isSearchDropdownOpen, isSearchFocused, isProfileDropdownOpen]);
+
+    // Close profile dropdown on route change
+    useEffect(() => {
+        setIsProfileDropdownOpen(false);
+    }, [location.pathname]);
 
     // Listen for location detection trigger from Dashboard
     useEffect(() => {
@@ -1134,8 +1139,16 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            navigate('/edit-profile');
                                             setIsProfileDropdownOpen(false);
+                                            if (!isAuthenticated) {
+                                                if (onShowLogin) {
+                                                    onShowLogin({ returnPath: '/edit-profile' });
+                                                } else {
+                                                    navigate('/login?redirect=/edit-profile');
+                                                }
+                                            } else {
+                                                navigate('/edit-profile');
+                                            }
                                         }}
                                         className={`w-full flex items-center justify-between p-3.5 rounded-2xl shadow-sm transition-all duration-200 group cursor-pointer ${isDark
                                             ? 'border border-gray-800/80 bg-[#111213] hover:bg-gray-800'
@@ -1199,8 +1212,12 @@ const Navbar = ({ setIsProfileOpen = () => { }, onOpenProfile }) => {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                if (onOpenProfile) onOpenProfile();
                                                 setIsProfileDropdownOpen(false);
+                                                if (onShowLogin) {
+                                                    onShowLogin();
+                                                } else {
+                                                    navigate('/login');
+                                                }
                                             }}
                                             className="w-full flex items-center justify-center gap-2 p-3.5 rounded-xl transition-all duration-200 cursor-pointer bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 active:scale-[0.98]"
                                         >

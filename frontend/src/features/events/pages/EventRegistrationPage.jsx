@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader, CheckCircle, Check } from 'lucide-react';
+import { ArrowLeft, Loader, CheckCircle, Check, ChevronRight, ChevronDown, Ticket, Sparkles, Upload, FileText, X, AlertCircle, MapPin, ShieldCheck, Lock, Calendar } from 'lucide-react';
+import { getImageUrl } from '../../../utils/imageImports';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useNotifications } from '../../../context/NotificationsContext';
@@ -370,6 +371,7 @@ export default function EventRegistrationPage() {
         ? Number(couponInfo.amountAfterDiscount)
         : breakdown.totalAmount;
     const title = event?.displayName || event?.title || 'Event';
+    const eventImage = event?.bannerUrl || event?.posterUrl || event?.imageUrl || event?.coverImage || '';
     const driveOnlyTier = useMemo(
         () => packages.find((t) => isDriveOnlyTier(t)) || null,
         [packages],
@@ -772,39 +774,101 @@ export default function EventRegistrationPage() {
         });
     }, [user, allFields]);
 
-    const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 text-white placeholder-gray-400' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'}`;
+    const inp = `w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all duration-200 outline-none ${
+        isDark
+            ? 'bg-[#15171C] border-white/10 text-white placeholder-gray-500 hover:border-white/20 focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30 focus:bg-[#181B22]'
+            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 hover:border-gray-300 focus:bg-white focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30'
+    }`;
 
     const setVal = (name, v) => setValues((f) => ({ ...f, [name]: v }));
 
     const renderField = (field) => {
         if (field.type === 'section') {
             return (
-                <p className={`text-sm font-semibold pt-1 ${isDark ? 'text-[#0ECCEE]' : 'text-[#0891b2]'}`}>
-                    {field.label}
-                </p>
+                <div className="pt-4 pb-2 border-b border-white/10 flex items-center gap-2">
+                    <div className="w-1.5 h-3.5 rounded-full bg-[#0ECCEE]" />
+                    <p className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {field.label}
+                    </p>
+                </div>
             );
         }
         const val = values[field.fieldName] ?? '';
         if (field.type === 'textarea') {
-            return <textarea rows={3} placeholder={field.placeholder || ''} value={val} onChange={(e) => setVal(field.fieldName, e.target.value)} className={`${inp} resize-none`} />;
+            return (
+                <textarea
+                    rows={3}
+                    placeholder={field.placeholder || ''}
+                    value={val}
+                    onChange={(e) => setVal(field.fieldName, e.target.value)}
+                    className={`${inp} resize-none leading-relaxed`}
+                />
+            );
         }
         if (field.type === 'select') {
             return (
-                <select value={val} onChange={(e) => setVal(field.fieldName, e.target.value)} className={inp}>
-                    <option value="">Select...</option>
-                    {(field.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <div className="relative">
+                    <select
+                        value={val}
+                        onChange={(e) => setVal(field.fieldName, e.target.value)}
+                        className={`${inp} appearance-none pr-10 cursor-pointer`}
+                    >
+                        <option value="" className={isDark ? 'bg-[#151618] text-gray-400' : 'bg-white text-gray-500'}>
+                            Select an option...
+                        </option>
+                        {(field.options || []).map((o) => (
+                            <option key={o} value={o} className={isDark ? 'bg-[#151618] text-white' : 'bg-white text-gray-900'}>
+                                {o}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <ChevronDown className="w-4 h-4" />
+                    </div>
+                </div>
             );
         }
         if (field.type === 'radio') {
             return (
                 <div className="space-y-2">
-                    {(field.options || []).map((o) => (
-                        <label key={o} className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name={field.fieldName} value={o} checked={val === o} onChange={() => setVal(field.fieldName, o)} className="accent-[#0ECCEE]" />
-                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
-                        </label>
-                    ))}
+                    {(field.options || []).map((o) => {
+                        const isChecked = val === o;
+                        return (
+                            <label
+                                key={o}
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                        : isDark
+                                            ? 'border-white/10 bg-[#151618] hover:border-white/20'
+                                            : 'border-gray-200 bg-gray-50/60 hover:border-gray-300'
+                                }`}
+                            >
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all shrink-0 ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]'
+                                        : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                                }`}>
+                                    {isChecked && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                                </div>
+                                <input
+                                    type="radio"
+                                    name={field.fieldName}
+                                    value={o}
+                                    checked={isChecked}
+                                    onChange={() => setVal(field.fieldName, o)}
+                                    className="sr-only"
+                                />
+                                <span className={`text-sm font-medium ${
+                                    isChecked
+                                        ? (isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold')
+                                        : (isDark ? 'text-gray-300' : 'text-gray-700')
+                                }`}>
+                                    {o}
+                                </span>
+                            </label>
+                        );
+                    })}
                 </div>
             );
         }
@@ -813,12 +877,42 @@ export default function EventRegistrationPage() {
             const toggle = (o) => setVal(field.fieldName, arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o]);
             return (
                 <div className="space-y-2">
-                    {(field.options || []).map((o) => (
-                        <label key={o} className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={arr.includes(o)} onChange={() => toggle(o)} className="accent-[#0ECCEE]" />
-                            <span className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{o}</span>
-                        </label>
-                    ))}
+                    {(field.options || []).map((o) => {
+                        const isChecked = arr.includes(o);
+                        return (
+                            <label
+                                key={o}
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                        : isDark
+                                            ? 'border-white/10 bg-[#151618] hover:border-white/20'
+                                            : 'border-gray-200 bg-gray-50/60 hover:border-gray-300'
+                                }`}
+                            >
+                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all shrink-0 ${
+                                    isChecked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                        : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                                }`}>
+                                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggle(o)}
+                                    className="sr-only"
+                                />
+                                <span className={`text-sm font-medium ${
+                                    isChecked
+                                        ? (isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold')
+                                        : (isDark ? 'text-gray-300' : 'text-gray-700')
+                                }`}>
+                                    {o}
+                                </span>
+                            </label>
+                        );
+                    })}
                 </div>
             );
         }
@@ -832,9 +926,25 @@ export default function EventRegistrationPage() {
                 return next;
             });
             return (
-                <div className="space-y-2">
-                    <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer ${isDark ? 'border-gray-600 bg-[#1D1E20]' : 'border-gray-300 bg-white'}`}>
-                        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{field.placeholder || (field.type === 'image' ? 'Add image(s)' : 'Add file(s)')}</span>
+                <div className="space-y-2.5">
+                    <label className={`flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border-2 border-dashed transition-all cursor-pointer group ${
+                        isDark
+                            ? 'border-white/15 bg-white/[0.02] hover:bg-white/[0.04] hover:border-[#0ECCEE]/50'
+                            : 'border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-[#0ECCEE]'
+                    }`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                            isDark ? 'bg-white/5 text-[#0ECCEE] group-hover:bg-[#0ECCEE]/20' : 'bg-[#0ECCEE]/10 text-[#0ECCEE]'
+                        }`}>
+                            <Upload className="w-5 h-5" />
+                        </div>
+                        <div className="text-center">
+                            <span className={`text-xs font-semibold block ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {field.placeholder || (field.type === 'image' ? 'Click to upload image(s)' : 'Click to upload document(s)')}
+                            </span>
+                            <span className={`text-[11px] mt-0.5 block ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                {field.type === 'image' ? 'JPG, PNG, WebP supported' : 'PDF, DOC, Images supported'}
+                            </span>
+                        </div>
                         <input
                             type="file"
                             multiple
@@ -853,11 +963,28 @@ export default function EventRegistrationPage() {
                         />
                     </label>
                     {selected.length > 0 && (
-                        <ul className="space-y-1">
+                        <ul className="space-y-1.5">
                             {selected.map((file, i) => (
-                                <li key={`${file.name}-${i}`} className={`flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-md ${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
-                                    <span className="truncate">{file.name}</span>
-                                    <button type="button" onClick={() => removeFile(i)} className="shrink-0 text-red-400 hover:text-red-500">Remove</button>
+                                <li
+                                    key={`${file.name}-${i}`}
+                                    className={`flex items-center justify-between gap-3 text-xs px-3.5 py-2.5 rounded-xl border transition-colors ${
+                                        isDark
+                                            ? 'bg-white/[0.03] border-white/10 text-gray-300'
+                                            : 'bg-white border-gray-200 text-gray-700 shadow-xs'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <FileText className="w-4 h-4 text-[#0ECCEE] shrink-0" />
+                                        <span className="truncate font-medium">{file.name}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeFile(i)}
+                                        className="shrink-0 p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                                        aria-label="Remove file"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
                                 </li>
                             ))}
                         </ul>
@@ -867,7 +994,7 @@ export default function EventRegistrationPage() {
         }
         const fieldWarn = fieldWarnings[field.fieldName];
         return (
-            <div>
+            <div className="space-y-1.5">
                 <input
                     type={field.type === 'date' ? 'date' : field.type || 'text'}
                     placeholder={field.placeholder || ''}
@@ -902,8 +1029,9 @@ export default function EventRegistrationPage() {
                     style={field.type === 'date' ? { colorScheme: isDark ? 'dark' : 'light' } : undefined}
                 />
                 {fieldWarn && (
-                    <p className="text-[11px] font-medium text-amber-400/90 mt-1 flex items-center gap-1 pl-1">
-                        <span>⚠️ {fieldWarn}</span>
+                    <p className="text-[11px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1 flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                        <span>{fieldWarn}</span>
                     </p>
                 )}
             </div>
@@ -1580,7 +1708,7 @@ export default function EventRegistrationPage() {
                         <button
                             type="button"
                             onClick={() => { setPaymentResumeError(''); setStep(allSteps.length - 1); }}
-                            className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition"
+                            className="w-full py-3.5 rounded-xl font-extrabold text-black bg-[#0ECCEE] hover:bg-[#00d2f2] active:scale-[0.98] transition shadow-md shadow-[#0ECCEE]/25"
                         >
                             Back to registration
                         </button>
@@ -1605,7 +1733,7 @@ export default function EventRegistrationPage() {
         return (
             <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Event not found.</p>
-                <button type="button" onClick={() => navigate('/events')} className="text-[#0ECCEE] text-sm font-semibold">Browse events</button>
+                <button type="button" onClick={() => navigate('/events')} className="text-[#0ECCEE] hover:underline text-sm font-semibold">Browse events</button>
             </div>
         );
     }
@@ -1619,7 +1747,7 @@ export default function EventRegistrationPage() {
         return (
             <div className="crwdctrl-page crwdctrl-page--flat min-h-dvh flex flex-col items-center justify-center gap-3 px-6">
                 <p className={`text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Registration is not open for this event.</p>
-                <button type="button" onClick={() => navigate(`/events/${eventId}`)} className="text-[#0ECCEE] text-sm font-semibold">Back to event</button>
+                <button type="button" onClick={() => navigate(`/events/${eventId}`)} className="text-[#0ECCEE] hover:underline text-sm font-semibold">Back to event</button>
             </div>
         );
     }
@@ -1662,11 +1790,11 @@ export default function EventRegistrationPage() {
                     </p>
                     <div className="flex flex-col gap-3 animate-step-enter">
                         {registrationId && (
-                            <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 active:scale-[0.98] transition-all duration-200">
+                            <button type="button" onClick={() => navigate(`/qr-ticket/${registrationId}?type=event`, { state: { refreshBookings: true } })} className="w-full py-3.5 rounded-xl font-extrabold text-black bg-[#0ECCEE] hover:bg-[#00d2f2] active:scale-[0.98] transition-all duration-200 shadow-md shadow-[#0ECCEE]/25">
                                 Download Ticket
                             </button>
                         )}
-                        <button type="button" onClick={() => goToBookings(navigate)} className={`w-full py-3.5 rounded-xl font-semibold transition-all duration-200 active:scale-[0.98] ${registrationId ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:opacity-90'}`}>
+                        <button type="button" onClick={() => goToBookings(navigate)} className={`w-full py-3.5 rounded-xl font-semibold transition-all duration-200 active:scale-[0.98] ${registrationId ? (isDark ? 'border border-gray-600 text-gray-200 hover:bg-gray-800' : 'border border-gray-300 text-gray-800 hover:bg-gray-100') : 'text-black bg-[#0ECCEE] hover:bg-[#00d2f2] font-bold shadow-md shadow-[#0ECCEE]/25'}`}>
                             View My Bookings
                         </button>
                         <button type="button" onClick={() => navigate('/events')} className={`w-full py-2.5 rounded-xl text-sm font-medium transition-colors duration-200 ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -1682,7 +1810,10 @@ export default function EventRegistrationPage() {
     const isPaymentStep = !!current?.payment;
 
     return (
-        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(var(--safe-top)+0.5rem)] pb-[max(6rem,var(--safe-bottom)+5rem)] animate-detail-enter">
+        <div className="crwdctrl-page crwdctrl-page--content min-h-dvh pt-[calc(var(--safe-top)+0.5rem)] pb-10 sm:pb-14 animate-detail-enter relative">
+            {/* Ambient background glow */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-96 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(14,204,238,0.12),transparent_70%)]" />
+
             <PaymentErrorModal
                 open={paymentModal.open}
                 message={paymentModal.message}
@@ -1690,520 +1821,730 @@ export default function EventRegistrationPage() {
                 onClose={() => setPaymentModal({ open: false, message: '', orderId: '' })}
                 onRetry={() => { setPaymentModal({ open: false, message: '', orderId: '' }); retryRef.current?.(); }}
             />
-            <div className="max-w-lg mx-auto px-4 sm:px-6">
-                <div className="flex items-start gap-3 mb-4 pt-10">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
+                {/* Mobile / Global Top Bar */}
+                <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6 pt-2 sm:pt-4">
                     <button
                         type="button"
                         onClick={back}
-                        className={`p-2 rounded-lg shrink-0 mt-1 transition-colors duration-200 ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-200'}`}
+                        aria-label="Go back"
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-200 active:scale-95 cursor-pointer ${
+                            isDark
+                                ? 'bg-[#121316] border-white/10 text-gray-300 hover:text-white hover:border-[#0ECCEE]/40'
+                                : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 shadow-xs'
+                        }`}
                     >
-                        <ArrowLeft className={`w-5 h-5 ${isDark ? 'text-white' : 'text-gray-900'}`} />
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>Back</span>
                     </button>
-                    <div className="min-w-0 flex-1">
-                        <h1 className={`text-lg sm:text-xl font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Register: {title}</h1>
-                        <p className={`text-sm mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current?.title}</p>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/30">
+                            {event?.category || 'Registration'}
+                        </span>
                         {suggestedCoupon && !isPaymentStep ? (
-                            <p className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                                isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${
+                                isDark ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-700'
                             }`}>
+                                <Sparkles className="w-3.5 h-3.5" />
                                 Coupon {suggestedCoupon}
-                                {suggestedCouponLabel ? ` · ${suggestedCouponLabel}` : ''}
-                            </p>
+                            </span>
                         ) : null}
                     </div>
                 </div>
 
                 {error && (
-                    <div className={`rounded-lg p-3 mb-4 text-sm border animate-step-enter ${isDark ? 'bg-red-900/20 border-red-800 text-red-400' : 'bg-red-50 border-red-300 text-red-600'}`}>{error}</div>
+                    <div className={`rounded-xl p-3.5 mb-4 text-sm border flex items-center gap-2.5 animate-step-enter ${
+                        isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-600'
+                    }`}>
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{error}</span>
+                    </div>
                 )}
 
                 {!isAuthed() && (
-                    <div className={`rounded-2xl p-4 mb-4 border text-center animate-step-enter ${isDark ? 'bg-[#111213] border-gray-700' : 'bg-white border-gray-100 shadow-md'}`}>
+                    <div className={`rounded-2xl p-4 sm:p-5 mb-5 border text-center transition-all animate-step-enter ${
+                        isDark ? 'bg-[#0E1013] border-white/10 shadow-lg' : 'bg-white border-gray-200 shadow-sm'
+                    }`}>
                         <p className={`text-sm mb-3 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            Sign in with Google to fill your details and continue.
+                            Sign in with Google to fill your details and complete registration.
                         </p>
-                        <button type="button" onClick={() => openLogin()} className="px-5 py-2.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 active:scale-[0.98] transition-all duration-200">
+                        <button
+                            type="button"
+                            onClick={() => openLogin()}
+                            className="px-6 py-2.5 rounded-xl font-extrabold text-xs text-black bg-[#0ECCEE] hover:bg-[#00d2f2] shadow-md shadow-[#0ECCEE]/25 active:scale-[0.98] transition-all cursor-pointer inline-flex items-center gap-2"
+                        >
                             Sign in with Google
                         </button>
                     </div>
                 )}
 
-                <div className="space-y-4">
-                    {/* Progress (trek-style stepper) */}
-                    <div className={`rounded-2xl p-4 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
-                            <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step + 1} of {allSteps.length}</span>
-                        </div>
-                        <div className={`w-full rounded-full h-2 mb-3 overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div
-                                className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-500 ease-out"
-                                style={{ width: `${((step + 1) / allSteps.length) * 100}%` }}
-                            />
-                        </div>
-                        <div className="flex justify-between">
-                            {allSteps.map((s, i) => (
-                                <div key={s.title + i} className="flex flex-col items-center">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                                        i === step ? 'bg-[#0ECCEE] text-black scale-110'
-                                        : i < step ? 'bg-green-600 text-white'
-                                        : isDark ? 'bg-gray-600 text-gray-300'
-                                        : 'bg-gray-300 text-gray-600'
-                                    }`}>
-                                        {i < step ? '✓' : i + 1}
+                {/* 2-COLUMN SPLIT LAYOUT */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* LEFT COLUMN: Event Details & Order Summary Sidebar */}
+                    <div className="lg:col-span-5 xl:col-span-4 space-y-4 lg:sticky lg:top-20">
+                        {/* Event Summary Card */}
+                        <div className={`rounded-2xl border p-4 sm:p-5 transition-all duration-200 ${
+                            isDark ? 'bg-[#0E1013] border-white/10 shadow-xl shadow-black/30' : 'bg-white border-gray-200/80 shadow-sm'
+                        }`}>
+                            {(() => {
+                                const imgSrc = event?.coverImage || event?.image || event?.thumbnail;
+                                if (!imgSrc) return null;
+                                return (
+                                    <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-[#181A20] mb-3.5 border border-white/5">
+                                        <img
+                                            src={getImageUrl(imgSrc, { preset: 'cardPortrait' }) || imgSrc}
+                                            alt={title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                                        <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider bg-black/60 backdrop-blur-md border border-white/15 text-[#0ECCEE]">
+                                            {event?.category || 'Event'}
+                                        </span>
                                     </div>
-                                    <span className={`text-xs mt-1 text-center max-w-20 truncate transition-colors duration-200 ${
-                                        i === step
-                                            ? (isDark ? 'text-white' : 'text-gray-800')
-                                            : (isDark ? 'text-gray-400' : 'text-gray-500')
-                                    }`}>{s.title}</span>
+                                );
+                            })()}
+
+                            <h2 className={`text-base sm:text-lg font-bold tracking-tight leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                {title}
+                            </h2>
+
+                            <div className="mt-2.5 space-y-1.5 text-xs">
+                                {event?.date && (
+                                    <p className={`flex items-center gap-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        <Calendar className="w-3.5 h-3.5 text-[#0ECCEE] shrink-0" />
+                                        <span>{event.date}</span>
+                                    </p>
+                                )}
+                                {event?.city && (
+                                    <p className={`flex items-center gap-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        <MapPin className="w-3.5 h-3.5 text-[#0ECCEE] shrink-0" />
+                                        <span className="truncate">{event.venue ? `${event.venue}, ${event.city}` : event.city}</span>
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Selected Ticket Pass Summary Strip */}
+                            {(selectedTier || multiTierMode) && !current?.packageSelect && (
+                                <div className={`mt-4 pt-4 border-t ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
+                                    <div className="flex items-start justify-between gap-3 mb-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-7 h-7 rounded-lg bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/30 flex items-center justify-center shrink-0">
+                                                <Ticket className="w-3.5 h-3.5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {multiTierMode && selectedTiersList.length > 0
+                                                        ? `${selectedTiersList.length} classes`
+                                                        : selectedTier?.name || 'Selected Pass'}
+                                                </p>
+                                                <p className={`text-[10px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                    {driverCount > 1 ? `${driverCount} guests` : '1 guest'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className={`text-sm font-extrabold tabular-nums shrink-0 ${packagePrice > 0 ? (isDark ? 'text-white font-extrabold' : 'text-gray-900 font-extrabold') : 'text-emerald-400'}`}>
+                                            {packagePrice > 0 ? formatInr(packagePrice) : 'Free'}
+                                        </span>
+                                    </div>
+
+                                    {multiTierMode && selectedTiersList.length > 0 && (
+                                        <p className="text-[11px] text-gray-400 mb-2 line-clamp-2">
+                                            {selectedTiersList.map((t) => t.name).join(', ')}
+                                        </p>
+                                    )}
+
+                                    {/* Add-ons line items */}
+                                    {selectedAddOns.length > 0 && (
+                                        <div className="border-t border-white/5 pt-2 space-y-1 mb-2">
+                                            {selectedAddOns.map((addOn) => (
+                                                <div key={addOn.id} className="flex items-center justify-between text-[11px]">
+                                                    <span className="text-gray-400 truncate">{addOn.name}</span>
+                                                    <span className="text-white font-medium">+{formatInr(addOn.fee)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="border-t border-white/5 pt-2.5 flex items-center justify-between">
+                                        <span className={`text-xs font-semibold ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Total Amount
+                                        </span>
+                                        <span className={`font-extrabold text-sm tabular-nums text-[#0ECCEE]`}>
+                                            {payableAmount > 0 ? formatInr(payableAmount) : (packagePrice > 0 ? formatInr(packagePrice + addOnTotal) : 'Free')}
+                                        </span>
+                                    </div>
+
+                                    <div className="mt-2.5 text-right">
+                                        <button
+                                            type="button"
+                                            onClick={back}
+                                            className="text-[11px] font-semibold text-gray-400 hover:text-[#0ECCEE] transition-colors underline underline-offset-2 cursor-pointer"
+                                        >
+                                            Change Pass
+                                        </button>
+                                    </div>
                                 </div>
-                            ))}
+                            )}
+                        </div>
+
+                        {/* Step Progress Sidebar Widget */}
+                        <div className={`rounded-2xl border p-4 transition-all duration-200 ${
+                            isDark ? 'bg-[#0E1013] border-white/10 shadow-lg shadow-black/20' : 'bg-white border-gray-200/80 shadow-sm'
+                        }`}>
+                            <div className="flex items-center justify-between text-xs mb-2">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">Step Progress</span>
+                                <span className="text-xs font-bold text-[#0ECCEE]">Step {step + 1} of {allSteps.length}</span>
+                            </div>
+
+                            {/* Theme Cyan Progress Bar */}
+                            <div className={`w-full rounded-full h-1.5 overflow-hidden mb-3 ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}>
+                                <div
+                                    className="h-full rounded-full bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] transition-all duration-300"
+                                    style={{ width: `${((step + 1) / allSteps.length) * 100}%` }}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                {allSteps.map((s, i) => {
+                                    const isDone = i < step;
+                                    const isCurrent = i === step;
+                                    return (
+                                        <div key={s.title + i} className="flex items-center gap-2.5 text-xs">
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-all ${
+                                                isDone
+                                                    ? 'bg-emerald-500 text-black'
+                                                    : isCurrent
+                                                        ? 'bg-[#0ECCEE] text-black font-extrabold ring-2 ring-[#0ECCEE]/30 shadow-sm'
+                                                        : isDark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-600'
+                                            }`}>
+                                                {isDone ? '✓' : i + 1}
+                                            </div>
+                                            <span className={`truncate ${
+                                                isCurrent
+                                                    ? (isDark ? 'text-white font-bold' : 'text-gray-900 font-bold')
+                                                    : isDone
+                                                        ? (isDark ? 'text-gray-400' : 'text-gray-600')
+                                                        : (isDark ? 'text-gray-500' : 'text-gray-400')
+                                            }`}>
+                                                {s.title}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Trust & Security Badge */}
+                        <div className="flex items-center gap-2 text-[11px] text-gray-500 px-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-[#0ECCEE] shrink-0" />
+                            <span>Official CrwdCtrl checkout · 256-bit SSL</span>
                         </div>
                     </div>
 
-                    {/* Selected ticket summary — show price; fees breakdown at checkout */}
-                    {(selectedTier || multiTierMode) && !current?.packageSelect && (
-                        <div className={`rounded-2xl border px-4 py-3 animate-step-enter ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-sm'}`}>
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                    <p className={`text-[11px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        Price
-                                    </p>
-                                    <p className={`text-sm font-semibold tabular-nums ${
-                                        packagePrice > 0
-                                            ? (isDark ? 'text-white' : 'text-gray-900')
-                                            : 'text-green-500'
-                                    }`}>
-                                        {packagePrice > 0 ? formatInr(packagePrice) : 'Free'}
-                                    </p>
-                                    {multiTierMode && selectedTiersList.length > 0 ? (
-                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                            {selectedTiersList.length} class{selectedTiersList.length === 1 ? '' : 'es'}
-                                            {' · '}
-                                            {selectedTiersList.map((t) => t.name).join(', ')}
-                                        </p>
-                                    ) : selectedTier?.name ? (
-                                        <p className={`text-[11px] mt-0.5 truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                            {selectedTier.name}
-                                            {driverCount > 1 ? ` · ${driverCount} guests` : ''}
-                                        </p>
-                                    ) : driverCount > 1 ? (
-                                        <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                            {driverCount} guests · you register for the group
+                    {/* RIGHT COLUMN: Interactive Registration Form & Actions */}
+                    <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+                        <div key={`step-${step}`} className={`space-y-4 animate-step-enter ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
+                            {/* Package selection step */}
+                            {!isPaymentStep && current?.packageSelect && (
+                                <div className={`rounded-2xl p-4 sm:p-5 border transition-all duration-200 ${
+                                    isDark ? 'bg-[#0E1013] border-white/10 shadow-lg shadow-black/20' : 'bg-white border-gray-200 shadow-sm'
+                                }`}>
+                                    <div className="mb-3.5 pb-2.5 border-b border-white/5 flex items-center justify-between gap-3">
+                                        <div>
+                                            <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {current?.title || 'Select Package'}
+                                            </h3>
+                                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                {current.multiSelect || multiClassFlow
+                                                    ? 'Select one or more classes. Fee adds up at checkout.'
+                                                    : 'Choose your desired participation package.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {(current.multiSelect || multiClassFlow) && selectedTierIds.length > 0 ? (
+                                        <p className={`text-sm font-semibold mb-3 tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            Total {formatInr(packagePrice)}
+                                            <span className={`font-normal ml-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                · {selectedTierIds.length} class{selectedTierIds.length === 1 ? '' : 'es'}
+                                            </span>
                                         </p>
                                     ) : null}
-                                    <p className={`text-[11px] mt-1.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        Use Back to change · fees at checkout
-                                    </p>
+                                    <div className="space-y-3">
+                                        {(current.multiSelect || multiClassFlow) ? (
+                                            <div className="space-y-2">
+                                                {visiblePackages.map((tier) => {
+                                                    const selected = selectedTierIds.includes(tier.id);
+                                                    const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+                                                    return (
+                                                        <button
+                                                            key={tier.id}
+                                                            type="button"
+                                                            aria-pressed={selected}
+                                                            onClick={() => {
+                                                                setSelectedTierIds((prev) => {
+                                                                    const next = selected
+                                                                        ? prev.filter((id) => id !== tier.id)
+                                                                        : [...prev, tier.id];
+                                                                    setSelectedTierId(next[0] || '');
+                                                                    return next;
+                                                                });
+                                                                setCouponInfo(null);
+                                                            }}
+                                                            className={`w-full text-left rounded-xl border p-3.5 transition-all duration-200 cursor-pointer ${
+                                                                selected
+                                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                                                    : isDark
+                                                                        ? 'border-white/10 bg-[#15171C] hover:border-white/20'
+                                                                        : 'border-gray-200 bg-gray-50/70 hover:border-gray-300'
+                                                            }`}
+                                                        >
+                                                            <span className="flex items-start gap-3">
+                                                                <span className={`mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded-md border-2 ${
+                                                                    selected
+                                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                                                        : isDark ? 'border-gray-600' : 'border-gray-300 bg-white'
+                                                                }`}>
+                                                                    {selected ? <Check size={12} strokeWidth={3} /> : null}
+                                                                </span>
+                                                                <span className="min-w-0 flex-1 flex items-start justify-between gap-3">
+                                                                    <span className="min-w-0">
+                                                                        <span className={`block text-xs sm:text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</span>
+                                                                        {tier.description ? (
+                                                                            <span className={`block text-[11px] mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                                {tier.description}
+                                                                            </span>
+                                                                        ) : null}
+                                                                    </span>
+                                                                    <span className={`shrink-0 text-xs sm:text-sm font-bold ${Number(tier.fee) > 0 ? 'text-[#0ECCEE]' : 'text-emerald-400'}`}>
+                                                                        {feeLabel}
+                                                                    </span>
+                                                                </span>
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (() => {
+                                            const groups = [
+                                                {
+                                                    key: 'solo',
+                                                    title: 'Solo Participant Package',
+                                                    note: null,
+                                                    tiers: visiblePackages.filter((t) => /solo/i.test(t.name)),
+                                                },
+                                                {
+                                                    key: 'trio',
+                                                    title: 'Trio Participant Package',
+                                                    note: 'Group package — details required for all 3 drivers.',
+                                                    tiers: visiblePackages.filter((t) => /trio/i.test(t.name)),
+                                                },
+                                                {
+                                                    key: 'quattro',
+                                                    title: 'Quattro Participant Package',
+                                                    note: 'Group package — details required for all 4 drivers.',
+                                                    tiers: visiblePackages.filter((t) => /quattro/i.test(t.name)),
+                                                },
+                                                {
+                                                    key: 'penta',
+                                                    title: 'Penta Participant Package',
+                                                    note: 'Group package — details required for all 5 drivers.',
+                                                    tiers: visiblePackages.filter((t) => /penta/i.test(t.name)),
+                                                },
+                                            ];
+                                            const groupedIds = new Set(groups.flatMap((g) => g.tiers.map((t) => t.id)));
+                                            const other = visiblePackages.filter((t) => !groupedIds.has(t.id));
+                                            if (other.length) {
+                                                groups.push({ key: 'other', title: 'Other packages', note: null, tiers: other });
+                                            }
+                                            return groups.filter((g) => g.tiers.length > 0).map((group) => (
+                                                <div key={group.key} className="space-y-2">
+                                                    <div>
+                                                        <p className={`text-xs sm:text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {group.title}
+                                                        </p>
+                                                        {group.note ? (
+                                                            <p className={`text-[10px] mt-0.5 leading-relaxed ${isDark ? 'text-amber-300/90' : 'text-amber-700'}`}>
+                                                                {group.note}
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
+                                                    {group.tiers.map((tier) => {
+                                                        const selected = selectedTierId === tier.id;
+                                                        const count = resolveTierParticipantCount(tier);
+                                                        const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+                                                        return (
+                                                            <button
+                                                                key={tier.id}
+                                                                type="button"
+                                                                onClick={() => setSelectedTierId(tier.id)}
+                                                                className={`w-full text-left rounded-xl border px-3.5 py-3 transition-all duration-200 cursor-pointer ${
+                                                                    selected
+                                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                                                        : isDark
+                                                                            ? 'border-white/10 bg-[#15171C] hover:border-white/20'
+                                                                            : 'border-gray-200 bg-white hover:border-gray-300'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="flex items-start gap-2.5 min-w-0">
+                                                                        <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                                                                            selected
+                                                                                ? 'border-[#0ECCEE] bg-[#0ECCEE]'
+                                                                                : isDark ? 'border-gray-600' : 'border-gray-300 bg-white'
+                                                                        }`}>
+                                                                            {selected && <span className="size-1.5 rounded-full bg-black" />}
+                                                                        </span>
+                                                                        <div className="min-w-0">
+                                                                            <p className={`text-xs sm:text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</p>
+                                                                            {tier.description ? (
+                                                                                <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                                    {tier.description}
+                                                                                </p>
+                                                                            ) : null}
+                                                                            {count > 1 ? (
+                                                                                <p className={`text-[10px] mt-0.5 font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                                                    {count} drivers · details for all required
+                                                                                </p>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className={`shrink-0 text-xs sm:text-sm font-bold ${Number(tier.fee) > 0 ? 'text-[#0ECCEE]' : 'text-emerald-400'}`}>
+                                                                        {feeLabel}
+                                                                    </span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ));
+                                        })()}
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
-                    )}
+                            )}
 
-                    <div key={`step-${step}`} className={`space-y-4 animate-step-enter ${!isAuthed() ? 'opacity-50 pointer-events-none' : ''}`}>
-                    {/* Package / form step */}
-                    {!isPaymentStep && current?.packageSelect && (
-                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                            <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {current.multiSelect || multiClassFlow
-                                    ? 'Select one or more classes. Fee is ₹10,000 per class — total adds up at checkout.'
-                                    : skippingDrive
-                                        ? 'Select a Trackday package.'
-                                        : 'Select your Trackday package. Independence Day Drive is included free.'}
-                                {platformFeePercent > 0 ? ' A CrwdCtrl platform fee is added at checkout for this show.' : ''}
-                            </p>
-                            {(current.multiSelect || multiClassFlow) && selectedTierIds.length > 0 ? (
-                                <p className={`text-sm font-semibold mb-3 tabular-nums ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    Total {formatInr(packagePrice)}
-                                    <span className={`font-normal ml-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                                        · {selectedTierIds.length} class{selectedTierIds.length === 1 ? '' : 'es'}
-                                    </span>
-                                </p>
-                            ) : null}
-                            <div className="space-y-4">
-                                {(current.multiSelect || multiClassFlow) ? (
-                                    <div className="space-y-2">
-                                        {visiblePackages.map((tier) => {
-                                            const selected = selectedTierIds.includes(tier.id);
-                                            const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
+                            {/* Add-on selection step */}
+                            {!isPaymentStep && current?.addOnSelect && (
+                                <div className={`rounded-2xl p-4 sm:p-5 border transition-all duration-200 ${
+                                    isDark ? 'bg-[#0E1013] border-white/10 shadow-lg shadow-black/20' : 'bg-white border-gray-200 shadow-sm'
+                                }`}>
+                                    <div className="mb-3.5 pb-2.5 border-b border-white/5">
+                                        <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Make your booking memorable</h3>
+                                        <p className={`mt-0.5 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            Optional add-ons are charged once for this registration.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2.5">
+                                        {addOns.map((addOn) => {
+                                            const selected = selectedAddOnIds.includes(addOn.id);
                                             return (
                                                 <button
-                                                    key={tier.id}
+                                                    key={addOn.id}
                                                     type="button"
                                                     aria-pressed={selected}
                                                     onClick={() => {
-                                                        setSelectedTierIds((prev) => {
-                                                            const next = selected
-                                                                ? prev.filter((id) => id !== tier.id)
-                                                                : [...prev, tier.id];
-                                                            setSelectedTierId(next[0] || '');
-                                                            return next;
-                                                        });
+                                                        setSelectedAddOnIds((currentIds) => selected
+                                                            ? currentIds.filter((id) => id !== addOn.id)
+                                                            : [...currentIds, addOn.id]);
                                                         setCouponInfo(null);
                                                     }}
-                                                    className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
+                                                    className={`w-full rounded-xl border p-3.5 text-left transition-all active:scale-[0.99] cursor-pointer ${
                                                         selected
-                                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
+                                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
                                                             : isDark
-                                                                ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
-                                                                : 'border-gray-200 bg-white hover:border-gray-300'
+                                                                ? 'border-white/10 bg-[#151618] hover:border-white/20'
+                                                                : 'border-gray-200 bg-gray-50 hover:border-gray-300'
                                                     }`}
                                                 >
                                                     <span className="flex items-start gap-3">
-                                                        <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border-2 ${
+                                                        <span className={`mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded-md border-2 ${
                                                             selected
                                                                 ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
                                                                 : isDark ? 'border-gray-600' : 'border-gray-300 bg-white'
                                                         }`}>
-                                                            {selected ? <Check size={13} strokeWidth={3} /> : null}
+                                                            {selected ? <Check size={12} strokeWidth={3} /> : null}
                                                         </span>
-                                                        <span className="min-w-0 flex-1 flex items-start justify-between gap-3">
-                                                            <span className="min-w-0">
-                                                                <span className={`block text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</span>
-                                                                {tier.description ? (
-                                                                    <span className={`block text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                                        {tier.description}
-                                                                    </span>
-                                                                ) : null}
+                                                        <span className="min-w-0 flex-1">
+                                                            <span className="flex items-start justify-between gap-3">
+                                                                <span className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{addOn.name}</span>
+                                                                <span className={`shrink-0 text-xs sm:text-sm font-bold text-[#0ECCEE]`}>+{formatInr(addOn.fee)}</span>
                                                             </span>
-                                                            <span className={`shrink-0 text-sm font-bold ${Number(tier.fee) > 0 ? 'text-[#0ECCEE]' : 'text-green-500'}`}>
-                                                                {feeLabel}
-                                                            </span>
+                                                            {addOn.vehicles ? (
+                                                                <span className={`mt-0.5 block text-[11px] font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                                                                    Cars: {addOn.vehicles}
+                                                                </span>
+                                                            ) : null}
+                                                            {addOn.description ? (
+                                                                <span className={`mt-1 block text-[11px] leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                                    {addOn.description}
+                                                                </span>
+                                                            ) : null}
                                                         </span>
                                                     </span>
                                                 </button>
                                             );
                                         })}
                                     </div>
-                                ) : (() => {
-                                    const groups = [
-                                        {
-                                            key: 'solo',
-                                            title: 'Solo Participant Package',
-                                            note: null,
-                                            tiers: visiblePackages.filter((t) => /solo/i.test(t.name)),
-                                        },
-                                        {
-                                            key: 'trio',
-                                            title: 'Trio Participant Package',
-                                            note: 'Group package — name, phone, email & blood group required for all 3 drivers.',
-                                            tiers: visiblePackages.filter((t) => /trio/i.test(t.name)),
-                                        },
-                                        {
-                                            key: 'quattro',
-                                            title: 'Quattro Participant Package',
-                                            note: 'Group package — name, phone, email & blood group required for all 4 drivers.',
-                                            tiers: visiblePackages.filter((t) => /quattro/i.test(t.name)),
-                                        },
-                                        {
-                                            key: 'penta',
-                                            title: 'Penta Participant Package',
-                                            note: 'Group package — name, phone, email & blood group required for all 5 drivers.',
-                                            tiers: visiblePackages.filter((t) => /penta/i.test(t.name)),
-                                        },
-                                    ];
-                                    const groupedIds = new Set(groups.flatMap((g) => g.tiers.map((t) => t.id)));
-                                    const other = visiblePackages.filter((t) => !groupedIds.has(t.id));
-                                    if (other.length) {
-                                        groups.push({ key: 'other', title: 'Other packages', note: null, tiers: other });
-                                    }
-                                    return groups.filter((g) => g.tiers.length > 0).map((group) => (
-                                        <div key={group.key} className="space-y-2">
-                                            <div>
-                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {group.title}
-                                                </p>
-                                                {group.note ? (
-                                                    <p className={`text-[11px] mt-0.5 leading-relaxed ${isDark ? 'text-amber-300/90' : 'text-amber-700'}`}>
-                                                        {group.note}
-                                                    </p>
-                                                ) : null}
-                                            </div>
-                                            {group.tiers.map((tier) => {
-                                                const selected = selectedTierId === tier.id;
-                                                const count = resolveTierParticipantCount(tier);
-                                                const feeLabel = Number(tier.fee) > 0 ? formatInr(tier.fee) : 'Free';
-                                                return (
-                                                    <button
-                                                        key={tier.id}
-                                                        type="button"
-                                                        onClick={() => setSelectedTierId(tier.id)}
-                                                        className={`w-full text-left rounded-xl border px-4 py-3 transition-colors ${
-                                                            selected
-                                                                ? 'border-[#0ECCEE] bg-[#0ECCEE]/10'
-                                                                : isDark
-                                                                    ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
-                                                                    : 'border-gray-200 bg-white hover:border-gray-300'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="min-w-0">
-                                                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tier.name}</p>
-                                                                {tier.description ? (
-                                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                                                        {tier.description}
-                                                                    </p>
-                                                                ) : null}
-                                                                {count > 1 ? (
-                                                                    <p className={`text-[11px] mt-1 font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                                        {count} drivers · details for all required
-                                                                    </p>
-                                                                ) : null}
-                                                            </div>
-                                                            <span className={`shrink-0 text-sm font-bold ${Number(tier.fee) > 0 ? 'text-[#0ECCEE]' : 'text-green-500'}`}>
-                                                                {feeLabel}
-                                                            </span>
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
+                                    <p className={`mt-3 text-[11px] ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {selectedAddOns.length
+                                            ? `${selectedAddOns.length} selected · ${formatInr(addOnTotal)} added`
+                                            : 'No add-ons selected'}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Details form step with high information density (2-column field grid) */}
+                            {!isPaymentStep && !current?.packageSelect && !current?.addOnSelect && (
+                                <div className={`rounded-2xl p-4 sm:p-5 border transition-all duration-200 ${
+                                    isDark ? 'bg-[#0E1013] border-white/10 shadow-lg shadow-black/20' : 'bg-white border-gray-200 shadow-sm'
+                                }`}>
+                                    <div className="mb-3.5 pb-2.5 border-b border-white/5 flex items-center justify-between gap-3">
+                                        <div>
+                                            <h3 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {current?.title || 'Your Details'}
+                                            </h3>
+                                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                Please fill all required information below.
+                                            </p>
                                         </div>
-                                    ));
-                                })()}
-                            </div>
-                        </div>
-                    )}
+                                    </div>
 
-                    {!isPaymentStep && current?.addOnSelect && (
-                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                            <div className="mb-4">
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Make your Trackday memorable</p>
-                                <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                    Pick one, both, or skip. Add-on prices are charged once for this booking.
-                                </p>
-                            </div>
-                            <div className="space-y-3">
-                                {addOns.map((addOn) => {
-                                    const selected = selectedAddOnIds.includes(addOn.id);
-                                    return (
-                                        <button
-                                            key={addOn.id}
-                                            type="button"
-                                            aria-pressed={selected}
-                                            onClick={() => {
-                                                setSelectedAddOnIds((currentIds) => selected
-                                                    ? currentIds.filter((id) => id !== addOn.id)
-                                                    : [...currentIds, addOn.id]);
-                                                setCouponInfo(null);
-                                            }}
-                                            className={`w-full rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
-                                                selected
-                                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.18)]'
-                                                    : isDark
-                                                        ? 'border-gray-700 bg-[#1D1E20] hover:border-gray-500'
-                                                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-                                            }`}
-                                        >
-                                            <span className="flex items-start gap-3">
-                                                <span className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md border-2 ${
-                                                    selected
-                                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
-                                                        : isDark ? 'border-gray-600' : 'border-gray-300 bg-white'
-                                                }`}>
-                                                    {selected ? <Check size={13} strokeWidth={3} /> : null}
-                                                </span>
-                                                <span className="min-w-0 flex-1">
-                                                    <span className="flex items-start justify-between gap-3">
-                                                        <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{addOn.name}</span>
-                                                        <span className="shrink-0 text-sm font-bold text-[#0ECCEE]">+{formatInr(addOn.fee)}</span>
-                                                    </span>
-                                                    {addOn.vehicles ? (
-                                                        <span className={`mt-1 block text-xs font-semibold ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                                                            Cars: {addOn.vehicles}
-                                                        </span>
-                                                    ) : null}
-                                                    {addOn.description ? (
-                                                        <span className={`mt-1.5 block text-xs leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                            {addOn.description}
-                                                        </span>
-                                                    ) : null}
-                                                </span>
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <p className={`mt-4 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {selectedAddOns.length
-                                    ? `${selectedAddOns.length} selected · ${formatInr(addOnTotal)} added`
-                                    : 'No add-ons selected'}
-                            </p>
-                        </div>
-                    )}
+                                    {current?.description && (
+                                        <div className={`p-3 rounded-xl mb-3.5 text-xs leading-relaxed border ${
+                                            isDark ? 'bg-white/[0.02] border-white/5 text-gray-400' : 'bg-gray-50 border-gray-100 text-gray-600'
+                                        }`}>
+                                            {current.description}
+                                        </div>
+                                    )}
 
-                    {!isPaymentStep && !current?.packageSelect && !current?.addOnSelect && (
-                        <div className={`rounded-2xl p-4 sm:p-5 border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                            {current?.description && <p className={`text-xs mb-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{current.description}</p>}
-                            {(() => {
-                                const discordInvite = getDiscordInviteFromEvent(event);
-                                const hasJoinedDiscordField = (current?.fields || []).some(
-                                    (f) => f.fieldName === 'joined_discord' || /joined.*discord/i.test(f.label || ''),
-                                );
-                                if (!discordInvite || !hasJoinedDiscordField) return null;
-                                return (
+                                    {(() => {
+                                        const discordInvite = getDiscordInviteFromEvent(event);
+                                        const hasJoinedDiscordField = (current?.fields || []).some(
+                                            (f) => f.fieldName === 'joined_discord' || /joined.*discord/i.test(f.label || ''),
+                                        );
+                                        if (!discordInvite || !hasJoinedDiscordField) return null;
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={() => openExternalUrl(discordInvite)}
+                                                className={`mb-3.5 w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 border transition-all hover:opacity-90 active:scale-[0.99] cursor-pointer ${
+                                                    isDark ? 'bg-[#15171C] border-[#5865F2]/40 shadow-sm' : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+                                                }`}
+                                            >
+                                                <span className={`text-xs sm:text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    Join CrwdCtrl Discord
+                                                </span>
+                                                <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-[#5865F2] text-white">Open</span>
+                                            </button>
+                                        );
+                                    })()}
+
+                                    {/* High Information Density 2-Column Fields Grid */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
+                                        {(current?.fields || []).map((field) => {
+                                            const isFullWidth = field.type === 'section'
+                                                || field.type === 'textarea'
+                                                || field.type === 'radio'
+                                                || field.type === 'checkbox'
+                                                || FILE_TYPES.includes(field.type)
+                                                || (field.options && field.options.length > 4 && field.type !== 'select');
+                                            return (
+                                                <div
+                                                    key={field.id || field.fieldName}
+                                                    className={`group ${isFullWidth ? 'sm:col-span-2' : 'sm:col-span-1'}`}
+                                                >
+                                                    {field.type === 'section' ? (
+                                                        renderField(field)
+                                                    ) : (
+                                                        <div>
+                                                            <label className={`block text-[11px] font-semibold uppercase tracking-wider mb-1 transition-colors ${
+                                                                isDark ? 'text-gray-300 group-focus-within:text-[#0ECCEE]' : 'text-gray-700 group-focus-within:text-[#0ECCEE]'
+                                                            }`}>
+                                                                {field.label}
+                                                                {field.required ? (
+                                                                    <span className="text-[#0ECCEE] font-bold ml-1">*</span>
+                                                                ) : (
+                                                                    <span className={`text-[10px] lowercase tracking-normal ml-1 font-normal ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                                        (optional)
+                                                                    </span>
+                                                                )}
+                                                            </label>
+                                                            {renderField(field)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Payment / confirm step */}
+                            {isPaymentStep && (
+                                ticketPrice > 0 ? (
+                                    <RunCheckoutPanel
+                                        mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
+                                        isDark={isDark}
+                                        payableAmount={payableAmount}
+                                        baseFee={breakdown.totalAmount}
+                                        chargePerPerson={ticketPrice}
+                                        feePerPerson={packagePrice}
+                                        people={1}
+                                        feeLabel={tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}
+                                        amountHint={
+                                            couponInfo?.couponApplied
+                                                ? `Was ₹${Number(couponInfo.amountBeforeDiscount ?? breakdown.totalAmount).toLocaleString('en-IN')}`
+                                                : packagePrice > 0
+                                                    ? `${formatInr(packagePrice)}${selectedTier?.name ? ` · ${selectedTier.name}` : ''}`
+                                                    : 'Free registration'
+                                        }
+                                        extraLineItems={[
+                                            packagePrice > 0
+                                                ? { label: 'Price', value: formatInr(packagePrice) }
+                                                : selectedTier
+                                                    ? { label: 'Ticket', value: 'Free' }
+                                                    : null,
+                                            ...selectedAddOns.map((addOn) => ({
+                                                label: addOn.name,
+                                                value: `₹${addOn.fee.toLocaleString('en-IN')}`,
+                                            })),
+                                            breakdown.platformFee > 0
+                                                ? {
+                                                    label: `Platform fee (${platformFeePercent}%)`,
+                                                    value: `₹${breakdown.platformFee}`,
+                                                    tone: 'muted',
+                                                }
+                                                : null,
+                                        ].filter(Boolean)}
+                                        showCoupon={couponsEnabled}
+                                        couponInfo={couponInfo}
+                                        couponCode={couponCode}
+                                        couponLoading={couponLoading}
+                                        couponError={couponError}
+                                        suggestedCoupon={suggestedCoupon}
+                                        suggestedCouponLabel={suggestedCouponLabel}
+                                        onCouponCodeChange={(v) => {
+                                            setCouponCode(v);
+                                            setCouponInfo(null);
+                                            setCouponError('');
+                                        }}
+                                        onApplyCoupon={(code) => applyCoupon(code)}
+                                        onClearCoupon={() => {
+                                            setCouponInfo(null);
+                                            setCouponCode(suggestedCoupon || '');
+                                            setCouponError('');
+                                            autoAppliedCouponRef.current = '';
+                                        }}
+                                        paymentQR={reg.paymentQR}
+                                        paymentUpiId={reg.paymentUpiId}
+                                        paymentQRMessage={reg.paymentQRMessage}
+                                        qrAutoConfirm={Boolean(reg.qrAutoConfirm)}
+                                        approverLabel="organizer"
+                                        upiCopied={upiCopied}
+                                        onCopyUpi={async () => {
+                                            if (!reg.paymentUpiId) return;
+                                            try {
+                                                await navigator.clipboard.writeText(reg.paymentUpiId);
+                                                setUpiCopied(true);
+                                                window.setTimeout(() => setUpiCopied(false), 2000);
+                                            } catch { /* ignore */ }
+                                        }}
+                                        paymentScreenshotUrl={paymentScreenshotUrl}
+                                        uploadingProof={uploadPaymentProof}
+                                        onUploadScreenshot={uploadPaymentProof}
+                                        onRemoveScreenshot={() => setPaymentScreenshotUrl('')}
+                                        transactionId={transactionId}
+                                        onTransactionIdChange={(v) => setTransactionId(String(v || '').toUpperCase().replace(/\s+/g, ''))}
+                                        txnHint="Paste the UTR from GPay / PhonePe / Paytm so the organizer can match it."
+                                    />
+                                ) : (
+                                <div className={`rounded-2xl overflow-hidden border transition-all duration-200 ${
+                                    isDark ? 'bg-[#0E1013] border-white/10 shadow-lg shadow-black/20' : 'bg-white border-gray-200 shadow-sm'
+                                }`}>
+                                    <div className={`px-5 py-4 border-b flex items-center gap-3 ${
+                                        isDark ? 'bg-white/[0.02] border-white/5' : 'bg-gray-50/80 border-gray-100'
+                                    }`}>
+                                        <div className="w-8 h-8 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-400">
+                                            <CheckCircle size={18} />
+                                        </div>
+                                        <div>
+                                            <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Free Registration</p>
+                                            <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No payment required for this booking</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-5">
+                                        <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            {driveOnlyPath
+                                                ? 'Independence Day Drive only — free pass. Click below to complete your registration.'
+                                                : 'This registration is completely free. Click the button below to confirm.'}
+                                        </p>
+                                    </div>
+                                </div>
+                                )
+                            )}
+
+                            {/* Nav buttons */}
+                            <div className={`flex flex-col-reverse sm:flex-row gap-3 p-4 rounded-2xl border transition-all duration-200 ${
+                                isDark ? 'bg-[#0E1013] border-white/10 shadow-lg shadow-black/20' : 'bg-white border-gray-200 shadow-sm'
+                            }`}>
+                                <button
+                                    type="button"
+                                    onClick={back}
+                                    disabled={paying}
+                                    className={`px-5 sm:px-6 py-3 rounded-xl border font-semibold text-sm transition-all duration-200 cursor-pointer active:scale-98 disabled:opacity-50 ${
+                                        isDark
+                                            ? 'border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/[0.08] hover:text-white'
+                                            : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {step === 0 ? 'Cancel' : 'Previous'}
+                                </button>
+                                {isPaymentStep || (spectatorPath && step === allSteps.length - 1) ? (
                                     <button
                                         type="button"
-                                        onClick={() => openExternalUrl(discordInvite)}
-                                        className={`mb-4 w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 border ${
-                                            isDark ? 'bg-[#1D1E20] border-[#5865F2]/40' : 'bg-indigo-50 border-indigo-200'
-                                        }`}
+                                        onClick={() => {
+                                            if (spectatorPath && !isPaymentStep) {
+                                                setError('');
+                                                if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
+                                                for (let i = 0; i <= step; i += 1) {
+                                                    if (!validateStep(i)) return;
+                                                }
+                                            }
+                                            handleFinalSubmit();
+                                        }}
+                                        disabled={paying}
+                                        className="flex-1 px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
                                     >
-                                        <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            Join CrwdCtrl Discord
-                                        </span>
-                                        <span className="text-xs font-bold text-[#5865F2]">Open</span>
-                                    </button>
-                                );
-                            })()}
-                            <div className="space-y-4">
-                                {(current?.fields || []).map((field) => (
-                                    <div key={field.id || field.fieldName}>
-                                        {field.type === 'section' ? (
-                                            renderField(field)
-                                        ) : (
+                                        {paying ? (
                                             <>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                            {field.label}{field.required && <span className="text-red-400 ml-1">*</span>}
-                                        </label>
-                                        {renderField(field)}
+                                                <Loader className="w-4 h-4 animate-spin text-black" />
+                                                <span>Processing...</span>
                                             </>
+                                        ) : ticketPrice > 0 ? (
+                                            isOrganizerQr ? (
+                                                payableAmount <= 0
+                                                    ? 'Confirm Registration'
+                                                    : (reg.qrAutoConfirm ? 'Submit Payment Proof & Register' : 'Submit Proof for Approval')
+                                            ) : (
+                                                `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register`
+                                            )
+                                        ) : (
+                                            'Complete Registration'
                                         )}
-                                    </div>
-                                ))}
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={next}
+                                        disabled={paying}
+                                        className="flex-1 px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                                    >
+                                        <span>Next Step</span>
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                         </div>
-                    )}
-
-                    {/* Payment / confirm step */}
-                    {isPaymentStep && (
-                        ticketPrice > 0 ? (
-                            <RunCheckoutPanel
-                                mode={isOrganizerQr ? 'organizer_qr' : 'cashfree'}
-                                isDark={isDark}
-                                payableAmount={payableAmount}
-                                baseFee={breakdown.totalAmount}
-                                chargePerPerson={ticketPrice}
-                                feePerPerson={packagePrice}
-                                people={1}
-                                feeLabel={tiersMode && selectedTier ? 'Package fee' : 'Entry fee'}
-                                amountHint={
-                                    couponInfo?.couponApplied
-                                        ? `Was ₹${Number(couponInfo.amountBeforeDiscount ?? breakdown.totalAmount).toLocaleString('en-IN')}`
-                                        : packagePrice > 0
-                                            ? `${formatInr(packagePrice)}${selectedTier?.name ? ` · ${selectedTier.name}` : ''}`
-                                            : 'Free registration'
-                                }
-                                extraLineItems={[
-                                    packagePrice > 0
-                                        ? { label: 'Price', value: formatInr(packagePrice) }
-                                        : selectedTier
-                                            ? { label: 'Ticket', value: 'Free' }
-                                            : null,
-                                    ...selectedAddOns.map((addOn) => ({
-                                        label: addOn.name,
-                                        value: `₹${addOn.fee.toLocaleString('en-IN')}`,
-                                    })),
-                                    breakdown.platformFee > 0
-                                        ? {
-                                            label: `Platform fee (${platformFeePercent}%)`,
-                                            value: `₹${breakdown.platformFee}`,
-                                            tone: 'muted',
-                                        }
-                                        : null,
-                                ].filter(Boolean)}
-                                showCoupon={couponsEnabled}
-                                couponInfo={couponInfo}
-                                couponCode={couponCode}
-                                couponLoading={couponLoading}
-                                couponError={couponError}
-                                suggestedCoupon={suggestedCoupon}
-                                suggestedCouponLabel={suggestedCouponLabel}
-                                onCouponCodeChange={(v) => {
-                                    setCouponCode(v);
-                                    setCouponInfo(null);
-                                    setCouponError('');
-                                }}
-                                onApplyCoupon={(code) => applyCoupon(code)}
-                                onClearCoupon={() => {
-                                    setCouponInfo(null);
-                                    setCouponCode(suggestedCoupon || '');
-                                    setCouponError('');
-                                    autoAppliedCouponRef.current = '';
-                                }}
-                                paymentQR={reg.paymentQR}
-                                paymentUpiId={reg.paymentUpiId}
-                                paymentQRMessage={reg.paymentQRMessage}
-                                qrAutoConfirm={Boolean(reg.qrAutoConfirm)}
-                                approverLabel="organizer"
-                                upiCopied={upiCopied}
-                                onCopyUpi={async () => {
-                                    if (!reg.paymentUpiId) return;
-                                    try {
-                                        await navigator.clipboard.writeText(reg.paymentUpiId);
-                                        setUpiCopied(true);
-                                        window.setTimeout(() => setUpiCopied(false), 2000);
-                                    } catch { /* ignore */ }
-                                }}
-                                paymentScreenshotUrl={paymentScreenshotUrl}
-                                uploadingProof={uploadingProof}
-                                onUploadScreenshot={uploadPaymentProof}
-                                onRemoveScreenshot={() => setPaymentScreenshotUrl('')}
-                                transactionId={transactionId}
-                                onTransactionIdChange={(v) => setTransactionId(String(v || '').toUpperCase().replace(/\s+/g, ''))}
-                                txnHint="Paste the UTR from GPay / PhonePe / Paytm so the organizer can match it."
-                            />
-                        ) : (
-                        <div className={`rounded-2xl overflow-hidden border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                            <div className={`px-4 py-3.5 ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Confirm Registration</p>
-                                    </div>
-                            <div className={`px-4 py-4 border-t ${isDark ? 'border-gray-700/60' : 'border-gray-200'}`}>
-                                <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                                    {driveOnlyPath
-                                        ? 'Independence Day Drive only — free. Confirm to finish registration (no payment).'
-                                        : 'This registration is free. Click confirm to complete.'}
-                                </p>
-                                        </div>
-                                </div>
-                        )
-                    )}
-
-                    {/* Nav buttons */}
-                    <div className={`flex flex-col sm:flex-row gap-3 p-4 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-700/50' : 'bg-white border-gray-100 shadow-md'}`}>
-                        <button type="button" onClick={back} disabled={paying} className={`px-4 sm:px-6 py-3 rounded-xl border font-medium text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
-                            {step === 0 ? 'Cancel' : 'Previous'}
-                        </button>
-                        {isPaymentStep || (spectatorPath && step === allSteps.length - 1) ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (spectatorPath && !isPaymentStep) {
-                                        setError('');
-                                        if (!isAuthed()) { openLogin(); setError('Please log in to register.'); return; }
-                                        for (let i = 0; i <= step; i += 1) {
-                                            if (!validateStep(i)) return;
-                                        }
-                                    }
-                                    handleFinalSubmit();
-                                }}
-                                disabled={paying}
-                                className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60"
-                            >
-                                {paying ? (<><Loader className="w-4 h-4 animate-spin" /> Processing...</>) : ticketPrice > 0
-                                    ? (isOrganizerQr
-                                        ? (payableAmount <= 0
-                                            ? 'Confirm Registration'
-                                            : (reg.qrAutoConfirm ? 'Submit Payment Proof & Register' : 'Submit Proof for Approval'))
-                                        : `Pay ₹${payableAmount.toLocaleString('en-IN')} & Register`)
-                                    : 'Register'}
-                            </button>
-                        ) : (
-                            <button type="button" onClick={next} disabled={paying} className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:opacity-90 active:scale-[0.98] transition-all text-sm">
-                                Next Step
-                            </button>
-                        )}
-                    </div>
                     </div>
                 </div>
             </div>

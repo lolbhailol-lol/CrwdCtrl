@@ -114,47 +114,9 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
 }
 
 function ConditionalFooter() {
-  const location = useLocation();
   const { hideChrome } = usePageTransition();
-  const pageContentLoading = useBodyHasClass('page-content-loading');
-  const homeShellReady = useHomeShellReadyValue();
 
-  const shouldHideFooter =
-    hideChrome ||
-    pageContentLoading ||
-    !homeShellReady ||
-    location.pathname === '/login' ||
-    location.pathname === '/register' ||
-    location.pathname === '/verify-email' ||
-    location.pathname.startsWith('/admin') ||
-    location.pathname.startsWith('/organizer') ||
-    location.pathname.startsWith('/trek-organizer') ||
-    location.pathname.startsWith('/fest-organizer') ||
-    location.pathname.startsWith('/mindspark-payments') ||
-    location.pathname.startsWith('/mindspark/bundle') ||
-    location.pathname.startsWith('/mindspark/auditorium') ||
-    location.pathname.startsWith('/mindspark/coupon-preview') ||
-    location.pathname.startsWith('/stall') ||
-    location.pathname.startsWith('/s/') ||
-    location.pathname.startsWith('/run-club-organizer') ||
-    location.pathname.startsWith('/event-community-organizer') ||
-    location.pathname.startsWith('/event-organizer') ||
-    location.pathname.startsWith('/campus-hunt') ||
-    location.pathname.startsWith('/campus-hunt-volunteer') ||
-    location.pathname.startsWith('/competition-registration') ||
-    location.pathname.startsWith('/competitions-view-details') ||
-    location.pathname.startsWith('/competition') ||
-    location.pathname.startsWith('/view-details') ||
-    location.pathname.startsWith('/qr-ticket') ||
-    location.pathname.startsWith('/payment-invoice') ||
-    (location.pathname.includes('/fest/') && location.pathname.includes('/register')) ||
-    location.pathname.startsWith('/events/') ||
-    location.pathname.startsWith('/trek/') ||
-    location.pathname.startsWith('/treks/community/') ||
-    location.pathname.startsWith('/sports/run-club/') ||
-    location.pathname.startsWith('/sports/run/');
-
-  if (shouldHideFooter) {
+  if (hideChrome) {
     return null;
   }
 
@@ -170,7 +132,7 @@ function ConditionalNavigation({ isProfileOpen, setIsProfileOpen, onOpenProfile,
   const location = useLocation();
 
   // Hide navigation on login, register, and email verification pages
-  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email'||  location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer') || location.pathname.startsWith('/fest-organizer') || location.pathname.startsWith('/mindspark-payments') || location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/') || location.pathname.startsWith('/run-club-organizer') || location.pathname.startsWith('/event-community-organizer') || location.pathname.startsWith('/event-organizer') || location.pathname.startsWith('/campus-hunt') || location.pathname.startsWith('/campus-hunt-volunteer');
+  const shouldHideNavigation = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/verify-email' || location.pathname.startsWith('/admin') || location.pathname.startsWith('/trek-organizer') || location.pathname.startsWith('/fest-organizer') || location.pathname.startsWith('/mindspark-payments') || location.pathname.startsWith('/stall') || location.pathname.startsWith('/s/') || location.pathname.startsWith('/run-club-organizer') || location.pathname.startsWith('/event-community-organizer') || location.pathname.startsWith('/event-organizer') || location.pathname.startsWith('/campus-hunt') || location.pathname.startsWith('/campus-hunt-volunteer');
 
   if (shouldHideNavigation) {
     return null;
@@ -391,7 +353,7 @@ function App() {
 
     fetch(resolveUrl('/health'), { method: 'GET', mode: 'cors', credentials: 'omit' })
       .then((r) => { if (r.ok) markReady(); })
-      .catch(() => {});
+      .catch(() => { });
 
     // Background retries for cold starts without delaying the UI
     const retryDelays = [3000, 8000, 15000];
@@ -441,42 +403,42 @@ function App() {
     <AuthProvider>
       <DarkModeProvider>
         <DialogProvider>
-        <FavoritesProvider>
-          <RegisteredEventsProvider>
-            <SidebarProvider>
-              <Router>
-                <NotificationsProvider>
-                <MobileSearchProvider>
-                <PageTransitionProvider>
-                  <CapacitorInit />
-                  <DeepLinkHistorySeed />
-                  <OfflineHuntBootGate />
-                  <RouteTracker />
-                  <OrganizerPortalTheme />
-                  <GoogleOneTap />
-                  <AdSenseLoader />
-                  <PWAInstallPrompt />
-                  <MobileSearchHost />
-                  <AppContent
-                    isProfileOpen={isProfileOpen}
-                    setIsProfileOpen={setIsProfileOpen}
-                    showLogin={showLogin}
-                    setShowLogin={setShowLogin}
-                    showRegister={showRegister}
-                    setShowRegister={setShowRegister}
-                    handleCloseLogin={handleCloseLogin}
-                    handleCloseRegister={handleCloseRegister}
-                    handleSwitchToRegister={handleSwitchToRegister}
-                    handleSwitchToLogin={handleSwitchToLogin}
-                    openLoginFromProfile={openLoginFromProfile}
-                  />
-                </PageTransitionProvider>
-                </MobileSearchProvider>
-                </NotificationsProvider>
-              </Router>
-            </SidebarProvider>
-          </RegisteredEventsProvider>
-        </FavoritesProvider>
+          <FavoritesProvider>
+            <RegisteredEventsProvider>
+              <SidebarProvider>
+                <Router>
+                  <NotificationsProvider>
+                    <MobileSearchProvider>
+                      <PageTransitionProvider>
+                        <CapacitorInit />
+                        <DeepLinkHistorySeed />
+                        <OfflineHuntBootGate />
+                        <RouteTracker />
+                        <OrganizerPortalTheme />
+                        <GoogleOneTap />
+                        <AdSenseLoader />
+                        <PWAInstallPrompt />
+                        <MobileSearchHost />
+                        <AppContent
+                          isProfileOpen={isProfileOpen}
+                          setIsProfileOpen={setIsProfileOpen}
+                          showLogin={showLogin}
+                          setShowLogin={setShowLogin}
+                          showRegister={showRegister}
+                          setShowRegister={setShowRegister}
+                          handleCloseLogin={handleCloseLogin}
+                          handleCloseRegister={handleCloseRegister}
+                          handleSwitchToRegister={handleSwitchToRegister}
+                          handleSwitchToLogin={handleSwitchToLogin}
+                          openLoginFromProfile={openLoginFromProfile}
+                        />
+                      </PageTransitionProvider>
+                    </MobileSearchProvider>
+                  </NotificationsProvider>
+                </Router>
+              </SidebarProvider>
+            </RegisteredEventsProvider>
+          </FavoritesProvider>
         </DialogProvider>
       </DarkModeProvider>
     </AuthProvider>

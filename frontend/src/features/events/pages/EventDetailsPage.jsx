@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Share2, Heart, Phone, Instagram, Mail,
-  ChevronRight, ChevronLeft, X, Check, Clock3, MapPin, LayoutGrid, Percent, Loader,
+  ChevronRight, ChevronLeft, X, Check, Clock3, MapPin, Hourglass, LayoutGrid, Percent, Loader,
 } from 'lucide-react';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useDialog } from '../../../context/DialogContext';
@@ -16,13 +16,15 @@ import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenera
 import { shareContent, openExternalUrl } from '../../../utils/externalLink';
 import { publicFetchJSONRetry as fetchJSON } from '../../../services/api/client';
 import { EVENT_TYPE_LABELS, formatEventShowDate } from '../../../constants/eventsPage';
-import { useInAppBack } from '../../../hooks/useInAppBack';
 import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
 import Seo from '../../../components/Seo';
 import LazyMap from '../../../components/LazyMap';
 import { breadcrumbSchema, eventSchema } from '../../../utils/seo';
-import { eventShowPath } from '../../../utils/slugRoutes';
+import { eventShowPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
+import { fetchCatalogJSON } from '../../../services/api/catalogCache';
 import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
+import OrganizersStorySlider from '../../../components/OrganizersStorySlider';
+import GalleryLightbox from '../../../components/GalleryLightbox';
 import TrekDetailIcon from '../../../components/TrekDetailIcon';
 import PosterFitImage from '../../../components/PosterFitImage';
 import { signalDetailPageReady } from '../../../utils/bootSplash';
@@ -81,7 +83,7 @@ function mapEventDetail(raw) {
     tiers: Array.isArray(raw.tiers) ? raw.tiers : [],
     addOns: Array.isArray(raw.addOns) ? raw.addOns : [],
     platformFeePercent: raw.platformFeePercent,
-    about: raw.description || '',
+    about: raw.description || raw.about || raw.overview || '',
     whatsIncluded: raw.whatsIncluded || '',
     benefits: raw.benefits || '',
     eligibility: raw.eligibility || '',
@@ -255,6 +257,19 @@ function tierPeopleLabel(n) {
   return `Group · ${n}`;
 }
 
+function deduplicateEventDetailCards(cards) {
+  if (!cards || cards.length === 0) return [];
+  const seenLabels = new Set();
+  return cards.filter((card) => {
+    const rawLabel = String(card?.label || '').trim().toLowerCase();
+    const rawVal = String(card?.value || '').trim();
+    if (!rawLabel || !rawVal) return false;
+    if (seenLabels.has(rawLabel)) return false;
+    seenLabels.add(rawLabel);
+    return true;
+  });
+}
+
 export default function EventDetailsPage() {
   const { isDark } = useDarkMode();
   const { toast } = useDialog();
@@ -262,7 +277,6 @@ export default function EventDetailsPage() {
   const { isAuthenticated } = useAuth();
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const handleBack = useInAppBack();
   const imgRef = useRef(null);
 
   const [showLogin, setShowLogin] = useState(false);
@@ -281,6 +295,26 @@ export default function EventDetailsPage() {
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [entryOpen, setEntryOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [similarEvents, setSimilarEvents] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchCatalogJSON('/events')
+      .then((res) => {
+        if (!active) return;
+        const list = Array.isArray(res?.data?.events) ? res.data.events : [];
+        const currentId = String(event?._id || event?.id || eventId || '');
+        const currentTitle = String(event?.title || '').trim().toLowerCase();
+        const others = list.filter((item) => {
+          const itemId = String(item._id || item.id || '');
+          const itemTitle = String(item.title || '').trim().toLowerCase();
+          return itemId !== currentId && item.slug !== eventId && itemTitle !== currentTitle;
+        });
+        setSimilarEvents(others.slice(0, 3));
+      })
+      .catch(() => { });
+    return () => { active = false; };
+  }, [eventId, event?._id, event?.id, event?.title]);
 
   const isLoggedIn = () => isAuthenticated || !!localStorage.getItem('crwdctrl_token');
 
@@ -292,6 +326,7 @@ export default function EventDetailsPage() {
         return;
       }
       try {
+        setEvent(null);
         setLoading(true);
         setError(null);
         const res = await fetchJSON(`/events/${eventId}?t=${Date.now()}`);
@@ -330,6 +365,7 @@ export default function EventDetailsPage() {
 
   useEffect(() => {
     if (!event || !eventId) return;
+    if (!entityMatchesRouteParam(event, eventId, ['title', 'displayName'])) return;
     const canonical = eventShowPath(event);
     if (canonical && window.location.pathname !== canonical) {
       navigate(`${canonical}${window.location.search || ''}`, { replace: true });
@@ -472,7 +508,6 @@ export default function EventDetailsPage() {
   const registrationClosed = usesInAppEventRegistration(reg)
     ? isEventRegistrationExplicitlyClosed(reg)
     : !(event.registrationLink || event.bookingLink);
-  const couponsOn = reg.allowCoupons !== false;
   const fromFee = (() => {
     if (event.tiersMultiSelect && packageTiers.length) {
       const paid = packageTiers
@@ -488,20 +523,11 @@ export default function EventDetailsPage() {
     || (hasVenue
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.venue)}`
       : null);
-
-  const sheetBg = isDark ? 'bg-[#161718]' : 'bg-slate-100';
-  const cardBg = isDark ? 'bg-[#111213]' : 'bg-white';
-  const cardBorder = isDark ? 'border-white/5' : 'border-gray-100';
   const detailCards = buildDetailCards(event);
+  const cleanDetailCards = deduplicateEventDetailCards(detailCards);
   const entryLines = toLines(event.registrationProcess);
   const termsLines = toLines(event.generalRules);
   const includedLines = [...toLines(event.whatsIncluded), ...toLines(event.benefits)];
-
-  const factRows = [
-    { key: 'date', label: 'Date', value: event.dateLabel, icon: 'date' },
-    { key: 'time', label: 'Time', value: event.timeLabel, icon: 'time' },
-    { key: 'venue', label: 'Venue', value: event.venue, icon: 'venue' },
-  ];
 
   const renderList = (lines) => (
     <ul className="space-y-2">
@@ -526,7 +552,7 @@ export default function EventDetailsPage() {
   );
 
   return (
-    <div className="crwdctrl-page flex flex-col min-h-screen pb-[max(7.5rem,calc(var(--safe-bottom)+6.5rem))] animate-detail-enter">
+    <div className="crwdctrl-page flex flex-col min-h-screen pb-6 animate-detail-enter">
       <Seo
         title={event.title}
         description={event.about ? event.about.slice(0, 160) : `${event.title} — ${event.type}`}
@@ -551,553 +577,754 @@ export default function EventDetailsPage() {
         ]}
       />
 
-      <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
-        {/* Hero — vertical frame; long poster kept intact (no crop / pad rewrite) */}
-        <div className="relative w-full aspect-[3/4] max-h-[min(70vh,560px)] shrink-0 overflow-hidden bg-[#1A1B1D]">
-          <div
-            ref={imgRef}
-            className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-            style={{
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-              touchAction: 'pan-x',
-              overscrollBehaviorX: 'contain',
-            }}
-            onScroll={(e) => {
-              const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
-              setImgPg((prev) => (prev === p ? prev : p));
-            }}
-          >
-            <div className="flex h-full">
-              {heroSlides.map((img, i) => (
-                <div key={i} className="relative shrink-0 w-full h-full snap-start bg-[#1A1B1D] overflow-hidden">
-                  {img ? (
-                    <>
-                      {!heroLoaded && i === 0 && (
-                        <div aria-hidden className="absolute inset-0 z-1 flex items-center justify-center bg-[#1A1B1D]">
-                          <DetailLoader3DIcon variant="event" tone="dark" />
-                        </div>
-                      )}
-                      <PosterFitImage
-                        src={img}
-                        alt={event.title}
-                        preset="eventHeroPad"
-                        loading={i === 0 ? 'eager' : 'lazy'}
-                        fetchPriority={i === 0 ? 'high' : 'auto'}
-                        fallbackW={393}
-                        fallbackH={520}
-                        fallbackBg="#5c0a12"
-                        className={i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100 transition-opacity duration-500 ease-out'}
-                        onLoad={() => { if (i === 0) setHeroLoaded(true); }}
-                        onError={() => { if (i === 0) setHeroLoaded(true); }}
-                      />
-                    </>
-                  ) : (
-                    <div className="w-full h-full bg-linear-to-br from-slate-800 to-slate-950 flex items-center justify-center">
-                      <span className="text-white/40 text-sm font-medium">No cover yet</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 py-2.5 lg:py-4 flex flex-col flex-1 gap-3.5">
 
-          <div className="absolute inset-0 bg-linear-to-t from-black/35 via-transparent to-transparent pointer-events-none" />
+        {/* TOP HEADER ROW (Matching Reference: Title + Share/Favorite Action Icons) */}
+        <div className="flex items-center justify-between gap-4">
+          <h1 className={`text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {event.title}
+          </h1>
 
-          <div
-            className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 z-10"
-            style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
-          >
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={handleBack}
-              aria-label="Go back"
-              className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+              onClick={handleShare}
+              aria-label="Share"
+              className={`size-9 rounded-full flex items-center justify-center border transition cursor-pointer ${isDark ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                }`}
             >
-              <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
+              <Share2 size={16} strokeWidth={2} />
             </button>
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={handleShare}
-                aria-label="Share"
-                className="size-11 rounded-full bg-black/40 flex items-center justify-center"
-              >
-                <Share2 size={20} strokeWidth={2.25} className="text-white" />
-              </button>
-              <button
-                type="button"
-                onClick={handleFavorite}
-                aria-label="Add to favourites"
-                className="size-11 rounded-full bg-black/40 flex items-center justify-center"
-              >
-                <Heart size={20} strokeWidth={2.25} className={isFavorite(event.id) ? 'fill-red-500 text-red-500' : 'text-white'} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleFavorite}
+              aria-label="Add to favourites"
+              className={`size-9 rounded-full flex items-center justify-center border transition cursor-pointer ${isDark ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                }`}
+            >
+              <Heart size={16} strokeWidth={2} className={isFavorite(event.id) ? 'fill-red-500 text-red-500' : ''} />
+            </button>
           </div>
-
-          {heroSlides.length > 1 && (
-            <div className="absolute bottom-14 left-0 right-0 flex justify-center items-center gap-2 z-10">
-              {heroSlides.slice(0, 4).map((_, i) => (
-                <div
-                  key={i}
-                  className={`rounded-2xl transition-all duration-300 ${i === imgPg ? 'h-2.5 w-6 bg-white' : 'size-2.5 bg-transparent border-2 border-white/60'
-                    }`}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Content sheet */}
-        <div className={`relative -mt-10 flex-1 rounded-t-3xl z-10 ${sheetBg}`}>
-          <div className="px-4 pt-5 pb-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h1 className={`text-[26px] font-semibold leading-8 wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {event.title}
-                </h1>
-                {event.organizer ? (
-                  <p className={`text-sm font-semibold mt-1 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>
-                    {event.organizer}
-                  </p>
-                ) : null}
-                {event.displayName && event.displayName !== event.title ? (
-                  <p className={`text-xs font-medium mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                    {event.displayName}
-                  </p>
-                ) : null}
-              </div>
-              {couponsOn ? (
-                <div className="shrink-0 mt-1 inline-flex items-center gap-1.5 rounded-3xl border border-[#0ECCEE]/40 bg-linear-to-r from-[#0ECCEE]/15 to-cyan-400/25 px-2.5 py-1.5">
-                  <Percent size={14} className="text-[#0ECCEE]" strokeWidth={2.5} />
-                  <span className={`text-xs font-normal leading-4 tracking-tight ${isDark ? 'text-white' : 'text-black'}`}>
-                    Offers available
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </div>
+        {/* REFERENCE-STYLE HERO SPLIT SECTION (Left: Media Carousel | Right: Info & Booking Card) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-5 items-start">
 
-          {/* Date / Time / Venue + map — same layout as community event pages */}
-          <div className="px-4 flex items-start gap-2 mb-5">
-            <div className="flex-1 min-w-0 space-y-3.5 pt-1">
-              {factRows.map((row) => {
-                const Icon = FACT_ICONS[row.icon] || Clock3;
-                return (
-                  <div key={row.key} className="flex items-center gap-2.5">
-                    <Icon size={22} className="text-[#0ECCEE] shrink-0" strokeWidth={2.25} />
-                    <div className="min-w-0">
-                      <p className={`text-[15px] font-semibold leading-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {row.value}
-                      </p>
-                      <p className={`text-[11px] font-medium leading-4 mt-0.5 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                        {row.label}
-                      </p>
+          {/* LEFT COLUMN (md:col-span-7): Media Slider with Badges Overlay */}
+          <div className="md:col-span-7 flex flex-col">
+            <div className={`relative w-full h-[320px] sm:h-[360px] md:h-[380px] lg:h-[400px] overflow-hidden rounded-3xl border shadow-lg ${isDark ? 'bg-[#1A1B1D] border-white/5' : 'bg-gray-900 border-gray-200'
+              }`}>
+
+
+              <div
+                ref={imgRef}
+                className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch',
+                  touchAction: 'pan-x',
+                  overscrollBehaviorX: 'contain',
+                }}
+                onScroll={(e) => {
+                  const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
+                  setImgPg((prev) => (prev === p ? prev : p));
+                }}
+              >
+                <div className="flex h-full">
+                  {heroSlides.map((img, i) => (
+                    <div key={i} className="relative shrink-0 w-full h-full snap-start bg-[#1A1B1D] overflow-hidden">
+                      {img ? (
+                        <>
+                          {!heroLoaded && i === 0 && (
+                            <div aria-hidden className="absolute inset-0 z-1 flex items-center justify-center bg-[#1A1B1D]">
+                              <DetailLoader3DIcon variant="event" tone="dark" />
+                            </div>
+                          )}
+                          <PosterFitImage
+                            src={img}
+                            alt={event.title}
+                            preset="eventHeroPad"
+                            loading={i === 0 ? 'eager' : 'lazy'}
+                            fetchPriority={i === 0 ? 'high' : 'auto'}
+                            fallbackW={393}
+                            fallbackH={520}
+                            fallbackBg="#5c0a12"
+                            className={i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100 transition-opacity duration-500 ease-out'}
+                            onLoad={() => { if (i === 0) setHeroLoaded(true); }}
+                            onError={() => { if (i === 0) setHeroLoaded(true); }}
+                          />
+                        </>
+                      ) : (
+                        <div className="w-full h-full bg-linear-to-br from-slate-800 to-slate-950 flex items-center justify-center">
+                          <span className="text-white/40 text-sm font-medium">No cover yet</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="w-[55%] max-w-[220px] sm:max-w-[260px] shrink-0 flex flex-col self-start -ml-1">
-              <div className="w-full h-[148px] sm:h-[156px] rounded-2xl overflow-hidden relative">
-                {(mapQuery || event.mapUrl) ? (
-                  <LazyMap query={mapQuery} mapUrl={event.mapUrl || undefined} isDark={isDark} title="event-venue-map" />
-                ) : (
-                  <div className={`w-full h-full flex items-center justify-center ${isDark ? 'bg-[#111213]' : 'bg-linear-to-br from-green-50 to-blue-50'}`}>
-                    <span className="text-[10px] text-gray-400">No location</span>
-                  </div>
-                )}
-              </div>
-              {directionsUrl ? (
-                <button
-                  type="button"
-                  onClick={() => openExternalUrl(directionsUrl)}
-                  className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full truncate ${isDark ? 'text-gray-500' : 'text-gray-500'}`}
-                >
-                  {event.venue}
-                </button>
-              ) : (mapQuery || event.mapUrl) ? (
-                <p className={`text-[11px] font-semibold text-center mt-1.5 leading-4 tracking-tight w-full truncate ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                  {event.venue}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Overview */}
-          {event.about ? (
-            <div className="px-4 mb-5">
-              <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Overview
-              </h2>
-              <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                {showFullAbout || !aboutLong ? event.about : shortAbout}
-                {aboutLong ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowFullAbout((v) => !v)}
-                    className="ml-1 font-medium text-[#0ECCEE]"
-                  >
-                    {showFullAbout ? 'read less' : 'read more'}
-                  </button>
-                ) : null}
-              </p>
-            </div>
-          ) : null}
-
-          {/* Info tabs */}
-          {infoTabs.length > 0 ? (
-            <div className="px-4 mb-5">
-              <div className={`rounded-2xl mb-4 shadow-[0px_4px_4px_0px_rgba(0,0,0,0.12)] ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
-                <div className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-hide px-2 py-3">
-                  {infoTabs.map((t) => (
-                    <button
-                      key={t.key}
-                      type="button"
-                      onClick={() => setActiveTab(t.key)}
-                      className={`relative shrink-0 whitespace-nowrap px-3.5 py-1 text-sm font-medium tracking-tight transition-colors duration-200 ${activeTab === t.key
-                        ? 'text-blue-700'
-                        : isDark ? 'text-gray-400' : 'text-gray-800'
-                        }`}
-                    >
-                      {t.label}
-                      {activeTab === t.key ? (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-px bg-blue-700 transition-opacity duration-200" />
-                      ) : null}
-                    </button>
                   ))}
                 </div>
               </div>
 
-              <div key={activeTab} className="animate-step-enter">
-                {activeTab === 'details' ? (
-                  <div className="space-y-2.5">
-                    {detailCards.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-2.5">
-                        {detailCards.map((card) => (
+              {/* Navigation Arrows */}
+              {heroSlides.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (imgRef.current) imgRef.current.scrollBy({ left: -imgRef.current.clientWidth, behavior: 'smooth' });
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 size-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition z-20 backdrop-blur-xs cursor-pointer text-lg font-bold"
+                    aria-label="Previous image"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (imgRef.current) imgRef.current.scrollBy({ left: imgRef.current.clientWidth, behavior: 'smooth' });
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 size-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center transition z-20 backdrop-blur-xs cursor-pointer text-lg font-bold"
+                    aria-label="Next image"
+                  >
+                    ›
+                  </button>
+
+                  {/* Pagination Dots */}
+                  <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-1.5 z-20">
+                    {heroSlides.slice(0, 5).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`rounded-full transition-all duration-300 ${i === imgPg ? 'h-2 w-6 bg-[#0ECCEE]' : 'size-2 bg-white/50 border border-white/60'
+                          }`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN (md:col-span-5): Equal-height Event Summary & Book Now Card */}
+          <div className="md:col-span-5 flex flex-col">
+            <div className={`w-full h-[320px] sm:h-[360px] md:h-[380px] lg:h-[400px] rounded-3xl p-3.5 sm:p-4 border transition-all flex flex-col justify-between ${isDark ? 'bg-[#111213] border-white/10 shadow-xl' : 'bg-white border-gray-200 shadow-md'
+              }`}>
+              {/* Card Details Top Section */}
+              <div className="space-y-2.5">
+                {/* Date & Time + Status Chip */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`size-8 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20] text-amber-400' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                      <Hourglass size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-xs sm:text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {event.dateFull || event.dateLabel || 'Date TBA'}
+                      </p>
+                      {event.timeLabel ? (
+                        <p className={`text-[11px] font-medium leading-none mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {event.timeLabel}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    Filling Fast
+                  </span>
+                </div>
+
+                {/* Location with Map Pin & Quick Map Link */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`size-8 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-cyan-50 text-cyan-600'
+                      }`}>
+                      <MapPin size={16} />
+                    </div>
+                    <p className={`text-xs sm:text-sm font-semibold truncate ${isDark ? 'text-gray-200' : 'text-gray-800'}`} title={event.venue || ''}>
+                      {event.venue || event.city || 'Location TBA'}
+                    </p>
+                  </div>
+
+                  {directionsUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => openExternalUrl(directionsUrl)}
+                      className="size-7 rounded-lg flex items-center justify-center text-[#0ECCEE] hover:bg-[#0ECCEE]/10 shrink-0 cursor-pointer transition border border-[#0ECCEE]/20"
+                      title="Open in Maps"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M7 17L17 7M17 7H7M17 7V17" />
+                      </svg>
+                    </button>
+                  ) : null}
+                </div>
+
+                {/* Event Key Chips: Duration, Age, Category */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  {event.duration ? (
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${isDark ? 'bg-[#1D1E20] text-gray-300 border border-white/5' : 'bg-gray-100 text-gray-700'}`}>
+                      ⏳ {event.duration}
+                    </span>
+                  ) : null}
+                  {event.ageRating ? (
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${isDark ? 'bg-[#1D1E20] text-gray-300 border border-white/5' : 'bg-gray-100 text-gray-700'}`}>
+                      🎯 Age: {event.ageRating}
+                    </span>
+                  ) : null}
+                  {event.type ? (
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${isDark ? 'bg-[#1D1E20] text-gray-300 border border-white/5' : 'bg-gray-100 text-gray-700'}`}>
+                      ⚡ {event.type}
+                    </span>
+                  ) : null}
+                </div>
+
+                {/* Organizer Contact Row */}
+                {(() => {
+                  const contact = event.contacts?.[0];
+                  const phone = contact?.phone;
+                  const insta = contact?.instagramId?.replace('@', '');
+                  if (!event.organizer && !phone && !insta) return null;
+                  return (
+                    <div className={`flex items-center justify-between gap-2 p-2 rounded-xl border ${isDark ? 'bg-[#161718] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#0ECCEE]">BY</span>
+                        <p className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {event.organizer || 'Event Organizer'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {phone && (
+                          <a
+                            href={`tel:${phone.replace(/[\s-]/g, '')}`}
+                            className={`size-7 rounded-lg flex items-center justify-center transition cursor-pointer ${isDark ? 'bg-[#222326] text-gray-200 hover:text-[#0ECCEE]' : 'bg-white text-gray-700 hover:text-[#0ECCEE] shadow-xs'}`}
+                            title={`Call ${phone}`}
+                          >
+                            <Phone size={13} />
+                          </a>
+                        )}
+                        {insta && (
+                          <a
+                            href={`https://instagram.com/${insta}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`size-7 rounded-lg flex items-center justify-center transition cursor-pointer ${isDark ? 'bg-[#222326] text-gray-200 hover:text-pink-400' : 'bg-white text-gray-700 hover:text-pink-500 shadow-xs'}`}
+                            title={`Instagram @${insta}`}
+                          >
+                            <Instagram size={13} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Divider & Price / Booking CTA row */}
+              <div className={`pt-3 border-t ${isDark ? 'border-white/10' : 'border-gray-200'} flex items-center justify-between gap-3`}>
+                <div>
+                  {fromFee == null ? (
+                    <p className={`text-xl sm:text-2xl font-black ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>—</p>
+                  ) : Number(fromFee) > 0 ? (
+                    <div>
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-xl sm:text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          ₹{Number(fromFee).toLocaleString('en-IN')}
+                        </span>
+                        <span className={`text-[11px] font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          onwards
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-semibold text-amber-400">Verified Pricing</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xl sm:text-2xl font-black text-emerald-400">Free</p>
+                      <p className="text-[10px] font-semibold text-emerald-400">Instant Entry</p>
+                    </div>
+                  )}
+                </div>
+
+                {registrationClosed ? (
+                  <button disabled className="px-5 py-2.5 sm:py-3 rounded-2xl text-xs sm:text-sm font-bold bg-gray-600 text-gray-300 cursor-not-allowed shrink-0">
+                    Closed
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRegister}
+                    className="px-6 py-2.5 sm:py-3 rounded-2xl text-sm font-extrabold shadow-lg bg-[#0ECCEE] text-black hover:bg-[#0cb8d6] active:scale-[0.98] transition cursor-pointer shrink-0"
+                  >
+                    Book Now
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Full-width About / Overview Card */}
+        {event.about && (
+          <div className={`w-full rounded-3xl p-4 sm:p-5 border transition-all ${isDark ? 'bg-[#111213] border-white/5 shadow-md' : 'bg-white border-gray-100 shadow-sm'}`}>
+            <h2 className={`text-sm sm:text-base font-bold leading-snug mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              About This Event
+            </h2>
+            <p className={`text-xs sm:text-[13px] leading-relaxed whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              {showFullAbout || !aboutLong ? event.about : shortAbout}
+              {aboutLong && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullAbout((v) => !v)}
+                  className="ml-1 text-xs font-bold text-[#0ECCEE] hover:underline cursor-pointer"
+                >
+                  {showFullAbout ? 'Show less' : 'Read more'}
+                </button>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* DETAILS & MAP BALANCED SECTION (High-density space-efficient layout) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start mt-0.5">
+
+          {/* LEFT COLUMN (lg:col-span-7): Event Info (Tabs), Overview & Contacts */}
+          <div className="lg:col-span-7 flex flex-col gap-3.5">
+            {infoTabs.length > 0 && (
+              <div className={`rounded-3xl p-4 sm:p-5 border transition-all ${isDark ? 'bg-[#111213] border-white/5 shadow-md' : 'bg-white border-gray-100 shadow-sm'}`}>
+                <div className="flex items-center justify-between mb-3.5">
+                  <h2 className={`text-base font-bold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Event Info
+                  </h2>
+
+                  {/* Tabs */}
+                  <div className={`flex rounded-xl p-1 gap-1 overflow-x-auto scrollbar-hide ${isDark ? 'bg-[#1A1B1D]' : 'bg-gray-100'}`}>
+                    {infoTabs.map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => setActiveTab(t.key)}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${activeTab === t.key
+                            ? isDark ? 'bg-[#252629] text-[#0ECCEE] shadow-xs' : 'bg-white text-gray-900 shadow-xs'
+                            : isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-800'
+                          }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* TAB 1: DETAILS */}
+                {activeTab === 'details' && (
+                  <div className="space-y-3">
+                    {cleanDetailCards.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {cleanDetailCards.map((card, idx) => (
                           <div
-                            key={card.id}
-                            className={`rounded-2xl px-3 py-3.5 flex items-start gap-2.5 shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'
+                            key={`fact-${card.label}-${idx}`}
+                            className={`flex items-center gap-2 p-2 sm:p-2.5 rounded-xl border transition-all ${isDark ? 'bg-[#161718] border-white/5 hover:border-white/10' : 'bg-gray-50 border-gray-100 shadow-2xs hover:border-gray-200'
                               }`}
                           >
-                            <span className="shrink-0 mt-0.5" aria-hidden>
-                              <TrekDetailIcon icon={card.icon || 'default'} size={24} />
-                            </span>
-                            <div className="min-w-0">
-                              <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {card.label}
-                              </p>
-                              <p className={`text-xs font-semibold leading-4 tracking-tight mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                                {card.value}
-                              </p>
+                            <div className={`size-7 rounded-lg flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20] text-[#0ECCEE]' : 'bg-white text-[#0ECCEE] shadow-xs'
+                              }`}>
+                              <TrekDetailIcon icon={card.icon || 'default'} size={15} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className={`text-[10px] font-semibold leading-none truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{card.label}</p>
+                              <p className={`text-xs sm:text-[13px] font-bold leading-tight mt-0.5 truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{card.value}</p>
                             </div>
                           </div>
                         ))}
                       </div>
-                    ) : null}
+                    ) : (
+                      <p className={`text-xs py-2 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No specific details listed.</p>
+                    )}
 
-                    {entryLines.length > 0 ? (
-                      <div>
+                    {/* Entry & Check-in Accordion */}
+                    {entryLines.length > 0 && (
+                      <div className={`rounded-2xl border overflow-hidden transition-all ${isDark ? 'bg-[#161718] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
                         <button
                           type="button"
                           onClick={() => setEntryOpen((o) => !o)}
-                          className={`w-full rounded-2xl flex items-center justify-between px-4 py-3.5 shadow-sm transition-colors ${isDark ? 'bg-[#111213] hover:bg-[#1D1E20]' : 'bg-white hover:bg-gray-50'
-                            }`}
+                          className="w-full flex items-center justify-between px-3.5 py-2.5 text-left cursor-pointer"
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <LayoutGrid size={18} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
-                            <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                              Entry &amp; Check-in
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <LayoutGrid size={15} className="text-[#0ECCEE]" />
+                            <p className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              Entry &amp; Check-in Details
                             </p>
                           </div>
                           <ChevronRight
-                            size={16}
-                            className={`transition-transform duration-200 shrink-0 ${entryOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+                            size={15}
+                            className={`transition-transform duration-200 shrink-0 ${entryOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
                           />
                         </button>
-                        {entryOpen ? (
-                          <div className={`mt-2 rounded-2xl px-4 py-3.5 shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'}`}>
+                        {entryOpen && (
+                          <div className={`px-3.5 pb-3 pt-1 border-t text-xs leading-relaxed ${isDark ? 'border-white/5 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
                             {renderList(entryLines)}
                           </div>
-                        ) : null}
+                        )}
                       </div>
-                    ) : null}
+                    )}
                   </div>
-                ) : null}
+                )}
 
-                {activeTab === 'schedule' ? (
-                  <div className={`rounded-2xl border p-4 space-y-4 ${cardBg} ${cardBorder}`}>
+                {/* TAB 2: SCHEDULE */}
+                {activeTab === 'schedule' && (
+                  <div className="space-y-3.5">
                     {event.showTimings.filter((s) => s?.date || s?.time).map((slot, idx) => {
                       const d = slot.date ? new Date(slot.date) : null;
                       const dateStr = d && !Number.isNaN(d.getTime())
                         ? d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
                         : 'Date TBA';
                       return (
-                        <div key={idx} className="flex items-start gap-3">
-                          <div className="size-9 rounded-xl bg-[#0ECCEE]/15 flex items-center justify-center shrink-0">
-                            <Clock3 size={16} className="text-[#0ECCEE]" />
+                        <div key={idx} className={`flex items-center gap-3 p-2.5 rounded-xl border ${isDark ? 'bg-[#161718] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                          <div className="size-8 rounded-lg bg-[#0ECCEE]/15 flex items-center justify-center shrink-0">
+                            <Clock3 size={15} className="text-[#0ECCEE]" />
                           </div>
                           <div>
-                            <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dateStr}</p>
-                            <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            <p className={`text-xs sm:text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dateStr}</p>
+                            <p className={`text-[11px] mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                               {slot.time || 'Time TBA'}
                             </p>
                           </div>
                         </div>
                       );
                     })}
-                    {event.process ? (
-                      <div>
-                        <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Process</p>
-                        <p className={`text-sm leading-6 whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {event.process && (
+                      <div className="mt-2">
+                        <p className={`text-xs font-bold uppercase tracking-wider mb-1 text-[#0ECCEE]`}>Process</p>
+                        <p className={`text-xs leading-relaxed whitespace-pre-line ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
                           {event.process}
                         </p>
                       </div>
-                    ) : null}
+                    )}
                     {event.rounds.map((r, idx) => (
-                      <div key={idx}>
-                        <p className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      <div key={idx} className="mt-2">
+                        <p className={`text-xs font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                           {r.title || `Round ${idx + 1}`}
                         </p>
                         {r.content ? renderList(toLines(r.content)) : null}
                       </div>
                     ))}
                   </div>
-                ) : null}
+                )}
 
-                {activeTab === 'included' && includedLines.length > 0 ? (
-                  <div className={`rounded-2xl border p-4 ${cardBg} ${cardBorder}`}>
-                    {renderList(includedLines)}
+                {/* TAB 3: INCLUDED */}
+                {activeTab === 'included' && includedLines.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {includedLines.map((item, i) => (
+                      <div
+                        key={i}
+                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border ${isDark ? 'bg-[#161718] border-white/5 text-gray-200' : 'bg-gray-50 border-gray-100 text-gray-800'
+                          }`}
+                      >
+                        <span className="size-5 rounded-md bg-[#0ECCEE]/15 text-[#0ECCEE] flex items-center justify-center shrink-0">
+                          <Check size={11} strokeWidth={3} />
+                        </span>
+                        <span className="text-xs font-semibold leading-snug truncate">
+                          {item}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ) : null}
+                )}
 
-                {activeTab === 'dress' && event.dressCode ? (
-                  <div className="space-y-2.5">
+                {/* TAB 4: DRESS CODE */}
+                {activeTab === 'dress' && event.dressCode && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {parseDressCodeLines(event.dressCode).map((row) => (
                       <div
                         key={row.id}
-                        className={`rounded-2xl px-3.5 py-3.5 flex items-start gap-3 shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'
+                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border ${isDark ? 'bg-[#161718] border-white/5' : 'bg-gray-50 border-gray-100'
                           }`}
                       >
                         {row.emoji ? (
-                          <span className="text-[22px] leading-none mt-0.5 shrink-0 select-none" aria-hidden>
+                          <span className="text-lg leading-none mt-0.5 shrink-0 select-none" aria-hidden>
                             {row.emoji}
                           </span>
                         ) : (
                           <span className="mt-0.5 shrink-0" aria-hidden>
-                            <TrekDetailIcon icon="dress" size={22} />
+                            <TrekDetailIcon icon="dress" size={16} />
                           </span>
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className={`text-sm font-semibold leading-5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                             {row.title}
                           </p>
-                          <p className={`text-xs font-medium leading-5 mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <p className={`text-[11px] leading-relaxed mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                             {row.body}
                           </p>
                         </div>
                       </div>
                     ))}
                   </div>
-                ) : null}
+                )}
 
-                {activeTab === 'prize' && event.prizePool ? (
-                  <div className={`rounded-2xl border p-4 ${cardBg} ${cardBorder}`}>
+                {/* TAB 5: PRIZE POOL */}
+                {activeTab === 'prize' && event.prizePool && (
+                  <div className={`p-3 rounded-2xl border ${isDark ? 'bg-[#161718] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
                     {renderList(toLines(event.prizePool))}
                   </div>
-                ) : null}
+                )}
               </div>
-            </div>
-          ) : null}
+            )}
 
-          {/* Terms */}
-          {termsLines.length > 0 ? (
-            <div className="px-4 mb-6">
-              <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Terms &amp; Conditions
-              </h2>
+            {/* Contact Details Card */}
+            {event.contacts.length > 0 && (
+              <div className={`rounded-3xl p-3.5 sm:p-4 border transition-all ${isDark ? 'bg-[#111213] border-white/5 shadow-md' : 'bg-white border-gray-100 shadow-sm'}`}>
+                <h2 className={`text-xs sm:text-sm font-bold leading-snug mb-2.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  Organizer Contact
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {event.contacts.map((contact, idx) => (
+                    <div key={idx} className={`p-2.5 rounded-2xl border space-y-1.5 ${isDark ? 'bg-[#161718] border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                      {(contact.name || contact.role) && (
+                        <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                          {contact.name || 'Contact'}
+                          {contact.role && (
+                            <span className="font-normal text-[11px] text-gray-400 ml-1">
+                              · {contact.role}
+                            </span>
+                          )}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        {contact.phone && (
+                          <a href={`tel:${contact.phone.replace(/[\s-]/g, '')}`} className="flex items-center gap-1.5 text-xs text-[#0ECCEE] hover:underline">
+                            <Phone size={12} />
+                            <span>{contact.phone}</span>
+                          </a>
+                        )}
+                        {contact.email && (
+                          <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white">
+                            <Mail size={12} />
+                            <span className="truncate max-w-[130px]">{contact.email}</span>
+                          </a>
+                        )}
+                        {contact.instagramId && (
+                          <a
+                            href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-xs text-pink-400 hover:underline"
+                          >
+                            <Instagram size={12} />
+                            <span>@{contact.instagramId.replace('@', '')}</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT COLUMN (lg:col-span-5): Location Map & Event Gallery */}
+          <div className="lg:col-span-5 flex flex-col gap-2.5 sm:gap-3">
+            {/* Map Card */}
+            {(mapQuery || event.mapUrl) && (
+              <div className={`rounded-3xl border overflow-hidden p-3.5 sm:p-4 transition-all ${isDark ? 'bg-[#111213] border-white/5 shadow-md' : 'bg-white border-gray-100 shadow-sm'}`}>
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <MapPin size={15} className="text-[#0ECCEE]" />
+                    <p className={`text-xs font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                      Location &amp; Route Map
+                    </p>
+                  </div>
+                  {directionsUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => openExternalUrl(directionsUrl)}
+                      className="text-xs font-bold text-[#0ECCEE] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      Directions ↗
+                    </button>
+                  ) : null}
+                </div>
+                <div className="w-full h-[145px] sm:h-[160px] rounded-2xl overflow-hidden relative border border-white/5">
+                  <LazyMap query={mapQuery} mapUrl={event.mapUrl || undefined} isDark={isDark} title="Event Location Map" />
+                </div>
+                {event.venue && event.venue !== 'Venue TBA' && (
+                  <p className={`text-xs mt-2 font-medium truncate ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                    📍 {event.venue}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Event Gallery Preview Card */}
+            {gallery.length > 0 && (
+              <div className={`rounded-3xl border overflow-hidden p-3.5 sm:p-4 transition-all ${isDark ? 'bg-[#111213] border-white/5 shadow-md' : 'bg-white border-gray-100 shadow-sm'}`}>
+                <div className="flex items-center justify-between mb-2.5">
+                  <p className={`text-xs font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    Event Gallery
+                  </p>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDark ? 'bg-[#1D1E20] text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                    {gallery.length} Photos
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {galleryPreview.map((img, idx) => {
+                    const isLast = idx === 3 && galleryExtra > 0;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setLightboxIndex(idx)}
+                        className="relative h-[70px] sm:h-[80px] rounded-xl overflow-hidden cursor-pointer hover:opacity-90 transition border border-white/5"
+                      >
+                        <img
+                          src={getImageUrl(img, { preset: 'thumb' })}
+                          alt={`Gallery ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => handleImageErrorWithFallback(e, 80, 80, '#2A2B2E', 'Gallery')}
+                        />
+                        {isLast && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white text-[11px] font-bold">
+                            +{galleryExtra}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* FULL-WIDTH TERMS & PARTICIPATION POLICY */}
+        {termsLines.length > 0 && (
+          <div className="flex flex-col gap-3.5 w-full mt-1">
+            {/* Full-width Terms & Participation Policy Card */}
+            <div className={`w-full rounded-3xl border overflow-hidden transition-all ${isDark ? 'bg-[#111213] border-white/5 shadow-md' : 'bg-white border-gray-100 shadow-sm'}`}>
               <button
                 type="button"
                 onClick={() => setTermsOpen((o) => !o)}
-                className={`w-full rounded-2xl border flex items-center justify-between px-4 py-3.5 transition-colors ${cardBg} ${cardBorder}`}
+                className="w-full flex items-center justify-between p-4 sm:p-4.5 cursor-pointer text-left"
               >
-                <div className="flex items-center gap-3">
-                  <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20]' : 'bg-slate-100'}`}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isDark ? 'text-gray-300' : 'text-gray-700'}>
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`size-8 rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'bg-[#1D1E20] text-amber-400' : 'bg-amber-50 text-amber-600'}`}>
+                    <Hourglass size={16} />
                   </div>
-                  <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Terms and Conditions
-                  </p>
+                  <div className="min-w-0">
+                    <p className={`text-xs sm:text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      Terms &amp; Participation Policy
+                    </p>
+                    <p className={`text-[10px] sm:text-[11px] ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      {termsLines.length} Policy Points · Tap to {termsOpen ? 'collapse' : 'view'}
+                    </p>
+                  </div>
                 </div>
                 <ChevronRight
-                  size={16}
+                  size={18}
                   className={`transition-transform duration-200 shrink-0 ${termsOpen ? 'rotate-90' : ''} ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
                 />
               </button>
-              {termsOpen ? (
-                <div className={`mt-2 rounded-2xl border px-4 py-3.5 ${cardBg} ${cardBorder}`}>
-                  {renderList(termsLines)}
+              {termsOpen && (
+                <div className={`border-t px-4 sm:px-5 py-4 space-y-2.5 ${isDark ? 'border-white/5 bg-[#0E0F10]/50' : 'border-gray-100 bg-gray-50/50'}`}>
+                  {termsLines.map((line, idx) => (
+                    <div key={idx} className="flex gap-2.5 text-xs">
+                      <span className={`text-[10px] font-bold mt-0.5 shrink-0 size-4 rounded-full flex items-center justify-center ${isDark ? 'bg-[#1A1B1D] text-[#0ECCEE]' : 'bg-amber-100 text-amber-700'}`}>{idx + 1}</span>
+                      <p className={`text-[11px] sm:text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{line}</p>
+                    </div>
+                  ))}
+                  <p className={`text-[11px] pt-1 font-medium ${isDark ? 'text-gray-500' : 'text-amber-700'}`}>
+                    ⚠️ By registering, you agree to all the above event terms.
+                  </p>
                 </div>
-              ) : null}
+              )}
             </div>
-          ) : null}
+          </div>
+        )}
 
-          {/* Contacts */}
-          {event.contacts.length > 0 ? (
-            <div className="px-4 mb-6">
-              <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Contact Details
-              </h2>
-              <div className="space-y-3">
-                {event.contacts.map((contact, idx) => (
-                  <div key={idx} className="space-y-2.5">
-                    {(contact.name || contact.role) ? (
-                      <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {contact.name || 'Contact'}
-                        {contact.role ? (
-                          <span className={`font-normal ml-1.5 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
-                            · {contact.role}
-                          </span>
-                        ) : null}
+        {/* SIMILAR EVENTS FULL-WIDTH SHELF */}
+        {similarEvents.length > 0 && (
+          <div className={`mt-2 rounded-3xl p-4 sm:p-5 border transition-all ${isDark ? 'bg-[#111213] border-white/5 shadow-md' : 'bg-white border-gray-100 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-3.5">
+              <div>
+                <h3 className={`text-sm sm:text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  Explore Other Events
+                </h3>
+                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  More performances, shows, and campus gatherings
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/events')}
+                className="text-xs font-bold text-[#0ECCEE] hover:underline cursor-pointer flex items-center gap-1"
+              >
+                View all <ChevronRight size={14} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {similarEvents.map((sim) => {
+                const simImg = sim.poster || sim.image || sim.coverImages?.hero || sim.coverImages?.portrait;
+                const simDate = formatShortDate(sim.showTimings);
+                const simFee = minEventShowFee(sim);
+                return (
+                  <div
+                    key={sim._id || sim.id || sim.slug}
+                    onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      navigate(eventShowPath(sim));
+                    }}
+                    className={`flex items-center gap-3 p-2.5 rounded-2xl border transition-all cursor-pointer group ${isDark
+                        ? 'bg-[#161718] border-white/5 hover:border-[#0ECCEE]/35 hover:bg-[#1D1E20]'
+                        : 'bg-gray-50 border-gray-100 hover:border-[#0ECCEE]/40 hover:bg-cyan-50/30'
+                      }`}
+                  >
+                    <div className="size-16 rounded-xl overflow-hidden shrink-0 bg-neutral-800 relative">
+                      {simImg ? (
+                        <img
+                          src={getImageUrl(simImg, { preset: 'square' })}
+                          alt={sim.title || 'Event'}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                          onError={(e) => handleImageErrorWithFallback(e, 80, 80, '#1A1B1D', sim.title || 'Event')}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">🎪</div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-xs sm:text-sm font-bold truncate group-hover:text-[#0ECCEE] transition-colors ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        {sim.title}
                       </p>
-                    ) : null}
-                    {contact.phone ? (
-                      <a href={`tel:${contact.phone.replace(/[\s-]/g, '')}`} className="flex items-center gap-3">
-                        <span className="size-8 rounded-full bg-[#0ECCEE]/10 flex items-center justify-center shrink-0">
-                          <Phone size={14} className="text-[#0ECCEE]" />
+                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
+                        {simDate && <span>📅 {simDate}</span>}
+                        {sim.city && <span className="truncate">📍 {sim.city}</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-xs font-extrabold text-[#0ECCEE]">
+                          {simFee != null && Number(simFee) > 0 ? `₹${Number(simFee).toLocaleString('en-IN')}` : 'Free'}
                         </span>
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{contact.phone}</span>
-                      </a>
-                    ) : null}
-                    {contact.email ? (
-                      <a href={`mailto:${contact.email}`} className="flex items-center gap-3">
-                        <span className="size-8 rounded-full bg-[#0ECCEE]/10 flex items-center justify-center shrink-0">
-                          <Mail size={14} className="text-[#0ECCEE]" />
+                        <span className="text-[11px] font-semibold text-gray-400 group-hover:translate-x-0.5 transition-transform flex items-center">
+                          View →
                         </span>
-                        <span className={`text-sm font-medium underline underline-offset-2 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                          {contact.email}
-                        </span>
-                      </a>
-                    ) : null}
-                    {contact.instagramId ? (
-                      <a
-                        href={`https://instagram.com/${contact.instagramId.replace('@', '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3"
-                      >
-                        <span className="size-8 rounded-full bg-linear-to-br from-[#f58529] via-[#dd2a7b] to-[#8134af] flex items-center justify-center shrink-0">
-                          <Instagram size={14} className="text-white" />
-                        </span>
-                        <span className={`text-sm font-medium ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
-                          @{contact.instagramId.replace('@', '')}
-                        </span>
-                      </a>
-                    ) : null}
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          ) : null}
+          </div>
+        )}
 
-          {/* Gallery */}
-          {gallery.length > 0 ? (
-            <div className="px-4 pb-8">
-              <h2 className={`text-lg font-semibold leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Gallery
-              </h2>
-              <div className="grid grid-cols-4 gap-2.5">
-                {galleryPreview.map((img, idx) => {
-                  const isLast = idx === 3 && galleryExtra > 0;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setLightboxIndex(idx)}
-                      className="relative aspect-square rounded-2xl overflow-hidden"
-                    >
-                      <img
-                        src={getImageUrl(img, { preset: 'thumb' })}
-                        alt={`Gallery ${idx + 1}`}
-                        className="w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 80, 80, '#2A2B2E', 'Gallery')}
-                      />
-                      {isLast ? (
-                        <span className="absolute inset-0 bg-stone-900/40 flex items-center justify-center text-white text-lg font-semibold">
-                          {galleryExtra}+
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="h-6" />
-          )}
-        </div>
+        {/* ORGANIZERS STORY SLIDER (Above footer / bottom of page, seamless without box) */}
+        <OrganizersStorySlider
+          title="Organizers"
+          realOrganizer={event.organizer || (event.contacts?.[0]?.name ? { name: event.contacts[0].name, image: event.contacts[0].image } : null)}
+          eventKey={event.id || event.slug || event.type || event.category}
+          isDark={isDark}
+        />
       </div>
 
       {typeof document !== 'undefined' && createPortal(
         <>
-          {!tierSheetOpen && !showLogin && lightboxIndex == null ? (
-            <div
-              className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
-              style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
-            >
-              <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl flex items-center justify-between gap-4 rounded-[30px] px-5 py-3.5 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'
-                }`}>
-                <div className="min-w-0 shrink-0">
-                  <p className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {tiersPricing ? 'From' : 'Registration Fee'}
-                  </p>
-                  {fromFee > 0 ? (
-                    <>
-                      <p className={`mt-0.5 text-2xl font-bold leading-none truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {formatInr(fromFee)}
-                      </p>
-                      {event.priceLabel ? (
-                        <p className={`mt-1 text-[11px] font-medium truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                          {event.priceLabel}
-                        </p>
-                      ) : null}
-                    </>
-                  ) : (
-                    <p className="mt-0.5 text-2xl font-bold leading-none text-green-500">Free</p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRegister}
-                  disabled={registrationClosed}
-                  className={`flex flex-1 items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg transition-all duration-200 ease-out ${registrationClosed
-                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                    : 'bg-[#0ECCEE] text-black active:scale-[0.98] active:opacity-90'
-                    }`}
-                >
-                  {registrationClosed
-                    ? 'Registration Closed'
-                    : packageTiers.length
-                      ? 'Register now'
-                      : fromFee > 0
-                        ? 'Book now'
-                        : 'Register free'}
-                  {!registrationClosed ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m9 18 6-6-6-6" />
-                    </svg>
-                  ) : null}
-                </button>
-              </div>
-            </div>
-          ) : null}
-
           {tierSheetOpen && packageTiers.length > 0 ? (
             <div className="fixed inset-0 z-100055 flex items-end justify-center">
               <button
@@ -1346,49 +1573,15 @@ export default function EventDetailsPage() {
         document.body,
       )}
 
-      {lightboxIndex != null && gallery[lightboxIndex] ? (
-        <div className="fixed inset-0 z-60 bg-black/90 flex items-center justify-center" onClick={() => setLightboxIndex(null)}>
-          <button
-            type="button"
-            onClick={() => setLightboxIndex(null)}
-            className="absolute right-4 p-2 rounded-full bg-white/15 text-white backdrop-blur-sm"
-            style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
-            aria-label="Close"
-          >
-            <X size={24} />
-          </button>
-          <img
-            src={getImageUrl(gallery[lightboxIndex], { preset: 'hero' })}
-            alt={`Gallery ${lightboxIndex + 1}`}
-            className="max-w-[92vw] max-h-[82vh] object-contain rounded-xl"
-            onClick={(e) => e.stopPropagation()}
-            onError={(e) => handleImageErrorWithFallback(e, 600, 600, '#2A2B2E', 'Gallery')}
-          />
-          {gallery.length > 1 ? (
-            <>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setLightboxIndex((p) => (p === 0 ? gallery.length - 1 : p - 1)); }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white backdrop-blur-sm flex items-center justify-center"
-                aria-label="Previous image"
-              >
-                <ChevronLeft size={22} />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setLightboxIndex((p) => (p === gallery.length - 1 ? 0 : p + 1)); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 text-white backdrop-blur-sm flex items-center justify-center"
-                aria-label="Next image"
-              >
-                <ChevronRight size={22} />
-              </button>
-              <div className="absolute bottom-6 left-0 right-0 text-center text-white/80 text-sm">
-                {lightboxIndex + 1} / {gallery.length}
-              </div>
-            </>
-          ) : null}
-        </div>
-      ) : null}
+      {lightboxIndex != null && gallery.length > 0 && (
+        <GalleryLightbox
+          images={gallery}
+          index={lightboxIndex}
+          name={event?.title || 'Event Gallery'}
+          onClose={() => setLightboxIndex(null)}
+          onIndexChange={setLightboxIndex}
+        />
+      )}
 
       {showLogin ? (
         <div className="fixed inset-0 z-70">

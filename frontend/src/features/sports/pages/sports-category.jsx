@@ -38,11 +38,9 @@ import { preloadImages } from '../../../utils/preloadImages';
 
 import { fetchCatalogJSON } from '../../../services/api/catalogCache';
 import Seo from '../../../components/Seo';
-import FaqSection from '../../../components/FaqSection';
-import { breadcrumbSchema, faqSchema, itemListSchema } from '../../../utils/seo';
+import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
 import { usePublicConfig } from '../../../hooks/usePublicConfig';
 import AnnouncementBanner from '../../../components/AnnouncementBanner';
-import { SPORTS_FAQ } from '../../../constants/faqs';
 
 const SPORTS_DESCRIPTION =
     'Discover sports events, running clubs and gym communities near you. Find runs, tournaments and sports fests, and join active communities on CrwdCtrl.';
@@ -386,7 +384,6 @@ export default function SportsCategoryPage() {
                                 .map((f) => ({ name: f.festName, url: festPath(f) })),
                         ],
                     }),
-                    faqSchema(SPORTS_FAQ),
                 ]}
             />
             <MobileStickyHeader
@@ -592,8 +589,6 @@ export default function SportsCategoryPage() {
                 </>
                 )}
                 </div>
-
-                {(loading || hasSportsContent) && <FaqSection items={SPORTS_FAQ} />}
             </main>
         </div>
     );

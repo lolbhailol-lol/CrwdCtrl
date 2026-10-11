@@ -121,7 +121,7 @@ export function RegistrationStatusVisual({
         <div className="w-full mt-5">
           <div className={`h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}>
             <div
-              className="h-full rounded-full bg-[#0ECCEE] transition-all duration-500 ease-out shadow-[0_0_12px_rgba(14,204,238,0.55)]"
+              className="h-full rounded-full bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] transition-all duration-500 ease-out shadow-[0_0_12px_rgba(14,204,238,0.55)]"
               style={{ width: progressWidth(progressMessage || resolvedSubtitle) }}
             />
           </div>

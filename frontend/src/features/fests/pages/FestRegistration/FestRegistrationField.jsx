@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader } from 'lucide-react';
+import { Loader, Check, Upload } from 'lucide-react';
 import { scrollFieldIntoView } from '../../../../utils/registrationDraft';
 
 export default function FestRegistrationField({
@@ -20,10 +20,18 @@ export default function FestRegistrationField({
   };
 
   return (
-    <div className="space-y-2">
-      <label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+    <div className="space-y-1.5 group">
+      <label className={`block text-[11px] font-semibold uppercase tracking-wider mb-1 transition-colors ${
+        isDark ? 'text-gray-300 group-focus-within:text-[#0ECCEE]' : 'text-gray-700 group-focus-within:text-[#0ECCEE]'
+      }`}>
         {field.label}
-        {field.required && <span className="text-red-400 ml-1">*</span>}
+        {field.required ? (
+          <span className="text-[#0ECCEE] font-bold ml-1">*</span>
+        ) : (
+          <span className={`text-[10px] lowercase tracking-normal ml-1 font-normal ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+            (optional)
+          </span>
+        )}
       </label>
       <div className="relative">
         {renderField(field, fieldId, currentData, onFieldChange, {
@@ -46,6 +54,12 @@ export default function FestRegistrationField({
 function renderField(field, fieldId, currentData, onFieldChange, ctx) {
   const { isDark, fest, uploadingFiles, onFileUpload, triggerWarning } = ctx;
   const value = currentData[fieldId] || '';
+
+  const inp = `w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all duration-200 outline-none ${
+    isDark
+      ? 'bg-[#15171C] border-white/10 text-white placeholder-gray-500 hover:border-white/20 focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30 focus:bg-[#181B22]'
+      : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 hover:border-gray-300 focus:bg-white focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30'
+  }`;
 
   switch (field.type) {
       case 'text':
@@ -91,7 +105,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             onFocus={scrollFieldIntoView}
             required={field.required}
             autoComplete={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'on'}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400 [color-scheme:dark]' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500 [color-scheme:light]'}`}
+            className={inp}
           />
         );
       
@@ -106,7 +120,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             onFocus={scrollFieldIntoView}
             required={field.required}
             rows={3}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm resize-none transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`}
+            className={`${inp} resize-none`}
           />
         );
       
@@ -119,7 +133,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             onFocus={scrollFieldIntoView}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+            className={inp}
           >
             <option value="">Select an option</option>
             {field.options?.map((option, index) => (
@@ -131,20 +145,34 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
       case 'radio':
         return (
           <div className="space-y-2">
-            {field.options?.map((option, index) => (
-              <label key={index} className={`flex items-center space-x-3 cursor-pointer p-2 rounded-lg border transition-colors ${isDark ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-100'}`}>
-                <input
-                  type="radio"
-                  name={fieldId}
-                  value={option}
-                  checked={value === option}
-                  onChange={(e) => onFieldChange(fieldId, e.target.value)}
-                  required={field.required}
-                  className={`w-4 h-4 text-[#0ECCEE] focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#1D1E20] border-gray-600' : 'bg-white border-gray-300'}`}
-                />
-                <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{option}</span>
-              </label>
-            ))}
+            {field.options?.map((option, index) => {
+              const selected = value === option;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => onFieldChange(fieldId, option)}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                    selected
+                      ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                      : isDark
+                      ? 'border-white/10 bg-[#15171C] text-gray-300 hover:border-white/20'
+                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={selected ? (isDark ? 'text-white font-bold' : 'text-gray-900 font-bold') : ''}>
+                    {option}
+                  </span>
+                  <span className={`size-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                    selected
+                      ? 'border-[#0ECCEE] bg-[#0ECCEE]'
+                      : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                  }`}>
+                    {selected ? <span className="size-1.5 rounded-full bg-black" /> : null}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         );
       
@@ -152,25 +180,38 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
         return (
           <div className="space-y-2">
             {field.options?.map((option, index) => {
-              const isChecked = Array.isArray(value) ? value.includes(option) : false;
+              const currentValues = Array.isArray(value) ? value : [];
+              const isChecked = currentValues.includes(option);
               return (
-                <label key={index} className={`flex items-center space-x-3 cursor-pointer p-2 rounded-lg border transition-colors ${isDark ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/30' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-100'}`}>
-                  <input
-                    type="checkbox"
-                    value={option}
-                    checked={isChecked}
-                    onChange={(e) => {
-                      const currentValues = Array.isArray(value) ? value : [];
-                      if (e.target.checked) {
-                        onFieldChange(fieldId, [...currentValues, option]);
-                      } else {
-                        onFieldChange(fieldId, currentValues.filter(v => v !== option));
-                      }
-                    }}
-                    className={`w-4 h-4 text-[#0ECCEE] rounded focus:ring-[#0ECCEE] focus:ring-2 ${isDark ? 'bg-[#1D1E20] border-gray-600' : 'bg-white border-gray-300'}`}
-                  />
-                  <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>{option}</span>
-                </label>
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => {
+                    if (isChecked) {
+                      onFieldChange(fieldId, currentValues.filter(v => v !== option));
+                    } else {
+                      onFieldChange(fieldId, [...currentValues, option]);
+                    }
+                  }}
+                  className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                    isChecked
+                      ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                      : isDark
+                      ? 'border-white/10 bg-[#15171C] text-gray-300 hover:border-white/20'
+                      : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={isChecked ? (isDark ? 'text-white font-bold' : 'text-gray-900 font-bold') : ''}>
+                    {option}
+                  </span>
+                  <span className={`size-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                    isChecked
+                      ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                      : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                  }`}>
+                    {isChecked ? <Check size={11} strokeWidth={3} /> : null}
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -191,43 +232,54 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             value={sanitizedValue}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+            className={inp}
           />
         );
       }
       
       case 'file':
-      case 'image':
+      case 'image': {
+        const isFileUploaded = Boolean(value && (value.ready || typeof value === 'string'));
+        const fileName = value?.fileName || (typeof value === 'string' && value.includes('/') ? value.split('/').pop() : 'File uploaded');
         return (
           <div className="space-y-2">
-            <input
-              type="file"
-              id={fieldId}
-              name={fieldId}
-              data-field-id={fieldId}
-              accept={field.type === 'image' ? 'image/*' : '*/*'}
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  onFileUpload(file, fieldId);
-                }
-              }}
-              required={field.required}
-              className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-[#0ECCEE] file:text-black hover:file:bg-[#0ECCEE]/80 transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
-            />
-            {uploadingFiles[fieldId] && (
-              <div className="flex items-center gap-2 text-sm text-blue-400">
-                <Loader className="w-4 h-4 animate-spin" />
-                Processing...
+            <label className={`flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed cursor-pointer transition-all duration-200 ${
+              isDark
+                ? 'border-white/15 bg-white/[0.02] hover:border-[#0ECCEE] hover:bg-[#0ECCEE]/5 text-gray-300'
+                : 'border-gray-300 bg-gray-50 hover:border-[#0ECCEE] hover:bg-[#0ECCEE]/5 text-gray-700'
+            }`}>
+              <div className="size-8 rounded-lg bg-[#0ECCEE]/10 flex items-center justify-center shrink-0 text-[#0ECCEE]">
+                <Upload size={16} />
               </div>
-            )}
-            {value && value.ready && (
-              <div className="flex items-center gap-2 text-sm text-green-400">
-                ✓ File ready: {value.fileName}
+              <span className="text-xs font-semibold truncate flex-1">
+                {uploadingFiles[fieldId] ? 'Uploading file…' : isFileUploaded ? `✓ ${fileName}` : (field.placeholder || 'Upload file or image')}
+              </span>
+              <input
+                type="file"
+                id={fieldId}
+                name={fieldId}
+                data-field-id={fieldId}
+                accept={field.type === 'image' ? 'image/*' : '*/*'}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    onFileUpload(file, fieldId);
+                  }
+                  e.target.value = '';
+                }}
+                required={field.required && !isFileUploaded}
+                className="hidden"
+              />
+            </label>
+            {uploadingFiles[fieldId] && (
+              <div className="flex items-center gap-2 text-xs text-[#0ECCEE] font-medium">
+                <Loader className="w-3.5 h-3.5 animate-spin" />
+                Uploading and processing...
               </div>
             )}
           </div>
         );
+      }
       
       case 'group': {
         // Group field type - allows multiple entries with sub-fields
@@ -389,9 +441,11 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
           <div className="space-y-4">
             {/* Category Selection */}
             <div>
-              <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+              <label className={`block text-[11px] font-semibold uppercase tracking-wider mb-1 transition-colors ${
+                isDark ? 'text-gray-300' : 'text-gray-700'
+              }`}>
                 Select Category
-                {field.required && <span className="text-red-400 ml-1">*</span>}
+                {field.required && <span className="text-[#0ECCEE] font-bold ml-1">*</span>}
               </label>
               <select
                 id={`${fieldId}-category`}
@@ -402,7 +456,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
                   onFieldChange(fieldId, { category: e.target.value, competition: '' });
                 }}
                 required={field.required}
-                className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+                className={inp}
               >
                 <option value="">-- Select a Category --</option>
                 {categoryOptions.map((cat, index) => (
@@ -416,9 +470,11 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             {/* Competition Selection - only show if category is selected */}
             {selectedCategory && competitionsInCategory.length > 0 && (
               <div>
-                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                <label className={`block text-[11px] font-semibold uppercase tracking-wider mb-1 transition-colors ${
+                  isDark ? 'text-gray-300' : 'text-gray-700'
+                }`}>
                   Select Competition
-                  {field.required && <span className="text-red-400 ml-1">*</span>}
+                  {field.required && <span className="text-[#0ECCEE] font-bold ml-1">*</span>}
                 </label>
                 <select
                   id={`${fieldId}-competition`}
@@ -428,7 +484,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
                     onFieldChange(fieldId, { ...currentValue, competition: e.target.value });
                   }}
                   required={field.required}
-                  className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900'}`}
+                  className={inp}
                 >
                   <option value="">-- Select a Competition --</option>
                   {competitionsInCategory.map((comp, index) => (
@@ -465,7 +521,7 @@ function renderField(field, fieldId, currentData, onFieldChange, ctx) {
             value={value}
             onChange={(e) => onFieldChange(fieldId, e.target.value)}
             required={field.required}
-            className={`w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400 [color-scheme:dark]' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500 [color-scheme:light]'}`}
+            className={inp}
           />
         );
   }

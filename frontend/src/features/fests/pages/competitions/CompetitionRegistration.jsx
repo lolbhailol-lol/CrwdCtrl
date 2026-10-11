@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Upload, Loader, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Upload, Loader, CheckCircle, Check } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { openCashfreeCheckout, buildVerifiedPaymentFields, classifyCheckoutError } from '../../../../utils/useCashfree';
 import PaymentErrorModal from '../../../../components/PaymentErrorModal';
@@ -816,6 +816,8 @@ export default function CompetitionRegistration() {
         
         const isUploading = uploadingFiles[fieldId]; // Use stable fieldId
 
+        const inp = "w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all duration-200 outline-none bg-[#15171C] border-white/10 text-white placeholder-gray-500 hover:border-white/20 focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30 focus:bg-[#181B22]";
+
         switch (type) {
             case 'text':
             case 'email':
@@ -830,7 +832,7 @@ export default function CompetitionRegistration() {
                         placeholder={placeholder}
                         required={required}
                         autoComplete={type === 'email' ? 'email' : type === 'tel' ? 'tel' : 'on'}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
+                        className={inp}
                     />
                 );
 
@@ -843,7 +845,7 @@ export default function CompetitionRegistration() {
                         placeholder={placeholder}
                         required={required}
                         rows={4}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border border-gray-700 focus:border-[#0ECCEE] focus:outline-none text-white resize-none text-sm sm:text-base"
+                        className={`${inp} resize-none`}
                     />
                 );
 
@@ -861,7 +863,7 @@ export default function CompetitionRegistration() {
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         onFocus={scrollFieldIntoView}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
+                        className={inp}
                     />
                 );
             }
@@ -873,7 +875,7 @@ export default function CompetitionRegistration() {
                         onChange={(e) => handleInputChange(fieldId, e.target.value)}
                         onFocus={scrollFieldIntoView}
                         required={required}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg bg-[#1D1E20] border-2 border-gray-600 hover:border-gray-500 focus:border-[#0ECCEE] focus:outline-none text-white text-sm sm:text-base transition-colors placeholder-gray-500"
+                        className={inp}
                     >
                         <option value="">{placeholder || 'Select an option'}</option>
                         {options?.map((option, idx) => (
@@ -885,38 +887,71 @@ export default function CompetitionRegistration() {
             case 'radio':
                 return (
                     <div className="space-y-2">
-                        {options?.map((option, idx) => (
-                            <label key={idx} className="flex items-center space-x-3 cursor-pointer">
-                                <input
-                                    type="radio"
-                                    name={fieldId} // Use stable fieldId
-                                    value={option}
-                                    checked={value === option}
-                                    onChange={(e) => handleInputChange(fieldId, e.target.value)}
-                                    required={required}
-                                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 focus:ring-[#0ECCEE] focus:ring-2"
-                                />
-                                <span className="text-white">{option}</span>
-                            </label>
-                        ))}
+                        {options?.map((option, idx) => {
+                            const selected = value === option;
+                            return (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => handleInputChange(fieldId, option)}
+                                    className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                                        selected
+                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                            : 'border-white/10 bg-[#15171C] text-gray-300 hover:border-white/20'
+                                    }`}
+                                >
+                                    <span className={selected ? 'text-white font-bold' : ''}>
+                                        {option}
+                                    </span>
+                                    <span className={`size-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                                        selected
+                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]'
+                                            : 'border-gray-600 bg-transparent'
+                                    }`}>
+                                        {selected ? <span className="size-1.5 rounded-full bg-black" /> : null}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 );
 
             case 'checkbox':
                 return (
                     <div className="space-y-2">
-                        {options?.map((option, idx) => (
-                            <label key={idx} className="flex items-center space-x-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    value={option}
-                                    checked={(value || []).includes(option)}
-                                    onChange={() => handleInputChange(fieldId, option, 'checkbox')}
-                                    className="w-4 h-4 text-[#0ECCEE] bg-[#1D1E20] border-gray-700 rounded focus:ring-[#0ECCEE] focus:ring-2"
-                                />
-                                <span className="text-white">{option}</span>
-                            </label>
-                        ))}
+                        {options?.map((option, idx) => {
+                            const currentValues = Array.isArray(value) ? value : [];
+                            const isChecked = currentValues.includes(option);
+                            return (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => {
+                                        if (isChecked) {
+                                            handleInputChange(fieldId, currentValues.filter(v => v !== option), 'checkbox');
+                                        } else {
+                                            handleInputChange(fieldId, [...currentValues, option], 'checkbox');
+                                        }
+                                    }}
+                                    className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                                        isChecked
+                                            ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                            : 'border-white/10 bg-[#15171C] text-gray-300 hover:border-white/20'
+                                    }`}
+                                >
+                                    <span className={isChecked ? 'text-white font-bold' : ''}>
+                                        {option}
+                                    </span>
+                                    <span className={`size-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                                        isChecked
+                                            ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                            : 'border-gray-600 bg-transparent'
+                                    }`}>
+                                        {isChecked ? <Check size={11} strokeWidth={3} /> : null}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
                 );
 
@@ -1581,9 +1616,9 @@ export default function CompetitionRegistration() {
                                             : 'Payment'}
                                     </span>
                                 </div>
-                                <div className="w-full bg-gray-700 rounded-full h-1.5 mb-4">
+                                <div className="w-full bg-gray-700 rounded-full h-1.5 mb-4 overflow-hidden">
                                     <div
-                                        className="bg-[#0ECCEE] h-1.5 rounded-full transition-all duration-300"
+                                        className="bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] h-1.5 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(14,204,238,0.5)]"
                                         style={{ width: `${(currentStep / getTotalSteps()) * 100}%` }}
                                     />
                                 </div>
@@ -1685,10 +1720,16 @@ export default function CompetitionRegistration() {
                             const isFullWidth = field.type === 'textarea' || field.type === 'file' ||
                                                field.type === 'image' || field.type === 'checkbox' || field.type === 'radio';
                             return (
-                                <div key={fieldId} className={isFullWidth ? 'md:col-span-2' : ''}>
-                                    <label className="block text-sm font-medium text-white mb-2">
+                                <div key={fieldId} className={`${isFullWidth ? 'md:col-span-2' : ''} group`}>
+                                    <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1 transition-colors text-gray-300 group-focus-within:text-[#0ECCEE]">
                                         {field.label}
-                                        {field.required && <span className="text-red-400 ml-1">*</span>}
+                                        {field.required ? (
+                                            <span className="text-[#0ECCEE] font-bold ml-1">*</span>
+                                        ) : (
+                                            <span className="text-[10px] lowercase tracking-normal ml-1 font-normal text-gray-500">
+                                                (optional)
+                                            </span>
+                                        )}
                                     </label>
                                     {renderField(field)}
                                 </div>
@@ -1698,24 +1739,24 @@ export default function CompetitionRegistration() {
                 </div>
 
                         {/* Submit / Next Button */}
-                        <div className="flex gap-3 pt-2 pb-8 md:pb-4">
+                        <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-700/30 mt-6">
                             <button
                                 type="button"
                                 onClick={isMultiStepFormActive() && currentStep > 1 ? handleStepBack : goBack}
-                                className="px-4 sm:px-6 py-3 rounded-xl border border-gray-700 text-white hover:bg-gray-800/60 transition-colors text-sm sm:text-base font-medium"
+                                className="px-5 sm:px-6 py-3 rounded-xl border font-semibold text-sm transition-all duration-200 cursor-pointer active:scale-98 border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/[0.08] hover:text-white"
                                 disabled={submitting}
                             >
-                                {isMultiStepFormActive() && currentStep > 1 ? 'Previous Step' : 'Cancel'}
+                                {isMultiStepFormActive() && currentStep > 1 ? '← Previous Step' : 'Cancel'}
                             </button>
 
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base shadow-lg shadow-[#0ECCEE]/10"
+                                className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                             >
                                 {submitting ? (
                                     <>
-                                        <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                                        <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-black" />
                                         <span>{submissionProgress || 'Processing...'}</span>
                                     </>
                                 ) : isMultiStepFormActive() && currentStep < getTotalSteps() ? (

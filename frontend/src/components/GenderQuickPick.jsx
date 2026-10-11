@@ -11,9 +11,9 @@ export default function GenderQuickPick({ value, onChange, label = 'I am', error
 
     return (
         <div>
-            <p className={`text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                {label} <span className="text-red-400">*</span>
-            </p>
+            <label className={`block text-[11px] font-semibold uppercase tracking-wider mb-1.5 transition-colors ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                {label} <span className="text-[#0ECCEE] font-bold ml-1">*</span>
+            </label>
             <div className={`grid grid-cols-2 gap-2 ${compact ? '' : 'sm:gap-3'}`}>
                 {OPTIONS.map((opt) => {
                     const selected = value === opt.value;
@@ -22,13 +22,13 @@ export default function GenderQuickPick({ value, onChange, label = 'I am', error
                             key={opt.value}
                             type="button"
                             onClick={() => onChange(opt.value)}
-                            className={`flex flex-col items-center justify-center rounded-xl border-2 transition-all ${
+                            className={`flex flex-col items-center justify-center rounded-xl border transition-all duration-200 cursor-pointer active:scale-98 ${
                                 compact ? 'py-2.5 px-2' : 'py-3 px-3'
                             } ${
                                 selected
-                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/15 text-[#0ECCEE]'
+                                    ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)] text-[#0ECCEE]'
                                     : isDark
-                                        ? 'border-gray-600 bg-[#1D1E20] text-gray-300 hover:border-gray-500'
+                                        ? 'border-white/10 bg-[#15171C] text-gray-300 hover:border-white/20'
                                         : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
                             }`}
                         >

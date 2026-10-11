@@ -91,14 +91,25 @@ export default function PosterFitImage({
 
   return (
     <div
-      className={`absolute inset-0 z-0 overflow-hidden pointer-events-none ${className}`}
+      className={`absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center ${className}`}
       style={{ backgroundColor: bg }}
     >
+      {/* Ambient background blur filling the container with natural colors */}
+      <img
+        src={url}
+        alt=""
+        aria-hidden="true"
+        crossOrigin="anonymous"
+        className="absolute inset-0 w-full h-full object-cover object-center blur-2xl scale-110 opacity-60 pointer-events-none select-none"
+        draggable={false}
+      />
+
+      {/* Main crisp full image ensuring faces and artwork are never cropped */}
       <img
         src={url}
         alt={alt}
         crossOrigin="anonymous"
-        className={`absolute inset-0 w-full h-full ${fitClass} object-center pointer-events-none select-none ${imgClassName}`}
+        className={`relative z-10 w-full h-full object-contain object-center pointer-events-none select-none ${imgClassName}`}
         draggable={false}
         loading={loading}
         fetchPriority={fetchPriority}

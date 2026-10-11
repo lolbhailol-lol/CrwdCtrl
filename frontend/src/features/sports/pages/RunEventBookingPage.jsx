@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronDown, Loader, CheckCircle, Clock, Check, Upload } from 'lucide-react';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { useNotifications } from '../../../context/NotificationsContext';
@@ -461,7 +461,8 @@ export default function RunEventBookingPage() {
     });
 
     useEffect(() => {
-        if (!event) return;
+        if (!event || !id) return;
+        if (!entityMatchesRouteParam(event, id, ['title', 'name'])) return;
         const canonical = `${sportRunPath(event)}/book`;
         const params = new URLSearchParams(window.location.search || '');
         let tierParam = params.get('tier') || selectedTierId || '';
@@ -572,7 +573,11 @@ export default function RunEventBookingPage() {
         ? Number(couponInfo.amountAfterDiscount)
         : baseFee;
 
-    const inp = `w-full px-3 py-2.5 rounded-lg border-2 focus:border-[#0ECCEE] focus:outline-none text-sm transition-colors ${isDark ? 'bg-[#1D1E20] border-gray-600 hover:border-gray-500 text-white placeholder-gray-400' : 'bg-white border-gray-300 hover:border-gray-400 text-gray-900 placeholder-gray-500'}`;
+    const inp = `w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all duration-200 outline-none ${
+        isDark
+            ? 'bg-[#15171C] border-white/10 text-white placeholder-gray-500 hover:border-white/20 focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30 focus:bg-[#181B22]'
+            : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 hover:border-gray-300 focus:bg-white focus:border-[#0ECCEE] focus:ring-1 focus:ring-[#0ECCEE]/30'
+    }`;
 
     const setExtraFieldValue = (fieldName, v, { couponSelect } = {}) => {
         if (couponSelect && couponSourceRef.current === 'cleared') {
@@ -633,13 +638,128 @@ export default function RunEventBookingPage() {
                 </select>
             );
         }
-        if (field.type === 'file' || field.type === 'image') {
-            const shown = /^https?:\/\//i.test(val) ? 'Uploaded ✓' : (val ? `${String(val).slice(0, 24)}…` : (field.placeholder || 'Choose file'));
+        if (field.type === 'radio') {
+            const options = Array.isArray(field.options) ? field.options : [];
             return (
-                <label className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${isDark ? 'border-gray-600 hover:border-[#0ECCEE] bg-[#1D1E20]' : 'border-gray-300 hover:border-[#0ECCEE] bg-white'}`}>
-                    <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {shown}
+                <div className="space-y-2">
+                    {options.map((opt) => {
+                        const optVal = typeof opt === 'object' ? opt.value : opt;
+                        const optLabel = typeof opt === 'object' ? opt.label : opt;
+                        const selected = String(val) === String(optVal);
+                        return (
+                            <button
+                                key={String(optVal)}
+                                type="button"
+                                onClick={() => onChange(optVal)}
+                                className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                                    selected
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                        : isDark
+                                        ? 'border-white/10 bg-[#15171C] text-gray-300 hover:border-white/20'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                <span className={selected ? (isDark ? 'text-white font-bold' : 'text-gray-900 font-bold') : ''}>
+                                    {optLabel}
+                                </span>
+                                <span className={`size-4 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                                    selected
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]'
+                                        : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                                }`}>
+                                    {selected ? <span className="size-1.5 rounded-full bg-black" /> : null}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        }
+        if (field.type === 'checkbox') {
+            const options = Array.isArray(field.options) ? field.options : [];
+            const currentList = Array.isArray(val) ? val : (val ? [val] : []);
+            return (
+                <div className="space-y-2">
+                    {options.map((opt) => {
+                        const optVal = typeof opt === 'object' ? opt.value : opt;
+                        const optLabel = typeof opt === 'object' ? opt.label : opt;
+                        const checked = currentList.includes(optVal);
+                        return (
+                            <button
+                                key={String(optVal)}
+                                type="button"
+                                onClick={() => {
+                                    const next = checked
+                                        ? currentList.filter((item) => item !== optVal)
+                                        : [...currentList, optVal];
+                                    onChange(next);
+                                }}
+                                className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 flex items-center justify-between cursor-pointer ${
+                                    checked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                                        : isDark
+                                        ? 'border-white/10 bg-[#15171C] text-gray-300 hover:border-white/20'
+                                        : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                <span className={checked ? (isDark ? 'text-white font-bold' : 'text-gray-900 font-bold') : ''}>
+                                    {optLabel}
+                                </span>
+                                <span className={`size-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                                    checked
+                                        ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                                        : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                                }`}>
+                                    {checked ? <Check size={11} strokeWidth={3} /> : null}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            );
+        }
+        if (field.type === 'agree') {
+            const checked = Boolean(val);
+            return (
+                <label className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                    checked
+                        ? 'border-[#0ECCEE] bg-[#0ECCEE]/10 shadow-[0_0_0_1px_rgba(14,204,238,0.25)]'
+                        : isDark
+                        ? 'border-white/10 bg-[#15171C] hover:border-white/20'
+                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                }`}>
+                    <span className={`mt-0.5 size-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                        checked
+                            ? 'border-[#0ECCEE] bg-[#0ECCEE] text-black'
+                            : isDark ? 'border-gray-600 bg-transparent' : 'border-gray-300 bg-white'
+                    }`}>
+                        {checked ? <Check size={11} strokeWidth={3} /> : null}
                     </span>
+                    <span className={`text-xs select-none ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {field.label}
+                        {field.required ? <span className="text-[#0ECCEE] font-bold ml-1">*</span> : null}
+                    </span>
+                    <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => onChange(e.target.checked)}
+                        className="hidden"
+                    />
+                </label>
+            );
+        }
+        if (field.type === 'file' || field.type === 'image') {
+            const shown = /^https?:\/\//i.test(val) ? 'File uploaded ✓' : (val ? `${String(val).slice(0, 24)}…` : (field.placeholder || 'Upload file or image'));
+            return (
+                <label className={`flex items-center gap-3 px-4 py-3 rounded-xl border border-dashed cursor-pointer transition-all duration-200 ${
+                    isDark
+                        ? 'border-white/15 bg-white/[0.02] hover:border-[#0ECCEE] hover:bg-[#0ECCEE]/5 text-gray-300'
+                        : 'border-gray-300 bg-gray-50 hover:border-[#0ECCEE] hover:bg-[#0ECCEE]/5 text-gray-700'
+                }`}>
+                    <div className="size-8 rounded-lg bg-[#0ECCEE]/10 flex items-center justify-center shrink-0 text-[#0ECCEE]">
+                        <Upload size={16} />
+                    </div>
+                    <span className="text-xs font-semibold truncate flex-1">{shown}</span>
                     <input type="file" accept="image/*,.pdf" className="hidden"
                         onChange={(e) => {
                             const f = e.target.files?.[0];
@@ -1662,8 +1782,8 @@ export default function RunEventBookingPage() {
                             <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Progress</h3>
                             <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Step {step} of {bookingSteps.length}</span>
                         </div>
-                        <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                            <div className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300" style={{ width: `${(step / bookingSteps.length) * 100}%` }} />
+                        <div className={`w-full rounded-full h-2 mb-3 overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                            <div className="bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] h-2 rounded-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(14,204,238,0.5)]" style={{ width: `${(step / bookingSteps.length) * 100}%` }} />
                         </div>
                         <div className="flex justify-between">
                             {bookingSteps.map((s, i) => (
@@ -1920,10 +2040,18 @@ export default function RunEventBookingPage() {
                                 )}
 
                                 {step2Fields.map((field) => (
-                                    <div key={field.id || field.fieldName}>
-                                        <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    <div key={field.id || field.fieldName} className="group">
+                                        <label className={`block text-[11px] font-semibold uppercase tracking-wider mb-1 transition-colors ${
+                                            isDark ? 'text-gray-300 group-focus-within:text-[#0ECCEE]' : 'text-gray-700 group-focus-within:text-[#0ECCEE]'
+                                        }`}>
                                             {field.label}
-                                            {field.required && <span className="text-red-400 ml-1">*</span>}
+                                            {field.required ? (
+                                                <span className="text-[#0ECCEE] font-bold ml-1">*</span>
+                                            ) : (
+                                                <span className={`text-[10px] lowercase tracking-normal ml-1 font-normal ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                    (optional)
+                                                </span>
+                                            )}
                                         </label>
                                         {renderField(field)}
                                     </div>
@@ -1998,17 +2126,19 @@ export default function RunEventBookingPage() {
                     )}
 
                     {!(isFreeFlow && step === 2) ? (
-                    <div className="flex flex-col sm:flex-row gap-3 pt-5">
+                    <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-700/30 mt-6">
                         <button type="button" onClick={back} disabled={paying}
-                            className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}>
-                            {step === 1 ? 'Cancel' : 'Previous Step'}
+                            className={`px-5 sm:px-6 py-3 rounded-xl border font-semibold text-sm transition-all duration-200 cursor-pointer active:scale-98 ${
+                                isDark ? 'border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/[0.08] hover:text-white' : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}>
+                            {step === 1 ? 'Cancel' : '← Previous Step'}
                         </button>
                         <button type="button" onClick={next} disabled={paying || uploadingProof}
-                            className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10 disabled:opacity-60">
+                            className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
                             {paying ? (
-                                <><Loader className="w-4 h-4 animate-spin" /> Please wait…</>
+                                <><Loader className="w-4 h-4 animate-spin text-black" /> Please wait…</>
                             ) : uploadingProof ? (
-                                <><Loader className="w-4 h-4 animate-spin" /> Uploading…</>
+                                <><Loader className="w-4 h-4 animate-spin text-black" /> Uploading…</>
                             ) : step === 1 && isFreeFlow ? (
                                 'Confirm free spot'
                             ) : step === 2 && chargePerPerson > 0 && isOrganizerQr ? (
@@ -2020,7 +2150,7 @@ export default function RunEventBookingPage() {
                             ) : step === 2 ? (
                                 'Confirm free booking'
                             ) : (
-                                'Next Step'
+                                'Continue to Details →'
                             )}
                         </button>
                     </div>

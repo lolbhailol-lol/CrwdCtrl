@@ -30,9 +30,7 @@ import CustomPageSectionsRenderer from '../../../components/CustomPageSectionsRe
 import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
 import { mapEventShow } from '../../../constants/eventsPage';
 import Seo from '../../../components/Seo';
-import FaqSection from '../../../components/FaqSection';
-import { breadcrumbSchema, faqSchema, itemListSchema } from '../../../utils/seo';
-import { EVENTS_FAQ } from '../../../constants/faqs';
+import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
 import { eventShowPath, eventCommunityEventPath, runClubPath } from '../../../utils/slugRoutes';
 import { usePublicConfig } from '../../../hooks/usePublicConfig';
 import AnnouncementBanner from '../../../components/AnnouncementBanner';
@@ -449,7 +447,6 @@ export default function EventsPage() {
                         description: EVENTS_DESCRIPTION,
                         url: '/events',
                     }),
-                    faqSchema(EVENTS_FAQ),
                 ]}
             />
             <MobileStickyHeader
@@ -662,8 +659,6 @@ export default function EventsPage() {
                         getShareUrl={getShareUrl}
                     />
                 </div>
-
-                <FaqSection items={EVENTS_FAQ} />
             </main>
         </div>
     );

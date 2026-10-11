@@ -1,7 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import {
+    ArrowLeft,
+    Share2,
+    Heart,
+    MapPin,
+    Calendar,
+    ChevronDown,
+    Phone,
+    Instagram,
+    MessageCircle,
+    Sparkles,
+    CheckCircle2,
+    Users,
+    Image as ImageIcon,
+    CalendarCheck,
+    ExternalLink,
+} from 'lucide-react';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
 import FollowCommunityBar from '../../../components/FollowCommunityBar';
 import CrwdCtrlLogin from '../../../pages/auth/login';
@@ -13,7 +28,8 @@ import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenera
 import { normalizeImageList, normalizeImageUrl } from '../../../utils/uploadUrls';
 import { shareContent, openExternalUrl } from '../../../utils/externalLink';
 import { useInAppBack } from '../../../hooks/useInAppBack';
-import DetailPageLoader, { DetailLoader3DIcon } from '../../../components/DetailPageLoader';
+import DetailPageLoader from '../../../components/DetailPageLoader';
+import GalleryLightbox from '../../../components/GalleryLightbox';
 import { signalDetailPageReady } from '../../../utils/bootSplash';
 import { eventCommunityCategoryChips, normalizeEventCommunityCategory } from '../../../constants/eventCommunityCategories';
 import {
@@ -43,42 +59,18 @@ const runClubDetailCache = createDetailCache('crwdctrl_event_community_v5_');
 const resolveGallerySrc = (url, preset = 'thumb') =>
     getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
 
-const buildHeroImages = (club) => {
-    if (!club) return [];
-    const seen = new Set();
-    const out = [];
-    const add = (url) => {
-        const normalized = normalizeImageUrl(url);
-        if (normalized && !seen.has(normalized)) {
-            seen.add(normalized);
-            out.push(normalized);
-        }
-    };
-    const hero = resolveCoverImage(club, 'hero');
-    if (hero) add(hero);
-    add(club.coverImage);
-    const covers = club.coverImages;
-    if (covers && typeof covers === 'object') {
-        Object.values(covers).forEach(add);
-    }
-    normalizeImageList(club.galleryImages).forEach(add);
-    return out.length ? out : [null];
-};
-
 const buildGalleryImages = (club) => normalizeImageList(club?.galleryImages);
 
 function buildReadableParagraphs(text = '') {
     const cleaned = String(text || '').trim().replace(/\s+/g, ' ');
     if (!cleaned) return [];
 
-    // Keep manual paragraph breaks when present.
     const manual = String(text)
         .split(/\n{2,}/)
         .map((p) => p.trim())
         .filter(Boolean);
     if (manual.length > 1) return manual;
 
-    // Auto-group long single blocks into short readable paragraphs.
     const sentences = cleaned.match(/[^.!?]+[.!?]?/g)?.map((s) => s.trim()).filter(Boolean) || [cleaned];
     const chunks = [];
     for (let i = 0; i < sentences.length; i += 2) {
@@ -106,105 +98,77 @@ const normalizeRunClub = (raw) => {
         galleryImages,
         contactPhone: raw.contactPhone || '',
         contactInstagram: raw.contactInstagram || '',
+        groupLink: raw.groupLink || '',
         registrationLink: raw.registrationLink || '',
         registration: raw.registration && typeof raw.registration === 'object' ? raw.registration : {},
     };
 };
 
-function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
-    const current = images[index];
-    const hasPrev = index > 0;
-    const hasNext = index < images.length - 1;
+/* ── Modern Event Card ── */
+function CommunityEventCard({ event, isDark, isFav, onFav, onClick, eager = false }) {
+    const imgSrc = getCoverImageUrl(event, 'cardPortrait') || event.image;
+    const feeText = event.detail?.registrationFee != null
+        ? (Number(event.detail.registrationFee) === 0 ? 'Free' : `₹${event.detail.registrationFee}`)
+        : null;
 
-    return (
-        <div
-            className="fixed inset-0 z-50 flex flex-col bg-black/95"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Gallery viewer"
-        >
-            <div className="flex items-center justify-between px-4 pt-[max(var(--safe-top),1rem)] pb-3">
-                <p className="text-white text-sm font-medium">
-                    {index + 1} / {images.length}
-                </p>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label="Close gallery"
-                    className="size-10 rounded-full bg-white/10 flex items-center justify-center"
-                >
-                    <X size={20} className="text-white" />
-                </button>
-            </div>
-
-            <div className="relative flex-1 flex items-center justify-center px-4 pb-4 min-h-0">
-                {hasPrev && (
-                    <button
-                        type="button"
-                        onClick={() => onIndexChange(index - 1)}
-                        aria-label="Previous image"
-                        className="absolute left-2 z-10 size-10 rounded-full bg-white/10 flex items-center justify-center"
-                    >
-                        <ChevronLeft size={22} className="text-white" />
-                    </button>
-                )}
-                {current && (
-                    <img
-                        src={resolveGallerySrc(current, 'detail')}
-                        alt={`${name} gallery ${index + 1}`}
-                        className="max-h-full max-w-full object-contain rounded-xl"
-                        onError={(e) => handleImageErrorWithFallback(e, 360, 360, '#2A2B2E', name)}
-                    />
-                )}
-                {hasNext && (
-                    <button
-                        type="button"
-                        onClick={() => onIndexChange(index + 1)}
-                        aria-label="Next image"
-                        className="absolute right-2 z-10 size-10 rounded-full bg-white/10 flex items-center justify-center"
-                    >
-                        <ChevronRight size={22} className="text-white" />
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-}
-
-function RunCard({ run, isDark, isFav, onFav, onClick }) {
     return (
         <AnimatedCard
             enableHover={false}
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+            className={`group flex flex-col rounded-2xl overflow-hidden cursor-pointer border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] ${
+                isDark ? 'bg-[#151618] border-white/5 hover:border-white/20' : 'bg-white border-gray-200/80 hover:border-gray-300 shadow-sm'
+            }`}
             onClick={onClick}
         >
-            <div className="card-portrait-image">
-                {getCoverImageUrl(run, 'cardPortrait') ? (
+            <div className="relative aspect-[4/3] sm:aspect-[16/11] w-full overflow-hidden bg-[#1A1B1D]">
+                {imgSrc ? (
                     <img
-                        src={getCoverImageUrl(run, 'cardPortrait')}
-                        alt={run.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
+                        src={getImageUrl(imgSrc, { preset: 'cardPortrait' }) || imgSrc}
+                        alt={event.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        loading={eager ? 'eager' : 'lazy'}
                         decoding="async"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', run.title)}
+                        onError={(e) => handleImageErrorWithFallback(e, 360, 240, '#2A2B2E', event.title)}
                     />
                 ) : (
-                    <div className="w-full h-full bg-[#1A1B1D]" />
+                    <div className="w-full h-full bg-[#1A1B1D] flex items-center justify-center text-gray-600">
+                        <CalendarCheck size={32} />
+                    </div>
                 )}
-                <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+                <div className="absolute top-2.5 right-2.5 z-10">
+                    <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
+                </div>
+
+                {event.runCategory && (
+                    <div className="absolute top-2.5 left-2.5 z-10 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-semibold text-white">
+                        {event.runCategory}
+                    </div>
+                )}
+
+                {feeText && (
+                    <div className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-0.5 rounded-md bg-[#0ECCEE] text-black font-extrabold text-xs shadow-md">
+                        {feeText}
+                    </div>
+                )}
             </div>
-            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full min-w-0">
-                <div className="flex-1 min-w-0">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {run.title}
-                    </p>
-                    {run.subtitle ? (
-                        <p className={`text-[11px] font-medium line-clamp-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                            {run.subtitle}
+
+            <div className="flex flex-col p-3.5 sm:p-4 gap-1.5 flex-1 justify-between">
+                <div>
+                    <h3 className={`font-bold text-sm sm:text-base leading-snug line-clamp-1 transition-colors group-hover:text-[#0ECCEE] ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                        {event.title}
+                    </h3>
+                    {event.subtitle && (
+                        <p className={`text-[11px] font-medium line-clamp-1 mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {event.subtitle}
                         </p>
-                    ) : null}
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {run.date || 'Date TBA'}
+                    )}
+                    <p className={`text-xs font-medium flex items-center gap-1.5 mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <Calendar size={13} className="shrink-0 text-[#0ECCEE]" />
+                        <span className="line-clamp-1">{event.date || 'Date TBA'}</span>
                     </p>
                 </div>
             </div>
@@ -226,16 +190,13 @@ export default function EventCommunityDetailPage() {
     const [runs, setRuns] = useState([]);
     const [pastRuns, setPastRuns] = useState([]);
     const [loadingRuns, setLoadingRuns] = useState(true);
-    const [runsError, setRunsError] = useState('');
     const [activeCategory, setActiveCategory] = useState(null);
     const [expanded, setExpanded] = useState(false);
     const [showPast, setShowPast] = useState(false);
-    const [imgPg, setImgPg] = useState(0);
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
-    const [heroLoaded, setHeroLoaded] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
-    const imgRef = useRef(null);
+    const [liked, setLiked] = useState(false);
 
     const clubId = club?.id || id || null;
 
@@ -244,13 +205,7 @@ export default function EventCommunityDetailPage() {
         [club],
     );
 
-    const heroImages = useMemo(() => buildHeroImages(club), [club]);
     const galleryImages = useMemo(() => buildGalleryImages(club), [club]);
-    const firstHeroSrc = heroImages[0] || '';
-
-    useEffect(() => {
-        setHeroLoaded(!firstHeroSrc);
-    }, [firstHeroSrc]);
 
     useEffect(() => {
         if (!id) {
@@ -268,7 +223,6 @@ export default function EventCommunityDetailPage() {
         setRuns([]);
         setPastRuns([]);
         setLoadingRuns(true);
-        setRunsError('');
         setLoadError('');
 
         if (fallback) {
@@ -312,7 +266,6 @@ export default function EventCommunityDetailPage() {
                 setLoading(false);
             });
         return () => controller.abort();
-         
     }, [id]);
 
     useEffect(() => {
@@ -339,7 +292,6 @@ export default function EventCommunityDetailPage() {
         subtitle: String(e.displayType || '').trim(),
         registrationLink: e.registrationLink || '',
         status: e.status || null,
-        // Slim seed for event detail (fee/status only — full form loads on detail API)
         detail: {
             _id: e._id,
             slug: e.slug,
@@ -367,17 +319,15 @@ export default function EventCommunityDetailPage() {
         const controller = new AbortController();
         setLoadingRuns(true);
         setShowPast(false);
-        setRunsError('');
         fetchSportsByRunClub(clubId, controller.signal, { timeframe: 'upcoming' })
             .then((data) => {
                 if (controller.signal.aborted) return;
                 const list = Array.isArray(data?.events) ? data.events : [];
                 setRuns(list.map(mapRunCard));
             })
-            .catch((err) => {
+            .catch(() => {
                 if (controller.signal.aborted) return;
                 setRuns([]);
-                setRunsError(err?.message || 'Could not load runs');
             })
             .finally(() => {
                 if (!controller.signal.aborted) setLoadingRuns(false);
@@ -422,7 +372,6 @@ export default function EventCommunityDetailPage() {
 
     const showPageLoader = (loading && !club)
         || (club && id && !entityMatchesRouteParam(club, id, ['name', 'title']));
-    const isEventHub = true;
     usePageContentLoading(showPageLoader);
     useDetailLoaderFailsafe(showPageLoader, () => {
         setLoading(false);
@@ -437,16 +386,9 @@ export default function EventCommunityDetailPage() {
     const basedIn = club?.subtitle || '';
     const description = club?.aboutUs?.trim() || '';
     const paragraphs = useMemo(() => buildReadableParagraphs(description), [description]);
-    const hasMoreText = paragraphs.length > 1 || (paragraphs[0] || '').length > 220;
-    const previewParagraphs = useMemo(() => {
-        if (!paragraphs.length) return [];
-        if (paragraphs.length > 1) return paragraphs.slice(0, 1);
-        const first = paragraphs[0];
-        if (first.length > 220) {
-            return [`${first.slice(0, 220).replace(/\s+\S*$/, '')}…`];
-        }
-        return paragraphs;
-    }, [paragraphs]);
+    const previewParagraphs = paragraphs.slice(0, 2);
+    const hasMoreText = paragraphs.length > 2;
+    const coverSrc = resolveCoverImage(club, 'cardPortrait') || club?.coverImage || club?.image;
 
     const filteredRuns = !activeCategory || activeCategory === 'all'
         ? runs
@@ -461,7 +403,7 @@ export default function EventCommunityDetailPage() {
         return (
             <div className="crwdctrl-page crwdctrl-page--content flex flex-col items-center justify-center min-h-screen gap-3 px-6">
                 <p className={`text-sm text-center font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {isNetwork ? "Couldn't load this community" : (isEventHub ? 'Community not found' : 'Run club not found')}
+                    {isNetwork ? "Couldn't load this community" : 'Community not found'}
                 </p>
                 <p className="text-gray-500 text-sm text-center max-w-xs">
                     {isNetwork
@@ -472,15 +414,15 @@ export default function EventCommunityDetailPage() {
                     <button
                         type="button"
                         onClick={() => window.location.reload()}
-                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold cursor-pointer"
                     >
                         Retry
                     </button>
                 ) : null}
                 <button
                     type="button"
-                    onClick={() => (isNetwork ? navigate(isEventHub ? '/events' : '/sports') : goBack())}
-                    className="text-[#0ECCEE] text-sm font-semibold"
+                    onClick={() => (isNetwork ? navigate('/events') : goBack())}
+                    className="text-[#0ECCEE] text-sm font-semibold cursor-pointer"
                 >
                     {isNetwork ? 'Browse events' : '← Go back'}
                 </button>
@@ -503,7 +445,7 @@ export default function EventCommunityDetailPage() {
         });
     };
 
-    const handleRunClick = (run) => {
+    const handleEventClick = (run) => {
         const eventSeed = run.detail && typeof run.detail === 'object'
             ? run.detail
             : {
@@ -535,10 +477,7 @@ export default function EventCommunityDetailPage() {
     const canonicalPath = eventCommunityPath(club || { id });
 
     return (
-        <div
-            className="crwdctrl-page crwdctrl-page--content flex flex-col min-h-screen pb-[calc(5.75rem+var(--safe-bottom,0px))]"
-            style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
-        >
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-16" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
                 title={`${name} — Community`}
                 description={description}
@@ -547,7 +486,7 @@ export default function EventCommunityDetailPage() {
                 jsonLd={[
                     breadcrumbSchema([
                         { name: 'Home', path: '/' },
-                            { name: 'Events', path: '/events' },
+                        { name: 'Events', path: '/events' },
                         { name, path: canonicalPath },
                     ]),
                     itemListSchema({
@@ -561,238 +500,358 @@ export default function EventCommunityDetailPage() {
                 ]}
             />
             <ScrollProgress />
-            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
-            {/* ── Cover image carousel (full width, 396px tall — matches trek community page) ── */}
-            <div className="relative w-full h-[396px] shrink-0 overflow-hidden bg-[#1A1B1D]">
-                <div
-                    ref={imgRef}
-                    className="overflow-x-auto scrollbar-hide snap-x snap-mandatory w-full h-full"
-                    style={{
-                        scrollbarWidth: 'none',
-                        msOverflowStyle: 'none',
-                        WebkitOverflowScrolling: 'touch',
-                        touchAction: 'pan-x',
-                        overscrollBehaviorX: 'contain',
-                    }}
-                    onScroll={(e) => {
-                        const p = Math.round(e.target.scrollLeft / e.target.clientWidth);
-                        setImgPg((prev) => (prev === p ? prev : p));
-                    }}
-                >
-                    <div className="flex h-full">
-                        {heroImages.map((img, i) => (
-                            <div key={i} className="shrink-0 w-full h-full snap-start relative">
-                                {img ? (
-                                    <>
-                                        {i === 0 && !heroLoaded && (
-                                            <div aria-hidden className="absolute inset-0 bg-[#1A1B1D]" />
-                                        )}
-                                        <img
-                                            src={getImageUrl(img, { preset: 'eventHeroFit' })}
-                                            alt={name}
-                                            className={`w-full h-full object-contain object-center pointer-events-none select-none ${
-                                                i === 0 && !heroLoaded ? 'opacity-0' : 'opacity-100'
-                                            }`}
-                                            draggable={false}
-                                            loading={i === 0 ? 'eager' : 'lazy'}
-                                            fetchPriority={i === 0 ? 'high' : 'auto'}
-                                            decoding="async"
-                                            onLoad={(e) => {
-                                                if (i === 0) setHeroLoaded(true);
-                                                if (e.currentTarget.complete) setHeroLoaded(true);
-                                            }}
-                                            onError={(e) => {
-                                                if (i === 0) setHeroLoaded(true);
-                                                handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', name);
-                                            }}
-                                        />
-                                    </>
-                                ) : (
-                                    <div className="w-full h-full bg-[#1A1B1D]" />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/20 to-black/30 pointer-events-none" />
 
-                {/* Floating stats */}
-                <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none z-10">
-                    {[
-                        { label: isEventHub ? 'Upcoming Events' : 'Upcoming Runs', value: runs.length },
-                        { label: 'Categories', value: Math.max(0, categoryOptions.filter((o) => o.value !== 'all').length) },
-                    ].map((stat) => (
-                        <div
-                            key={stat.label}
-                            className="rounded-2xl bg-black/50 px-3 py-2 border border-white/10"
-                        >
-                            <p className="text-white text-lg font-bold leading-none">
-                                <AnimatedCounter value={stat.value} />
-                            </p>
-                            <p className="text-white/70 text-[10px] font-medium mt-0.5">{stat.label}</p>
-                        </div>
-                    ))}
-                </div>
+            {/* Main Wide Container */}
+            <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-3 lg:py-5 flex flex-col flex-1 gap-5 sm:gap-6">
 
-                <div
-                    className="absolute top-0 left-0 right-0 flex items-center justify-between px-4"
-                    style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
-                >
+                {/* Top Action Header Bar */}
+                <div className="flex items-center justify-between gap-3">
                     <button
                         type="button"
                         onClick={goBack}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                        className={`size-10 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
+                            isDark
+                                ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]'
+                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                        }`}
                     >
-                        <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
+                        <ArrowLeft size={18} strokeWidth={2.25} />
                     </button>
-                    <div className="flex items-center gap-2.5">
+
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold backdrop-blur-md"
+                        style={{
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                        }}
+                    >
+                        <span className="text-[#0ECCEE]">✨</span>
+                        <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Event Community</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                            className={`size-10 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
+                                isDark
+                                    ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                            }`}
                         >
-                            <Share2 size={20} strokeWidth={2.25} className="text-white" />
+                            <Share2 size={17} strokeWidth={2} />
                         </button>
-                    </div>
-                </div>
-
-                {heroImages.length > 1 && (
-                    <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-2">
-                        {heroImages.slice(0, 4).map((_, i) => (
-                            <div
-                                key={i}
-                                className={`rounded-2xl transition-all duration-300
-                                    ${
-                                        i === imgPg
-                                            ? 'h-2.5 w-6 bg-white'
-                                            : 'size-2.5 bg-transparent border-2 border-white/60'
-                                    }`}
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            <div
-                className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
-                ${isDark ? 'bg-[#161718]' : 'bg-white'}`}
-            >
-                <div className="mb-1">
-                    <div className="flex-1 min-w-0">
-                        <h1
-                            className={`text-3xl font-medium font-inter leading-9 ${isDark ? 'text-white' : 'text-gray-900'}`}
-                        >
-                            {name}
-                        </h1>
-                        <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {basedIn}
-                        </p>
-                    </div>
-                    {clubId ? (
-                        <div className="mt-4">
-                            <FollowCommunityBar
-                                entityType="run_club"
-                                entityId={clubId}
-                                followLabel="Follow"
-                                followingLabel="Following"
-                                membersTitle={`${name || 'Club'} members`}
-                                onRequireLogin={() => setShowLogin(true)}
-                            />
-                        </div>
-                    ) : null}
-                </div>
-
-                <ScrollReveal className="mt-5 mb-5">
-                    <h2
-                        className={`text-lg font-medium font-inter leading-7 tracking-wide mb-2
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}
-                    >
-                        About Us
-                    </h2>
-                    <div className="space-y-3">
-                        {(expanded ? paragraphs : previewParagraphs).map((para, idx) => (
-                            <p
-                                key={`${idx}-${para.slice(0, 24)}`}
-                                className={`text-[14px] sm:text-[15px] font-medium leading-7 tracking-normal text-left ${
-                                    isDark ? 'text-gray-200' : 'text-gray-700'
-                                }`}
-                            >
-                                {para}
-                            </p>
-                        ))}
-                    </div>
-                    {hasMoreText && (
                         <button
-                            onClick={() => setExpanded((prev) => !prev)}
-                            className="mt-3 text-[#0ECCEE] text-sm font-semibold hover:opacity-90"
+                            type="button"
+                            onClick={() => setLiked((l) => !l)}
+                            aria-label="Favourite"
+                            className={`size-10 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
+                                isDark
+                                    ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                            }`}
                         >
-                            {expanded ? 'Show less' : 'Show more'}
+                            <Heart size={17} strokeWidth={2} className={liked ? 'fill-red-500 text-red-500' : ''} />
                         </button>
-                    )}
-                </ScrollReveal>
+                    </div>
+                </div>
 
-                <ScrollReveal className="mb-5" delay={0.05}>
-                    <h2
-                        className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}
-                    >
-                        {isEventHub ? 'Upcoming Events' : 'Upcoming Runs'}
-                    </h2>
-                    {categoryOptions.length > 0 ? (
-                        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollbarWidth: 'none' }}>
-                            <div className="flex gap-2 pb-2">
-                                {categoryOptions.map((option) => {
-                                    const isActive = activeCategory === option.value;
-                                    return (
-                                        <button
-                                            key={option.value}
-                                            type="button"
-                                            onClick={() => setActiveCategory(option.value)}
-                                            className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95
-                                                ${
-                                                    isActive
-                                                        ? 'bg-[#0ECCEE] text-black'
-                                                        : isDark
-                                                          ? 'bg-[#1D1E20] text-gray-300'
-                                                          : 'bg-white text-gray-700 shadow-sm'
-                                                }`}
+                {/* Hero Split Section */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-stretch">
+
+                    {/* Left Column (md:col-span-7): Media Showcase with Ambient Glow & Badges */}
+                    <div className="md:col-span-7 flex flex-col">
+                        <div className={`relative w-full h-[280px] sm:h-[340px] md:h-[390px] rounded-3xl overflow-hidden border shadow-xl flex items-center justify-center p-6 ${
+                            isDark ? 'bg-[#0E0F11] border-white/10' : 'bg-gray-900 border-gray-200'
+                        }`}>
+                            {coverSrc ? (
+                                <img
+                                    src={coverSrc}
+                                    alt=""
+                                    aria-hidden="true"
+                                    className="absolute inset-0 w-full h-full object-cover filter blur-3xl scale-125 opacity-30 select-none pointer-events-none"
+                                />
+                            ) : null}
+
+                            <div className="absolute inset-0 bg-radial from-transparent via-black/30 to-black/70 pointer-events-none" />
+
+                            {coverSrc ? (
+                                <img
+                                    src={coverSrc}
+                                    alt={name}
+                                    className="relative z-10 max-h-[82%] max-w-[85%] object-contain drop-shadow-2xl rounded-2xl transition-transform duration-500 hover:scale-105"
+                                    onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#2A2B2E', name)}
+                                />
+                            ) : (
+                                <div className="relative z-10 size-28 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40">
+                                    <CalendarCheck size={48} />
+                                </div>
+                            )}
+
+                            <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-xs font-semibold text-white shadow-lg">
+                                <span className="size-2 rounded-full bg-[#0ECCEE] animate-pulse" />
+                                <span>Verified Community</span>
+                            </div>
+
+                            <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+                                <div className="px-3.5 py-1.5 rounded-xl bg-black/65 backdrop-blur-md border border-white/15 text-white flex items-center gap-2 shadow-lg">
+                                    <span className="font-extrabold text-sm sm:text-base text-[#0ECCEE]">
+                                        <AnimatedCounter value={runs.length} />
+                                    </span>
+                                    <span className="text-[11px] font-medium text-gray-300">Upcoming Events</span>
+                                </div>
+                                {categoryOptions.length > 1 && (
+                                    <div className="px-3.5 py-1.5 rounded-xl bg-black/65 backdrop-blur-md border border-white/15 text-white flex items-center gap-2 shadow-lg">
+                                        <span className="font-extrabold text-sm sm:text-base text-[#0ECCEE]">
+                                            <AnimatedCounter value={categoryOptions.length - 1} />
+                                        </span>
+                                        <span className="text-[11px] font-medium text-gray-300">Categories</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {galleryImages.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => openGallery(0)}
+                                    className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/90 text-black hover:bg-white text-xs font-bold shadow-lg transition-transform active:scale-95 cursor-pointer"
+                                >
+                                    <ImageIcon size={14} />
+                                    <span>{galleryImages.length} Photos</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Column (md:col-span-5): Community Profile Card */}
+                    <div className="md:col-span-5 flex flex-col">
+                        <div className={`rounded-3xl p-5 sm:p-7 border flex flex-col justify-between h-full shadow-xl relative overflow-hidden backdrop-blur-md ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100'
+                        }`}>
+                            <div className="pointer-events-none absolute -top-20 -right-20 size-44 rounded-full bg-[#0ECCEE]/15 blur-3xl" />
+
+                            <div className="flex flex-col gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/30">
+                                            <CheckCircle2 size={12} />
+                                            Active Community
+                                        </span>
+                                    </div>
+
+                                    <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold font-inter tracking-tight leading-tight ${
+                                        isDark ? 'text-white' : 'text-gray-900'
+                                    }`}>
+                                        {name}
+                                    </h1>
+
+                                    {basedIn && (
+                                        <p className={`text-sm sm:text-base font-semibold mt-1.5 flex items-center gap-1.5 ${
+                                            isDark ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
+                                            <MapPin size={16} className="text-[#0ECCEE] shrink-0" />
+                                            <span>{basedIn}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Community Metrics Strip */}
+                                <div className={`grid grid-cols-3 gap-2.5 p-3 rounded-2xl border ${
+                                    isDark ? 'bg-white/[0.03] border-white/5' : 'bg-gray-50 border-gray-100'
+                                }`}>
+                                    <div className="text-center">
+                                        <p className="text-lg sm:text-xl font-extrabold text-[#0ECCEE] leading-none">
+                                            <AnimatedCounter value={runs.length} />
+                                        </p>
+                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Upcoming</p>
+                                    </div>
+                                    <div className="text-center border-x border-current/10">
+                                        <p className={`text-lg sm:text-xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            <AnimatedCounter value={Math.max(1, categoryOptions.length - 1)} />
+                                        </p>
+                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Categories</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className={`text-lg sm:text-xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            <AnimatedCounter value={pastRuns.length} />
+                                        </p>
+                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Completed</p>
+                                    </div>
+                                </div>
+
+                                {clubId && (
+                                    <div className="pt-1">
+                                        <FollowCommunityBar
+                                            entityType="run_club"
+                                            entityId={clubId}
+                                            followLabel="Follow Community"
+                                            followingLabel="Following"
+                                            membersTitle={`${name || 'Community'} members`}
+                                            onRequireLogin={() => setShowLogin(true)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Quick Action Buttons */}
+                            <div className="flex flex-col gap-2.5 mt-5 pt-4 border-t border-current/10">
+                                {club?.groupLink && (
+                                    <a
+                                        href={club.groupLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-bold text-sm shadow-md shadow-[#25D366]/20 transition-all hover:brightness-110 active:scale-[0.99] cursor-pointer"
+                                    >
+                                        <MessageCircle size={18} />
+                                        <span>Join WhatsApp Community</span>
+                                    </a>
+                                )}
+
+                                {club?.registrationLink && !club?.groupLink && (
+                                    <button
+                                        type="button"
+                                        onClick={() => openExternalUrl(club.registrationLink)}
+                                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0ECCEE] text-black font-extrabold text-sm shadow-md shadow-[#0ECCEE]/20 transition-all hover:brightness-110 active:scale-[0.99] cursor-pointer"
+                                    >
+                                        <ExternalLink size={16} />
+                                        <span>Official Registration</span>
+                                    </button>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    {club?.contactPhone && (
+                                        <a
+                                            href={`tel:${club.contactPhone}`}
+                                            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-[0.99] ${
+                                                isDark
+                                                    ? 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-200'
+                                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'
+                                            }`}
                                         >
-                                            {option.label}
-                                        </button>
-                                    );
-                                })}
+                                            <Phone size={14} className="text-[#0ECCEE]" />
+                                            <span className="truncate">Call Organizer</span>
+                                        </a>
+                                    )}
+
+                                    {club?.contactInstagram && (
+                                        <a
+                                            href={`https://instagram.com/${club.contactInstagram.replace('@', '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-[0.99] ${
+                                                isDark
+                                                    ? 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-200'
+                                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'
+                                            }`}
+                                        >
+                                            <Instagram size={14} className="text-pink-500" />
+                                            <span className="truncate">Instagram</span>
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    ) : null}
+                    </div>
+                </div>
 
-                    <div
-                        className="overflow-x-auto scrollbar-hide -mx-4 px-4 mt-4"
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-                    >
+                {/* ── About Us Card ── */}
+                {description && (
+                    <ScrollReveal>
+                        <div className={`p-5 sm:p-6 rounded-3xl border transition-all ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <h2 className={`text-base sm:text-lg font-bold font-inter leading-tight tracking-wide mb-3 flex items-center gap-2 ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                            }`}>
+                                <Sparkles size={18} className="text-[#0ECCEE]" />
+                                <span>About {name}</span>
+                            </h2>
+                            <div className={`text-xs sm:text-sm font-medium leading-relaxed space-y-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {(expanded ? paragraphs : previewParagraphs).map((p, idx) => (
+                                    <p key={idx}>{p}</p>
+                                ))}
+                                {hasMoreText && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpanded((v) => !v)}
+                                        className="text-[#0ECCEE] font-bold hover:underline cursor-pointer inline-block pt-1"
+                                    >
+                                        {expanded ? 'Show less' : 'Read full story →'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </ScrollReveal>
+                )}
+
+                {/* ── Upcoming Events Section ── */}
+                <ScrollReveal delay={0.05}>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <h2 className={`text-lg sm:text-xl font-extrabold font-inter tracking-tight ${
+                                    isDark ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                    Upcoming Events
+                                </h2>
+                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Explore events & meetups organized by {name}
+                                </p>
+                            </div>
+
+                            {categoryOptions.length > 1 && (
+                                <div className="overflow-x-auto scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none' }}>
+                                    <div className="flex items-center gap-2 pb-1">
+                                        {categoryOptions.map((option) => {
+                                            const isActive = activeCategory === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setActiveCategory(option.value)}
+                                                    className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                                                        isActive
+                                                            ? 'bg-gradient-to-r from-[#0ECCEE] to-[#007BFF] text-black shadow-md shadow-[#0ECCEE]/25'
+                                                            : isDark
+                                                                ? 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+                                                                : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200'
+                                                    }`}
+                                                >
+                                                    {option.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {loadingRuns ? (
-                            <div className="flex justify-center py-10">
-                                <DetailLoader3DIcon size="compact" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {[1, 2, 3, 4].map((i) => (
+                                    <div key={i} className={`h-64 rounded-2xl animate-pulse ${isDark ? 'bg-white/5' : 'bg-gray-100'}`} />
+                                ))}
                             </div>
                         ) : filteredRuns.length === 0 ? (
-                            <div
-                                className={`card-surface mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
-                            >
-                                {runsError
-                                    ? `${runsError}. Pull to refresh or try again.`
-                                    : (isEventHub ? 'No upcoming events yet.' : 'No upcoming runs in this category yet.')}
+                            <div className={`p-8 rounded-3xl text-center border ${
+                                isDark ? 'bg-[#111213] border-white/5 text-gray-400' : 'bg-white border-gray-100 text-gray-600 shadow-sm'
+                            }`}>
+                                <CalendarCheck size={36} className="mx-auto text-gray-500 mb-2 opacity-60" />
+                                <p className="text-sm font-bold">No upcoming events{activeCategory && activeCategory !== 'all' ? ' in this category' : ''}</p>
+                                <p className="text-xs text-gray-500 mt-1">Stay tuned or follow the community to get notified when new events are posted!</p>
                             </div>
                         ) : (
-                            <div className="flex gap-4 pb-2">
-                                {filteredRuns.map((run) => (
-                                    <RunCard
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {filteredRuns.map((run, index) => (
+                                    <CommunityEventCard
                                         key={run.id}
-                                        run={run}
+                                        event={run}
                                         isDark={isDark}
                                         isFav={isFavorite(run.id)}
                                         onFav={() => toggleFavorite(run.id, run)}
-                                        onClick={() => handleRunClick(run)}
+                                        eager={index < 4}
+                                        onClick={() => handleEventClick(run)}
                                     />
                                 ))}
                             </div>
@@ -800,193 +859,183 @@ export default function EventCommunityDetailPage() {
                     </div>
                 </ScrollReveal>
 
+                {/* ── Past Events Accordion ── */}
                 {pastRuns.length > 0 && (
-                    <div className="mb-5">
-                        <button
-                            type="button"
-                            onClick={() => setShowPast((v) => !v)}
-                            className={`flex items-center gap-1.5 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-                        >
-                            Check out past events
-                            <ChevronDown
-                                size={16}
-                                className={`transition-transform ${showPast ? 'rotate-180' : ''}`}
-                            />
-                        </button>
-                        {showPast && (
-                            <ul className="mt-2 space-y-1.5">
-                                {pastRuns.map((run) => (
-                                    <li key={run.id}>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleRunClick(run)}
-                                            className={`w-full text-left flex items-baseline justify-between gap-3 py-1.5 text-sm
-                                                ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                                        >
-                                            <span className="truncate">{run.title}</span>
-                                            {run.date ? (
-                                                <span className={`shrink-0 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                    {run.date}
-                                                </span>
-                                            ) : null}
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
+                    <ScrollReveal delay={0.08}>
+                        <div className={`rounded-3xl border overflow-hidden ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <button
+                                type="button"
+                                onClick={() => setShowPast((v) => !v)}
+                                className={`w-full flex items-center justify-between p-5 text-sm font-bold transition-all cursor-pointer ${
+                                    isDark ? 'text-gray-200 hover:bg-white/[0.02]' : 'text-gray-800 hover:bg-gray-50'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[#0ECCEE]">📜</span>
+                                    <span>Past Events ({pastRuns.length})</span>
+                                </div>
+                                <ChevronDown
+                                    size={18}
+                                    className={`transition-transform duration-200 text-gray-400 ${showPast ? 'rotate-180' : ''}`}
+                                />
+                            </button>
+
+                            {showPast && (
+                                <div className="px-5 pb-5 pt-1 border-t border-current/10">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-2">
+                                        {pastRuns.map((run) => (
+                                            <button
+                                                key={run.id}
+                                                type="button"
+                                                onClick={() => handleEventClick(run)}
+                                                className={`w-full text-left flex items-center justify-between gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                                                    isDark
+                                                        ? 'bg-white/[0.02] border-white/5 hover:bg-white/5 text-gray-300'
+                                                        : 'bg-gray-50 border-gray-200/80 hover:bg-gray-100 text-gray-800'
+                                                }`}
+                                            >
+                                                <span className="truncate text-xs sm:text-sm font-medium">{run.title}</span>
+                                                {run.date && (
+                                                    <span className={`shrink-0 text-xs font-semibold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        {run.date}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </ScrollReveal>
                 )}
 
-                <ScrollReveal className="mb-5" delay={0.08}>
-                    <h2
-                        className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}
-                    >
-                        Contact Details
-                    </h2>
-                    <div className="space-y-2.5">
-                        <a
-                            href={club?.contactPhone ? `tel:${club.contactPhone}` : undefined}
-                            className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
-                        >
-                            <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center shrink-0">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
-                                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Phone</p>
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {club?.contactPhone || 'Not set'}
-                                </p>
-                            </div>
-                        </a>
-                        <a
-                            href={
-                                club?.contactInstagram
-                                    ? `https://instagram.com/${club.contactInstagram.replace('@', '')}`
-                                    : undefined
-                            }
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
-                        >
-                            <div
-                                className="size-10 rounded-xl flex items-center justify-center shrink-0"
-                                style={{
-                                    background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)',
-                                }}
-                            >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
-                                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Instagram</p>
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {club?.contactInstagram || 'Not set'}
-                                </p>
-                            </div>
-                        </a>
-                    </div>
-                </ScrollReveal>
+                {/* ── Community Contacts ── */}
+                {(club?.contactPhone || club?.contactInstagram) && (
+                    <ScrollReveal delay={0.1}>
+                        <div className={`p-5 sm:p-6 rounded-3xl border ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <h2 className={`text-base sm:text-lg font-bold font-inter leading-tight tracking-wide mb-4 flex items-center gap-2 ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                            }`}>
+                                <Users size={18} className="text-[#0ECCEE]" />
+                                <span>Community Leadership & Contact</span>
+                            </h2>
 
-                <ScrollReveal className="mb-2" delay={0.1}>
-                    <div className="flex items-end justify-between gap-3 mb-3 px-0.5">
-                        <h2
-                            className={`text-lg font-medium font-inter leading-7 tracking-wide ${isDark ? 'text-white' : 'text-gray-900'}`}
-                        >
-                            Gallery
-                        </h2>
-                        {galleryImages.length > 1 ? (
-                            <p className={`text-xs shrink-0 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                Swipe · {galleryImages.length} photos
-                            </p>
-                        ) : null}
-                    </div>
-                    {galleryImages.length > 0 ? (
-                        <div className="-mx-4 sm:-mx-6">
-                            <div
-                                className="flex gap-3 overflow-x-auto px-4 sm:px-6 pb-2 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-                                style={{ WebkitOverflowScrolling: 'touch' }}
-                            >
-                                {galleryImages.map((img, i) => {
-                                    const src = resolveGallerySrc(img, 'detail');
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {club?.contactPhone && (
+                                    <a
+                                        href={`tel:${club.contactPhone}`}
+                                        className={`flex items-center gap-3.5 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.99] cursor-pointer ${
+                                            isDark
+                                                ? 'bg-white/[0.03] border-white/10 hover:border-[#0ECCEE]/50 hover:bg-white/[0.06]'
+                                                : 'bg-gray-50/70 border-gray-200/80 shadow-xs hover:border-[#0ECCEE]/60 hover:shadow-md'
+                                        }`}
+                                    >
+                                        <div className="size-11 rounded-xl bg-gradient-to-br from-[#0ECCEE] to-[#007BFF] flex items-center justify-center shrink-0 shadow-md shadow-[#0ECCEE]/20">
+                                            <Phone size={18} className="text-black" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Helpline</p>
+                                            <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {club.contactPhone}
+                                            </p>
+                                        </div>
+                                    </a>
+                                )}
+
+                                {club?.contactInstagram && (
+                                    <a
+                                        href={`https://instagram.com/${club.contactInstagram.replace('@', '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`flex items-center gap-3.5 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.99] cursor-pointer ${
+                                            isDark
+                                                ? 'bg-white/[0.03] border-white/10 hover:border-pink-500/50 hover:bg-white/[0.06]'
+                                                : 'bg-gray-50/70 border-gray-200/80 shadow-xs hover:border-pink-500/50 hover:shadow-md'
+                                        }`}
+                                    >
+                                        <div
+                                            className="size-11 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-pink-500/20"
+                                            style={{ background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)' }}
+                                        >
+                                            <Instagram size={18} className="text-white" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Instagram Handle</p>
+                                            <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {club.contactInstagram}
+                                            </p>
+                                        </div>
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </ScrollReveal>
+                )}
+
+                {/* ── Gallery Showcase ── */}
+                {galleryImages.length > 0 && (
+                    <ScrollReveal delay={0.12}>
+                        <div className={`p-5 sm:p-6 rounded-3xl border ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <h2 className={`text-base sm:text-lg font-bold font-inter leading-tight tracking-wide flex items-center gap-2 ${
+                                    isDark ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                    <ImageIcon size={18} className="text-[#0ECCEE]" />
+                                    <span>Community Gallery</span>
+                                </h2>
+                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                                    isDark ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-gray-100 border-gray-200 text-gray-600'
+                                }`}>
+                                    {galleryImages.length} photos
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {galleryImages.slice(0, 4).map((img, i) => {
+                                    const isOverflowTile = galleryImages.length > 4 && i === 3;
+                                    const remainingCount = galleryImages.length - 4;
                                     return (
                                         <button
                                             key={`${img}-${i}`}
                                             type="button"
                                             onClick={() => openGallery(i)}
-                                            aria-label={`View gallery image ${i + 1} of ${galleryImages.length}`}
-                                            className={`relative shrink-0 snap-center w-[78vw] max-w-[340px] sm:w-[320px] h-[220px] sm:h-[260px] rounded-3xl overflow-hidden border active:scale-[0.985] transition-transform ${
-                                                isDark ? 'border-white/10 bg-[#111213]' : 'border-gray-100 bg-white shadow-sm'
+                                            aria-label={isOverflowTile ? `View all ${galleryImages.length} gallery images` : `View gallery image ${i + 1}`}
+                                            className={`group relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-all cursor-pointer ${
+                                                isDark ? 'bg-white/5 border border-white/10' : 'bg-white shadow-xs border border-gray-200/70'
                                             }`}
-                                            style={{
-                                                backgroundImage: src ? `url(${src})` : undefined,
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center',
-                                            }}
                                         >
-                                            <span className="absolute inset-0 bg-linear-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
-                                            <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/45 text-white text-[11px] font-medium tabular-nums backdrop-blur-sm">
-                                                {i + 1}/{galleryImages.length}
-                                            </span>
+                                            <img
+                                                src={resolveGallerySrc(img, 'square')}
+                                                alt={`${name} gallery ${i + 1}`}
+                                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                loading="lazy"
+                                                decoding="async"
+                                                onError={(e) => handleImageErrorWithFallback(e, 200, 200, '#2A2B2E', name)}
+                                            />
+                                            {isOverflowTile && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-xs">
+                                                    <span className="text-white text-base font-extrabold tracking-wide">
+                                                        +{remainingCount}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </button>
                                     );
                                 })}
                             </div>
                         </div>
-                    ) : (
-                        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No gallery images yet.</p>
-                    )}
-                </ScrollReveal>
-            </div>
+                    </ScrollReveal>
+                )}
+
             </div>
 
-            {typeof document !== 'undefined' && createPortal(
-            <div
-                className="fixed inset-x-0 bottom-0 z-100040 px-2 pointer-events-none"
-                style={{ paddingBottom: 'max(var(--safe-bottom), 6px)' }}
-            >
-                <div className={`pointer-events-auto mx-auto w-full max-w-md md:max-w-2xl rounded-[30px] px-3 py-3 ${isDark ? 'bg-[#111213] shadow-lg' : 'bg-white shadow-[0_-2px_20px_rgba(0,0,0,0.15)] border border-gray-100'}`}>
-                    {(() => {
-                        const closed = club?.registration?.status === 'closed';
-                        const extLink = club?.registration?.mode === 'external_link'
-                            ? club?.registrationLink
-                            : null;
-                        if (closed) {
-                            return (
-                                <button
-                                    type="button"
-                                    disabled
-                                    className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-gray-600 text-gray-300 cursor-not-allowed"
-                                >
-                                    Registration Closed
-                                </button>
-                            );
-                        }
-                        return (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (extLink) {
-                                        openExternalUrl(extLink);
-                                    } else if (filteredRuns[0]) {
-                                        handleRunClick(filteredRuns[0]);
-                                    } else if (club?.contactPhone) {
-                                        window.location.href = `tel:${club.contactPhone}`;
-                                    }
-                                }}
-                                className="w-full flex items-center justify-center gap-2 h-14 px-8 rounded-3xl text-lg font-medium shadow-lg bg-[#0ECCEE] text-black active:opacity-90 transition"
-                            >
-                                {extLink ? 'Join Community' : 'Join community'}
-                            </button>
-                        );
-                    })()}
-                </div>
-            </div>,
-            document.body,
-            )}
-
+            {/* Gallery Lightbox */}
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox
                     images={galleryImages}
@@ -997,14 +1046,15 @@ export default function EventCommunityDetailPage() {
                 />
             )}
 
-            {showLogin ? (
+            {/* Login Popup */}
+            {showLogin && (
                 <CrwdCtrlLogin
                     googleOnly
                     title="Sign in to follow"
-                    subtitle="One tap with Google — then you’re in"
+                    subtitle="One tap with Google — then you're in"
                     onClose={() => setShowLogin(false)}
                 />
-            ) : null}
+            )}
         </div>
     );
 }

@@ -12,6 +12,7 @@ import {
   FavoritesPage,
   EditProfile,
   HelpCenter,
+  FAQPage,
   ListYourFest,
   NotificationsPanel,
   ProfilePage,
@@ -115,6 +116,8 @@ export const publicRoutes = (
     <Route path="/booking" element={<Booking />} />
     {registeredFestRedirect}
     <Route path="/help-center" element={<HelpCenter />} />
+
+    <Route path="/faq" element={<FAQPage />} />
     <Route path="/list-your-fest" element={<ListYourFest />} />
     <Route path="/notifications" element={<NotificationsPanel />} />
     <Route path="/connection-status" element={<ConnectionStatus />} />
@@ -133,6 +136,7 @@ export const publicRoutes = (
     <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
     <Route path="/qr-ticket/:registrationId" element={<QRTicketPage />} />
     <Route path="/payment-invoice/:id" element={<PaymentInvoicePage />} />
+
     {/* CTRL Mystery */}
     <Route path="/mystery" element={<MysteryLandingPage />} />
     <Route path="/mystery/case/:caseId/register" element={<MysteryTeamRegisterPage />} />
@@ -142,5 +146,6 @@ export const publicRoutes = (
     <Route path="/mystery/leaderboard/:eventId" element={<MysteryLeaderboardPage />} />
     <Route path="/admin/mystery" element={<MysteryAdminDashboard />} />
     <Route path="/admin/mystery/case/:caseId" element={<MysteryCaseBuilder />} />
+
   </>
 );

@@ -34,7 +34,6 @@ import { isOnHomeHero } from '../../utils/pageSections';
 import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRenderer';
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 import Seo from '../../components/Seo';
-import FaqSection from '../../components/FaqSection';
 import ReviewsSection from '../../components/ReviewsSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { HOME_FAQ } from '../../constants/faqs';
@@ -159,7 +158,7 @@ const isCacheValid = () => {
     try {
         const timestamp = localStorage.getItem(CACHE_KEYS.FESTS_TIMESTAMP);
         if (!timestamp) return false;
-        
+
         const age = Date.now() - parseInt(timestamp);
         return age < CACHE_DURATION;
     } catch (error) {
@@ -412,7 +411,7 @@ const Dashboard = () => {
         // Listen for both custom event and storage changes
         window.addEventListener('admin_fest_updated', handleAdminFestUpdate);
         window.addEventListener('storage', handleAdminChanges);
-        
+
         return () => {
             window.removeEventListener('admin_fest_updated', handleAdminFestUpdate);
             window.removeEventListener('storage', handleAdminChanges);
@@ -436,10 +435,10 @@ const Dashboard = () => {
         const getStoredLocation = () => {
             try {
                 const stored = localStorage.getItem('crwdctrl_user_location');
-                
+
                 if (stored) {
                     const parsedLocation = JSON.parse(stored);
-                    
+
                     setCurrentLocation(prev => ({
                         ...prev,
                         ...parsedLocation,
@@ -667,10 +666,10 @@ const Dashboard = () => {
             const auxFetches = [
                 fetchCatalogJSON('/trek-communities', { retries: 0, signal: controller.signal }).then(res => {
                     if (!cancelled) setHomeCommunities(Array.isArray(res?.data?.communities) ? res.data.communities : []);
-                }).catch(() => {}),
+                }).catch(() => { }),
                 fetchCatalogJSON('/treks', { retries: 0, signal: controller.signal }).then(res => {
                     if (!cancelled) setHomeTreks(Array.isArray(res?.data?.treks) ? res.data.treks : []);
-                }).catch(() => {}),
+                }).catch(() => { }),
                 fetchCatalogJSON('/sports', { retries: 0, signal: controller.signal }).then(res => {
                     const sports = Array.isArray(res?.data?.events) ? res.data.events : [];
                     if (!cancelled) setHomeSports((prev) => {
@@ -678,7 +677,7 @@ const Dashboard = () => {
                         sports.forEach((s) => map.set(String(s._id || s.id), s));
                         return [...map.values()];
                     });
-                }).catch(() => {}),
+                }).catch(() => { }),
                 fetchCatalogJSON('/sports?hub=events', { retries: 0, signal: controller.signal }).then(res => {
                     const sports = (Array.isArray(res?.data?.events) ? res.data.events : [])
                         .map((s) => ({ ...s, listingHub: 'events' }));
@@ -687,7 +686,7 @@ const Dashboard = () => {
                         sports.forEach((s) => map.set(String(s._id || s.id), s));
                         return [...map.values()];
                     });
-                }).catch(() => {}),
+                }).catch(() => { }),
                 fetchCatalogJSON('/run-clubs', { retries: 0, signal: controller.signal }).then(res => {
                     const clubs = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
                     if (!cancelled) setHomeRunClubs((prev) => {
@@ -695,7 +694,7 @@ const Dashboard = () => {
                         clubs.forEach((c) => map.set(String(c._id || c.id), c));
                         return [...map.values()];
                     });
-                }).catch(() => {}),
+                }).catch(() => { }),
                 fetchCatalogJSON('/run-clubs?hub=events', { retries: 0, signal: controller.signal }).then(res => {
                     const clubs = Array.isArray(res?.data?.clubs) ? res.data.clubs : [];
                     if (!cancelled) setHomeRunClubs((prev) => {
@@ -703,10 +702,10 @@ const Dashboard = () => {
                         clubs.forEach((c) => map.set(String(c._id || c.id), c));
                         return [...map.values()];
                     });
-                }).catch(() => {}),
+                }).catch(() => { }),
                 fetchCatalogJSON('/events', { retries: 0, signal: controller.signal }).then(res => {
                     if (!cancelled) setHomeEventShows(Array.isArray(res?.data?.shows) ? res.data.shows : []);
-                }).catch(() => {}),
+                }).catch(() => { }),
             ];
             Promise.allSettled(auxFetches).then(() => {
                 if (!cancelled) setHomeAuxLoaded(true);
@@ -723,7 +722,7 @@ const Dashboard = () => {
             fetchCatalogJSON('/home/section-labels', { retries: 0, signal: controller.signal }).then(res => {
                 const l = res?.data?.labels;
                 if (!cancelled && l && typeof l === 'object') setSectionLabels(prev => ({ ...prev, ...l }));
-            }).catch(() => {});
+            }).catch(() => { });
         })();
 
         // Safety: never keep the skeleton forever if something hangs (allow cold starts).
@@ -768,7 +767,7 @@ const Dashboard = () => {
                                 setCachedData(CACHE_KEYS.FESTS_LIST, festsList);
                             }
                         })
-                        .catch(() => {});
+                        .catch(() => { });
                 }
             }
         };
@@ -809,9 +808,9 @@ const Dashboard = () => {
             const type = fest?.festType || 'cultural';
             const categoryColor =
                 type === 'cultural' ? 'bg-pink-500/80' :
-                type === 'technical' ? 'bg-indigo-500/80' :
-                type === 'sports' ? 'bg-emerald-500/80' :
-                'bg-cyan-500/80';
+                    type === 'technical' ? 'bg-indigo-500/80' :
+                        type === 'sports' ? 'bg-emerald-500/80' :
+                            'bg-cyan-500/80';
 
             return {
                 id: fest?._id || fest?.id,
@@ -824,9 +823,9 @@ const Dashboard = () => {
                 date: fest?.festDate || fest?.date || fest?.dateTime,
                 location: fest?.venue || 'Venue TBA',
                 category: type === 'cultural' ? 'Cultural Fest' :
-                          type === 'technical' ? 'Tech Fest' :
-                          type === 'sports' ? 'Sports Fest' :
-                          'Fest',
+                    type === 'technical' ? 'Tech Fest' :
+                        type === 'sports' ? 'Sports Fest' :
+                            'Fest',
                 categoryColor,
                 participants: fest?.estimatedParticipants || '',
                 duration: fest?.duration || '',
@@ -903,6 +902,7 @@ const Dashboard = () => {
                     dateTime: t.dateLabel || t.trekDate || 'Trek',
                     homePriority: t.priority ?? 999,
                     _type: 'trek',
+                    slug: t.slug,
                 };
             });
 
@@ -1148,7 +1148,7 @@ const Dashboard = () => {
                     console.error('Dashboard - GEOLOCATION ERROR:', error);
                     console.error('Dashboard - Error code:', error.code);
                     console.error('Dashboard - Error message:', error.message);
-                    
+
                     setCurrentLocation(prev => {
                         const newState = {
                             ...prev,
@@ -1264,253 +1264,253 @@ const Dashboard = () => {
 
     return (
         <div className="crwdctrl-page crwdctrl-page--hub flex flex-col min-h-screen transition-colors">
-          <Seo
-            title="CrwdCtrl — Discover fests, clubs & events"
-            description="Find and register for college fests, tech and sports events, running clubs, gym communities, treks, and meetups near you."
-            canonical="/"
-            keywords="college fests, tech fest, sports events, running clubs, gym communities, treks, meetups, student events, event discovery"
-            jsonLd={HOME_JSON_LD}
-            withBrand={false}
-          />
-          <div className="flex flex-col flex-1">
+            <Seo
+                title="CrwdCtrl — Discover fests, clubs & events"
+                description="Find and register for college fests, tech and sports events, running clubs, gym communities, treks, and meetups near you."
+                canonical="/"
+                keywords="college fests, tech fest, sports events, running clubs, gym communities, treks, meetups, student events, event discovery"
+                jsonLd={HOME_JSON_LD}
+                withBrand={false}
+            />
+            <div className="flex flex-col flex-1">
 
-            <MobileStickyHeader
-                isDark={isDark}
-                onCollapsedChange={(collapsed) => {
-                    if (collapsed) setIsLocationDropdownOpen(false);
-                }}
-                brandingRow={
-                    <>
-                    <AppLogo />
+                <MobileStickyHeader
+                    isDark={isDark}
+                    onCollapsedChange={(collapsed) => {
+                        if (collapsed) setIsLocationDropdownOpen(false);
+                    }}
+                    brandingRow={
+                        <>
+                            <AppLogo />
 
-                    {/* Right icons */}
-                    <div className="mobile-header-actions">
-                        {/* Location */}
-                        <div className="relative">
-                            <button
-                                onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
-                                className={`touch-target flex items-center gap-1 rounded-xl bg-transparent transition-colors
+                            {/* Right icons */}
+                            <div className="mobile-header-actions">
+                                {/* Location */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+                                        className={`touch-target flex items-center gap-1 rounded-xl bg-transparent transition-colors
                                     ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}`}
-                                aria-label="Location"
-                            >
-                                {currentLocation.isDetecting ? (
-                                    <div className="w-6 h-6 border-2 border-[#0ECCEE] border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                    <MapPin className="w-6 h-6" />
-                                )}
-                                {currentLocation.hasPermission && !currentLocation.isDetecting && (
-                                    <span className="text-xs font-medium text-[#0ECCEE] max-w-[64px] truncate hidden xs:block">
-                                        {currentLocation.city}
-                                    </span>
-                                )}
-                            </button>
+                                        aria-label="Location"
+                                    >
+                                        {currentLocation.isDetecting ? (
+                                            <div className="w-6 h-6 border-2 border-[#0ECCEE] border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <MapPin className="w-6 h-6" />
+                                        )}
+                                        {currentLocation.hasPermission && !currentLocation.isDetecting && (
+                                            <span className="text-xs font-medium text-[#0ECCEE] max-w-[64px] truncate hidden xs:block">
+                                                {currentLocation.city}
+                                            </span>
+                                        )}
+                                    </button>
 
-                            {/* Location dropdown  keep existing */}
-                            {isLocationDropdownOpen && (
-                                <div className={`absolute right-0 mt-2 w-72 rounded-2xl shadow-2xl border backdrop-blur-md z-50
+                                    {/* Location dropdown  keep existing */}
+                                    {isLocationDropdownOpen && (
+                                        <div className={`absolute right-0 mt-2 w-72 rounded-2xl shadow-2xl border backdrop-blur-md z-50
                                     ${isDark ? 'bg-black/95 border-gray-700/50' : 'bg-white/95 border-gray-200/50'}`}>
-                                    <div className={`px-4 py-3 border-b flex items-center justify-between
+                                            <div className={`px-4 py-3 border-b flex items-center justify-between
                                         ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                                        <h3 className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                            Current Location
-                                        </h3>
-                                        <button
-                                            type="button"
-                                            aria-label="Close location menu"
-                                            onClick={() => setIsLocationDropdownOpen(false)}
-                                            className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                    <div className="p-4">
-                                        <div className="flex items-start gap-3 mb-4">
-                                            <div className={`p-2 rounded-lg ${currentLocation.hasPermission ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
-                                                <MapPin className="w-4 h-4" />
+                                                <h3 className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    Current Location
+                                                </h3>
+                                                <button
+                                                    type="button"
+                                                    aria-label="Close location menu"
+                                                    onClick={() => setIsLocationDropdownOpen(false)}
+                                                    className={`p-1 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                                                    <X className="w-4 h-4" />
+                                                </button>
                                             </div>
-                                            <div className="flex-1">
-                                                <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                    {currentLocation.city}
-                                                </p>
-                                                <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                                    {currentLocation.state}, {currentLocation.country}
-                                                </p>
+                                            <div className="p-4">
+                                                <div className="flex items-start gap-3 mb-4">
+                                                    <div className={`p-2 rounded-lg ${currentLocation.hasPermission ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                                                        <MapPin className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className={`font-medium text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                            {currentLocation.city}
+                                                        </p>
+                                                        <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                            {currentLocation.state}, {currentLocation.country}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => { setIsLocationDropdownOpen(false); detectUserLocation(); }}
+                                                    disabled={currentLocation.isDetecting}
+                                                    className="w-full py-2 px-3 rounded-lg text-sm font-medium bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 text-black transition-colors disabled:opacity-50"
+                                                >
+                                                    {currentLocation.isDetecting ? 'Detecting…' : 'Detect My Location'}
+                                                </button>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => { setIsLocationDropdownOpen(false); detectUserLocation(); }}
-                                            disabled={currentLocation.isDetecting}
-                                            className="w-full py-2 px-3 rounded-lg text-sm font-medium bg-[#0ECCEE] hover:bg-[#0ECCEE]/90 text-black transition-colors disabled:opacity-50"
-                                        >
-                                            {currentLocation.isDetecting ? 'Detecting…' : 'Detect My Location'}
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
 
-                        {/* Bell */}
-                        <button
-                            onClick={() => navigate('/notifications')}
-                            className={`touch-target relative rounded-xl bg-transparent transition-colors
+                                {/* Bell */}
+                                <button
+                                    onClick={() => navigate('/notifications')}
+                                    className={`touch-target relative rounded-xl bg-transparent transition-colors
                                 ${isDark ? 'text-white hover:bg-gray-800' : 'text-black hover:bg-gray-100'}`}
-                            aria-label="Notifications"
-                        >
-                            <Bell className="w-6 h-6" />
-                            {unreadCount > 0 && (
-                                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-                            )}
-                        </button>
-                    </div>
-                    </>
-                }
-                searchRow={
-                    <MobileHeroSearchField
-                        isDark={isDark}
-                        placeholder="search college, fest"
-                        quickPickItems={searchQuickPicks}
-                        keywordCatalog={searchKeywordCatalog}
-                        onResultNavigate={handleSearchNavigate}
-                    />
-                }
-                categoryBar={<HomeCategoryBar isDark={isDark} noPadding />}
-            />
+                                    aria-label="Notifications"
+                                >
+                                    <Bell className="w-6 h-6" />
+                                    {unreadCount > 0 && (
+                                        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+                                    )}
+                                </button>
+                            </div>
+                        </>
+                    }
+                    searchRow={
+                        <MobileHeroSearchField
+                            isDark={isDark}
+                            placeholder="search college, fest"
+                            quickPickItems={searchQuickPicks}
+                            keywordCatalog={searchKeywordCatalog}
+                            onResultNavigate={handleSearchNavigate}
+                        />
+                    }
+                    categoryBar={<HomeCategoryBar isDark={isDark} noPadding />}
+                />
 
-            {/* Main content - shared mobile + desktop */}
-            <main className="flex-1 pb-4">
-                <h1 className="sr-only">Discover college fests, clubs, treks, and events</h1>
-                {/* Hero  full chrome width on desktop (aligns with navbar Pune  profile) */}
-                {heroEvents.length > 0 && (
-                    <HeroBanner
-                        events={heroEvents}
-                        isHome={true}
-                        onEventClick={(id) => {
-                            const slide = heroEvents.find((e) => e.id === id);
-                            if (!slide) return;
-                            if (slide._type === 'events') navigate(eventShowPath(slide));
-                            else if (slide._type === 'runclub') {
-                                navigate(runClubPath(slide), {
-                                    state: {
-                                        club: {
-                                            _id: slide.id,
-                                            name: slide.name || slide.title,
-                                            basedIn: slide.subtitle,
-                                            coverImage: slide.image,
-                                            listingHub: slide.listingHub,
-                                            slug: slide.slug,
+                {/* Main content - shared mobile + desktop */}
+                <main className="flex-1 pb-4">
+                    <h1 className="sr-only">Discover college fests, clubs, treks, and events</h1>
+                    {/* Hero  full chrome width on desktop (aligns with navbar Pune  profile) */}
+                    {heroEvents.length > 0 && (
+                        <HeroBanner
+                            events={heroEvents}
+                            isHome={true}
+                            onEventClick={(id) => {
+                                const slide = heroEvents.find((e) => e.id === id);
+                                if (!slide) return;
+                                if (slide._type === 'events') navigate(eventShowPath(slide));
+                                else if (slide._type === 'runclub') {
+                                    navigate(runClubPath(slide), {
+                                        state: {
+                                            club: {
+                                                _id: slide.id,
+                                                name: slide.name || slide.title,
+                                                basedIn: slide.subtitle,
+                                                coverImage: slide.image,
+                                                listingHub: slide.listingHub,
+                                                slug: slide.slug,
+                                            },
                                         },
-                                    },
-                                });
-                            } else if (slide._type === 'trek') navigate(trekPath(slide), { state: { trek: slide } });
-                            else if (slide._type === 'community') navigate(communityPath(slide));
-                            else if (slide._type === 'sport') navigate(sportRunPath(slide), { state: { event: slide } });
-                            else navigateToFestDetail(slide);
-                        }}
-                        isDark={isDark}
-                        isFavorite={(id) => isFavorite(id)}
-                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
-                    />
-                )}
+                                    });
+                                } else if (slide._type === 'trek') navigate(trekPath(slide), { state: { trek: slide } });
+                                else if (slide._type === 'community') navigate(communityPath(slide));
+                                else if (slide._type === 'sport') navigate(sportRunPath(slide), { state: { event: slide } });
+                                else navigateToFestDetail(slide);
+                            }}
+                            isDark={isDark}
+                            isFavorite={(id) => isFavorite(id)}
+                            onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
+                        />
+                    )}
 
 
-                <AnnouncementBanner announcement={publicConfig.announcement} />
+                    <AnnouncementBanner announcement={publicConfig.announcement} />
 
-                <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
-                    {/* Ongoing Events */}
-                    <HomeCarouselSection
-                        title={publicConfig.labels.home.ongoing || sectionLabels.ongoing}
-                        items={trendingItems}
-                        loading={shouldShowHomeSectionLoading({
-                            itemCount: trendingItems.length,
-                            isFestsLoading,
-                            isHomeAuxLoaded,
-                            hasError: Boolean(homeFeedError || festError),
-                        })}
-                        isDark={isDark}
-                        tallCard
-                        cardGap={TRENDING_CARD_GAP}
-                        emptyFallback={
-                            (homeFeedError || festError) && trendingItems.length === 0 ? (
-                                <section className="home-section-block">
-                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {publicConfig.labels.home.ongoing || sectionLabels.ongoing}
-                                    </h2>
-                                    <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
-                                </section>
-                            ) : (
-                                <section className="home-section-block">
-                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {publicConfig.labels.home.ongoing || sectionLabels.ongoing}
-                                    </h2>
-                                    <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
-                                        <p className="text-sm">No ongoing events right now</p>
-                                    </div>
-                                </section>
-                            )
-                        }
-                        isFavorite={(id) => isFavorite(id)}
-                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
-                        onItemClick={navigateToHomeItem}
-                        getShareUrl={getHomeItemShareUrl}
-                    />
+                    <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
+                        {/* Ongoing Events */}
+                        <HomeCarouselSection
+                            title={publicConfig.labels.home.ongoing || sectionLabels.ongoing}
+                            items={trendingItems}
+                            loading={shouldShowHomeSectionLoading({
+                                itemCount: trendingItems.length,
+                                isFestsLoading,
+                                isHomeAuxLoaded,
+                                hasError: Boolean(homeFeedError || festError),
+                            })}
+                            isDark={isDark}
+                            tallCard
+                            cardGap={TRENDING_CARD_GAP}
+                            emptyFallback={
+                                (homeFeedError || festError) && trendingItems.length === 0 ? (
+                                    <section className="home-section-block">
+                                        <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {publicConfig.labels.home.ongoing || sectionLabels.ongoing}
+                                        </h2>
+                                        <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
+                                    </section>
+                                ) : (
+                                    <section className="home-section-block">
+                                        <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {publicConfig.labels.home.ongoing || sectionLabels.ongoing}
+                                        </h2>
+                                        <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
+                                            <p className="text-sm">No ongoing events right now</p>
+                                        </div>
+                                    </section>
+                                )
+                            }
+                            isFavorite={(id) => isFavorite(id)}
+                            onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
+                            onItemClick={navigateToHomeItem}
+                            getShareUrl={getHomeItemShareUrl}
+                        />
 
-                    {/* Happening Near You */}
-                    <HomeCarouselSection
-                        title={publicConfig.labels.home.happening || sectionLabels.happening}
-                        items={happeningItems}
-                        loading={shouldShowHomeSectionLoading({
-                            itemCount: happeningItems.length,
-                            isFestsLoading,
-                            isHomeAuxLoaded,
-                            hasError: Boolean(homeFeedError || festError),
-                        })}
-                        isDark={isDark}
-                        wideCard
-                        emptyFallback={
-                            (homeFeedError || festError) && happeningItems.length === 0 ? (
-                                <section className="home-section-block">
-                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {publicConfig.labels.home.happening || sectionLabels.happening}
-                                    </h2>
-                                    <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
-                                </section>
-                            ) : (
-                                <section className="home-section-block">
-                                    <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {publicConfig.labels.home.happening || sectionLabels.happening}
-                                    </h2>
-                                    <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
-                                        <p className="text-sm">{publicConfig.emptyStates.home.happening}</p>
-                                    </div>
-                                </section>
-                            )
-                        }
-                        isFavorite={(id) => isFavorite(id)}
-                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
-                        onItemClick={navigateToHomeItem}
-                        getShareUrl={getHomeItemShareUrl}
-                    />
+                        {/* Happening Near You */}
+                        <HomeCarouselSection
+                            title={publicConfig.labels.home.happening || sectionLabels.happening}
+                            items={happeningItems}
+                            loading={shouldShowHomeSectionLoading({
+                                itemCount: happeningItems.length,
+                                isFestsLoading,
+                                isHomeAuxLoaded,
+                                hasError: Boolean(homeFeedError || festError),
+                            })}
+                            isDark={isDark}
+                            wideCard
+                            emptyFallback={
+                                (homeFeedError || festError) && happeningItems.length === 0 ? (
+                                    <section className="home-section-block">
+                                        <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {publicConfig.labels.home.happening || sectionLabels.happening}
+                                        </h2>
+                                        <div className="px-4"><AutoRetryError isDark={isDark} onRetry={forceRefreshData} /></div>
+                                    </section>
+                                ) : (
+                                    <section className="home-section-block">
+                                        <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {publicConfig.labels.home.happening || sectionLabels.happening}
+                                        </h2>
+                                        <div className={`mx-4 text-center py-10 rounded-3xl ${isDark ? 'bg-black text-gray-400' : 'bg-[#F2F4F7] text-gray-500'}`}>
+                                            <p className="text-sm">{publicConfig.emptyStates.home.happening}</p>
+                                        </div>
+                                    </section>
+                                )
+                            }
+                            isFavorite={(id) => isFavorite(id)}
+                            onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
+                            onItemClick={navigateToHomeItem}
+                            getShareUrl={getHomeItemShareUrl}
+                        />
 
-                    <CustomPageSectionsRenderer
-                        targetPage="home"
-                        sections={homePageSections ?? undefined}
-                        fests={fests}
-                        treks={homeTreks}
-                        communities={homeCommunities}
-                        sports={homeSports}
-                        runClubs={homeRunClubs}
-                        eventShows={homeEventShows}
-                        transformedFests={transformedFests}
-                        isDark={isDark}
-                        isFavorite={(id) => isFavorite(id)}
-                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
-                        onItemClick={navigateToHomeItem}
-                        getShareUrl={getHomeItemShareUrl}
-                    />
+                        <CustomPageSectionsRenderer
+                            targetPage="home"
+                            sections={homePageSections ?? undefined}
+                            fests={fests}
+                            treks={homeTreks}
+                            communities={homeCommunities}
+                            sports={homeSports}
+                            runClubs={homeRunClubs}
+                            eventShows={homeEventShows}
+                            transformedFests={transformedFests}
+                            isDark={isDark}
+                            isFavorite={(id) => isFavorite(id)}
+                            onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
+                            onItemClick={navigateToHomeItem}
+                            getShareUrl={getHomeItemShareUrl}
+                        />
 
-                </div>
-            </main>
+                    </div>
+                </main>
 
-            <ReviewsSection reviews={publicConfig?.reviews || publicConfig?.testimonials} />
+                <ReviewsSection reviews={publicConfig?.reviews || publicConfig?.testimonials} />
             </div>
 
 

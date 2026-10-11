@@ -457,7 +457,7 @@ export default function CrwdCtrlLogin({
                                     <button
                                         type="button"
                                         onClick={handoffToExternalBrowser}
-                                        className="w-full min-h-14 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-sm tracking-wide hover:opacity-90 pointer-events-auto touch-manipulation"
+                                        className="w-full min-h-14 flex items-center justify-center gap-2 rounded-2xl bg-[#0ECCEE] text-black font-extrabold text-sm tracking-wide hover:opacity-90 shadow-md shadow-[#0ECCEE]/25 pointer-events-auto touch-manipulation"
                                     >
                                         <ExternalLink size={18} />
                                         OPEN IN {preferredBrowserName.toUpperCase()}
@@ -740,7 +740,7 @@ export default function CrwdCtrlLogin({
                                 <button
                                     type="button"
                                     onClick={handoffToExternalBrowser}
-                                    className="w-full min-h-12 flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm bg-[#0ECCEE] text-black hover:opacity-90 pointer-events-auto touch-manipulation"
+                                    className="w-full min-h-12 flex items-center justify-center gap-2 py-2.5 rounded-lg font-extrabold text-sm bg-[#0ECCEE] text-black hover:opacity-90 shadow-md shadow-[#0ECCEE]/25 pointer-events-auto touch-manipulation"
                                 >
                                     <ExternalLink size={18} />
                                     Open in {preferredBrowserName}

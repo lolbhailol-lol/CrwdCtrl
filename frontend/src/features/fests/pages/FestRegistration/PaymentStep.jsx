@@ -35,7 +35,7 @@ export function CompletingPaymentStep({
               <button
                 type="button"
                 onClick={onRetryResume}
-                className="w-full px-6 py-3 bg-[#0ECCEE] text-black rounded-lg font-semibold hover:bg-[#0ECCEE]/80 transition-colors"
+                className="w-full px-6 py-3 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 cursor-pointer"
               >
                 Retry registration
               </button>
@@ -43,12 +43,12 @@ export function CompletingPaymentStep({
             <button
               type="button"
               onClick={() => goToBookings(navigate)}
-              className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+              className={`w-full px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 cursor-pointer ${
                 onRetryResume
                   ? isDark
                     ? 'border border-gray-600 text-gray-200 hover:bg-gray-800'
                     : 'border border-gray-300 text-gray-800 hover:bg-gray-100'
-                  : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/80'
+                  : 'bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35'
               }`}
             >
               View My Bookings
@@ -185,7 +185,7 @@ export default function PaymentStep({
                 type="button"
                 disabled={couponQuoting || !couponCode.trim()}
                 onClick={applyCouponCode}
-                className="shrink-0 px-4 py-2.5 bg-[#0ECCEE] text-black font-semibold text-sm hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                className="shrink-0 px-4 py-2.5 bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] text-black font-extrabold text-xs hover:opacity-95 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {couponQuoting
                   ? 'Checking…'
@@ -242,11 +242,11 @@ export default function PaymentStep({
         <button
           onClick={onPay}
           disabled={paymentLoading || !priceBreakdown}
-          className="w-full py-3.5 rounded-xl font-semibold text-black bg-[#0ECCEE] hover:opacity-90 transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {paymentLoading ? (
             <>
-              <Loader className="w-5 h-5 animate-spin" />
+              <Loader className="w-5 h-5 animate-spin text-black" />
               Processing…
             </>
           ) : !priceBreakdown ? (

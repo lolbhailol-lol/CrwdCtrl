@@ -421,7 +421,7 @@ function BookingCard({ item, isDark, onViewBooking, onDownloadTicket, onAddToCal
                     <button
                         type="button"
                         onClick={() => onDownloadTicket(item)}
-                        className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-white text-base font-medium font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
+                        className="flex-1 h-11 rounded-2xl bg-[#0ECCEE] text-black text-base font-bold font-inter leading-6 hover:bg-[#0ECCEE]/90 transition-colors"
                     >
                         Download ticket
                     </button>
@@ -719,7 +719,7 @@ function Booking() {
             <main className="px-4 pt-[calc(var(--safe-top)+1rem)] sm:px-6 lg:px-8">
                 <div
                     className={`mx-auto w-full max-w-md lg:max-w-2xl overflow-hidden rounded-2xl ${
-                        isDark ? 'bg-[#161718]' : 'bg-white'
+                        isDark ? 'bg-[#121215] border border-white/10' : 'bg-white border border-gray-100/90 shadow-xs'
                     }`}
                 >
                     <div className="px-4 pt-4">

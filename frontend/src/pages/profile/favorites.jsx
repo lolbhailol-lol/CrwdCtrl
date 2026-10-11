@@ -81,8 +81,8 @@ const FilterDropdown = ({ isOpen, onClose, onFilterChange, activeFilter, isDark 
     if (!isOpen) return null;
 
     return (
-        <div className={`absolute top-full right-0 mt-2 w-48 rounded-xl shadow-xl border z-10 ${
-            isDark ? 'bg-[#0a0a0a] border-gray-800' : 'bg-white border-gray-200'
+        <div className={`absolute top-full right-0 mt-2 w-48 rounded-xl shadow-2xl border z-10 ${
+            isDark ? 'bg-[#121215] border-white/10 text-white' : 'bg-white border-gray-200 text-gray-900 shadow-md'
         }`}>
             <div className="p-2">
                 {filters.map((filter) => {

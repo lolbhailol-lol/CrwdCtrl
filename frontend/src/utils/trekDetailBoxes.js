@@ -334,7 +334,7 @@ export function resolveRunMapPin(event) {
     const routeMap = String(event.routeMap || '').trim();
     const venue = String(event.venue || '').trim();
     const city = String(event.city || '').trim();
-    const meetingPoint = String(event.meetingPoint || '').trim();
+    const meetingPoint = String(event.meetingPoint || event.startingPoint || '').trim();
     const clubBase = String(event.runClub?.basedIn || '').trim();
     // Don't put the cafe name under the map for cafe/Mafia Files socials — Location lives in Details.
     const hideCafeCaption = isCafeHangoutEvent(event);
@@ -380,14 +380,32 @@ export function normalizeRunDetailBoxes(list, event = null) {
         legacy.push({ id: `legacy_${legacy.length}`, label, value: String(value), icon, order: legacy.length });
     };
 
-    push('Max People', event.maxParticipants > 0 ? event.maxParticipants : '', 'people');
-    push('Run Timing', event.reportingTime, 'sun');
-    push('Return Time', event.returnTime, 'moon');
-    push('Meeting Point', event.meetingPoint, 'map-pin');
-    push('Age Limit', event.ageLimit, 'age');
-    push('Fitness', event.fitnessLevel, 'fitness');
+    if (event.eventDate || event.date) {
+        try {
+            const formattedDate = new Date(event.eventDate || event.date).toLocaleDateString('en-IN', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+            });
+            push('Date', formattedDate, 'calendar');
+        } catch {
+            push('Date', event.eventDate || event.date, 'calendar');
+        }
+    }
 
-    return legacy;
+    push('Time', event.reportingTime || event.time || event.startTime || event.departureTime, 'sun');
+    push('Venue', event.venue || event.meetingLocation || event.location, 'map-pin');
+    push('Distance', event.distance || event.runDistance, 'flag');
+    push('Pace', event.pace || event.runPace, 'fitness');
+    push('City', event.city, 'map-pin');
+    push('Meeting Point', event.meetingPoint, 'map-pin');
+    push('Max People', event.maxParticipants > 0 ? event.maxParticipants : '', 'people');
+    push('Return Time', event.returnTime, 'moon');
+    push('Age Limit', event.ageLimit, 'age');
+    push('Fitness Level', event.fitnessLevel || event.skillLevel, 'fitness');
+
+    return [...custom, ...legacy];
 }
 
 export function sanitizeDetailBoxesPayload(list) {

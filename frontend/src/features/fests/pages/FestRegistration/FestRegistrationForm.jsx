@@ -214,9 +214,9 @@ export default function FestRegistrationForm({
                   </div>
                 </div>
 
-                <div className={`w-full rounded-full h-2 mb-3 ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                <div className={`w-full rounded-full h-2 mb-3 overflow-hidden ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
                   <div
-                    className="bg-[#0ECCEE] h-2 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] h-2 rounded-full transition-all duration-500 ease-out shadow-[0_0_10px_rgba(14,204,238,0.5)]"
                     style={{ width: `${(currentStep / getTotalSteps()) * 100}%` }}
                   />
                 </div>
@@ -485,26 +485,28 @@ export default function FestRegistrationForm({
             )}
 
             {/* ✅ NEW: Multi-Step Form Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 pb-8 md:pb-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-700/30 mt-6 pb-8 md:pb-2">
               {/* Back Button */}
               <button
                 type="button"
                 onClick={isEffectiveMultiStep() && currentStep > 1 ? handleStepBack : goBack}
-                className={`px-4 sm:px-6 py-3 rounded-xl border font-medium transition-colors text-sm sm:text-base ${isDark ? 'border-gray-700 text-white hover:bg-gray-800/60' : 'border-gray-300 text-gray-900 hover:bg-gray-100'}`}
+                className={`px-5 sm:px-6 py-3 rounded-xl border font-semibold text-sm transition-all duration-200 cursor-pointer active:scale-98 ${
+                  isDark ? 'border-white/10 bg-white/[0.04] text-gray-300 hover:bg-white/[0.08] hover:text-white' : 'border-gray-200 bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
                 disabled={submitting}
               >
-                {isEffectiveMultiStep() && currentStep > 1 ? 'Previous Step' : 'Cancel'}
+                {isEffectiveMultiStep() && currentStep > 1 ? '← Previous Step' : 'Cancel'}
               </button>
 
               {/* Next/Submit Button */}
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 px-4 sm:px-6 py-3 rounded-xl bg-[#0ECCEE] text-black font-bold hover:bg-[#0ECCEE]/90 active:scale-[0.98] transition-all text-sm sm:text-base flex items-center justify-center gap-2 shadow-lg shadow-[#0ECCEE]/10"
+                className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-[#0ECCEE] to-[#00b4d8] hover:opacity-95 active:scale-[0.98] text-black font-extrabold text-sm shadow-lg shadow-[#0ECCEE]/25 hover:shadow-xl hover:shadow-[#0ECCEE]/35 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {submitting ? (
                   <>
-                    <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                    <Loader className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-black" />
                     <span>Processing…</span>
                   </>
                 ) : (() => {

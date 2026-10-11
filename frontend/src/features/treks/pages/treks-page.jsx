@@ -31,9 +31,7 @@ import { usePageSectionHandlers } from '../../../utils/pageSectionHandlers';
 import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
 import { fetchCatalogJSON, invalidateCatalogCache } from '../../../services/api/catalogCache';
 import Seo from '../../../components/Seo';
-import FaqSection from '../../../components/FaqSection';
-import { breadcrumbSchema, faqSchema, itemListSchema } from '../../../utils/seo';
-import { TREKS_FAQ } from '../../../constants/faqs';
+import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
 import { formatTrekCardDate } from '../../../utils/trekDateDisplay';
 import { communityPath, competitionPath, festPath, trekPath } from '../../../utils/slugRoutes';
 import ContentImage from '../../../components/ContentImage';
@@ -469,7 +467,6 @@ function TreksPage() {
                                 .map((c) => ({ name: c.title, url: communityPath(c) })),
                         ],
                     }),
-                    faqSchema(TREKS_FAQ),
                 ]}
             />
 
@@ -738,8 +735,6 @@ function TreksPage() {
                     )}
 
                 </div>
-
-                {(loading || hasTrekContent) && <FaqSection items={TREKS_FAQ} />}
             </main>
         </div>
     );

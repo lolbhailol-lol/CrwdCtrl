@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink, CalendarDays, MapPin } from 'lucide-react';
+import { Phone, Instagram, Check, Mail, ArrowLeft, Ticket, Share2, Users, FileText, ExternalLink, CalendarDays, MapPin, Trophy, Clock, Sparkles } from 'lucide-react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDarkMode } from '../../../../context/DarkModeContext';
 import { useDialog } from '../../../../context/DialogContext';
@@ -41,7 +41,7 @@ import {
 import SimilarFestsSection from '../../components/SimilarFestsSection';
 
 /** Compact slots + team chips — sits above Register Now inside the bar */
-function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
+function RegisterMetaChips({ slotsLabel, teamLabel, isDark, size = 'sm' }) {
     // Keep full wording: "49 slots remain" (not just "49 remain")
     const slotsShort = (() => {
         const raw = String(slotsLabel || '').trim();
@@ -65,28 +65,34 @@ function RegisterMetaChips({ slotsLabel, teamLabel, isDark }) {
         .replace(/\s+/g, ' ')
         .trim() || 'Solo';
 
+    const isLg = size === 'lg';
+
     return (
-        <div className="flex w-full items-center gap-1.5">
+        <div className={`flex flex-wrap items-center gap-2 ${isLg ? 'w-auto' : 'w-full'}`}>
             {slotsShort ? (
                 <span
-                    className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${
+                        isLg ? 'text-xs' : 'text-[10px]'
+                    } font-bold border transition-all ${
                         isDark
-                            ? 'bg-[#0ECCEE]/15 text-[#7DE8F7]'
-                            : 'bg-cyan-50 text-cyan-700'
+                            ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25'
+                            : 'bg-cyan-50 text-cyan-700 border-cyan-200'
                     }`}
                 >
-                    <Ticket className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
+                    <Ticket className={`${isLg ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} shrink-0 opacity-80`} strokeWidth={2.25} />
                     <span className="truncate tabular-nums">{slotsShort}</span>
                 </span>
             ) : null}
             <span
-                className={`inline-flex flex-1 min-w-0 items-center justify-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full ${
+                    isLg ? 'text-xs' : 'text-[10px]'
+                } font-bold border transition-all ${
                     isDark
-                        ? 'bg-violet-500/20 text-violet-200 ring-1 ring-inset ring-violet-400/20'
-                        : 'bg-violet-100 text-violet-800 ring-1 ring-inset ring-violet-200'
+                        ? 'bg-purple-500/10 text-purple-300 border-purple-500/25'
+                        : 'bg-purple-50 text-purple-800 border-purple-200'
                 }`}
             >
-                <Users className="w-2.5 h-2.5 shrink-0 opacity-70" strokeWidth={2.25} />
+                <Users className={`${isLg ? 'w-3.5 h-3.5' : 'w-2.5 h-2.5'} shrink-0 opacity-80`} strokeWidth={2.25} />
                 <span className="truncate">{teamShort}</span>
             </span>
         </div>
@@ -572,6 +578,7 @@ function EventPage() {
     const inAppBack = useInAppBack();
     const location = useLocation();
     const [activeRound, setActiveRound] = useState(0);
+    const [activeContentTab, setActiveContentTab] = useState('about');
     const [showRegistrationSuccess] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
     const [showFullAbout, setShowFullAbout] = useState(false);
@@ -1155,13 +1162,13 @@ function EventPage() {
         ? 'object-cover object-[center_28%]'
         : 'object-cover object-center';
     const competitionHeroMobileH = showHeroImage
-        ? (isKshitijPuneRegionals ? 'aspect-[16/10] h-auto max-h-[240px] min-h-[180px]' : 'h-[396px]')
-        : 'h-52';
+        ? (isKshitijPuneRegionals ? 'aspect-[16/10] h-auto max-h-[220px] min-h-[160px]' : 'h-48 sm:h-56')
+        : 'h-40';
     const competitionHeroDesktopH = isKshitijPuneRegionals
-        ? 'h-56 lg:h-[16rem] xl:h-[18rem]'
+        ? 'h-52 lg:h-[14rem]'
         : isMindSparkCompetition
-            ? 'h-80 lg:h-[24rem] xl:h-[26rem]'
-            : 'h-72 lg:h-[20rem] xl:h-[22rem]';
+            ? 'h-56 lg:h-[15.5rem]'
+            : 'h-52 lg:h-[15rem]';
     const competitionHeroAnimClass = isKshitijPuneRegionals ? '' : 'animate-detail-enter';
 
     // Function to get common rules based on fest context
@@ -2063,137 +2070,321 @@ function EventPage() {
                             </div>
 
                                 <div
-                                    className={`relative ${showHeroImage ? '-mt-10' : ''} flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden ${
-                                        isDark ? 'bg-[#161718]' : 'bg-white'
+                                    className={`relative ${showHeroImage ? '-mt-8' : ''} flex-1 rounded-t-3xl z-10 pb-4 overflow-hidden ${
+                                        isDark ? 'bg-[#0B0D13]' : 'bg-white'
                                     }`}
                                 >
                             {/* Mobile Event Header */}
-                            <div className="px-4 pt-5 pb-3">
-                                <h1 className={`text-[26px] font-bold leading-8 wrap-break-word mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            <div className="px-4 pt-4 pb-2">
+                                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                    {festName ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/25">
+                                            <span className="size-1.5 rounded-full bg-cyan-400" />
+                                            {festName}
+                                        </span>
+                                    ) : null}
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white/5 text-gray-300 border border-white/10">
+                                        {eventData.eventCategory || eventData.category || 'Competition'}
+                                    </span>
+                                </div>
+                                <h1 className={`text-2xl font-black leading-tight tracking-tight wrap-break-word ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                     {eventData.title}
                                 </h1>
                                 {eventData?.subtitle ? (
-                                    <p className={`text-sm font-semibold mb-2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    <p className={`text-xs font-semibold tracking-wide uppercase mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                         {eventData.subtitle}
                                     </p>
                                 ) : null}
-                                {renderAboutBlock({
-                                    className: aboutText ? 'mb-3' : '',
-                                    headingClass: `text-base font-bold mb-1.5 ${isDark ? 'text-white' : 'text-gray-900'}`,
-                                    bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-400' : 'text-gray-600'}`,
-                                })}
                             </div>
 
-                            {/* Mobile Event Details */}
+                            {/* Mobile 4-Box High-Density Metrics Grid */}
                             <div className="px-4 py-2">
-                                {(eventData.date || eventData.venue) && (
-                                <div className="space-y-2 mb-4">
-                                    {eventData.date ? (
-                                    <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                        <CalendarDays className="w-4 h-4 shrink-0" aria-hidden="true" />
-                                        <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {/* Date & Time */}
+                                    <div className={`p-2.5 rounded-2xl border transition ${
+                                        isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                                    }`}>
+                                        <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                                            <CalendarDays size={12} className="text-cyan-400" />
+                                            <span>Date & Time</span>
+                                        </div>
+                                        <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {eventData.date || 'TBA'}
+                                        </div>
+                                        {eventData.time ? (
+                                            <div className="text-[10px] text-gray-400 mt-0.5 truncate">{eventData.time}</div>
+                                        ) : null}
                                     </div>
+
+                                    {/* Venue */}
+                                    <div className={`p-2.5 rounded-2xl border transition ${
+                                        isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                                    }`}>
+                                        <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                                            <MapPin size={12} className="text-cyan-400" />
+                                            <span>Venue</span>
+                                        </div>
+                                        <div className={`text-xs font-bold leading-snug line-clamp-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {eventData.venue && eventData.venue !== 'TBD' ? eventData.venue : 'On-Ground / TBA'}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+                                            {eventData.mode || 'Offline'}
+                                        </div>
+                                    </div>
+
+                                    {/* Team Size */}
+                                    <div className={`p-2.5 rounded-2xl border transition ${
+                                        isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                                    }`}>
+                                        <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                                            <Users size={12} className="text-cyan-400" />
+                                            <span>Team Size</span>
+                                        </div>
+                                        <div className={`text-xs font-bold leading-snug ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            {buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+                                            {eventData.teamSizeMax > 1 ? `${eventData.teamSizeMin || 1}-${eventData.teamSizeMax} Members` : 'Individual'}
+                                        </div>
+                                    </div>
+
+                                    {/* Prize Pool */}
+                                    <div className={`p-2.5 rounded-2xl border transition ${
+                                        isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                                    }`}>
+                                        <div className="flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                                            <Trophy size={12} className="text-amber-400" />
+                                            <span>Prize Pool</span>
+                                        </div>
+                                        <div className="text-xs font-black text-amber-400 truncate leading-snug">
+                                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim())
+                                                ? eventData.prize
+                                                : 'Certificate & Goodies'}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-0.5 truncate">
+                                            {showCompetitionRounds ? `${roundsList.length} Rounds` : 'All Winners'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Resource Links on Mobile */}
+                            {(problemStatementLink || officialPageLink) ? (
+                                <div className="px-4 py-1.5 grid grid-cols-2 gap-2">
+                                    {problemStatementLink ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => openExternalUrl(problemStatementLink.url)}
+                                            className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
+                                                isDark ? 'bg-white/5 border-white/10 text-white hover:border-cyan-400/50' : 'bg-gray-100 border-gray-200 text-gray-900'
+                                            }`}
+                                        >
+                                            <FileText size={13} className="text-cyan-400 shrink-0" />
+                                            <span className="truncate">Problem PDF</span>
+                                        </button>
                                     ) : null}
-                                    {eventData.venue && eventData.venue !== 'TBD' ? (
-                                    <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                        <MapPin className="w-4 h-4 shrink-0" aria-hidden="true" />
-                                        <span className="text-sm">{eventData.venue}</span>
-                                    </div>
+                                    {officialPageLink ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => openExternalUrl(officialPageLink.url)}
+                                            className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold border transition ${
+                                                isDark ? 'bg-white/5 border-white/10 text-white hover:border-cyan-400/50' : 'bg-gray-100 border-gray-200 text-gray-900'
+                                            }`}
+                                        >
+                                            <ExternalLink size={13} className="text-cyan-400 shrink-0" />
+                                            <span className="truncate">Official Site</span>
+                                        </button>
                                     ) : null}
                                 </div>
-                                )}
-                                </div>
-
-                            {/* Classic podium for monetary prizes (Kshitij: 1st place cash only). */}
-                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
-                                <div className="px-4 pb-2">
-                                    <PrizePoolPodium
-                                      prizeText={eventData.prize}
-                                      isDark={isDark}
-                                      compact
-                                      showTitle={isTechfestCompetition}
-                                    />
-                                    </div>
-                                )}
-
-                            {problemStatementLink ? (
-                            <div className="px-4 pb-2">
-                                {renderProblemStatementLink()}
-                                                </div>
                             ) : null}
 
-                            {/* Mobile Competition Rounds — hidden when no real round content */}
-                            {showCompetitionRounds && (
-                            <div className="px-4 py-5">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{roundsSectionTitle}</h2>
+                            {/* Mobile Segmented Switcher */}
+                            <div className="px-4 pt-3 pb-2">
+                                <div className={`flex items-center p-1 rounded-2xl border ${
+                                    isDark ? 'bg-black/60 border-white/10' : 'bg-gray-100 border-gray-200'
+                                } overflow-x-auto no-scrollbar`}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveContentTab('about')}
+                                        className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                                            activeContentTab === 'about'
+                                                ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-sm'
+                                                : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                        }`}
+                                    >
+                                        About
+                                    </button>
+                                    {showCompetitionRounds ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveContentTab('rounds')}
+                                            className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap flex items-center justify-center gap-1 ${
+                                                activeContentTab === 'rounds'
+                                                    ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-sm'
+                                                    : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                            }`}
+                                        >
+                                            <span>Rounds</span>
+                                            <span className={`px-1 rounded-full text-[9px] font-extrabold ${activeContentTab === 'rounds' ? 'bg-black/20 text-black' : 'bg-white/10 text-cyan-300'}`}>
+                                                {roundsList.length}
+                                            </span>
+                                        </button>
+                                    ) : null}
+                                    {commonRules.length > 0 ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveContentTab('rules')}
+                                            className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap flex items-center justify-center gap-1 ${
+                                                activeContentTab === 'rules'
+                                                    ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-sm'
+                                                    : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                            }`}
+                                        >
+                                            <span>Rules</span>
+                                            <span className={`px-1 rounded-full text-[9px] font-extrabold ${activeContentTab === 'rules' ? 'bg-black/20 text-black' : 'bg-white/10 text-cyan-300'}`}>
+                                                {commonRules.length}
+                                            </span>
+                                        </button>
+                                    ) : null}
+                                    {contactList.length > 0 ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveContentTab('contacts')}
+                                            className={`flex-1 py-1.5 px-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                                                activeContentTab === 'contacts'
+                                                    ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-sm'
+                                                    : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                            }`}
+                                        >
+                                            Contacts
+                                        </button>
+                                    ) : null}
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveContentTab('all')}
+                                        className={`py-1.5 px-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                                            activeContentTab === 'all'
+                                                ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-sm'
+                                                : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                        }`}
+                                    >
+                                        All
+                                    </button>
+                                </div>
+                            </div>
 
-                                    {/* Mobile Round Tabs - Dynamic based on available rounds */}
-                                    {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className={`grid gap-2 mb-4 mt-4`} style={{ gridTemplateColumns: `repeat(${Math.min(roundsList.length, 5)}, 1fr)` }}>
-                                            {roundsList.map((round, idx) => (
-                                                <button
-                                                    key={idx}
-                                                    onClick={() => setActiveRound(idx)}
-                                                    className={`py-2.5 px-2 rounded-lg font-medium transition text-xs sm:text-sm ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-blue-50 text-black'}`
-                                                        : `${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-gray-100 text-black'}`
-                                                        }`}
-                                                >
-                                                    <span className="block truncate text-center leading-tight">{getRoundTabLabel(round, idx, roundsList.length)}</span>
-                                                </button>
-                                            ))}
+                            {/* Mobile Tab Content Card */}
+                            <div className="px-4 py-2">
+                                <div className={`p-4 rounded-3xl border ${
+                                    isDark ? 'bg-white/[0.02] border-white/10' : 'bg-white border-gray-200/80 shadow-xs'
+                                }`}>
+                                    {/* About Tab Content */}
+                                    {(activeContentTab === 'about' || activeContentTab === 'all') && (
+                                        <div className={activeContentTab === 'all' ? 'mb-5 pb-5 border-b border-white/10' : ''}>
+                                            <h2 className={`text-sm font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                About Competition
+                                            </h2>
+                                            {renderAboutBlock({
+                                                className: 'mb-4',
+                                                headingClass: 'hidden',
+                                                bodyClass: `text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`,
+                                            })}
+
+                                            {/* Prize Podium within About tab */}
+                                            {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                                                <div className="mt-3 pt-3 border-t border-white/5">
+                                                    <PrizePoolPodium
+                                                        prizeText={eventData.prize}
+                                                        isDark={isDark}
+                                                        compact
+                                                        showTitle={isTechfestCompetition}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
-                                    {/* Mobile Round Content */}
-                                    <div className="mt-4">
-                                        {renderActiveRoundBody('mobile')}
-                                                        </div>
+                                    {/* Rounds Tab Content */}
+                                    {(activeContentTab === 'rounds' || activeContentTab === 'all') && showCompetitionRounds && (
+                                        <div className={activeContentTab === 'all' ? 'mb-5 pb-5 border-b border-white/10' : ''}>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h2 className={`text-sm font-bold uppercase tracking-wider ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {roundsSectionTitle}
+                                                </h2>
+                                                <span className={`text-[11px] font-semibold ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>
+                                                    Round {activeRound + 1} of {roundsList.length}
+                                                </span>
+                                            </div>
+
+                                            {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                                <div className="grid gap-1.5 mb-3" style={{ gridTemplateColumns: `repeat(${Math.min(roundsList.length, 5)}, 1fr)` }}>
+                                                    {roundsList.map((round, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => setActiveRound(idx)}
+                                                            className={`py-2 px-1 rounded-xl text-xs font-bold transition text-center ${
+                                                                activeRound === idx
+                                                                    ? 'bg-cyan-400 text-black shadow-sm'
+                                                                    : isDark ? 'bg-white/5 text-gray-300' : 'bg-gray-100 text-gray-700'
+                                                            }`}
+                                                        >
+                                                            <span className="block truncate">{getRoundTabLabel(round, idx, roundsList.length)}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="text-xs leading-relaxed">
+                                                {renderActiveRoundBody('mobile')}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Rules Tab Content */}
+                                    {(activeContentTab === 'rules' || activeContentTab === 'all') && (commonRules.length > 0 || judgingCriteria.length > 0) && (
+                                        <div className={activeContentTab === 'all' ? 'mb-5 pb-5 border-b border-white/10' : ''}>
+                                            {commonRules.length > 0 && (
+                                                <div className="mb-4">
+                                                    <h2 className={`text-sm font-bold uppercase tracking-wider mb-2.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        {rulesSectionTitle}
+                                                    </h2>
+                                                    <RulesList
+                                                        rules={commonRules}
+                                                        ruleKey={`mobile-common-rules-${eventData?.id}`}
+                                                        maxItems={4}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {judgingCriteria.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-white/5">
+                                                    <h2 className={`text-sm font-bold uppercase tracking-wider mb-2.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                        Judging Criteria
+                                                    </h2>
+                                                    <RulesList
+                                                        rules={judgingCriteria}
+                                                        ruleKey={`mobile-judging-${eventData?.id}`}
+                                                        maxItems={4}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Contacts Tab Content */}
+                                    {(activeContentTab === 'contacts' || activeContentTab === 'all') && contactList.length > 0 && (
+                                        <div>
+                                            <h2 className={`text-sm font-bold uppercase tracking-wider mb-2.5 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                Organizer Contacts
+                                            </h2>
+                                            <ContactDetailsBox />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            )}
 
-                            {/* Mobile Common Rules */}
-                            {commonRules.length > 0 ? (
-                            <div className="px-4 py-5">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{rulesSectionTitle}</h2>
-                                    <RulesList
-                                        rules={commonRules}
-                                        ruleKey={`mobile-common-rules-${eventData?.id}`}
-                                        maxItems={3}
-                                    />
-                                </div>
-                            </div>
-                            ) : null}
-
-                            {judgingCriteria.length > 0 ? (
-                            <div className="px-4 py-5">
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-white'} rounded-xl p-4 sm:p-5 shadow-sm`}>
-                                    <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Judging Criteria</h2>
-                                    <RulesList
-                                        rules={judgingCriteria}
-                                        ruleKey={`mobile-judging-${eventData?.id}`}
-                                        maxItems={5}
-                                    />
-                                </div>
-                            </div>
-                            ) : null}
-
-                            {/* Mobile Contact Details */}
-                            {(contactList.length > 0 || officialPageLink) ? (
-                            <section className="px-4 mb-8">
-                                {contactList.length > 0 ? (
-                                    <>
-                                        <h2 className={`text-base font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h2>
-                                        <ContactDetailsBox />
-                                    </>
-                                ) : null}
-                                {renderOfficialWebsiteLink({ className: contactList.length > 0 ? 'mt-3' : '' })}
-                            </section>
-                            ) : null}
-
+                            {/* Similar Discovery Section */}
                             {showDiscovery ? (
                                 <SimilarFestsSection
                                     relatedFests={relatedFestsForDiscovery}
@@ -2202,126 +2393,146 @@ function EventPage() {
                                     limit={2}
                                     variant="blocks"
                                     hideFee={false}
-                                    className="px-4 mb-8"
+                                    className="px-4 mt-4 mb-6"
                                 />
                             ) : null}
-                                                </div>
-                                            </div>
-                                        </div>
+                        </div>
+                    </div>
+                </div>
 
                         {/* Desktop/Laptop Layout */}
-                        <div className="hidden md:block max-w-7xl mx-auto px-6 lg:px-8 pt-3 pb-6">
-                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8 items-start">
-                            {/* Left Column - Image and Rules */}
-                            <div className="md:col-span-5 space-y-6 min-w-0">
-                                {/* Event Image Card — 3D trophy when cover missing or loading */}
-                                <div className={`relative rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-[#111213]' : 'bg-white'} p-2`}>
+                        <div className="hidden md:block max-w-7xl mx-auto px-6 lg:px-8 pt-3 pb-8">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-start">
+                            {/* Left Column - Image, Prize Podium, Quick Links, Contacts */}
+                            <div className="md:col-span-5 space-y-4 min-w-0">
+                                {/* Event Image Card */}
+                                <div className={`relative rounded-3xl overflow-hidden p-2 border transition-all ${
+                                    isDark ? 'bg-[#0B0D13]/85 border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl' : 'bg-white border-gray-200/80 shadow-md'
+                                }`}>
                                     <button
                                         type="button"
                                         onClick={goBack}
                                         aria-label="Go back"
-                                        className="absolute top-5 left-5 z-10 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-black/70 backdrop-blur-sm text-white text-sm font-medium hover:bg-black/80 transition"
+                                        className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 h-8.5 px-3 rounded-full bg-black/65 backdrop-blur-md text-white text-xs font-bold border border-white/15 hover:bg-black/85 hover:border-cyan-400/50 transition-all active:scale-95 shadow-md"
                                     >
-                                        <ArrowLeft size={15} />
-                                        Back
+                                        <ArrowLeft size={13} />
+                                        <span>Back</span>
                                     </button>
+
+                                    {/* Category / Mode Badge Overlay */}
+                                    <div className="absolute top-4 right-4 z-10">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-black/70 backdrop-blur-md text-white border border-white/20 shadow-md">
+                                            <Sparkles size={11} className="text-cyan-400 shrink-0" />
+                                            <span className="truncate max-w-[130px]">{eventData.eventCategory || eventData.category || festName || 'Competition'}</span>
+                                        </span>
+                                    </div>
+
                                     <div className={`rounded-2xl overflow-hidden bg-[#1A1B1D] ${competitionHeroDesktopH}`}>
-                                    <CompetitionCoverImage
-                                        key={`${competitionId}-${eventData.image || 'placeholder'}`}
-                                        src={showHeroImage ? eventData.image : null}
-                                        alt={eventData.title || 'Competition'}
-                                        preset={competitionHeroPreset}
-                                        containerClassName="w-full h-full"
-                                        className={`w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
-                                        loaderSize="hero"
-                                        eager={showHeroImage}
-                                        placeholder={showHeroImage ? (isKshitijPuneRegionals ? 'muted' : 'trophy') : 'muted'}
-                                    />
-                                        </div>
-                                </div>
-
-                                <div className="space-y-6">
-                                    {/* Classic podium for monetary prizes (Kshitij: 1st place cash only). */}
-                                    {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
-                                        <PrizePoolPodium
-                                          prizeText={eventData.prize}
-                                          isDark={isDark}
-                                          showTitle={isTechfestCompetition}
+                                        <CompetitionCoverImage
+                                            key={`${competitionId}-${eventData.image || 'placeholder'}`}
+                                            src={showHeroImage ? eventData.image : null}
+                                            alt={eventData.title || 'Competition'}
+                                            preset={competitionHeroPreset}
+                                            containerClassName="w-full h-full"
+                                            className={`w-full h-full ${competitionHeroObjectClass} ${competitionHeroAnimClass}`}
+                                            loaderSize="hero"
+                                            eager={showHeroImage}
+                                            placeholder={showHeroImage ? (isKshitijPuneRegionals ? 'muted' : 'trophy') : 'muted'}
                                         />
-                                    )}
-
-                                    <div className={showRulesJudgingSideBySide ? 'grid grid-cols-2 gap-4' : 'space-y-6'}>
-                                        {/* Common Rules */}
-                                        {commonRules.length > 0 ? (
-                                        <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
-                                            <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{rulesSectionTitle}</h2>
-                                            <RulesList
-                                                rules={commonRules}
-                                                ruleKey={`desktop-common-rules-${eventData?.id}`}
-                                                maxItems={5}
-                                            />
-                                        </div>
-                                        ) : null}
-
-                                        {judgingCriteria.length > 0 ? (
-                                        <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
-                                            <h2 className={`text-2xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Judging Criteria</h2>
-                                            <RulesList
-                                                rules={judgingCriteria}
-                                                ruleKey={`desktop-judging-${eventData?.id}`}
-                                                maxItems={5}
-                                            />
-                                        </div>
-                                        ) : null}
                                     </div>
                                 </div>
 
-                                {/* Contact Details */}
-                                {contactList.length > 0 ? (
-                                                                <div>
-                                    <h3 className={`text-lg font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Contact Details</h3>
-                                    <ContactDetailsBox />
-                                    {renderOfficialWebsiteLink({ className: 'mt-3' })}
-                                                                </div>
-                                ) : (
-                                    renderOfficialWebsiteLink()
+                                {/* Classic podium for monetary prizes */}
+                                {eventData?.prize && !/^(tbd|tba|n\/a|na|-|subject to change)$/i.test(String(eventData.prize).trim()) && (
+                                    <PrizePoolPodium
+                                      prizeText={eventData.prize}
+                                      isDark={isDark}
+                                      showTitle={isTechfestCompetition}
+                                    />
                                 )}
+
+                                {/* Quick Resource Links (PDF & Official Website) */}
+                                {(problemStatementLink || officialPageLink?.url) && (
+                                    <div className="flex flex-wrap gap-2.5">
+                                        {problemStatementLink ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => openExternalUrl(problemStatementLink.url)}
+                                                className={`flex-1 min-w-[130px] inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl text-xs font-bold border transition-all ${
+                                                    isDark
+                                                        ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25 hover:bg-cyan-500/20 hover:border-cyan-400/50'
+                                                        : 'bg-cyan-50 text-cyan-800 border-cyan-200 hover:bg-cyan-100'
+                                                } active:scale-98 shadow-sm`}
+                                            >
+                                                <FileText size={14} className="text-cyan-400 shrink-0" />
+                                                <span className="truncate">Problem Statement</span>
+                                                <ExternalLink size={12} className="opacity-70 shrink-0" />
+                                            </button>
+                                        ) : null}
+
+                                        {officialPageLink?.url ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => openExternalUrl(officialPageLink.url)}
+                                                className={`flex-1 min-w-[130px] inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl text-xs font-bold border transition-all ${
+                                                    isDark
+                                                        ? 'bg-white/5 text-gray-200 border-white/10 hover:bg-white/10 hover:border-white/20'
+                                                        : 'bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200'
+                                                } active:scale-98 shadow-sm`}
+                                            >
+                                                <ExternalLink size={13} className="text-cyan-400 shrink-0" />
+                                                <span className="truncate">{officialPageLink.label || 'Official Site'}</span>
+                                            </button>
+                                        ) : null}
+                                    </div>
+                                )}
+
+                                {/* Organizer Contact Details */}
+                                {contactList.length > 0 ? (
+                                    <div className={`rounded-3xl p-5 border transition-all ${
+                                        isDark ? 'bg-[#0B0D13]/85 border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl' : 'bg-white border-gray-200/80 shadow-md'
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-3.5">
+                                            <h3 className={`text-xs font-extrabold uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                Organizer Contacts
+                                            </h3>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-white/5 text-gray-400 border border-white/10' : 'bg-gray-100 text-gray-600'}`}>
+                                                {contactList.length} {contactList.length === 1 ? 'Contact' : 'Contacts'}
+                                            </span>
+                                        </div>
+                                        <ContactDetailsBox />
+                                    </div>
+                                ) : null}
                             </div>
 
-                            {/* Right Column - Event Details */}
-                            <div className="md:col-span-7 min-w-0 space-y-5">
-                                {/* Event Header Card */}
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6 relative md:sticky md:top-[calc(var(--desktop-navbar-h)+0.75rem)] z-10`}>
+                            {/* Right Column - Event Details (Compact Command Center + Details Hub) */}
+                            <div className="md:col-span-7 min-w-0 space-y-4">
+                                {/* Executive Header & Registration Card */}
+                                <div className={`rounded-3xl p-5 sm:p-6 border transition-all ${
+                                    isDark ? 'bg-[#0B0D13]/90 border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl' : 'bg-white border-gray-200/80 shadow-lg'
+                                }`}>
                                     {showRegistrationSuccess && (
-                                        <div className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 animate-fade-in z-10">
-                                            <Check className="w-4 h-4" />
-                                            <span className="text-sm">Registered Successfully!</span>
+                                        <div className="mb-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 px-3.5 py-2 rounded-xl flex items-center gap-2 animate-fade-in">
+                                            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                                            <span className="text-xs font-bold">Registered Successfully!</span>
                                         </div>
                                     )}
 
-                                    <h1 className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>{eventData.title}</h1>
-                                    {eventData.subtitle ? (
-                                    <p className={`mb-3 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{eventData.subtitle}</p>
-                                    ) : null}
-                                    {(eventData.date || (eventData.venue && eventData.venue !== 'TBD')) && (
-                                    <div className="space-y-2 mb-3">
-                                        {eventData.date ? (
-                                        <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                            <CalendarDays className="w-4 h-4 shrink-0" aria-hidden="true" />
-                                            <span className="text-sm">{eventData.date}{eventData.time ? ` | ${eventData.time}` : ''}</span>
-                                        </div>
+                                    {/* Top Status & Meta Badges Row */}
+                                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                                        {festName ? (
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider border ${
+                                                isDark
+                                                    ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25 shadow-[0_0_12px_rgba(6,182,212,0.15)]'
+                                                    : 'bg-cyan-50 text-cyan-800 border-cyan-200'
+                                            }`}>
+                                                <span className="size-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                                {festName}
+                                            </span>
                                         ) : null}
-                                        {eventData.venue && eventData.venue !== 'TBD' ? (
-                                        <div className={`flex items-center gap-2 ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>
-                                            <MapPin className="w-4 h-4 shrink-0" aria-hidden="true" />
-                                            <span className="text-sm">{eventData.venue}</span>
-                                        </div>
-                                        ) : null}
-                                    </div>
-                                    )}
 
-                                    <div className="mb-3">
                                         <RegisterMetaChips
+                                            size="lg"
                                             isDark={isDark}
                                             slotsLabel={formatSlotsLabel(
                                                 eventData.slotsAllotted,
@@ -2330,20 +2541,105 @@ function EventPage() {
                                             )}
                                             teamLabel={buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
                                         />
-                                            </div>
+                                    </div>
 
+                                    {/* Competition Title */}
+                                    <h1 className={`text-2xl lg:text-3xl font-black tracking-tight leading-tight mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                        {eventData.title}
+                                    </h1>
+
+                                    {/* Subtitle */}
+                                    {eventData.subtitle ? (
+                                        <p className={`text-xs sm:text-sm font-medium mb-3.5 leading-relaxed line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                            {eventData.subtitle}
+                                        </p>
+                                    ) : null}
+
+                                    {/* High-Density Quick Specs Metric Grid */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                                        {/* 1. Date & Time */}
+                                        <div className={`p-2.5 rounded-2xl border transition-all ${
+                                            isDark ? 'bg-white/[0.03] border-white/8 hover:border-cyan-400/30' : 'bg-gray-50 border-gray-200 hover:border-cyan-400/40'
+                                        }`}>
+                                            <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                <CalendarDays size={12} className="text-cyan-400 shrink-0" />
+                                                <span>Date & Time</span>
+                                            </div>
+                                            <p className={`text-xs font-bold truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`} title={eventData.date || 'TBA'}>
+                                                {eventData.date || 'TBA'}
+                                            </p>
+                                            {eventData.time ? (
+                                                <p className="text-[10px] font-semibold text-cyan-400 truncate mt-0.5">{eventData.time}</p>
+                                            ) : (
+                                                <p className="text-[10px] font-medium text-gray-500 truncate mt-0.5">Check schedule</p>
+                                            )}
+                                        </div>
+
+                                        {/* 2. Venue & Mode */}
+                                        <div className={`p-2.5 rounded-2xl border transition-all ${
+                                            isDark ? 'bg-white/[0.03] border-white/8 hover:border-cyan-400/30' : 'bg-gray-50 border-gray-200 hover:border-cyan-400/40'
+                                        }`}>
+                                            <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                <MapPin size={12} className="text-rose-400 shrink-0" />
+                                                <span>Venue</span>
+                                            </div>
+                                            <p className={`text-xs font-bold truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`} title={eventData.venue || 'Campus Venue'}>
+                                                {eventData.venue && eventData.venue !== 'TBD' ? eventData.venue : (eventData.eventFormat || 'Campus')}
+                                            </p>
+                                            <p className="text-[10px] font-medium text-gray-400 truncate mt-0.5">
+                                                {eventData.eventFormat || (eventData.venue ? 'On-Ground' : 'In-Person')}
+                                            </p>
+                                        </div>
+
+                                        {/* 3. Team Size / Format */}
+                                        <div className={`p-2.5 rounded-2xl border transition-all ${
+                                            isDark ? 'bg-white/[0.03] border-white/8 hover:border-cyan-400/30' : 'bg-gray-50 border-gray-200 hover:border-cyan-400/40'
+                                        }`}>
+                                            <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                <Users size={12} className="text-purple-400 shrink-0" />
+                                                <span>Team Size</span>
+                                            </div>
+                                            <p className={`text-xs font-bold truncate ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                                                {buildTeamSizeLabel(eventData.teamSizeMin, eventData.teamSizeMax)}
+                                            </p>
+                                            <p className="text-[10px] font-medium text-purple-400 truncate mt-0.5">
+                                                {eventData.teamSizeMax > 1 ? `${eventData.teamSizeMin}-${eventData.teamSizeMax} Members` : 'Individual Entry'}
+                                            </p>
+                                        </div>
+
+                                        {/* 4. Prize / Rounds */}
+                                        <div className={`p-2.5 rounded-2xl border transition-all ${
+                                            isDark ? 'bg-white/[0.03] border-white/8 hover:border-cyan-400/30' : 'bg-gray-50 border-gray-200 hover:border-cyan-400/40'
+                                        }`}>
+                                            <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                <Trophy size={12} className="text-amber-400 shrink-0" />
+                                                <span>Prize Pool</span>
+                                            </div>
+                                            <p className={`text-xs font-bold truncate ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>
+                                                {eventData.prize ? eventData.prize : (roundsList.length > 0 ? `${roundsList.length} Rounds` : 'Awards & Perks')}
+                                            </p>
+                                            <p className="text-[10px] font-medium text-gray-400 truncate mt-0.5">
+                                                {roundsList.length > 0 ? `${roundsList.length} Rounds flow` : 'Cash & Trophies'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Multi-tier fee lines if applicable */}
                                     {eventData.feeKnown && !isMindSparkCompetition && Array.isArray(eventData.feeTiers) && eventData.feeTiers.filter((t) => t && (t.label || t.amount >= 0)).length > 1 ? (
-                                        <div className="mb-3">
+                                        <div className={`mb-3 p-3 rounded-2xl border ${isDark ? 'bg-white/[0.02] border-white/10' : 'bg-gray-50 border-gray-200'}`}>
                                             <RegistrationFeeLines
                                                 tiers={eventData.feeTiers}
                                                 feeLabel={eventData.feeLabel}
                                                 feeIsFree={eventData.feeIsFree}
                                                 isDark={isDark}
                                             />
-                                            </div>
+                                        </div>
                                     ) : null}
 
-                                    <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-2">
+                                    {/* Fee Display & CTA Action Strip */}
+                                    <div className={`flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl border ${
+                                        isDark ? 'bg-white/[0.03] border-white/10' : 'bg-gray-50 border-gray-200'
+                                    }`}>
                                         <RegisterFeeLabel
                                             large
                                             isDark={isDark}
@@ -2353,67 +2649,73 @@ function EventPage() {
                                             feeAmount={eventData.feeAmount}
                                         />
 
-                                        <button
-                                            type="button"
-                                            onClick={handleRegister}
-                                            disabled={registrationInfo.isDisabled || openingRegister}
-                                            className={`w-full sm:w-auto sm:min-w-[14rem] flex items-center justify-center gap-2 h-12 px-6 rounded-2xl text-base font-semibold shadow-md transition ${
-                                                registrationInfo.isDisabled
-                                                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-                                                    : 'bg-[#0ECCEE] text-black hover:bg-[#0ECCEE]/90 active:opacity-90'
+                                        <div className="flex items-center gap-2.5">
+                                            <button
+                                                type="button"
+                                                onClick={handleRegister}
+                                                disabled={registrationInfo.isDisabled || openingRegister}
+                                                className={`flex items-center justify-center gap-2 h-12 px-6 sm:px-8 rounded-2xl text-sm sm:text-base font-extrabold shadow-lg transition-all duration-300 ${
+                                                    registrationInfo.isDisabled
+                                                        ? isDark
+                                                            ? 'bg-white/10 text-gray-400 border border-white/10 cursor-not-allowed'
+                                                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                        : 'bg-linear-to-r from-cyan-400 via-sky-400 to-blue-500 text-black hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] hover:brightness-110 active:scale-[0.98]'
                                                 }`}
-                                            title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
-                                        >
-                                            <>
-                                                {registerCtaText}
+                                                title={registrationInfo.isDisabled ? registrationInfo.buttonText : ''}
+                                            >
+                                                <span>{registerCtaText}</span>
                                                 {!registrationInfo.isDisabled ? (
                                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                                         <path d="m9 18 6-6-6-6" />
                                                     </svg>
                                                 ) : null}
-                                            </>
-                                        </button>
-
-                                        <div className="relative shrink-0 self-end">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowShareMenu(!showShareMenu)}
-                                                className={`h-12 w-11 rounded-full flex items-center justify-center transition ${
-                                                    isDark ? 'bg-[#1D1E20] hover:bg-white/10' : 'bg-gray-100 hover:bg-gray-200'
-                                                    }`}
-                                            >
-                                                <img src={ShareIcon} alt="Share" className="w-5 h-5" />
                                             </button>
-                                            {showShareMenu && (
-                                                <div className={`absolute right-0 bottom-full mb-2 w-48 rounded-lg shadow-lg z-20 ${isDark ? 'bg-[#1D1E20] border-white/10' : 'bg-white border-gray-200'} border`}>
-                                                    <div className="py-2">
-                                                        <button type="button" onClick={() => handleShare('whatsapp')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                            Share on WhatsApp
-                                                        </button>
-                                                        <button type="button" onClick={() => handleShare('facebook')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                            Share on Facebook
-                                                        </button>
-                                                        <button type="button" onClick={() => handleShare('twitter')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                            Share on Twitter
-                                                        </button>
-                                                        <button type="button" onClick={() => handleShare('copy')} className={`w-full text-left px-4 py-2 text-sm hover:bg-opacity-10 hover:bg-blue-500 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
-                                                            Copy Link
-                                                        </button>
+
+                                            {/* Share Button */}
+                                            <div className="relative shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowShareMenu(!showShareMenu)}
+                                                    aria-label="Share competition"
+                                                    className={`size-12 rounded-2xl flex items-center justify-center border transition-all duration-300 ${
+                                                        isDark ? 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-cyan-400/40' : 'bg-white border-gray-200 text-gray-800 hover:bg-gray-100 shadow-sm'
+                                                    } active:scale-95`}
+                                                >
+                                                    <Share2 size={18} className="text-cyan-400" />
+                                                </button>
+                                                {showShareMenu && (
+                                                    <div className={`absolute right-0 bottom-full mb-3 w-48 rounded-2xl shadow-2xl z-20 border backdrop-blur-xl ${
+                                                        isDark ? 'bg-[#0E1015]/95 border-white/10' : 'bg-white border-gray-200'
+                                                    }`}>
+                                                        <div className="p-2 space-y-1">
+                                                            <button type="button" onClick={() => handleShare('whatsapp')} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'}`}>
+                                                                Share on WhatsApp
+                                                            </button>
+                                                            <button type="button" onClick={() => handleShare('facebook')} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'}`}>
+                                                                Share on Facebook
+                                                            </button>
+                                                            <button type="button" onClick={() => handleShare('twitter')} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'}`}>
+                                                                Share on Twitter
+                                                            </button>
+                                                            <button type="button" onClick={() => handleShare('copy')} className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition ${isDark ? 'text-gray-200 hover:bg-white/10' : 'text-gray-700 hover:bg-gray-100'}`}>
+                                                                Copy Link
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
                                     {/* Warning: Form Not Configured */}
                                     {registrationInfo.notConfigured && (
-                                        <div className={`mt-4 p-4 rounded-lg border ${isDark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
-                                            <div className="flex items-start gap-3">
-                                                <span className="text-yellow-500 text-lg">⚠️</span>
+                                        <div className={`mt-3 p-3.5 rounded-2xl border ${isDark ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                                            <div className="flex items-start gap-2.5">
+                                                <span className="text-base">⚠️</span>
                                                 <div>
-                                                    <p className={`font-semibold ${isDark ? 'text-yellow-300' : 'text-yellow-800'}`}>Registration Form Not Ready</p>
-                                                    <p className={`text-sm mt-1 ${isDark ? 'text-yellow-200/80' : 'text-yellow-700'}`}>
-                                                        This competition's registration form hasn't been set up yet. Please contact the organizers to complete the configuration.
+                                                    <p className="font-bold text-xs">Registration Form Not Ready</p>
+                                                    <p className="text-[11px] mt-0.5 opacity-90 leading-relaxed">
+                                                        This competition's registration form hasn't been set up yet. Please contact the organizers.
                                                     </p>
                                                 </div>
                                             </div>
@@ -2421,49 +2723,179 @@ function EventPage() {
                                     )}
                                 </div>
 
-                                {aboutText ? (
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-5 lg:p-6 space-y-4`}>
-                                    {renderAboutBlock({
-                                        headingClass: `text-lg font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`,
-                                        bodyClass: `text-sm leading-relaxed text-left ${isDark ? 'text-gray-300' : 'text-gray-600'}`,
-                                    })}
-                                </div>
-                                ) : null}
+                                {/* Interactive Details Hub (Segmented Tabs to fit maximum details in minimum space) */}
+                                <div className={`rounded-3xl p-5 sm:p-6 border transition-all ${
+                                    isDark ? 'bg-[#0B0D13]/85 border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.4)] backdrop-blur-xl' : 'bg-white border-gray-200/80 shadow-md'
+                                }`}>
+                                    {/* Segmented Switcher Header */}
+                                    <div className={`flex items-center gap-1.5 p-1 rounded-2xl border mb-5 overflow-x-auto scrollbar-hide ${
+                                        isDark ? 'bg-black/50 border-white/10' : 'bg-gray-100/90 border-gray-200'
+                                    }`}>
+                                        {aboutText ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveContentTab('about')}
+                                                className={`flex-1 min-w-[70px] py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center ${
+                                                    activeContentTab === 'about'
+                                                        ? 'bg-linear-to-r from-cyan-400 to-blue-500 text-black shadow-md'
+                                                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                                }`}
+                                            >
+                                                About
+                                            </button>
+                                        ) : null}
 
-                                {problemStatementLink ? (
-                                <div>
-                                    {renderProblemStatementLink()}
-                                                </div>
-                                ) : null}
+                                        {showCompetitionRounds ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveContentTab('rounds')}
+                                                className={`flex-1 min-w-[85px] py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                                                    activeContentTab === 'rounds'
+                                                        ? 'bg-linear-to-r from-cyan-400 to-blue-500 text-black shadow-md'
+                                                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                                }`}
+                                            >
+                                                <span>Rounds</span>
+                                                {roundsList.length > 0 ? (
+                                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                                                        activeContentTab === 'rounds' ? 'bg-black/20 text-black' : 'bg-white/10 text-cyan-300'
+                                                    }`}>
+                                                        {roundsList.length}
+                                                    </span>
+                                                ) : null}
+                                            </button>
+                                        ) : null}
 
-                                {/* Competition Rounds — hidden when no real round content */}
-                                {showCompetitionRounds && (
-                                <div className={`${isDark ? 'bg-[#111213]' : 'bg-[#EDEDF2]'} rounded-2xl p-6`}>
-                                    <h2 className={`text-2xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{roundsSectionTitle}</h2>
+                                        {commonRules.length > 0 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveContentTab('rules')}
+                                                className={`flex-1 min-w-[75px] py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                                                    activeContentTab === 'rules'
+                                                        ? 'bg-linear-to-r from-cyan-400 to-blue-500 text-black shadow-md'
+                                                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                                }`}
+                                            >
+                                                <span>Rules</span>
+                                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                                                    activeContentTab === 'rules' ? 'bg-black/20 text-black' : 'bg-white/10 text-cyan-300'
+                                                }`}>
+                                                    {commonRules.length}
+                                                </span>
+                                            </button>
+                                        ) : null}
 
-                                    {/* Desktop Round Tabs - Dynamic based on available rounds */}
-                                    {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
-                                        <div className="grid gap-2 mb-6" style={{ gridTemplateColumns: `repeat(${Math.min(roundsList.length, 5)}, 1fr)` }}>
-                                            {roundsList.map((round, idx) => (
+                                        {judgingCriteria.length > 0 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveContentTab('judging')}
+                                                className={`flex-1 min-w-[80px] py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center ${
+                                                    activeContentTab === 'judging'
+                                                        ? 'bg-linear-to-r from-cyan-400 to-blue-500 text-black shadow-md'
+                                                        : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                                }`}
+                                            >
+                                                Judging
+                                            </button>
+                                        ) : null}
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveContentTab('all')}
+                                            className={`py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all text-center ${
+                                                activeContentTab === 'all'
+                                                    ? 'bg-linear-to-r from-cyan-400 to-blue-500 text-black shadow-md'
+                                                    : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                                            }`}
+                                            title="View all details at once"
+                                        >
+                                            View All
+                                        </button>
+                                    </div>
+
+                                    {/* Tab Body: ABOUT */}
+                                    {(activeContentTab === 'about' || activeContentTab === 'all') && aboutText ? (
+                                        <div className={activeContentTab === 'all' ? 'mb-6 pb-6 border-b border-white/10' : ''}>
+                                            <h2 className={`text-base font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>About Competition</h2>
+                                            <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'} ${showFullAbout ? '' : 'line-clamp-4'}`}>
+                                                {aboutText}
+                                            </p>
+                                            {aboutText.length > 180 ? (
                                                 <button
-                                                    key={idx}
-                                                    onClick={() => setActiveRound(idx)}
-                                                    className={`flex-1 min-w-0 py-2 px-3 rounded-2xl font-medium transition text-sm ${activeRound === idx
-                                                        ? `border-2 border-[#00C2CB] ${isDark ? 'bg-[#1D1E20] text-white' : 'bg-blue-50 text-black'}`
-                                                        : `shadow-md ${isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-[#EDEDF2] text-black'}`
-                                                        }`}
+                                                    type="button"
+                                                    onClick={() => setShowFullAbout((v) => !v)}
+                                                    className="mt-2 text-xs font-bold text-cyan-400 hover:underline"
                                                 >
-                                                    <span className="block truncate text-center leading-tight">{getRoundTabLabel(round, idx, roundsList.length)}</span>
+                                                    {showFullAbout ? 'Show less' : 'Read full description →'}
                                                 </button>
-                                            ))}
+                                            ) : null}
                                         </div>
-                                    )}
+                                    ) : null}
 
-                                    <div className="mt-2">
-                                        {renderActiveRoundBody('desktop')}
-                                                        </div>
-                                                        </div>
-                                                    )}
+                                    {/* Tab Body: ROUNDS */}
+                                    {(activeContentTab === 'rounds' || activeContentTab === 'all') && showCompetitionRounds ? (
+                                        <div className={activeContentTab === 'all' ? 'mb-6 pb-6 border-b border-white/10' : ''}>
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h2 className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                    {roundsSectionTitle}
+                                                </h2>
+                                                <span className={`text-[11px] font-semibold ${isDark ? 'text-cyan-300' : 'text-cyan-700'}`}>
+                                                    Round {activeRound + 1} of {roundsList.length}
+                                                </span>
+                                            </div>
+
+                                            {/* Round Switcher Pills */}
+                                            {roundsList.length > 1 && !festName?.toLowerCase().includes('symbi') && (
+                                                <div className="flex flex-wrap gap-2 mb-4">
+                                                    {roundsList.map((round, idx) => (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => setActiveRound(idx)}
+                                                            className={`py-1.5 px-3 rounded-xl font-bold transition-all text-xs border ${
+                                                                activeRound === idx
+                                                                    ? 'bg-linear-to-r from-cyan-500/20 to-blue-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                                                                    : isDark
+                                                                        ? 'bg-white/[0.04] border-white/10 text-gray-400 hover:text-white hover:bg-white/[0.08]'
+                                                                        : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                                                            }`}
+                                                        >
+                                                            {getRoundTabLabel(round, idx, roundsList.length)}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="mt-2">
+                                                {renderActiveRoundBody('desktop')}
+                                            </div>
+                                        </div>
+                                    ) : null}
+
+                                    {/* Tab Body: RULES */}
+                                    {(activeContentTab === 'rules' || activeContentTab === 'all') && commonRules.length > 0 ? (
+                                        <div className={activeContentTab === 'all' ? 'mb-6 pb-6 border-b border-white/10' : ''}>
+                                            <h2 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>{rulesSectionTitle}</h2>
+                                            <RulesList
+                                                rules={commonRules}
+                                                ruleKey={`desktop-common-rules-${eventData?.id}`}
+                                                maxItems={8}
+                                            />
+                                        </div>
+                                    ) : null}
+
+                                    {/* Tab Body: JUDGING CRITERIA */}
+                                    {(activeContentTab === 'judging' || activeContentTab === 'all') && judgingCriteria.length > 0 ? (
+                                        <div>
+                                            <h2 className={`text-base font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>Judging Criteria</h2>
+                                            <RulesList
+                                                rules={judgingCriteria}
+                                                ruleKey={`desktop-judging-${eventData?.id}`}
+                                                maxItems={8}
+                                            />
+                                        </div>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
 

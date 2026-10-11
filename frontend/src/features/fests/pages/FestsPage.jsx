@@ -26,9 +26,7 @@ import { navigateToSearchResult } from '../../../utils/searchNavigation';
 import { usePageContentLoading } from '../../../hooks/usePageContentLoading';
 import { fetchRawPublicFests, prefetchFestDetail } from '../../../services/api/fests.api';
 import Seo from '../../../components/Seo';
-import FaqSection from '../../../components/FaqSection';
-import { breadcrumbSchema, faqSchema, itemListSchema } from '../../../utils/seo';
-import { FESTS_FAQ } from '../../../constants/faqs';
+import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
 import { festPath } from '../../../utils/slugRoutes';
 import { buildFestDetailNavState } from '../../../utils/detailPageCache';
 import { readFestsCache, writeFestsCache } from '../../../utils/festsSessionCache';
@@ -258,7 +256,6 @@ export default function FestsPage() {
                             .filter((fest) => fest?._id && fest?.festName)
                                 .map((fest) => ({ name: fest.festName, url: festPath(fest) })),
                     }),
-                    faqSchema(FESTS_FAQ),
                 ]}
             />
 
@@ -410,8 +407,6 @@ export default function FestsPage() {
                     </div>
                 )}
                 </div>{/* end pt-5 wrapper */}
-
-                <FaqSection items={FESTS_FAQ} />
             </main>
         </div>
     );

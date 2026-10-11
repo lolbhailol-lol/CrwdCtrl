@@ -27,28 +27,28 @@ class ApiClient {
     getMobileOptimizedTimeout(endpoint = '') {
         const userAgent = navigator.userAgent || navigator.vendor || window.opera;
         const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|webOS|Windows Phone/i.test(userAgent) ||
-                         (window.innerWidth <= 768 && 'ontouchstart' in window);
-        
-        const isAuthEndpoint = endpoint.includes('/login') || 
-                              endpoint.includes('/register') || 
-                              endpoint.includes('/social-auth');
-        
+            (window.innerWidth <= 768 && 'ontouchstart' in window);
+
+        const isAuthEndpoint = endpoint.includes('/login') ||
+            endpoint.includes('/register') ||
+            endpoint.includes('/social-auth');
+
         const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
         const effectiveType = connection?.effectiveType || '4g';
-        
+
         let baseTimeout = this.timeout; // Default 15s
-        
+
         if (isMobile) {
             baseTimeout = isAuthEndpoint ? 35000 : 25000; // 35s for auth, 25s for other requests on mobile
         }
-        
+
         // Adjust for connection speed
         if (effectiveType === 'slow-2g' || effectiveType === '2g') {
             baseTimeout += 20000; // Add 20s for slow connections
         } else if (effectiveType === '3g') {
             baseTimeout += 10000; // Add 10s for 3g
         }
-        
+
         return baseTimeout;
     }
 
@@ -57,7 +57,7 @@ class ApiClient {
      */
     async requestWithRetry(url, config, maxRetries = 3) {
         let lastError;
-        
+
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 const controller = new AbortController();
@@ -83,6 +83,7 @@ class ApiClient {
                     ok: response.ok,
                     attempt: attempt + 1
                 });
+
 
                 // Handle non-JSON / empty bodies (Railway static miss → empty 405)
                 const contentType = response.headers.get('content-type') || '';
@@ -121,7 +122,7 @@ class ApiClient {
                         data: data,
                         attempt: attempt + 1
                     });
-                    
+
                     throw new ApiError(
                         data.message || `HTTP ${response.status} ${response.statusText}`,
                         response.status,
@@ -134,11 +135,11 @@ class ApiClient {
 
             } catch (error) {
                 lastError = error;
-                
+
                 // Handle timeout errors
                 if (error.name === 'AbortError') {
                     console.error(`⏰ API Request Timeout (attempt ${attempt + 1}):`, url);
-                    
+
                     // Don't retry on timeout for the last attempt
                     if (attempt === maxRetries) {
                         throw new ApiError(
@@ -147,7 +148,7 @@ class ApiClient {
                             { networkError: true, timeout: true }
                         );
                     }
-                    
+
                     // Wait before retry with exponential backoff
                     const delay = Math.min(Math.pow(2, attempt) * 1000, 10000); // Max 10s delay
                     console.log(`⏳ Waiting ${delay}ms before retry...`);
@@ -209,7 +210,7 @@ class ApiClient {
                 }
 
                 // Final attempt failed - throw appropriate error
-                if (error.message.includes('Failed to fetch') || 
+                if (error.message.includes('Failed to fetch') ||
                     error.message.includes('NetworkError') ||
                     error.message.includes('fetch')) {
                     throw new ApiError(
@@ -226,7 +227,7 @@ class ApiClient {
                 );
             }
         }
-        
+
         // This should never be reached, but just in case
         throw lastError || new ApiError('Maximum retry attempts exceeded', 0, { networkError: true });
     }
@@ -399,7 +400,7 @@ export const authAPI = {
     async login(credentials) {
         return apiClient.post('/users/login', credentials);
     },
- //Admin login
+    //Admin login
     async adminLogin(credentials) {
         return apiClient.post('/admin/login', credentials);
     },

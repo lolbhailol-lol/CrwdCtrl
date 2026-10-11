@@ -17,6 +17,7 @@ export const SportsCategoryPage = lazyWithRetry(() => import('../../features/spo
 export const FavoritesPage = lazyWithRetry(() => import('../../pages/profile/favorites'));
 export const EditProfile = lazyWithRetry(() => import('../../pages/profile/edit-profile'));
 export const HelpCenter = lazyWithRetry(() => import('../../pages/profile/help-center'));
+export const FAQPage = lazyWithRetry(() => import('../../pages/faq/FAQPage'));
 export const ListYourFest = lazyWithRetry(() => import('../../pages/profile/list-your-fest'));
 export const NotificationsPanel = lazyWithRetry(() => import('../../pages/profile/notification-panel'));
 export const ProfilePage = lazyWithRetry(() => import('../../pages/profile/profile-page'));
@@ -60,12 +61,12 @@ export const EventCommunityOrganizerHomePage = lazyWithRetry(() => import('../..
 export const EventCommunityOrganizerDashboardPage = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerDashboardPage'));
 export const EventCommunityOrganizerNotificationsPage = lazyWithRetry(() => import('../../features/events/organizer/community/EventCommunityOrganizerNotificationsPage'));
 export const TrekCategoryPage = lazyWithRetry(() => import('../../features/treks/pages/TrekCategoryPage'));
-  export const PaymentCheckoutPage = lazyWithRetry(() => import('../../pages/payment/PaymentCheckoutPage'));
-  export const DeskPaymentPage = lazyWithRetry(() => import('../../pages/payment/DeskPaymentPage'));
-  export const MindSparkBundlePage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkBundlePage'));
-  export const MindSparkAuditoriumPage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkAuditoriumPage'));
-  export const MindSparkCouponPreviewPage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkCouponPreviewPage'));
-  export const MindSparkBundlePaymentPage = lazyWithRetry(() => import('../../pages/payment/MindSparkBundlePaymentPage'));
+export const PaymentCheckoutPage = lazyWithRetry(() => import('../../pages/payment/PaymentCheckoutPage'));
+export const DeskPaymentPage = lazyWithRetry(() => import('../../pages/payment/DeskPaymentPage'));
+export const MindSparkBundlePage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkBundlePage'));
+export const MindSparkAuditoriumPage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkAuditoriumPage'));
+export const MindSparkCouponPreviewPage = lazyWithRetry(() => import('../../features/fests/mindspark/MindSparkCouponPreviewPage'));
+export const MindSparkBundlePaymentPage = lazyWithRetry(() => import('../../pages/payment/MindSparkBundlePaymentPage'));
 
 export const AdminLayout = lazyWithRetry(() => import('../../pages/admin/AdminLayout'));
 export const AdminDashboardPage = lazyWithRetry(() => import('../../pages/admin/AdminDashboardPage'));

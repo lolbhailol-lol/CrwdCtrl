@@ -1,24 +1,39 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Share2, X, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import {
+    ArrowLeft,
+    Share2,
+    Heart,
+    MapPin,
+    Calendar,
+    ChevronDown,
+    Phone,
+    Instagram,
+    MessageCircle,
+    Compass,
+    Sparkles,
+    CheckCircle2,
+    Users,
+    Image as ImageIcon,
+} from 'lucide-react';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
 import FollowCommunityBar from '../../../components/FollowCommunityBar';
 import CrwdCtrlLogin from '../../../pages/auth/login';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useFavorites } from '../../../context/FavoritesContext';
 import { getImageUrl } from '../../../utils/imageImports';
-import { getCoverImageUrl } from '../../../utils/coverImages';
+import { getCoverImageUrl, resolveCoverImage } from '../../../utils/coverImages';
 import { handleImageErrorWithFallback } from '../../../utils/fallbackImageGenerator';
 import { normalizeImageList, normalizeImageUrl } from '../../../utils/uploadUrls';
 import { shareContent } from '../../../utils/externalLink';
 import { useInAppBack } from '../../../hooks/useInAppBack';
-import { CompactPortraitCardsRowSkeleton } from '../../../components/HomeEventCardSkeleton';
 import DetailPageLoader from '../../../components/DetailPageLoader';
+import GalleryLightbox from '../../../components/GalleryLightbox';
 import { useDetailLoaderFailsafe } from '../../../hooks/useDetailLoaderFailsafe';
 import {
     AnimatedCard,
     AnimatedCounter,
-    ImmersiveHero,
+    ScrollProgress,
     ScrollReveal,
 } from '../../../motion';
 import Seo from '../../../components/Seo';
@@ -26,13 +41,6 @@ import { breadcrumbSchema, itemListSchema } from '../../../utils/seo';
 import { formatTrekCardDate } from '../../../utils/trekDateDisplay';
 import { communityPath, trekPath, entityMatchesRouteParam } from '../../../utils/slugRoutes';
 import ContentImage from '../../../components/ContentImage';
-
-const GALLERY_PREVIEW_COUNT = 4;
-
-const resolveGallerySrc = (url, preset = 'thumb') =>
-    getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
-
-const buildGalleryImages = (community) => normalizeImageList(community?.galleryImages);
 
 import {
     fetchTrekCommunity,
@@ -47,11 +55,11 @@ import {
 const communityDetailCache = createDetailCache('crwdctrl_trek_community_v1_');
 
 const CAT_META = {
-    hiking:      { label: 'Hiking',      emoji: '🥾', bg: '#FFF7ED', darkBg: '#2D1B0E' },
-    trail:       { label: 'Trail Walks', emoji: '🌲', bg: '#F0FDF4', darkBg: '#0A2318' },
-    backpacking: { label: 'Backpacking', emoji: '🎒', bg: '#EEF2FF', darkBg: '#1A1B3A' },
-    camping:     { label: 'Camping',     emoji: '⛺', bg: '#0F172A', darkBg: '#0F172A' },
-    adventure:   { label: 'Adventure',   emoji: '🏔️', bg: '#F0F9FF', darkBg: '#0B1D2E' },
+    hiking:      { label: 'Hiking',      emoji: '🥾' },
+    trail:       { label: 'Trail Walks', emoji: '🌲' },
+    backpacking: { label: 'Backpacking', emoji: '🎒' },
+    camping:     { label: 'Camping',     emoji: '⛺' },
+    adventure:   { label: 'Adventure',   emoji: '🏔️' },
 };
 
 const CATEGORY_LABEL_TO_VALUE = {
@@ -78,6 +86,7 @@ const normalizeCommunity = (raw) => {
     return {
         id: raw.id || raw._id,
         title: raw.title || raw.name || '',
+        name: raw.name || raw.title || '',
         subtitle: raw.subtitle || raw.basedIn || '',
         coverImage,
         coverImages: raw.coverImages || null,
@@ -94,76 +103,27 @@ const normalizeCommunity = (raw) => {
     };
 };
 
-function GalleryLightbox({ images, index, name, onClose, onIndexChange }) {
-    const current = images[index];
-    const hasPrev = index > 0;
-    const hasNext = index < images.length - 1;
+const resolveGallerySrc = (url, preset = 'thumb') =>
+    getImageUrl(url, { preset }) || normalizeImageUrl(url) || url;
 
-    return (
-        <div
-            className="fixed inset-0 z-50 flex flex-col bg-black/95"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Gallery viewer"
-        >
-            <div className="flex items-center justify-between px-4 pt-[max(var(--safe-top),1rem)] pb-3">
-                <p className="text-white text-sm font-medium">
-                    {index + 1} / {images.length}
-                </p>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label="Close gallery"
-                    className="size-10 rounded-full bg-white/10 flex items-center justify-center"
-                >
-                    <X size={20} className="text-white" />
-                </button>
-            </div>
+const buildGalleryImages = (community) => normalizeImageList(community?.galleryImages);
 
-            <div className="relative flex-1 flex items-center justify-center px-4 pb-4 min-h-0">
-                {hasPrev && (
-                    <button
-                        type="button"
-                        onClick={() => onIndexChange(index - 1)}
-                        aria-label="Previous image"
-                        className="absolute left-2 z-10 size-10 rounded-full bg-white/10 flex items-center justify-center"
-                    >
-                        <ChevronLeft size={22} className="text-white" />
-                    </button>
-                )}
-                {current && (
-                    <img
-                        src={resolveGallerySrc(current, 'detail')}
-                        alt={`${name} gallery ${index + 1}`}
-                        className="max-h-full max-w-full object-contain rounded-xl"
-                        onError={(e) => handleImageErrorWithFallback(e, 360, 360, '#1a3a2a', name)}
-                    />
-                )}
-                {hasNext && (
-                    <button
-                        type="button"
-                        onClick={() => onIndexChange(index + 1)}
-                        aria-label="Next image"
-                        className="absolute right-2 z-10 size-10 rounded-full bg-white/10 flex items-center justify-center"
-                    >
-                        <ChevronRight size={22} className="text-white" />
-                    </button>
-                )}
-            </div>
-        </div>
-    );
-}
-
-/* ── Trek Card — matches treks-page BeginnerCard (white surface + shadow) ── */
+/* ── Modern Trek Card ── */
 function TrekCard({ trek, isDark, isFav, onFav, onClick, eager = false }) {
     const imgSrc = getCoverImageUrl(trek, 'cardPortrait');
+    const feeText = trek.registrationFee != null
+        ? (Number(trek.registrationFee) === 0 ? 'Free' : `₹${trek.registrationFee}`)
+        : null;
+
     return (
         <AnimatedCard
             enableHover={false}
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
+            className={`group flex flex-col rounded-2xl overflow-hidden cursor-pointer border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] ${
+                isDark ? 'bg-[#151618] border-white/5 hover:border-white/20' : 'bg-white border-gray-200/80 hover:border-gray-300 shadow-sm'
+            }`}
             onClick={onClick}
         >
-            <div className="card-portrait-image relative">
+            <div className="relative aspect-[4/3] sm:aspect-[16/11] w-full overflow-hidden bg-[#1A1B1D]">
                 {imgSrc ? (
                     <ContentImage
                         src={imgSrc}
@@ -172,21 +132,48 @@ function TrekCard({ trek, isDark, isFav, onFav, onClick, eager = false }) {
                         loading={eager ? 'eager' : 'lazy'}
                         fetchPriority={eager ? 'high' : undefined}
                         showPlaceholderUntilLoad
-                        className="absolute inset-0 w-full h-full object-cover"
-                        onError={(e) => handleImageErrorWithFallback(e, 160, 208, '#2A2B2E', trek.title)}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={(e) => handleImageErrorWithFallback(e, 360, 240, '#2A2B2E', trek.title)}
                     />
                 ) : (
-                    <div className="w-full h-full bg-[#1A1B1D]" />
+                    <div className="w-full h-full bg-[#1A1B1D] flex items-center justify-center text-gray-600">
+                        <Compass size={32} />
+                    </div>
                 )}
-                <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
+
+                {/* Gradient vignette */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+                {/* Top-right Favorite Heart */}
+                <div className="absolute top-2.5 right-2.5 z-10">
+                    <CardFavoriteButton isFavorite={isFav} onClick={onFav} />
+                </div>
+
+                {/* Category Tag (Top-left) */}
+                {trek.trekCategory && (
+                    <div className="absolute top-2.5 left-2.5 z-10 px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-semibold text-white">
+                        {CAT_META[trek.trekCategory]?.label || trek.trekCategory}
+                    </div>
+                )}
+
+                {/* Fee Badge (Bottom-left) */}
+                {feeText && (
+                    <div className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-0.5 rounded-md bg-[#0ECCEE] text-black font-extrabold text-xs shadow-md">
+                        {feeText}
+                    </div>
+                )}
             </div>
-            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full min-w-0">
-                <div className="flex-1 min-w-0">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+
+            <div className="flex flex-col p-3.5 sm:p-4 gap-1.5 flex-1 justify-between">
+                <div>
+                    <h3 className={`font-bold text-sm sm:text-base leading-snug line-clamp-1 transition-colors group-hover:text-[#0ECCEE] ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
                         {trek.title}
-                    </p>
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {formatTrekCardDate(trek)}
+                    </h3>
+                    <p className={`text-xs font-medium flex items-center gap-1.5 mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <Calendar size={13} className="shrink-0 text-[#0ECCEE]" />
+                        <span className="line-clamp-1">{formatTrekCardDate(trek)}</span>
                     </p>
                 </div>
             </div>
@@ -214,6 +201,7 @@ export default function CommunityDetailPage() {
     const [galleryOpen, setGalleryOpen] = useState(false);
     const [galleryIndex, setGalleryIndex] = useState(0);
     const [showLogin, setShowLogin] = useState(false);
+    const [liked, setLiked] = useState(false);
 
     const communityId = community?.id || id || null;
 
@@ -282,8 +270,6 @@ export default function CommunityDetailPage() {
                 setLoading(false);
             });
         return () => controller.abort();
-        // Only re-run when the route id changes; nav state is read once for seeding
-         
     }, [id]);
 
     useEffect(() => {
@@ -308,7 +294,6 @@ export default function CommunityDetailPage() {
         image: t.coverImage || t.images?.[0] || null,
         trekCategory: normalizeCategory(t.trekCategory) || null,
         status: t.status || null,
-        // Seed detail/booking so fee/mode don't flash as Free/demo
         registrationFee: t.registrationFee,
         registration: t.registration || null,
         registrationLink: t.registrationLink || '',
@@ -383,24 +368,25 @@ export default function CommunityDetailPage() {
                     <button
                         type="button"
                         onClick={() => window.location.reload()}
-                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold"
+                        className="px-5 py-2.5 rounded-xl bg-[#0ECCEE] text-black text-sm font-bold cursor-pointer"
                     >
                         Retry
                     </button>
                 ) : null}
-                <button type="button" onClick={() => (isNetwork ? navigate('/treks') : goBack())} className="text-[#0ECCEE] text-sm font-semibold">
+                <button type="button" onClick={() => (isNetwork ? navigate('/treks') : goBack())} className="text-[#0ECCEE] text-sm font-semibold cursor-pointer">
                     {isNetwork ? 'Browse treks' : '← Go back'}
                 </button>
             </div>
         );
     }
 
-    const name    = community.title || community.name || '';
+    const name = community.title || community.name || '';
     const basedIn = community.subtitle || '';
-    const image   = community.image || null;
+    const image = community.image || null;
+    const coverSrc = getCoverImageUrl(community, 'page') || getCoverImageUrl(community, 'cardPortrait') || image;
 
     const description = community.aboutUs?.trim() || '';
-    const shortDesc = description.slice(0, 130);
+    const shortDesc = description.slice(0, 160);
 
     const filteredTreks = !activeCategory || activeCategory === 'all'
         ? treks
@@ -415,10 +401,44 @@ export default function CommunityDetailPage() {
         shareContent({ title: name, url: window.location.href });
     };
 
+    const handleTrekClick = (trek) => {
+        const seed = trek.detail && typeof trek.detail === 'object'
+            ? trek.detail
+            : {
+                _id: trek.id,
+                slug: trek.slug || '',
+                trekName: trek.title || trek.trekName,
+                coverImage: trek.coverImage || trek.image || '',
+                images: trek.image ? [trek.image] : [],
+                registrationFee: trek.registrationFee,
+                registration: trek.registration,
+                registrationLink: trek.registrationLink,
+            };
+        navigate(trekPath(seed), {
+            state: {
+                trek: {
+                    ...seed,
+                    trekName: seed.trekName || trek.title,
+                    images: seed.images?.length
+                        ? seed.images
+                        : (trek.image ? [trek.image] : []),
+                },
+                community: {
+                    _id: community.id,
+                    id: community.id,
+                    name: community.title,
+                    title: community.title,
+                    contactPhone: community.contactPhone,
+                    contactInstagram: community.contactInstagram,
+                },
+            },
+        });
+    };
+
     const canonicalPath = communityPath(community || { id });
 
     return (
-        <div className="crwdctrl-page flex flex-col min-h-screen pb-8" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
+        <div className="crwdctrl-page flex flex-col min-h-screen pb-16" style={{ WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
             <Seo
                 title={`${name} — Trek Community`}
                 description={description}
@@ -440,170 +460,372 @@ export default function CommunityDetailPage() {
                     }),
                 ]}
             />
+            <ScrollProgress />
 
-            {/* Full-bleed on phones, centered & aligned with content on larger screens (matches events) */}
-            <div className="mx-auto w-full md:max-w-2xl flex flex-col flex-1">
-            <ImmersiveHero
-                imageSrc={getCoverImageUrl(community, 'page') || getCoverImageUrl(community, 'cardPortrait') || null}
-                imageAlt={name}
-                height="396px"
-                imageFit="contain"
-                onImageError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}
-                fallback={
-                    <div className="absolute inset-0 bg-[#1A1B1D]" />
-                }
-            >
-                {/* Floating stats */}
-                <div className="absolute bottom-20 left-4 right-4 flex gap-2 pointer-events-none">
-                    {[
-                        { label: 'Treks', value: treks.length },
-                        { label: 'Categories', value: categoryOptions.length },
-                    ].map((stat) => (
-                        <div
-                            key={stat.label}
-                            className="rounded-2xl bg-black/50 px-3 py-2 border border-white/10"
-                        >
-                            <p className="text-white text-lg font-bold leading-none">
-                                <AnimatedCounter value={stat.value} />
-                            </p>
-                            <p className="text-white/70 text-[10px] font-medium mt-0.5">{stat.label}</p>
-                        </div>
-                    ))}
-                </div>
+            {/* Main Wide Container */}
+            <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-3 lg:py-5 flex flex-col flex-1 gap-5 sm:gap-6">
 
-                {/* Top action bar */}
-                <div
-                    className="absolute top-0 left-0 right-0 flex items-center justify-between px-4"
-                    style={{ paddingTop: 'calc(max(var(--safe-top), 0px) + 2.5rem)' }}
-                >
-                    {/* Back */}
+                {/* Top Action Header Bar */}
+                <div className="flex items-center justify-between gap-3">
                     <button
                         type="button"
                         onClick={goBack}
                         aria-label="Go back"
-                        className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                        className={`size-10 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
+                            isDark
+                                ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]'
+                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                        }`}
                     >
-                        <ArrowLeft size={22} strokeWidth={2.25} className="text-white" />
+                        <ArrowLeft size={18} strokeWidth={2.25} />
                     </button>
-                    {/* Right: Share */}
-                    <div className="flex items-center gap-2.5">
+
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold backdrop-blur-md"
+                        style={{
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                        }}
+                    >
+                        <span className="text-[#0ECCEE]">🏔️</span>
+                        <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Trek Community</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={handleShare}
                             aria-label="Share"
-                            className="size-11 rounded-full bg-black/40 flex items-center justify-center"
+                            className={`size-10 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
+                                isDark
+                                    ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                            }`}
                         >
-                            <Share2 size={20} strokeWidth={2.25} className="text-white" />
+                            <Share2 size={17} strokeWidth={2} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setLiked((l) => !l)}
+                            aria-label="Favourite"
+                            className={`size-10 rounded-full flex items-center justify-center border transition-all cursor-pointer ${
+                                isDark
+                                    ? 'bg-[#111213] text-gray-200 border-white/10 hover:bg-[#1D1E20]'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 shadow-xs'
+                            }`}
+                        >
+                            <Heart size={17} strokeWidth={2} className={liked ? 'fill-red-500 text-red-500' : ''} />
                         </button>
                     </div>
                 </div>
-            </ImmersiveHero>
 
-            {/* ── Content card — slides up over the image ── */}
-            <div className={`relative -mt-10 flex-1 rounded-t-3xl px-4 pt-8 pb-8
-                ${isDark ? 'bg-[#161718]' : 'bg-white'}`}>
+                {/* Hero Split Section (Desktop: Left Media Showcase | Right: Community Profile Card) */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-5 lg:gap-6 items-stretch">
 
-                {/* Community name + follow */}
-                <div className="mb-1">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                            <h1 className={`text-3xl font-medium font-inter leading-9 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                {name}
-                            </h1>
-                            <p className={`text-xs font-semibold mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                {basedIn}
-                            </p>
-                        </div>
-                    </div>
-                    {communityId ? (
-                        <div className="mt-4">
-                            <FollowCommunityBar
-                                entityType="trek_community"
-                                entityId={communityId}
-                                followLabel="Follow"
-                                followingLabel="Following"
-                                membersTitle={`${name || 'Community'} members`}
-                                onRequireLogin={() => setShowLogin(true)}
-                            />
-                        </div>
-                    ) : null}
-                </div>
+                    {/* Left Column (md:col-span-7): Media Showcase with Ambient Glow & Badges */}
+                    <div className="md:col-span-7 flex flex-col">
+                        <div className={`relative w-full h-[280px] sm:h-[340px] md:h-[390px] rounded-3xl overflow-hidden border shadow-xl flex items-center justify-center p-6 ${
+                            isDark ? 'bg-[#0E0F11] border-white/10' : 'bg-gray-900 border-gray-200'
+                        }`}>
+                            {/* Ambient Blurred Background from the image itself */}
+                            {coverSrc ? (
+                                <img
+                                    src={coverSrc}
+                                    alt=""
+                                    aria-hidden="true"
+                                    className="absolute inset-0 w-full h-full object-cover filter blur-3xl scale-125 opacity-30 select-none pointer-events-none"
+                                />
+                            ) : null}
 
-                {/* ── About Us ── */}
-                <ScrollReveal className="mt-5 mb-5">
-                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-2
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        About Us
-                    </h2>
-                    <p className={`text-sm font-medium leading-5 tracking-tight ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {expanded ? description : shortDesc}
-                        {!expanded && description.length > 130 && (
-                            <button
-                                onClick={() => setExpanded(true)}
-                                className="text-[#0ECCEE] font-medium ml-1"
-                            >
-                                read more
-                            </button>
-                        )}
-                    </p>
-                </ScrollReveal>
+                            {/* Radial dark vignette */}
+                            <div className="absolute inset-0 bg-radial from-transparent via-black/30 to-black/70 pointer-events-none" />
 
-                {/* ── Trek Category ── */}
-                <ScrollReveal className="mb-5" delay={0.05}>
-                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3
-                        ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Trek Category
-                    </h2>
-                    {/* Category chips */}
-                    {categoryOptions.length > 0 ? (
-                        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
-                            <div className="flex gap-2 pb-2">
+                            {/* Crisp Center Logo / Subject */}
+                            {coverSrc ? (
+                                <img
+                                    src={coverSrc}
+                                    alt={name}
+                                    className="relative z-10 max-h-[82%] max-w-[85%] object-contain drop-shadow-2xl rounded-2xl transition-transform duration-500 hover:scale-105"
+                                    onError={(e) => handleImageErrorWithFallback(e, 393, 396, '#1a3a2a', name)}
+                                />
+                            ) : (
+                                <div className="relative z-10 size-28 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40">
+                                    <Compass size={48} />
+                                </div>
+                            )}
+
+                            {/* Top Left Floating Tag */}
+                            <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-xs font-semibold text-white shadow-lg">
+                                <span className="size-2 rounded-full bg-[#0ECCEE] animate-pulse" />
+                                <span>Official Organizer</span>
+                            </div>
+
+                            {/* Bottom Left Floating Stats */}
+                            <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+                                <div className="px-3.5 py-1.5 rounded-xl bg-black/65 backdrop-blur-md border border-white/15 text-white flex items-center gap-2 shadow-lg">
+                                    <span className="font-extrabold text-sm sm:text-base text-[#0ECCEE]">
+                                        <AnimatedCounter value={treks.length} />
+                                    </span>
+                                    <span className="text-[11px] font-medium text-gray-300">Treks</span>
+                                </div>
+                                {categoryOptions.length > 0 && (
+                                    <div className="px-3.5 py-1.5 rounded-xl bg-black/65 backdrop-blur-md border border-white/15 text-white flex items-center gap-2 shadow-lg">
+                                        <span className="font-extrabold text-sm sm:text-base text-[#0ECCEE]">
+                                            <AnimatedCounter value={categoryOptions.length} />
+                                        </span>
+                                        <span className="text-[11px] font-medium text-gray-300">Categories</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Bottom Right Gallery Trigger */}
+                            {galleryImages.length > 0 && (
                                 <button
                                     type="button"
-                                    onClick={() => setActiveCategory('all')}
-                                    className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95
-                                        ${activeCategory === 'all'
-                                            ? 'bg-[#0ECCEE] text-black'
-                                            : isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-white text-gray-700 shadow-sm'
-                                        }`}
+                                    onClick={() => openGallery(0)}
+                                    className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white/90 text-black hover:bg-white text-xs font-bold shadow-lg transition-transform active:scale-95 cursor-pointer"
                                 >
-                                    All
+                                    <ImageIcon size={14} />
+                                    <span>{galleryImages.length} Photos</span>
                                 </button>
-                                {categoryOptions.map(option => {
-                                    const meta = CAT_META[option.value] || { label: option.label };
-                                    const isActive = activeCategory === option.value;
-                                    return (
-                                        <button
-                                            key={option.value}
-                                            type="button"
-                                            onClick={() => setActiveCategory(option.value)}
-                                            className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95
-                                                ${isActive
-                                                    ? 'bg-[#0ECCEE] text-black'
-                                                    : isDark ? 'bg-[#1D1E20] text-gray-300' : 'bg-white text-gray-700 shadow-sm'
-                                                }`}
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Column (md:col-span-5): Community Profile Card */}
+                    <div className="md:col-span-5 flex flex-col">
+                        <div className={`rounded-3xl p-5 sm:p-7 border flex flex-col justify-between h-full shadow-xl relative overflow-hidden backdrop-blur-md ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100'
+                        }`}>
+                            {/* Ambient gradient corner */}
+                            <div className="pointer-events-none absolute -top-20 -right-20 size-44 rounded-full bg-[#0ECCEE]/15 blur-3xl" />
+
+                            <div className="flex flex-col gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0ECCEE]/15 text-[#0ECCEE] border border-[#0ECCEE]/30">
+                                            <CheckCircle2 size={12} />
+                                            Verified Community
+                                        </span>
+                                    </div>
+
+                                    <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-extrabold font-inter tracking-tight leading-tight ${
+                                        isDark ? 'text-white' : 'text-gray-900'
+                                    }`}>
+                                        {name}
+                                    </h1>
+
+                                    {basedIn && (
+                                        <p className={`text-sm sm:text-base font-semibold mt-1.5 flex items-center gap-1.5 ${
+                                            isDark ? 'text-gray-400' : 'text-gray-600'
+                                        }`}>
+                                            <MapPin size={16} className="text-[#0ECCEE] shrink-0" />
+                                            <span>{basedIn}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Community Metrics Strip */}
+                                <div className={`grid grid-cols-3 gap-2.5 p-3 rounded-2xl border ${
+                                    isDark ? 'bg-white/[0.03] border-white/5' : 'bg-gray-50 border-gray-100'
+                                }`}>
+                                    <div className="text-center">
+                                        <p className="text-lg sm:text-xl font-extrabold text-[#0ECCEE] leading-none">
+                                            <AnimatedCounter value={treks.length} />
+                                        </p>
+                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Upcoming</p>
+                                    </div>
+                                    <div className="text-center border-x border-current/10">
+                                        <p className={`text-lg sm:text-xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            <AnimatedCounter value={categoryOptions.length} />
+                                        </p>
+                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Categories</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className={`text-lg sm:text-xl font-extrabold leading-none ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                            <AnimatedCounter value={pastTreks.length} />
+                                        </p>
+                                        <p className={`text-[11px] font-medium mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Completed</p>
+                                    </div>
+                                </div>
+
+                                {/* Follow / Join Bar */}
+                                {communityId && (
+                                    <div className="pt-1">
+                                        <FollowCommunityBar
+                                            entityType="trek_community"
+                                            entityId={communityId}
+                                            followLabel="Follow Community"
+                                            followingLabel="Following"
+                                            membersTitle={`${name || 'Community'} members`}
+                                            onRequireLogin={() => setShowLogin(true)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Quick Contact & Action Buttons */}
+                            <div className="flex flex-col gap-2.5 mt-5 pt-4 border-t border-current/10">
+                                {community?.groupLink && (
+                                    <a
+                                        href={community.groupLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-[#25D366] to-[#128C7E] text-white font-bold text-sm shadow-md shadow-[#25D366]/20 transition-all hover:brightness-110 active:scale-[0.99] cursor-pointer"
+                                    >
+                                        <MessageCircle size={18} />
+                                        <span>Join Official WhatsApp Group</span>
+                                    </a>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    {community?.contactPhone && (
+                                        <a
+                                            href={`tel:${community.contactPhone}`}
+                                            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-[0.99] ${
+                                                isDark
+                                                    ? 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-200'
+                                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'
+                                            }`}
                                         >
-                                            {meta.label}
-                                        </button>
-                                    );
-                                })}
+                                            <Phone size={14} className="text-[#0ECCEE]" />
+                                            <span className="truncate">Call Organizer</span>
+                                        </a>
+                                    )}
+
+                                    {community?.contactInstagram && (
+                                        <a
+                                            href={`https://instagram.com/${community.contactInstagram.replace('@', '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-semibold transition-all active:scale-[0.99] ${
+                                                isDark
+                                                    ? 'bg-white/5 border-white/10 hover:bg-white/10 text-gray-200'
+                                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 text-gray-700'
+                                            }`}
+                                        >
+                                            <Instagram size={14} className="text-pink-500" />
+                                            <span className="truncate">Instagram</span>
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    ) : (
-                        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>No trek categories set yet.</p>
-                    )}
+                    </div>
+                </div>
 
-                    {/* Trek cards for selected category */}
-                    <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 mt-4"
-                        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}>
+                {/* ── About Us Card ── */}
+                {description && (
+                    <ScrollReveal>
+                        <div className={`p-5 sm:p-6 rounded-3xl border transition-all ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <h2 className={`text-base sm:text-lg font-bold font-inter leading-tight tracking-wide mb-3 flex items-center gap-2 ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                            }`}>
+                                <Sparkles size={18} className="text-[#0ECCEE]" />
+                                <span>About {name}</span>
+                            </h2>
+                            <p className={`text-xs sm:text-sm font-medium leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {expanded ? description : shortDesc}
+                                {!expanded && description.length > 160 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpanded(true)}
+                                        className="text-[#0ECCEE] font-bold ml-1.5 hover:underline cursor-pointer"
+                                    >
+                                        Read more →
+                                    </button>
+                                )}
+                                {expanded && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpanded(false)}
+                                        className="text-[#0ECCEE] font-bold ml-2 hover:underline cursor-pointer"
+                                    >
+                                        Show less
+                                    </button>
+                                )}
+                            </p>
+                        </div>
+                    </ScrollReveal>
+                )}
+
+                {/* ── Upcoming Treks Section ── */}
+                <ScrollReveal delay={0.05}>
+                    <div className="flex flex-col gap-4">
+                        {/* Section Header & Category Filters */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                                <h2 className={`text-lg sm:text-xl font-extrabold font-inter tracking-tight ${
+                                    isDark ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                    Upcoming Treks
+                                </h2>
+                                <p className={`text-xs mt-0.5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Explore adventures hosted by {name}
+                                </p>
+                            </div>
+
+                            {/* Category Filter Pills */}
+                            {categoryOptions.length > 0 && (
+                                <div className="overflow-x-auto scrollbar-hide -mx-3 px-3 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none' }}>
+                                    <div className="flex items-center gap-2 pb-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveCategory('all')}
+                                            className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                                                activeCategory === 'all'
+                                                    ? 'bg-gradient-to-r from-[#0ECCEE] to-[#007BFF] text-black shadow-md shadow-[#0ECCEE]/25'
+                                                    : isDark
+                                                        ? 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+                                                        : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            All ({treks.length})
+                                        </button>
+                                        {categoryOptions.map(option => {
+                                            const meta = CAT_META[option.value] || { label: option.label };
+                                            const isActive = activeCategory === option.value;
+                                            return (
+                                                <button
+                                                    key={option.value}
+                                                    type="button"
+                                                    onClick={() => setActiveCategory(option.value)}
+                                                    className={`shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                                                        isActive
+                                                            ? 'bg-gradient-to-r from-[#0ECCEE] to-[#007BFF] text-black shadow-md shadow-[#0ECCEE]/25'
+                                                            : isDark
+                                                                ? 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10'
+                                                                : 'bg-gray-100 border border-gray-200 text-gray-700 hover:bg-gray-200'
+                                                    }`}
+                                                >
+                                                    {meta.emoji ? <span>{meta.emoji}</span> : null}
+                                                    <span>{meta.label}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Responsive Treks Grid */}
                         {loadingTreks ? (
-                            <CompactPortraitCardsRowSkeleton count={3} className="px-0" />
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {[1, 2, 3, 4].map((i) => (
+                                    <div key={i} className={`h-64 rounded-2xl animate-pulse ${isDark ? 'bg-white/5' : 'bg-gray-100'}`} />
+                                ))}
+                            </div>
                         ) : filteredTreks.length === 0 ? (
-                            <div className={`card-surface mx-4 rounded-2xl px-4 py-6 text-sm text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                No upcoming treks{activeCategory && activeCategory !== 'all' ? ' in this category' : ''} yet.
+                            <div className={`p-8 rounded-3xl text-center border ${
+                                isDark ? 'bg-[#111213] border-white/5 text-gray-400' : 'bg-white border-gray-100 text-gray-600 shadow-sm'
+                            }`}>
+                                <Compass size={36} className="mx-auto text-gray-500 mb-2 opacity-60" />
+                                <p className="text-sm font-bold">No upcoming treks{activeCategory && activeCategory !== 'all' ? ' in this category' : ''}</p>
+                                <p className="text-xs text-gray-500 mt-1">Check back later or follow this community for updates!</p>
                             </div>
                         ) : (
-                            <div className="flex gap-4 pb-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                 {filteredTreks.map((trek, index) => (
                                     <TrekCard
                                         key={trek.id}
@@ -611,40 +833,8 @@ export default function CommunityDetailPage() {
                                         isDark={isDark}
                                         isFav={isFavorite(trek.id)}
                                         onFav={() => toggleFavorite(trek.id, trek)}
-                                        eager={index < 3}
-                                        onClick={() => {
-                                            const seed = trek.detail && typeof trek.detail === 'object'
-                                                ? trek.detail
-                                                : {
-                                                    _id: trek.id,
-                                                    slug: trek.slug || '',
-                                                    trekName: trek.title || trek.trekName,
-                                                    coverImage: trek.coverImage || trek.image || '',
-                                                    images: trek.image ? [trek.image] : [],
-                                                    registrationFee: trek.registrationFee,
-                                                    registration: trek.registration,
-                                                    registrationLink: trek.registrationLink,
-                                                };
-                                            navigate(trekPath(seed), {
-                                                state: {
-                                                    trek: {
-                                                        ...seed,
-                                                        trekName: seed.trekName || trek.title,
-                                                        images: seed.images?.length
-                                                            ? seed.images
-                                                            : (trek.image ? [trek.image] : []),
-                                                    },
-                                                    community: community ? {
-                                                        _id: community.id,
-                                                        id: community.id,
-                                                        name: community.title,
-                                                        title: community.title,
-                                                        contactPhone: community.contactPhone,
-                                                        contactInstagram: community.contactInstagram,
-                                                    } : null,
-                                                },
-                                            });
-                                        }}
+                                        eager={index < 4}
+                                        onClick={() => handleTrekClick(trek)}
                                     />
                                 ))}
                             </div>
@@ -652,200 +842,207 @@ export default function CommunityDetailPage() {
                     </div>
                 </ScrollReveal>
 
+                {/* ── Past Treks Accordion ── */}
                 {pastTreks.length > 0 && (
-                    <div className="mb-5">
-                        <button
-                            type="button"
-                            onClick={() => setShowPast((v) => !v)}
-                            className={`flex items-center gap-1.5 text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
-                        >
-                            Check out past events
-                            <ChevronDown
-                                size={16}
-                                className={`transition-transform ${showPast ? 'rotate-180' : ''}`}
-                            />
-                        </button>
-                        {showPast && (
-                            <ul className="mt-2 space-y-1.5">
-                                {pastTreks.map((trek) => (
-                                    <li key={trek.id}>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const seed = trek.detail && typeof trek.detail === 'object'
-                                                    ? trek.detail
-                                                    : {
-                                                        _id: trek.id,
-                                                        slug: trek.slug || '',
-                                                        trekName: trek.title || trek.trekName,
-                                                        coverImage: trek.coverImage || trek.image || '',
-                                                        images: trek.image ? [trek.image] : [],
-                                                        registrationFee: trek.registrationFee,
-                                                        registration: trek.registration,
-                                                        registrationLink: trek.registrationLink,
-                                                    };
-                                                navigate(trekPath(seed), {
-                                                    state: {
-                                                        trek: {
-                                                            ...seed,
-                                                            trekName: seed.trekName || trek.title,
-                                                            images: seed.images?.length
-                                                                ? seed.images
-                                                                : (trek.image ? [trek.image] : []),
-                                                        },
-                                                        community: community ? {
-                                                            _id: community.id,
-                                                            id: community.id,
-                                                            name: community.title,
-                                                            title: community.title,
-                                                            contactPhone: community.contactPhone,
-                                                            contactInstagram: community.contactInstagram,
-                                                        } : null,
-                                                    },
-                                                });
-                                            }}
-                                            className={`w-full text-left flex items-baseline justify-between gap-3 py-1.5 text-sm
-                                                ${isDark ? 'text-gray-300' : 'text-gray-700'}`}
-                                        >
-                                            <span className="truncate">{trek.title}</span>
-                                            {trek.date ? (
-                                                <span className={`shrink-0 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                                    {trek.date}
-                                                </span>
-                                            ) : null}
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
+                    <ScrollReveal delay={0.08}>
+                        <div className={`rounded-3xl border overflow-hidden ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <button
+                                type="button"
+                                onClick={() => setShowPast((v) => !v)}
+                                className={`w-full flex items-center justify-between p-5 text-sm font-bold transition-all cursor-pointer ${
+                                    isDark ? 'text-gray-200 hover:bg-white/[0.02]' : 'text-gray-800 hover:bg-gray-50'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[#0ECCEE]">📜</span>
+                                    <span>Past Treks ({pastTreks.length})</span>
+                                </div>
+                                <ChevronDown
+                                    size={18}
+                                    className={`transition-transform duration-200 text-gray-400 ${showPast ? 'rotate-180' : ''}`}
+                                />
+                            </button>
+
+                            {showPast && (
+                                <div className="px-5 pb-5 pt-1 border-t border-current/10">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-2">
+                                        {pastTreks.map((trek) => (
+                                            <button
+                                                key={trek.id}
+                                                type="button"
+                                                onClick={() => handleTrekClick(trek)}
+                                                className={`w-full text-left flex items-center justify-between gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                                                    isDark
+                                                        ? 'bg-white/[0.02] border-white/5 hover:bg-white/5 text-gray-300'
+                                                        : 'bg-gray-50 border-gray-200/80 hover:bg-gray-100 text-gray-800'
+                                                }`}
+                                            >
+                                                <span className="truncate text-xs sm:text-sm font-medium">{trek.title}</span>
+                                                {trek.date && (
+                                                    <span className={`shrink-0 text-xs font-semibold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                        {trek.date}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </ScrollReveal>
                 )}
 
-                {/* ── Contact Details ── */}
-                <ScrollReveal className="mb-5" delay={0.08}>
-                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Contact Details
-                    </h2>
-                    <div className="space-y-2.5">
-                        <a
-                            href={community?.contactPhone ? `tel:${community.contactPhone}` : undefined}
-                            className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
-                        >
-                            <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center shrink-0">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
-                                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                                </svg>
-                            </div>
-                            <div>
-                                <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Phone</p>
-                                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                    {community?.contactPhone || 'Not set'}
-                                </p>
-                            </div>
-                        </a>
-                        {community?.contactInstagram ? (
-                            <a
-                                href={`https://instagram.com/${community.contactInstagram.replace('@', '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
-                            >
-                                <div className="size-10 rounded-xl flex items-center justify-center shrink-0"
-                                    style={{ background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)' }}>
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
-                                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Instagram</p>
-                                    <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {community.contactInstagram}
-                                    </p>
-                                </div>
-                            </a>
-                        ) : (
-                            <div className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                <div className="size-10 rounded-xl flex items-center justify-center shrink-0 bg-gray-200">
-                                    <span className="text-xs text-gray-500">IG</span>
-                                </div>
-                                <div>
-                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Instagram</p>
-                                    <p className={`text-sm font-semibold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>Not set</p>
-                                </div>
-                            </div>
-                        )}
-                        {/* People to contact */}
-                        {(community?.contacts || []).map((c, i) => (
-                            <a
-                                key={`${c.phone || c.name}-${i}`}
-                                href={c.phone ? `tel:${c.phone}` : undefined}
-                                className={`flex items-center gap-3 p-3.5 rounded-2xl border ${isDark ? 'bg-[#111213] border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}
-                            >
-                                <div className="size-10 rounded-xl bg-[#0ECCEE] flex items-center justify-center shrink-0">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
-                                        <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                                    </svg>
-                                </div>
-                                <div className="min-w-0">
-                                    <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                                        {c.name || 'Contact'}{c.role ? ` · ${c.role}` : ''}
-                                    </p>
-                                    <p className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                        {c.phone || 'Not set'}
-                                    </p>
-                                </div>
-                            </a>
-                        ))}
-                    </div>
-                </ScrollReveal>
+                {/* ── Community Leadership / Contact Details ── */}
+                {(community?.contactPhone || community?.contactInstagram || (community?.contacts && community.contacts.length > 0)) && (
+                    <ScrollReveal delay={0.1}>
+                        <div className={`p-5 sm:p-6 rounded-3xl border ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <h2 className={`text-base sm:text-lg font-bold font-inter leading-tight tracking-wide mb-4 flex items-center gap-2 ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                            }`}>
+                                <Users size={18} className="text-[#0ECCEE]" />
+                                <span>Community Organizers & Contacts</span>
+                            </h2>
 
-                {/* ── Gallery ── */}
-                <ScrollReveal className="mb-2" delay={0.1}>
-                    <h2 className={`text-lg font-medium font-inter leading-7 tracking-wide mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        Gallery
-                    </h2>
-                    {galleryImages.length > 0 ? (
-                        <div className="grid grid-cols-4 gap-2.5">
-                            {galleryImages.slice(0, GALLERY_PREVIEW_COUNT).map((img, i) => {
-                                const isOverflowTile = galleryImages.length > GALLERY_PREVIEW_COUNT && i === GALLERY_PREVIEW_COUNT - 1;
-                                const remainingCount = galleryImages.length - GALLERY_PREVIEW_COUNT;
-                                return (
-                                    <button
-                                        key={`${img}-${i}`}
-                                        type="button"
-                                        onClick={() => openGallery(i)}
-                                        aria-label={isOverflowTile ? `View all ${galleryImages.length} gallery images` : `View gallery image ${i + 1}`}
-                                        className={`relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-transform ${isDark ? 'bg-[#111213]' : 'bg-white shadow-sm'}`}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {community?.contactPhone && (
+                                    <a
+                                        href={`tel:${community.contactPhone}`}
+                                        className={`flex items-center gap-3.5 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.99] cursor-pointer ${
+                                            isDark
+                                                ? 'bg-white/[0.03] border-white/10 hover:border-[#0ECCEE]/50 hover:bg-white/[0.06]'
+                                                : 'bg-gray-50/70 border-gray-200/80 shadow-xs hover:border-[#0ECCEE]/60 hover:shadow-md'
+                                        }`}
                                     >
-                                        <img
-                                            src={resolveGallerySrc(img, 'square')}
-                                            alt={`${name} gallery ${i + 1}`}
-                                            className="absolute inset-0 w-full h-full object-cover"
-                                            loading="lazy"
-                                            decoding="async"
-                                            onError={(e) => handleImageErrorWithFallback(e, 120, 120, '#1a3a2a', name)}
-                                        />
-                                        {isOverflowTile && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/55">
-                                                <span className="text-white text-base font-semibold tracking-wide">
-                                                    {remainingCount}+
-                                                </span>
-                                            </div>
-                                        )}
-                                    </button>
-                                );
-                            })}
+                                        <div className="size-11 rounded-xl bg-gradient-to-br from-[#0ECCEE] to-[#007BFF] flex items-center justify-center shrink-0 shadow-md shadow-[#0ECCEE]/20">
+                                            <Phone size={18} className="text-black" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Main Helpline</p>
+                                            <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {community.contactPhone}
+                                            </p>
+                                        </div>
+                                    </a>
+                                )}
+
+                                {community?.contactInstagram && (
+                                    <a
+                                        href={`https://instagram.com/${community.contactInstagram.replace('@', '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`flex items-center gap-3.5 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.99] cursor-pointer ${
+                                            isDark
+                                                ? 'bg-white/[0.03] border-white/10 hover:border-pink-500/50 hover:bg-white/[0.06]'
+                                                : 'bg-gray-50/70 border-gray-200/80 shadow-xs hover:border-pink-500/50 hover:shadow-md'
+                                        }`}
+                                    >
+                                        <div
+                                            className="size-11 rounded-xl flex items-center justify-center shrink-0 shadow-md shadow-pink-500/20"
+                                            style={{ background: 'linear-gradient(135deg, #FCD34D 0%, #EC4899 50%, #7C3AED 100%)' }}
+                                        >
+                                            <Instagram size={18} className="text-white" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Instagram Handle</p>
+                                            <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {community.contactInstagram}
+                                            </p>
+                                        </div>
+                                    </a>
+                                )}
+
+                                {(community?.contacts || []).map((c, i) => (
+                                    <a
+                                        key={`${c.phone || c.name}-${i}`}
+                                        href={c.phone ? `tel:${c.phone}` : undefined}
+                                        className={`flex items-center gap-3.5 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.99] cursor-pointer ${
+                                            isDark
+                                                ? 'bg-white/[0.03] border-white/10 hover:border-[#0ECCEE]/50 hover:bg-white/[0.06]'
+                                                : 'bg-gray-50/70 border-gray-200/80 shadow-xs hover:border-[#0ECCEE]/60 hover:shadow-md'
+                                        }`}
+                                    >
+                                        <div className="size-11 rounded-xl bg-gradient-to-br from-[#0ECCEE] to-[#007BFF] flex items-center justify-center shrink-0 shadow-md shadow-[#0ECCEE]/20">
+                                            <Phone size={18} className="text-black" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className={`text-xs font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                                {c.name || 'Coordinator'}{c.role ? ` · ${c.role}` : ''}
+                                            </p>
+                                            <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                                {c.phone || 'Contact'}
+                                            </p>
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
                         </div>
-                    ) : (
-                        <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
-                            No gallery images yet.
-                        </p>
-                    )}
-                </ScrollReveal>
+                    </ScrollReveal>
+                )}
+
+                {/* ── Gallery Showcase ── */}
+                {galleryImages.length > 0 && (
+                    <ScrollReveal delay={0.12}>
+                        <div className={`p-5 sm:p-6 rounded-3xl border ${
+                            isDark ? 'bg-[#111213] border-white/10' : 'bg-white border-gray-100 shadow-sm'
+                        }`}>
+                            <div className="flex items-center justify-between gap-3 mb-4">
+                                <h2 className={`text-base sm:text-lg font-bold font-inter leading-tight tracking-wide flex items-center gap-2 ${
+                                    isDark ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                    <ImageIcon size={18} className="text-[#0ECCEE]" />
+                                    <span>Community Gallery</span>
+                                </h2>
+                                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                                    isDark ? 'bg-white/5 border-white/10 text-gray-400' : 'bg-gray-100 border-gray-200 text-gray-600'
+                                }`}>
+                                    {galleryImages.length} photos
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {galleryImages.slice(0, 4).map((img, i) => {
+                                    const isOverflowTile = galleryImages.length > 4 && i === 3;
+                                    const remainingCount = galleryImages.length - 4;
+                                    return (
+                                        <button
+                                            key={`${img}-${i}`}
+                                            type="button"
+                                            onClick={() => openGallery(i)}
+                                            aria-label={isOverflowTile ? `View all ${galleryImages.length} gallery images` : `View gallery image ${i + 1}`}
+                                            className={`group relative w-full aspect-square rounded-2xl overflow-hidden active:scale-[0.98] transition-all cursor-pointer ${
+                                                isDark ? 'bg-white/5 border border-white/10' : 'bg-white shadow-xs border border-gray-200/70'
+                                            }`}
+                                        >
+                                            <img
+                                                src={resolveGallerySrc(img, 'square')}
+                                                alt={`${name} gallery ${i + 1}`}
+                                                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                loading="lazy"
+                                                decoding="async"
+                                                onError={(e) => handleImageErrorWithFallback(e, 200, 200, '#1a3a2a', name)}
+                                            />
+                                            {isOverflowTile && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-xs">
+                                                    <span className="text-white text-base font-extrabold tracking-wide">
+                                                        +{remainingCount}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </ScrollReveal>
+                )}
 
             </div>
-            </div>
 
+            {/* Gallery Lightbox */}
             {galleryOpen && galleryImages.length > 0 && (
                 <GalleryLightbox
                     images={galleryImages}
@@ -856,14 +1053,15 @@ export default function CommunityDetailPage() {
                 />
             )}
 
-            {showLogin ? (
+            {/* Login Popup */}
+            {showLogin && (
                 <CrwdCtrlLogin
                     googleOnly
                     title="Sign in to follow"
-                    subtitle="One tap with Google — then you’re in"
+                    subtitle="One tap with Google — then you're in"
                     onClose={() => setShowLogin(false)}
                 />
-            ) : null}
+            )}
         </div>
     );
 }
