@@ -2,7 +2,8 @@
 /*
  * October 2026 home + games cleanup. Dry run by default; --apply writes after a backup.
  * - Home "ongoing" heading -> "Upcoming Events"
- * - Halloween Sundowner Rush into that section (first); Ritrovo Rush off the home page
+ * - Halloween Sundowner Rush into that section (first); past events (Ritrovo Rush, Mafia Files 02,
+ *   Pickle Tickle 01, Resin Clock Workshop) off the home page
  * - Delete the "kkkk" test game; hide the stray "campus hunt" game (MIT draft event is kept)
  * Undo: node scripts/update-home-upcoming-oct-2026.js --rollback <backup-id>
  */
@@ -14,6 +15,8 @@ const mongoose = require('mongoose');
 
 const HALLOWEEN_ID = '6acb3e646d833eb479e3e403';
 const RITROVO_ID = '6ab259f0608a9959ded70256';
+// Past events that should not sit under an "Upcoming Events" heading.
+const PAST_HOME_IDS = [RITROVO_ID, '6aa02632c458d8678e6aefb7', '6aa82ff098c63b620dcb3316', '6aa93c6155d27642a1ce5c4d'];
 const KKKK_GAME_ID = '6ac537160dac36170ead4bfc';
 const STRAY_GAME_ID = '6ac5347e0dac36170ead4101';
 
@@ -38,7 +41,7 @@ async function main() {
     }
 
     const labelsDoc = await db.collection('sitesettings').findOne({ key: 'home_section_labels' });
-    const sports = await db.collection('sportsevents').find({ _id: { $in: [id(HALLOWEEN_ID), id(RITROVO_ID)] } }).project({ title: 1, homeSection: 1, homePriority: 1 }).toArray();
+    const sports = await db.collection('sportsevents').find({ _id: { $in: [id(HALLOWEEN_ID), ...PAST_HOME_IDS.map(id)] } }).project({ title: 1, homeSection: 1, homePriority: 1 }).toArray();
     const kkkkGame = await db.collection('collegegames').findOne({ _id: id(KKKK_GAME_ID) });
     const strayGame = await db.collection('collegegames').findOne({ _id: id(STRAY_GAME_ID) }, { projection: { title: 1, status: 1 } });
     const regs = await db.collection('gameregistrations').countDocuments({ gameId: { $in: [id(KKKK_GAME_ID), id(STRAY_GAME_ID)] } });
@@ -53,7 +56,7 @@ async function main() {
     const record = await Backup.create({ backup: { source: 'update-home-upcoming-oct-2026', labels: labelsDoc?.value || null, sports, kkkkGame, strayGame } });
     await db.collection('sitesettings').updateOne({ key: 'home_section_labels' }, { $set: { 'value.ongoing': 'Upcoming Events', updatedAt: new Date() } }, { upsert: true });
     await db.collection('sportsevents').updateOne({ _id: id(HALLOWEEN_ID) }, { $set: { homeSection: 'trending', homePriority: 1 } });
-    await db.collection('sportsevents').updateOne({ _id: id(RITROVO_ID) }, { $set: { homeSection: null } });
+    await db.collection('sportsevents').updateMany({ _id: { $in: PAST_HOME_IDS.map(id) } }, { $set: { homeSection: null } });
     if (kkkkGame) await db.collection('collegegames').deleteOne({ _id: id(KKKK_GAME_ID) });
     await db.collection('collegegames').updateOne({ _id: id(STRAY_GAME_ID) }, { $set: { status: 'cancelled' } });
     console.log(`Applied. Backup id: ${record._id}\nUndo: node scripts/update-home-upcoming-oct-2026.js --rollback ${record._id}`);
