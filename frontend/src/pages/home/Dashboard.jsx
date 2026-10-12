@@ -1435,18 +1435,6 @@ const Dashboard = () => {
                 <AnnouncementBanner announcement={publicConfig.announcement} />
 
                 <div className="max-w-2xl lg:max-w-none mx-auto lg:mx-0 crwdctrl-hub-body">
-                    {homeGameItems.length > 0 && (
-                        <HomeCarouselSection
-                            title="Upcoming CrwdCtrl Games"
-                            items={homeGameItems}
-                            isDark={isDark}
-                            tallCard
-                            cardGap={TRENDING_CARD_GAP}
-                            onItemClick={navigateToHomeItem}
-                            getShareUrl={getHomeItemShareUrl}
-                        />
-                    )}
-
                     {/* Ongoing Events */}
                     <HomeCarouselSection
                         title={publicConfig.labels.home.ongoing || sectionLabels.ongoing}
