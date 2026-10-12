@@ -21,7 +21,7 @@ import { setHomeShellReady } from '../../utils/homeShellReady';
 import { buildSearchKeywordsFromCatalog } from '../../utils/buildSearchKeywords';
 import { clearSearchKeywordsCache } from '../../services/searchService';
 import { useAuth } from '../../context/AuthContext';
-import { TRENDING_CARD_GAP } from '../../hooks/useHomeCarousel';
+import { TRENDING_CARD_GAP, useIsLgUp } from '../../hooks/useHomeCarousel';
 import HeroBanner from '../../components/HeroBanner';
 import MobileHeroSearchField from '../../components/MobileHeroSearchField';
 import HomeCategoryBar from '../../components/HomeCategoryBar';
@@ -36,6 +36,7 @@ import AnnouncementBanner from '../../components/AnnouncementBanner';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
 import { MIT_WPU_CAMPUS_HUNT } from '../../features/college-platform/comingSoonGames';
+import ReviewsSection from '../../components/ReviewsSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { HOME_FAQ } from '../../constants/faqs';
 import { mapEventShow } from '../../constants/eventsPage';
@@ -278,6 +279,7 @@ const ArtistCard = React.memo(({ eventId, image, artistName, genre, collegeName,
 });
 
 const Dashboard = () => {
+    const isLgUp = useIsLgUp();
     const { isDark } = useDarkMode();
     const { confirm } = useDialog();
     const navigate = useNavigate();
@@ -831,6 +833,7 @@ const Dashboard = () => {
                 venue: fest?.venue || 'Venue TBA',
                 dateTime: fest?.festDate || 'Date TBA',
                 ticketPrice: fest?.ticketPrice || 'Free',
+
                 priority: fest?.priority || 999,
                 homePriority: fest?.homePriority || 999,
                 homeSection: fest?.homeSection || null,
@@ -1398,6 +1401,7 @@ const Dashboard = () => {
                 {heroEvents.length > 0 && (
                     <HeroBanner
                         events={heroEvents}
+                        isHome={true}
                         onEventClick={(id) => {
                             const slide = heroEvents.find((e) => e.id === id);
                             if (!slide) return;
@@ -1422,8 +1426,11 @@ const Dashboard = () => {
                             else navigateToFestDetail(slide);
                         }}
                         isDark={isDark}
+                        isFavorite={(id) => isFavorite(id)}
+                        onToggleFavorite={(item) => handleLike(getHomeItemId(item), item)}
                     />
                 )}
+
 
                 <AnnouncementBanner announcement={publicConfig.announcement} />
 
@@ -1535,11 +1542,14 @@ const Dashboard = () => {
                 </div>
             </main>
 
-            <FaqSection items={HOME_FAQ} />
-
-            <div className="pb-20 md:pb-0">
-
-            </div>
+            {isLgUp && (publicConfig?.reviews || publicConfig?.testimonials)?.length
+                ? <ReviewsSection reviews={publicConfig?.reviews || publicConfig?.testimonials} />
+                : (
+                    <>
+                        <FaqSection items={HOME_FAQ} />
+                        <div className="pb-20 md:pb-0" />
+                    </>
+                )}
             </div>
 
 

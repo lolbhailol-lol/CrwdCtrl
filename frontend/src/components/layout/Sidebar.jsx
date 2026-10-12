@@ -1,170 +1,345 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Calendar, Heart, Ticket, Settings, HelpCircle, Sun, Moon, Menu, X, LogOut } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+    Home,
+    Calendar,
+    Heart,
+    Grid,
+    Sun,
+    Moon,
+    Menu,
+    X,
+    LogOut,
+    ChevronLeft,
+    ChevronRight,
+} from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import { useFavorites } from '../../context/FavoritesContext';
+import { useAuth } from '../../context/AuthContext';
+import { useSidebar } from '../../context/SidebarContext';
 import AppLogo from '../AppLogo';
 
-const Sidebar = () => {
+const Sidebar = ({ onShowLogin }) => {
     const { isDark, toggleDarkMode } = useDarkMode();
     const { getFavoriteCount } = useFavorites();
+    const { logout, isAuthenticated } = useAuth();
+    const { isCollapsed, toggleCollapse, isMobileMenuOpen, setIsMobileMenuOpen } = useSidebar();
     const navigate = useNavigate();
     const location = useLocation();
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const favoriteCount = getFavoriteCount();
 
-    const navigationItems = [
+    // Primary navigation items matching current features
+    const primaryNavigationItems = [
         { id: 'home', icon: Home, label: 'Home', path: '/' },
-      
         { id: 'favorites', icon: Heart, label: 'Favorites', path: '/favorites', count: favoriteCount },
         { id: 'bookings', icon: Calendar, label: 'Bookings', path: '/booking' },
     ];
 
-    // Determine active item based on current path
-    const getActiveItem = () => {
-        const currentPath = location.pathname;
-        const activeItem = navigationItems.find(item => item.path === currentPath);
-        return activeItem ? activeItem.id : null; // Return null if no exact match found
+    // Secondary navigation items matching current features
+    const secondaryNavigationItems = [
+        { id: 'view-all', icon: Grid, label: 'View All', path: '/fests' },
+    ];
+
+    // Check if route matches navigation item path
+    const isItemActive = (itemPath) => {
+        if (itemPath === '/') {
+            return location.pathname === '/' || location.pathname === '/dashboard';
+        }
+        return location.pathname.startsWith(itemPath);
     };
 
-    const handleNavigation = (item) => {
-        navigate(item.path);
+    const handleNavigation = (path) => {
+        navigate(path);
         setIsMobileMenuOpen(false);
     };
 
+    const handleLogout = () => {
+        if (logout) {
+            logout();
+        }
+        setIsMobileMenuOpen(false);
+    };
+
+    const handleLoginClick = () => {
+        setIsMobileMenuOpen(false);
+        if (onShowLogin) {
+            onShowLogin();
+        }
+    };
+
     return (
-        <>
-            {/* Mobile Menu Button */}
-            <button
-                type="button"
-                aria-label="Open navigation menu"
-                onClick={() => setIsMobileMenuOpen(true)}
-                className={`fixed top-4 left-4 z-50 lg:hidden p-3 rounded-xl transition-all duration-200 ${isDark
-                    ? 'bg-dark-950/90 text-white border border-gray-900'
-                    : 'bg-white/90 text-gray-800 border border-gray-200 shadow-lg'
-                    }`}
-            >
-                <Menu className="w-7 h-7" />
-            </button>
-
-            {/* Mobile Overlay */}
-            {isMobileMenuOpen && (
-                <div
-                    className="fixed inset-0 bg-dark-950/50 z-50 lg:hidden"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                />
-            )}
-
-            {/* Sidebar */}
-            <div
-                className={`fixed left-0 top-0 bottom-0 w-16 lg:w-20 rounded-tr-[40px] rounded-br-[40px] flex flex-col items-center py-6 z-50 backdrop-blur-md transition-transform duration-300 ${
-                    isDark ? 'bg-[#161718] border border-blue-500' : 'bg-[#EDEDF2] border border-[#86C4C4]'
-                } ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
-            >
-
-                {/* Mobile Close Button */}
-                <button
-                    type="button"
-                    aria-label="Close navigation menu"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="lg:hidden absolute top-4 right-4 text-white/80 hover:text-white"
-                >
-                    <X className="w-6 h-6" />
-                </button>
-                {/* Logo */}
-                <div className="mb-8">
-                    <AppLogo size={80} />
+        <aside
+            className={`hidden lg:flex fixed left-3 top-3 bottom-3 z-50 flex-col justify-between py-4 transition-all duration-300 ease-in-out backdrop-blur-2xl rounded-[2rem] border ${isDark
+                ? 'bg-[#09090b]/95 border-white/20 text-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.06)]'
+                : 'bg-[#F3F4F9] border-gray-200/90 text-gray-800 shadow-gray-200/50'
+                } ${isCollapsed ? 'w-20 px-2' : 'w-56 px-3'
+                }`}
+        >
+            {/* Top Section: Header & Navigation Links */}
+            <div className="flex flex-col flex-1 overflow-y-auto no-scrollbar">
+                {/* Header Row: App Logo & Collapse Arrow Toggle */}
+                <div className="flex flex-col items-center mb-5 w-full px-1 overflow-hidden transition-all duration-300">
+                    {isCollapsed ? (
+                        <div className="flex flex-col items-center justify-center gap-3 w-full pt-1">
+                            <div
+                                onClick={() => handleNavigation('/')}
+                                className="flex items-center justify-center cursor-pointer group shrink-0"
+                                title="Home"
+                            >
+                                <AppLogo size={32} />
+                            </div>
+                            <button
+                                type="button"
+                                aria-label="Expand sidebar"
+                                title="Expand Sidebar"
+                                onClick={toggleCollapse}
+                                className={`hidden lg:flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none select-none ${isDark
+                                    ? 'text-[#007BFF] hover:bg-white/10 bg-white/5'
+                                    : 'text-[#007BFF] hover:bg-black/5 bg-black/5'
+                                    }`}
+                            >
+                                <ChevronRight className="w-5 h-5 text-[#007BFF]" />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between w-full min-h-[3.25rem] px-1">
+                            <div
+                                onClick={() => handleNavigation('/')}
+                                className="flex items-center cursor-pointer group shrink-0"
+                                title="Home"
+                            >
+                                <AppLogo size={44} />
+                            </div>
+                            <button
+                                type="button"
+                                aria-label="Collapse sidebar"
+                                title="Collapse Sidebar"
+                                onClick={toggleCollapse}
+                                className={`hidden lg:flex items-center justify-center p-2 rounded-xl transition-all duration-200 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none select-none ${isDark
+                                    ? 'text-gray-400 hover:text-white hover:bg-white/10'
+                                    : 'text-gray-500 hover:text-gray-900 hover:bg-black/5'
+                                    }`}
+                            >
+                                <ChevronLeft className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Navigation Icons */}
-                <nav className="flex-1 flex flex-col items-center space-y-8 pt-8">
-                    {navigationItems.map((item) => {
+                {/* Primary Navigation Items */}
+                <nav className="space-y-1.5 px-0.5">
+                    {primaryNavigationItems.map((item) => {
                         const Icon = item.icon;
-                        const isActive = getActiveItem() === item.id;
+                        const active = isItemActive(item.path);
 
                         return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                aria-label={item.label}
-                                onClick={() => handleNavigation(item)}
-                                className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 group ${
-                                    item.special && !isActive
-                                        ? 'bg-linear-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600'
-                                        : isActive
-                                            ? item.special 
-                                                ? 'bg-linear-to-r from-purple-600 to-blue-600'
-                                                : 'bg-[#4169E1]'
-                                            : 'hover:scale-105'
-                                    }`}
-
-                            >
-                                <Icon
-                                    className={`w-6 h-6 transition-all duration-300 ${
-                                        item.special
-                                            ? 'text-white drop-shadow-lg'
-                                            : isActive
-                                                ? 'text-white drop-shadow-lg'
-                                                : 'text-[#4169E1] group-hover:text-white group-hover:drop-shadow-lg'
+                            <div key={item.id} className="relative group">
+                                <button
+                                    type="button"
+                                    onClick={() => handleNavigation(item.path)}
+                                    className={`group relative w-full flex items-center transition-colors duration-200 outline-none focus:outline-none select-none cursor-pointer active:scale-98 ${isCollapsed
+                                        ? 'lg:justify-center lg:px-0 px-3 py-2.5 rounded-xl text-xs font-medium'
+                                        : 'gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold'
+                                        } ${active
+                                            ? isDark ? 'text-white font-bold' : 'text-[#007BFF] font-bold'
+                                            : isDark ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]' : 'text-gray-600 hover:text-gray-900 hover:bg-black/5'
                                         }`}
-                                />
+                                >
+                                    {active && (
+                                        <motion.div
+                                            layoutId="sidebar-active-pill"
+                                            className={`absolute inset-0 rounded-xl pointer-events-none ${isDark
+                                                ? 'bg-[#141417] border border-white/20 shadow-md'
+                                                : 'bg-[#EAF2FE] shadow-xs'
+                                                }`}
+                                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                                        />
+                                    )}
+                                    <div className="relative z-10 flex items-center justify-center">
+                                        <Icon
+                                            className={`w-5 h-5 shrink-0 transition-colors duration-200 group-hover:scale-105 ${active
+                                                ? isDark ? 'text-cyan-400' : 'text-[#007BFF]'
+                                                : isDark ? 'text-gray-400 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-900'
+                                                }`}
+                                        />
+                                        {/* Counter Badge Dot in Collapsed Desktop Mode */}
+                                        {isCollapsed && item.count > 0 && (
+                                            <span className="hidden lg:flex absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 items-center justify-center shadow-xs ring-2 ring-[#0B0F19]">
+                                                {item.count > 99 ? '99+' : item.count}
+                                            </span>
+                                        )}
+                                    </div>
 
-                                {/* Count Badge for favorites */}
-                                {item.count > 0 && (
-                                    <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium shadow-lg">
-                                        {item.count > 99 ? '99+' : item.count}
+                                    {/* Label text - visible when expanded */}
+                                    <span className={`relative z-10 truncate text-left ${isCollapsed ? 'lg:hidden flex-1' : 'flex-1'
+                                        }`}>
+                                        {item.label}
+                                    </span>
+
+                                    {/* Counter Badge Pill - expanded mode */}
+                                    {(!isCollapsed || false) && item.count > 0 && (
+                                        <span className={`relative z-10 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.2 min-w-[18px] h-4 flex items-center justify-center shadow-xs ${isCollapsed ? 'lg:hidden' : ''
+                                            }`}>
+                                            {item.count > 99 ? '99+' : item.count}
+                                        </span>
+                                    )}
+                                </button>
+
+                                {/* Desktop Hover Tooltip when Sidebar is Collapsed */}
+                                {isCollapsed && (
+                                    <div className="hidden lg:block absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-gray-900 text-white text-xs font-semibold shadow-2xl border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap">
+                                        {item.label}
+                                        {item.count > 0 && ` (${item.count})`}
                                     </div>
                                 )}
-
-                                {/* Tooltip */}
-                                <div className="absolute left-16 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
-                                    {item.label}
-                                    {item.count > 0 && ` (${item.count})`}
-                                </div>
-
-                                {/* Glowing effect for active item */}
-                                {isActive && (
-                                    <div
-                                        className="absolute inset-0 rounded-2xl animate-pulse"
-                                        style={{
-                                            background: 'linear-gradient(135deg, rgba(0, 199, 167, 0.2) 0%, rgba(0, 123, 255, 0.2) 100%)',
-                                            filter: 'blur(8px)',
-                                            zIndex: -1
-                                        }}
-                                    />
-                                )}
-                            </button>
+                            </div>
                         );
                     })}
                 </nav>
 
-                {/* Bottom Section: Theme Toggle */}
-                <div className="flex flex-col items-center space-y-4">
+                {/* Section Divider Line */}
+                <div className="my-4 px-1">
+                    <div className={`h-px transition-all duration-300 ${isCollapsed ? 'lg:w-8 lg:mx-auto w-full' : 'w-full'
+                        } ${isDark ? 'bg-white/10' : 'bg-gray-300/80'}`} />
+                </div>
+
+                {/* Secondary Navigation Items */}
+                <nav className="space-y-1.5 px-0.5">
+                    {secondaryNavigationItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = isItemActive(item.path);
+
+                        return (
+                            <div key={item.id} className="relative group">
+                                <button
+                                    type="button"
+                                    onClick={() => handleNavigation(item.path)}
+                                    className={`group relative w-full flex items-center transition-colors duration-200 outline-none focus:outline-none select-none cursor-pointer active:scale-98 ${isCollapsed
+                                        ? 'lg:justify-center lg:px-0 px-3 py-2.5 rounded-xl text-xs font-medium'
+                                        : 'gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold'
+                                        } ${active
+                                            ? isDark ? 'text-white font-bold' : 'text-[#007BFF] font-bold'
+                                            : isDark ? 'text-gray-400 hover:text-white hover:bg-white/[0.06]' : 'text-gray-600 hover:text-gray-900 hover:bg-black/5'
+                                        }`}
+                                >
+                                    {active && (
+                                        <motion.div
+                                            layoutId="sidebar-active-pill"
+                                            className={`absolute inset-0 rounded-xl pointer-events-none ${isDark
+                                                ? 'bg-[#141417] border border-white/20 shadow-md'
+                                                : 'bg-[#EAF2FE] shadow-xs'
+                                                }`}
+                                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                                        />
+                                    )}
+                                    <Icon
+                                        className={`relative z-10 w-5 h-5 shrink-0 transition-colors duration-200 group-hover:scale-105 ${active
+                                            ? isDark ? 'text-cyan-400' : 'text-[#007BFF]'
+                                            : isDark ? 'text-gray-400 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-900'
+                                            }`}
+                                    />
+
+                                    <span className={`relative z-10 truncate text-left ${isCollapsed ? 'lg:hidden flex-1' : 'flex-1'
+                                        }`}>
+                                        {item.label}
+                                    </span>
+                                </button>
+
+                                {/* Desktop Hover Tooltip when Sidebar is Collapsed */}
+                                {isCollapsed && (
+                                    <div className="hidden lg:block absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-gray-900 text-white text-xs font-semibold shadow-2xl border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap">
+                                        {item.label}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </nav>
+            </div>
+
+            {/* Bottom Section: Full-Width Theme Switcher & Log Out */}
+            <div className="pt-4 space-y-2 border-t border-white/10">
+                {/* Theme Switcher Button matching Logout length */}
+                <div className={`relative group ${isCollapsed ? 'lg:flex lg:justify-center' : ''}`}>
                     <button
                         type="button"
-                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                        aria-label="Toggle theme"
                         onClick={() => toggleDarkMode(!isDark)}
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 group bg-[#4169E1]`}
-
+                        className={`group flex items-center transition-all duration-200 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 select-none ${isCollapsed
+                            ? 'lg:w-10 lg:h-10 lg:justify-center lg:rounded-xl w-full gap-3 px-3 py-2.5 rounded-2xl'
+                            : 'w-full justify-between gap-3 px-3 py-2.5 rounded-2xl'
+                            } text-xs font-medium ${isDark
+                                ? 'text-gray-300 hover:text-white hover:bg-white/5'
+                                : 'text-gray-700 hover:text-gray-900 hover:bg-black/5'
+                            }`}
+                        title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                     >
-                        {isDark ? (
-                            <Sun className="w-5 h-5 text-white/90 group-hover:text-white transition-colors" />
-                        ) : (
-                            <Moon className="w-5 h-5 text-white/90 group-hover:text-white transition-colors" />
-                        )}
+                        <div className="flex items-center gap-3">
+                            {isDark ? (
+                                <Moon className="w-4 h-4 shrink-0 text-[#007BFF]" />
+                            ) : (
+                                <Sun className="w-4 h-4 shrink-0 text-yellow-500" />
+                            )}
+                            <span className={`truncate ${isCollapsed ? 'lg:hidden' : ''}`}>
+                                {isDark ? 'Dark Mode' : 'Light Mode'}
+                            </span>
+                        </div>
 
-                        {/* Tooltip */}
-                        <div className="absolute left-16 px-2 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap">
-                            {isDark ? 'Light Mode' : 'Dark Mode'}
+                        {/* Switch Pill on Right side */}
+                        <div className={`w-8 h-4 rounded-full relative p-0.5 transition-colors duration-300 ${isCollapsed ? 'lg:hidden flex items-center' : 'flex items-center'
+                            } ${isDark ? 'bg-[#007BFF]' : 'bg-gray-400'}`}>
+                            <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-300 ${isDark ? 'translate-x-4' : 'translate-x-0'
+                                }`} />
                         </div>
                     </button>
 
-
+                    {/* Collapsed Tooltip */}
+                    {isCollapsed && (
+                        <div className="hidden lg:block absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-gray-900 text-white text-xs font-semibold shadow-2xl border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap">
+                            {isDark ? 'Light Mode' : 'Dark Mode'}
+                        </div>
+                    )}
                 </div>
 
+                {/* Log Out / Log In Button directly below theme toggle button */}
+                <div className={`relative group ${isCollapsed ? 'lg:flex lg:justify-center' : ''}`}>
+                    {isAuthenticated ? (
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            className={`group flex items-center text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 select-none ${isCollapsed
+                                ? 'lg:w-10 lg:h-10 lg:justify-center lg:rounded-xl w-full gap-3 px-3 py-2.5 rounded-2xl'
+                                : 'w-full gap-3 px-3 py-2.5 rounded-2xl'
+                                }`}
+                        >
+                            <LogOut className="w-4 h-4 shrink-0 text-red-400 group-hover:text-red-300" />
+                            <span className={`truncate ${isCollapsed ? 'lg:hidden' : ''}`}>Log Out</span>
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleLoginClick}
+                            className={`group flex items-center text-xs font-medium text-[#007BFF] hover:bg-[#007BFF]/10 transition-all outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 select-none ${isCollapsed
+                                ? 'lg:w-10 lg:h-10 lg:justify-center lg:rounded-xl w-full gap-3 px-3 py-2.5 rounded-2xl'
+                                : 'w-full gap-3 px-3 py-2.5 rounded-2xl'
+                                }`}
+                        >
+                            <LogOut className="w-4 h-4 shrink-0 text-[#007BFF]" />
+                            <span className={`truncate ${isCollapsed ? 'lg:hidden' : ''}`}>Log In</span>
+                        </button>
+                    )}
+
+                    {/* Collapsed Tooltip */}
+                    {isCollapsed && (
+                        <div className="hidden lg:block absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-xl bg-gray-900 text-white text-xs font-semibold shadow-2xl border border-white/10 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 z-[100] whitespace-nowrap">
+                            {isAuthenticated ? 'Log Out' : 'Log In'}
+                        </div>
+                    )}
+                </div>
             </div>
-        </>
+        </aside>
     );
 };
 

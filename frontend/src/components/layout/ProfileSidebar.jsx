@@ -466,12 +466,12 @@ export default function ProfileSidebar({
             <div className="hidden md:block profile-sidebar-layer">
                 {/* Full Screen Overlay */}
                 <div
-                    className={`fixed inset-0 z-60 transition-opacity duration-300 ${isDark ? 'bg-black/40' : 'bg-black/20'}`}
+                    className={`fixed inset-0 z-[110] transition-opacity duration-300 ${isDark ? 'bg-black/40' : 'bg-black/20'}`}
                     onClick={onClose}
                 />
 
                 {/* Sidebar */}
-                <div className={`fixed right-0 top-0 z-70 w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
+                <div className={`fixed right-0 top-0 z-[120] w-full max-w-md h-full transform transition-all duration-300 ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
                     }`}>
                     <div className={`relative h-full rounded-l-2xl shadow-xl overflow-hidden overflow-y-auto scrollbar-hide ${isDark ? 'bg-[#161718]' : 'bg-white'
                         }`}>
