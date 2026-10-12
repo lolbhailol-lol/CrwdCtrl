@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useDarkMode } from '../../context/DarkModeContext';
 import AppLogo from '../AppLogo';
+import { SUPPORT_EMAIL, INSTAGRAM_URL, LINKEDIN_URL } from '../../constants/legalEntity';
 
 export default function FooterDesktop() {
   const { isDark } = useDarkMode();
@@ -32,7 +33,8 @@ export default function FooterDesktop() {
       title: 'Company & Support',
       links: [
         { label: 'About CrwdCtrl', path: '/about' },
-        { label: 'Help Center & FAQs', path: '/help-center' },
+        { label: 'FAQs', path: '/faq' },
+        { label: 'Help Center', path: '/help-center' },
         { label: 'Notification Center', path: '/notifications' },
         { label: 'Contact Us', path: '/contact-us' },
       ],
@@ -42,19 +44,19 @@ export default function FooterDesktop() {
   const socialLinks = [
     {
       name: 'Instagram',
-      href: 'https://www.instagram.com/crwdctrl.in?igsh=ODZpb2tpaGR4Y2Rn',
+      href: INSTAGRAM_URL,
       icon: Instagram,
       hoverClass: 'hover:text-pink-500 hover:bg-pink-500/10',
     },
     {
       name: 'LinkedIn',
-      href: 'https://linkedin.com/company/crwdctrl',
+      href: LINKEDIN_URL,
       icon: Linkedin,
       hoverClass: 'hover:text-blue-500 hover:bg-blue-500/10',
     },
     {
       name: 'Support Mail',
-      href: 'mailto:support@crwdctrl.com',
+      href: `mailto:${SUPPORT_EMAIL}`,
       icon: Mail,
       hoverClass: 'hover:text-teal-400 hover:bg-teal-400/10',
     },
@@ -62,11 +64,10 @@ export default function FooterDesktop() {
 
   return (
     <footer
-      className={`relative mt-12 mb-6 mx-3 sm:mx-6 lg:ml-2 lg:mr-4 rounded-2xl lg:rounded-3xl border transition-all duration-300 overflow-hidden shadow-xl ${
-        isDark
+      className={`relative mt-12 mb-20 lg:mb-8 mx-3 sm:mx-6 lg:mx-6 rounded-2xl lg:rounded-3xl border transition-all duration-300 overflow-hidden shadow-xl ${isDark
           ? 'bg-[#111213] border-gray-800/90 text-gray-200 shadow-black/60'
           : 'bg-white border-gray-200 text-gray-800 shadow-gray-200/70'
-      }`}
+        }`}
     >
       {/* SECTION 1: MAIN NAVIGATION & BRAND GRID */}
       <div className="relative mx-auto max-w-7xl px-5 sm:px-8 pt-7 sm:pt-8 pb-6">
@@ -93,11 +94,10 @@ export default function FooterDesktop() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={s.name}
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all duration-200 ${
-                      isDark
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all duration-200 ${isDark
                         ? 'bg-white/5 border-white/10 text-gray-200 hover:border-[#0ECCEE] hover:text-[#0ECCEE] hover:bg-[#0ECCEE]/15'
-                        : 'bg-gray-100/90 border-gray-200 text-gray-700 hover:border-[#007BFF] hover:text-[#007BFF] hover:bg-[#007BFF]/10 shadow-2xs'
-                    } ${s.hoverClass}`}
+                        : 'bg-gray-100/90 border-gray-200 text-gray-700 hover:border-[#0ECCEE] hover:text-[#0ECCEE] hover:bg-[#0ECCEE]/10 shadow-2xs'
+                      } ${s.hoverClass}`}
                   >
                     <IconComponent className="w-4 h-4" />
                   </a>
@@ -109,7 +109,7 @@ export default function FooterDesktop() {
           {/* Navigation Link Columns */}
           {navColumns.map((col) => (
             <div key={col.title} className="flex flex-col space-y-2">
-              <h3 className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-[#0ECCEE]' : 'text-[#007BFF]'}`}>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[#0ECCEE]">
                 {col.title}
               </h3>
               <ul className="space-y-1.5 text-xs">
@@ -118,18 +118,16 @@ export default function FooterDesktop() {
                     {link.isExternal ? (
                       <a
                         href={link.path}
-                        className={`transition-all duration-200 inline-flex items-center gap-1 font-medium ${
-                          isDark ? 'text-gray-300 hover:text-white hover:translate-x-0.5' : 'text-gray-600 hover:text-gray-950 hover:translate-x-0.5'
-                        }`}
+                        className={`transition-all duration-200 inline-flex items-center gap-1 font-medium ${isDark ? 'text-gray-300 hover:text-white hover:translate-x-0.5' : 'text-gray-600 hover:text-gray-950 hover:translate-x-0.5'
+                          }`}
                       >
                         {link.label}
                       </a>
                     ) : (
                       <Link
                         to={link.path}
-                        className={`transition-all duration-200 inline-flex items-center gap-1 font-medium ${
-                          isDark ? 'text-gray-300 hover:text-white hover:translate-x-0.5' : 'text-gray-600 hover:text-gray-950 hover:translate-x-0.5'
-                        }`}
+                        className={`transition-all duration-200 inline-flex items-center gap-1 font-medium ${isDark ? 'text-gray-300 hover:text-white hover:translate-x-0.5' : 'text-gray-600 hover:text-gray-950 hover:translate-x-0.5'
+                          }`}
                       >
                         {link.label}
                       </Link>
@@ -156,19 +154,25 @@ export default function FooterDesktop() {
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 font-semibold">
             <Link
               to="/privacy-policy"
-              className={`transition-colors ${isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-600 hover:text-[#007BFF]'}`}
+              className={`transition-colors ${isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-600 hover:text-[#0ECCEE]'}`}
             >
               Privacy Policy
             </Link>
             <Link
               to="/terms-and-conditions"
-              className={`transition-colors ${isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-600 hover:text-[#007BFF]'}`}
+              className={`transition-colors ${isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-600 hover:text-[#0ECCEE]'}`}
             >
               Terms of Service
             </Link>
             <Link
+              to="/faq"
+              className={`transition-colors ${isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-600 hover:text-[#0ECCEE]'}`}
+            >
+              FAQs
+            </Link>
+            <Link
               to="/contact-us"
-              className={`transition-colors ${isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-600 hover:text-[#007BFF]'}`}
+              className={`transition-colors ${isDark ? 'text-gray-300 hover:text-[#0ECCEE]' : 'text-gray-600 hover:text-[#0ECCEE]'}`}
             >
               Contact Us
             </Link>

@@ -45,6 +45,7 @@ export const ShippingPolicy = lazyWithRetry(() => import('../../pages/legal/ship
 export const DeleteAccount = lazyWithRetry(() => import('../../pages/legal/delete-account'));
 export const ProductsAndServices = lazyWithRetry(() => import('../../pages/legal/products-and-services'));
 export const About = lazyWithRetry(() => import('../../pages/legal/about'));
+export const FAQPage = lazyWithRetry(() => import('../../pages/faq/FAQPage'));
 export const FestsPage = lazyWithRetry(() => import('../../features/fests/pages/FestsPage'));
 export const FestRegistration = lazyWithRetry(() => import('../../features/fests/pages/FestRegistration'));
 export const CompetitionRegistration = lazyWithRetry(() => import('../../features/fests/pages/competitions/CompetitionRegistration'));
