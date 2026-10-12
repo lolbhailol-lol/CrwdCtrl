@@ -83,17 +83,19 @@ function fitTitle(text, boxWidth, boxHeight, maxLines, maxFont, minFont) {
 
 const FONT = "Poppins, 'Segoe UI', Arial, sans-serif";
 
-function renderPoster({ title, kicker, lines = [], topic, width, height }) {
+// safeY keeps everything inside a central band so the image survives cropping to 4:3 or 16:10.
+function renderPoster({ title, kicker, lines = [], topic, width, height, safeY = 0, stacked = false }) {
   const [from, to, accent, icon, label] = THEMES[topic] || THEMES.campus;
   const iconSvg = iconMarkup(icon);
   const ratio = width / height;
-  const tall = ratio < 0.95;
+  const tall = stacked || ratio < 0.95;
   const banner = ratio > 1.9;
   const pad = Math.round(Math.min(width, height) * 0.075);
+  const padY = Math.max(pad, Math.round(height * safeY));
   const cleanTitle = String(title || '').replace(/\s*\((online|offline)\)\s*/gi, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
 
   const textWidth = tall ? width - pad * 2 : banner ? width * 0.56 : width * 0.68;
-  const titleBox = tall ? height * 0.34 : banner ? height * 0.44 : height * 0.4;
+  const titleBox = safeY ? height * 0.28 : tall ? height * 0.34 : banner ? height * 0.44 : height * 0.4;
   const base = Math.min(width, height);
   const { size, lines: titleLines } = fitTitle(cleanTitle, textWidth, titleBox, tall ? 4 : 3, Math.round(base * (tall ? 0.15 : 0.16)), Math.round(base * 0.06));
   const subSize = Math.round(base * 0.042);
@@ -103,11 +105,11 @@ function renderPoster({ title, kicker, lines = [], topic, width, height }) {
   const titleHeight = titleLines.length * size * 1.04;
   const detailHeight = detailLines.length * subSize * 1.45;
   const blockHeight = (kicker ? kickerSize * 1.9 : 0) + titleHeight + (detailLines.length ? subSize * 0.6 + detailHeight : 0);
-  const blockTop = banner ? (height - blockHeight) / 2 : height - pad - blockHeight;
+  const blockTop = banner ? (height - blockHeight) / 2 : height - padY - blockHeight;
 
-  const badge = Math.round(base * (banner ? 0.42 : tall ? 0.3 : 0.3));
+  const badge = Math.round(base * (banner ? 0.42 : safeY ? 0.22 : 0.3));
   const badgeX = banner ? width - pad - badge : width - pad - badge;
-  const badgeY = banner ? (height - badge) / 2 : pad;
+  const badgeY = banner ? (height - badge) / 2 : padY;
   const iconScale = (badge * 0.5) / 24;
   const markScale = (Math.max(width, height) * 0.62) / 24;
 
@@ -145,12 +147,15 @@ function renderPoster({ title, kicker, lines = [], topic, width, height }) {
     <circle cx="${badgeX + badge / 2}" cy="${badgeY + badge / 2}" r="${badge / 2}" fill="#ffffff" fill-opacity="0.14" stroke="#ffffff" stroke-opacity="0.35" stroke-width="${Math.max(2, badge * 0.012)}"/>
     <g transform="translate(${badgeX + badge * 0.25} ${badgeY + badge * 0.25}) scale(${iconScale})" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${iconSvg}</g>
   </g>
-  <rect x="${pad}" y="${pad}" rx="${kickerSize * 0.9}" width="${chipW}" height="${kickerSize * 1.8}" fill="#000000" fill-opacity="0.28" stroke="#ffffff" stroke-opacity="0.3"/>
-  <text x="${pad + kickerSize * 1.1}" y="${pad + kickerSize * 1.22}" font-family="${FONT}" font-size="${kickerSize * 0.95}" font-weight="800" letter-spacing="${kickerSize * 0.12}" fill="#ffffff">${xml(label)}</text>
+  <rect x="${pad}" y="${padY}" rx="${kickerSize * 0.9}" width="${chipW}" height="${kickerSize * 1.8}" fill="#000000" fill-opacity="0.28" stroke="#ffffff" stroke-opacity="0.3"/>
+  <text x="${pad + kickerSize * 1.1}" y="${padY + kickerSize * 1.22}" font-family="${FONT}" font-size="${kickerSize * 0.95}" font-weight="800" letter-spacing="${kickerSize * 0.12}" fill="#ffffff">${xml(label)}</text>
   ${parts.join('\n  ')}
-  <text x="${width - pad}" y="${height - pad * 0.45}" text-anchor="end" font-family="${FONT}" font-size="${Math.round(base * 0.03)}" font-weight="800" fill="#ffffff" fill-opacity="0.55">CrwdCtrl</text>
+  <text x="${width - pad}" y="${height - padY + kickerSize * 1.4}" text-anchor="end" font-family="${FONT}" font-size="${Math.round(base * 0.03)}" font-weight="800" fill="#ffffff" fill-opacity="0.55">CrwdCtrl</text>
 </svg>`;
 }
+
+const CARD_SIZE = [1080, 1080];
+const CARD_OPTIONS = { safeY: 0.19, stacked: true };
 
 const SLOT_SIZES = {
   wide: [1400, 980],
@@ -162,4 +167,4 @@ const SLOT_SIZES = {
   page: [1250, 1000],
 };
 
-module.exports = { renderPoster, SLOT_SIZES, THEMES };
+module.exports = { renderPoster, SLOT_SIZES, CARD_SIZE, CARD_OPTIONS, THEMES };

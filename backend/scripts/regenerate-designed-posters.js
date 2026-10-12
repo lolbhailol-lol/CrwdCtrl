@@ -12,7 +12,7 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { renderPoster, SLOT_SIZES } = require('./catalog-posters-v2');
+const { renderPoster, SLOT_SIZES, CARD_SIZE, CARD_OPTIONS } = require('./catalog-posters-v2');
 
 const API = 'https://crwdctrl-production-9c58.up.railway.app/api/';
 const FRONTEND_PUBLIC = path.resolve(__dirname, '../../frontend/public');
@@ -99,8 +99,10 @@ async function render() {
   const variants = [];
   for (const job of jobs) {
     const base = { title: job.title, kicker: job.kicker, lines: job.lines, topic: job.topic };
-    const [w, h] = SLOT_SIZES.wide;
-    await sharp(Buffer.from(renderPoster({ ...base, width: w, height: h }))).jpeg({ quality: 86, mozjpeg: true }).toFile(localPath(job.url));
+    // Competitions only store one image and their cards are near-square, so use the crop-safe card layout.
+    const [w, h] = job.kind === 'competition' ? CARD_SIZE : SLOT_SIZES.wide;
+    const extra = job.kind === 'competition' ? CARD_OPTIONS : {};
+    await sharp(Buffer.from(renderPoster({ ...base, ...extra, width: w, height: h }))).jpeg({ quality: 86, mozjpeg: true }).toFile(localPath(job.url));
     if (!job.variants) continue;
     const urls = {};
     for (const slot of VARIANT_SLOTS) {
