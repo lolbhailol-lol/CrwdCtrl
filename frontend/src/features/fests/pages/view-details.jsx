@@ -208,6 +208,7 @@ function CompetitionScrollCard({
   hideFee = false,
   largeCover = false,
   eagerCover = false,
+  festName = '',
 }) {
   const compName = typeof comp.name === 'string' ? comp.name : 'Competition';
   const feeLabel = formatCompFee(comp);
@@ -243,7 +244,7 @@ function CompetitionScrollCard({
         <CompetitionCoverImage
           src={comp.image}
           alt={compName}
-          category={`${comp.competitionType || comp.category || comp.type || ''} ${pageEvent?.festName || pageEvent?.title || ''} ${comp._id || comp.id || ''}`}
+          category={`${comp.competitionType || comp.category || comp.type || ''} ${festName} ${comp._id || comp.id || ''}`}
           preset="cardSm"
           placeholder="muted"
           eager={eagerCover}
@@ -1080,6 +1081,7 @@ function EventDetailsPage() {
                           <CompetitionScrollCard
                             key={comp.id || idx}
                             comp={comp}
+                            festName={pageEvent.title}
                             fill={smoothFestLayout}
                             hideFee={false}
                             largeCover={mindSparkDesktop}
@@ -1581,6 +1583,7 @@ function EventDetailsPage() {
                   <CompetitionScrollCard
                     key={comp.id || idx}
                     comp={comp}
+                    festName={pageEvent.title}
                     hideFee={false}
                     largeCover={mindSparkDesktop}
                     eagerCover={isAarohan ? idx < 8 : idx < 4}
