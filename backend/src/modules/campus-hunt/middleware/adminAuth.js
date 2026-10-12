@@ -8,6 +8,7 @@ const CampusHuntChallenge = require('../models/CampusHuntChallenge');
 const CampusHuntCheckpoint = require('../models/CampusHuntCheckpoint');
 const CampusHuntIssueReport = require('../models/CampusHuntIssueReport');
 const { CollegeGame } = require('../../college-platform/models');
+const { INTERN_ROLE, internBlockedFromCampusHunt } = require('../../../middleware/internAdminAccess');
 
 const HOST_FORBIDDEN = [
   /^\/events\/?$/,
@@ -75,8 +76,11 @@ module.exports = async (req, res, next) => {
     const header = req.headers.authorization || '';
     if (!header.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized: Missing token' });
     const decoded = jwt.verify(header.slice(7), getJwtSecret());
-    if (decoded.type === 'refresh' || !['admin', 'campus_hunt_admin', 'campus_hunt_host'].includes(decoded.role)) {
+    if (decoded.type === 'refresh' || !['admin', 'campus_hunt_admin', 'campus_hunt_host', INTERN_ROLE].includes(decoded.role)) {
       return res.status(403).json({ error: 'Forbidden: Campus Hunt access required' });
+    }
+    if (decoded.role === INTERN_ROLE && internBlockedFromCampusHunt(req)) {
+      return res.status(403).json({ error: 'Forbidden: Deleting data and team credentials stay with the CrwdCtrl admin' });
     }
     if (decoded.role === 'campus_hunt_host') {
       const denied = await authorizeHost(req, res, decoded);

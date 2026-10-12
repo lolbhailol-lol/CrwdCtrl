@@ -31,12 +31,38 @@ async function verifyAdminPassword(password) {
   return false;
 }
 
+const INTERN_ROLE = 'intern_admin';
+
+function internAdminEmail() {
+  return process.env.INTERN_ADMIN_EMAIL?.trim().toLowerCase() || '';
+}
+
+async function verifyInternPassword(password) {
+  const hash = process.env.INTERN_ADMIN_PASSWORD_HASH?.trim();
+  return Boolean(hash && password && await bcrypt.compare(password, hash));
+}
+
+function issueTokens(res, role, email) {
+  const secret = getJwtSecret();
+  const accessToken = jwt.sign({ role, email }, secret, { expiresIn: '1h' });
+  const refreshToken = jwt.sign({ role, email, type: 'refresh' }, secret, { expiresIn: role === INTERN_ROLE ? '1d' : '7d' });
+  return res.json({ success: true, accessToken, refreshToken, user: { email, role } });
+}
+
 exports.adminLogin = async (req, res) => {
   try {
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const adminEmail = process.env.ADMIN_EMAIL?.trim();
+
+    const internEmail = internAdminEmail();
+    if (internEmail && email.toLowerCase() === internEmail && email !== adminEmail) {
+      if (!(await verifyInternPassword(password))) {
+        return res.status(401).json({ success: false, message: 'Invalid admin credentials' });
+      }
+      return issueTokens(res, INTERN_ROLE, internEmail);
+    }
 
     if (!adminEmail || !email || email !== adminEmail) {
       if (isDev) {
@@ -121,8 +147,19 @@ exports.refreshAdminToken = async (req, res) => {
       });
     }
 
+    // Keep the original role, and only for the account that is still configured.
+    const adminEmail = process.env.ADMIN_EMAIL?.trim();
+    const validAdmin = decoded.role === 'admin' && adminEmail && decoded.email === adminEmail;
+    const validIntern = decoded.role === INTERN_ROLE && internAdminEmail() && decoded.email === internAdminEmail();
+    if (!validAdmin && !validIntern) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired refresh token',
+      });
+    }
+
     const newAccessToken = jwt.sign(
-      { role: 'admin', email: decoded.email },
+      { role: decoded.role, email: decoded.email },
       secret,
       { expiresIn: '1h' }
     );

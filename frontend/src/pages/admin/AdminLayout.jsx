@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { isInternAdminSession } from '../../utils/adminRole';
 import {
   LayoutDashboard,
   Calendar,
@@ -52,7 +53,8 @@ export default function AdminLayout() {
     navigate('/admin/login');
   };
 
-  const menuItems = [
+  const internSession = isInternAdminSession();
+  const allMenuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin', exact: true },
     { icon: Calendar, label: 'Fests', path: '/admin/fests' },
     { icon: Trophy, label: 'Competitions', path: '/admin/competitions' },
@@ -81,6 +83,12 @@ export default function AdminLayout() {
     { icon: IndianRupee, label: 'Payments', path: '/admin/payments' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ];
+  const menuItems = internSession
+    ? [
+      { icon: Users2, label: 'College Games', path: '/admin/college-platform' },
+      { icon: MapPinned, label: 'Campus Hunt', path: '/campus-hunt/admin' },
+    ]
+    : allMenuItems;
 
   const isActivePath = (path, exact = false) =>
     exact ? location.pathname === path : location.pathname === path || location.pathname.startsWith(`${path}/`);
@@ -171,7 +179,7 @@ export default function AdminLayout() {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0ECCEE]/10 border border-[#0ECCEE]/20">
               <span className="w-2 h-2 rounded-full bg-[#0ECCEE]" />
-              <span className="text-xs font-medium text-[#0ECCEE]">Admin</span>
+              <span className="text-xs font-medium text-[#0ECCEE]">{internSession ? 'Intern' : 'Admin'}</span>
             </div>
             <div className="h-6 w-px bg-gray-800 hidden sm:block" />
             <button

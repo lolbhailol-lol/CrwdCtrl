@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useEffect, useState } from 'react';
 import { getAdminToken, clearAdminSession, adminFetch } from '../../services/api/admin.api.js';
 import { InlinePageLoader } from '../../components/DetailPageLoader';
+import { INTERN_ADMIN_HOME, INTERN_ADMIN_ROLE, isInternAdminPathAllowed } from '../../utils/adminRole';
 
 function parseJwt(token) {
   try {
@@ -14,7 +15,7 @@ function parseJwt(token) {
 
 function parseAdminToken(token) {
   const payload = parseJwt(token);
-  if (!payload || payload.role !== 'admin' || payload.type === 'refresh') return null;
+  if (!payload || !['admin', INTERN_ADMIN_ROLE].includes(payload.role) || payload.type === 'refresh') return null;
   return payload;
 }
 
@@ -42,6 +43,7 @@ export default function AdminProtectedRoute({ children }) {
   const { isLoading } = useAuth();
   const location = useLocation();
   const [verified, setVerified] = useState(null);
+  const [role, setRole] = useState(null);
   const hasStoredToken = !!localStorage.getItem('admin_token');
   const huntToken = typeof window !== 'undefined'
     ? localStorage.getItem('campus_hunt_admin_token')
@@ -66,9 +68,13 @@ export default function AdminProtectedRoute({ children }) {
         return;
       }
 
+      const tokenRole = parseAdminToken(token).role;
       try {
-        const res = await adminFetch('/admin/verify');
-        if (!cancelled) setVerified(res.ok);
+        const res = await adminFetch(tokenRole === INTERN_ADMIN_ROLE ? '/admin/college-platform/access' : '/admin/verify');
+        if (!cancelled) {
+          setRole(tokenRole);
+          setVerified(res.ok);
+        }
       } catch {
         if (!cancelled) setVerified(false);
       }
@@ -101,6 +107,10 @@ export default function AdminProtectedRoute({ children }) {
       clearAdminSession();
     }
     return <Navigate to="/admin/login" replace />;
+  }
+
+  if (role === INTERN_ADMIN_ROLE && !isInternAdminPathAllowed(location.pathname)) {
+    return <Navigate to={huntMirror ? `${huntMirror}${location.search || ''}` : INTERN_ADMIN_HOME} replace />;
   }
 
   return children;

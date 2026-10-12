@@ -3,6 +3,7 @@
  */
 import { API_BASE_URL, resolveUrl } from './client.js';
 import { getApiBaseCandidates } from '../../config/apiBase.js';
+import { INTERN_ADMIN_ROLE, readAdminTokenRole } from '../../utils/adminRole.js';
 
 export { API_BASE_URL };
 
@@ -146,6 +147,9 @@ export async function adminFetch(path, options = {}) {
   });
 
   let response = await fetchAcrossBases(path, () => buildOptions(token), { timeout });
+
+  // An intern hitting a blocked action is a permission answer, not an expired session.
+  if (response.status === 403 && readAdminTokenRole(token) === INTERN_ADMIN_ROLE) return response;
 
   if (response.status === 401 || response.status === 403) {
     if (campusScoped) {

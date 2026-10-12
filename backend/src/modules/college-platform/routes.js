@@ -1,5 +1,5 @@
 const express = require('express');
-const adminAuth = require('../../middleware/adminAuth');
+const { collegePlatformAdminAuth } = require('../../middleware/internAdminAccess');
 const { gamePreRegistrationLimiter: preRegistrationLimiter } = require('../../middleware/rateLimiter');
 const { authenticateToken, optionalAuthenticateToken } = require('../../middleware/authmiddleware');
 const controller = require('./controller');
@@ -48,7 +48,8 @@ publicRouter.post('/:id/reservations', authenticateToken, controller.reserveRegi
 publicRouter.get('/:id', controller.getGame);
 
 const adminRouter = express.Router();
-adminRouter.use(adminAuth);
+adminRouter.use(collegePlatformAdminAuth);
+adminRouter.get('/access', (req, res) => res.json({ success: true, role: req.user.role, email: req.user.email }));
 adminRouter.get('/', controller.adminList);
 adminRouter.get('/host-platform', hostController.adminHostPlatform);
 adminRouter.patch('/hosts/:hostId', hostController.adminReviewHost);

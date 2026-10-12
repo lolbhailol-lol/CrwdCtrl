@@ -13,6 +13,7 @@ import {
     markLoginModalOpen,
 } from '../../utils/loginFlow';
 import { useInAppBack } from '../../hooks/useInAppBack';
+import { INTERN_ADMIN_HOME, INTERN_ADMIN_ROLE, readAdminTokenRole } from '../../utils/adminRole';
 import OpenInBrowserModal from '../../components/OpenInBrowserModal';
 import {
     detectInAppBrowserName,
@@ -147,7 +148,7 @@ export default function CrwdCtrlLogin({
         if (!isModal && location.pathname === '/login') {
             const adminToken = storage.getItem('admin_token');
             if (adminToken) {
-                navigate('/admin', { replace: true });
+                navigate(readAdminTokenRole(adminToken) === INTERN_ADMIN_ROLE ? INTERN_ADMIN_HOME : '/admin', { replace: true });
             }
         }
     }, [isModal, location.pathname, navigate]);
@@ -190,7 +191,7 @@ export default function CrwdCtrlLogin({
                     if (isModal && onClose) {
                         onClose();
                     }
-                    navigate('/admin', { replace: true });
+                    navigate(result.user?.role === INTERN_ADMIN_ROLE ? INTERN_ADMIN_HOME : '/admin', { replace: true });
                 } else {
                     // User login - update AuthContext and close modal
                     console.log('✅ [LOGIN] User login successful');
