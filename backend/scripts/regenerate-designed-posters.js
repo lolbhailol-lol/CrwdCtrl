@@ -132,7 +132,7 @@ async function apply(write) {
       const row = await Model.findById(v.id).select('coverImages').lean();
       if (!row) continue;
       const set = {};
-      for (const slot of VARIANT_SLOTS) if (row.coverImages?.[slot] === v.baseUrl) set[`coverImages.${slot}`] = v[slot];
+      for (const slot of VARIANT_SLOTS) if (!row.coverImages?.[slot] || row.coverImages[slot] === v.baseUrl) set[`coverImages.${slot}`] = v[slot];
       if (!Object.keys(set).length) continue;
       backup.rows.push({ kind: v.kind, id: v.id, coverImages: row.coverImages });
       plan.push({ Model, id: v.id, set });
