@@ -103,8 +103,10 @@ test('host workspace owns its mobile chrome without stacked navigation', () => {
 
 test('games preview includes the MIT-WPU coming-soon Campus Hunt', () => {
   const page = read('../src/features/college-platform/CollegePlatform.jsx');
-  assert.match(page, /Campus Hunt: MIT-WPU/);
-  assert.match(page, /40/);
+  const comingSoon = read('../src/features/college-platform/comingSoonGames.js');
+  assert.match(comingSoon, /Campus Hunt: MIT-WPU/);
+  assert.match(comingSoon, /capacity: 40/);
+  assert.match(page, /MIT_WPU_CAMPUS_HUNT/);
   assert.match(page, /Date coming soon/);
   assert.match(page, /Entry fee TBA/);
   assert.match(page, /Pre-register your team name/);

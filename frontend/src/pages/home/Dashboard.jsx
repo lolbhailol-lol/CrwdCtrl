@@ -35,6 +35,7 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
+import { MIT_WPU_CAMPUS_HUNT } from '../../features/college-platform/comingSoonGames';
 import ReviewsSection from '../../components/ReviewsSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { HOME_FAQ } from '../../constants/faqs';
@@ -1160,7 +1161,21 @@ const Dashboard = () => {
         return mapHomeCarouselDisplayItems(raw, transformedFests);
     }, [fests, homeSports, homeRunClubs, homeEventShows, transformedFests]);
 
-    const trendingItems = useMemo(() => buildSectionItems('trending'), [buildSectionItems]);
+    const trendingItems = useMemo(() => [
+        {
+            id: MIT_WPU_CAMPUS_HUNT.id,
+            _id: MIT_WPU_CAMPUS_HUNT.id,
+            title: MIT_WPU_CAMPUS_HUNT.title,
+            _title: MIT_WPU_CAMPUS_HUNT.title,
+            subtitle: `${MIT_WPU_CAMPUS_HUNT.venue} · Coming soon`,
+            _subtitle: `${MIT_WPU_CAMPUS_HUNT.venue} · Coming soon`,
+            image: MIT_WPU_CAMPUS_HUNT.coverImage,
+            _image: MIT_WPU_CAMPUS_HUNT.coverImage,
+            _type: 'game',
+            _href: '/games',
+        },
+        ...buildSectionItems('trending'),
+    ], [buildSectionItems]);
     const happeningItems = useMemo(() => buildSectionItems('happening'), [buildSectionItems]);
 
     const navigateToFestDetail = useCallback((item) => {
@@ -1172,7 +1187,9 @@ const Dashboard = () => {
     }, [fests, navigate]);
 
     const navigateToHomeItem = useCallback((item) => {
-        if (item._type === 'fest') {
+        if (item._href) {
+            navigate(item._href);
+        } else if (item._type === 'fest') {
             navigateToFestDetail(item);
         } else if (item._type === 'game') {
             navigate(`/games/${item.slug || item.id || item._id}`);
@@ -1212,6 +1229,7 @@ const Dashboard = () => {
     const getHomeItemShareUrl = useCallback((item) => {
         const origin = window.location.origin;
         if (item._type === 'fest') return `${origin}${festPath(item)}`;
+        if (item._href) return `${origin}${item._href}`;
         if (item._type === 'game') return `${origin}/games/${item.slug || item.id || item._id}`;
         if (item._type === 'trek') return `${origin}${trekPath(item)}`;
         if (item._type === 'community') return `${origin}${communityPath(item)}`;
@@ -1236,6 +1254,10 @@ const Dashboard = () => {
     );
 
     const handleSearchNavigate = useCallback((result) => {
+        if (result?._href) {
+            navigate(result._href);
+            return;
+        }
         if (result?.resultType === 'game') {
             navigate(`/games/${result.slug || result.id || result._id}`);
             return;
