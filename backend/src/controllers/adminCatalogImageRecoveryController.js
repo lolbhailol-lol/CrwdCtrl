@@ -2,6 +2,8 @@
 
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const mongoose = require('mongoose');
+const { LISTING_RECOVERY_KINDS } = require('../utils/catalogImageRecoveryListings');
 
 const MANIFEST_PATH = path.resolve(__dirname, '../../scripts/data/catalog-image-recovery-manifest.json');
 const BACKUP_DIR = path.resolve(__dirname, '../../tmp/catalog-image-backups');
@@ -9,10 +11,17 @@ const DEAD_IMAGE_HOST = /res\.cloudinary\.com\/dyonimhgb\//i;
 const COVER_SLOTS = ['page', 'portrait', 'wide', 'hero', 'square', 'landscape', 'video'];
 
 const isDead = (url) => !url || DEAD_IMAGE_HOST.test(String(url));
+const isDeadHost = (url) => DEAD_IMAGE_HOST.test(String(url || ''));
+const FEST_KINDS = ['fest', 'fest-gallery', 'competition', 'competition-gallery'];
+
+const CatalogImageRecoveryBackup = mongoose.models.CatalogImageRecoveryBackup
+  || mongoose.model('CatalogImageRecoveryBackup', new mongoose.Schema({
+    backup: { type: mongoose.Schema.Types.Mixed, required: true },
+  }, { timestamps: true, minimize: false }));
 const identity = (item) => `${item.kind}:${item.id}:${Number.isInteger(item.index) ? item.index : ''}`;
 
 function validateManifestImage(item) {
-  if (!item || !['fest', 'fest-gallery', 'competition', 'competition-gallery'].includes(item.kind)) return false;
+  if (!item || !(FEST_KINDS.includes(item.kind) || LISTING_RECOVERY_KINDS[item.kind])) return false;
   if (!/^[a-f\d]{24}$/i.test(String(item.id || ''))) return false;
   if (typeof item.file !== 'string' || !/^[a-z0-9-]+\.(jpg|png|webp)$/i.test(item.file) || path.basename(item.file) !== item.file) return false;
   return item.publicUrl === `https://www.crwdctrl.in/images/catalog-recovery/${item.file}`
@@ -45,13 +54,19 @@ async function applyRecovery(req, res) {
   const Competition = require('../model/competition_model');
   const festImages = new Map();
   const competitionImages = new Map();
+  const listingImages = new Map();
   for (const image of images) {
+    if (LISTING_RECOVERY_KINDS[image.kind]) {
+      if (!listingImages.has(image.kind)) listingImages.set(image.kind, new Map());
+      listingImages.get(image.kind).set(image.id, image);
+      continue;
+    }
     const target = image.kind.startsWith('fest') ? festImages : competitionImages;
     if (!target.has(image.id)) target.set(image.id, []);
     target.get(image.id).push(image);
   }
 
-  const backup = { createdAt: new Date().toISOString(), fests: [], competitions: [] };
+  const backup = { createdAt: new Date().toISOString(), fests: [], competitions: [], listings: [] };
   const festOperations = [];
   const competitionOperations = [];
   let replacedImageFields = 0;
@@ -115,19 +130,69 @@ async function applyRecovery(req, res) {
     }
   }
 
-  if (!festOperations.length && !competitionOperations.length) {
-    return res.json({ success: true, message: 'All catalog images already have working replacements.', updatedFests: 0, updatedCompetitions: 0 });
+  const listingOperations = new Map();
+  let updatedListings = 0;
+  for (const [kind, byId] of listingImages) {
+    const config = LISTING_RECOVERY_KINDS[kind];
+    const Model = config.model();
+    const hasPath = (field) => Boolean(Model.schema.path(field));
+    const coverFields = ['coverImage', ...config.coverFields].filter(hasPath);
+    const arrays = config.arrays.filter(hasPath);
+    const fields = [...coverFields, 'coverImages', ...arrays];
+    const rows = await Model.find({ _id: { $in: [...byId.keys()] } }).select(fields.join(' ')).lean();
+    const operations = [];
+    for (const row of rows) {
+      const id = String(row._id);
+      const photo = byId.get(id).publicUrl;
+      const set = {};
+      for (const field of coverFields) {
+        if (isDead(row[field])) { set[field] = photo; replacedImageFields += 1; }
+      }
+      const coverImages = row.coverImages || {};
+      for (const slot of COVER_SLOTS) {
+        if (isDead(coverImages[slot])) { set[`coverImages.${slot}`] = photo; replacedImageFields += 1; }
+      }
+      for (const field of arrays) {
+        const current = Array.isArray(row[field]) ? row[field] : [];
+        const kept = current.filter((url) => url && !isDeadHost(url));
+        const refill = !kept.length && current.length > 0 && config.primaryArrays.includes(field);
+        if (kept.length !== current.length) {
+          set[field] = refill ? [photo] : kept;
+          replacedImageFields += current.length - kept.length;
+        }
+      }
+      if (Object.keys(set).length) {
+        backup.listings.push({ kind, id, fields: Object.fromEntries(fields.map((field) => [field, row[field] ?? null])) });
+        operations.push({ updateOne: { filter: { _id: id }, update: { $set: set } } });
+      }
+    }
+    if (operations.length) {
+      listingOperations.set(kind, { Model, operations });
+      updatedListings += operations.length;
+    }
   }
 
-  await fs.mkdir(BACKUP_DIR, { recursive: true });
-  const backupPath = path.join(BACKUP_DIR, `catalog-images-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-  await fs.writeFile(backupPath, `${JSON.stringify(backup, null, 2)}\n`, 'utf8');
+  if (!festOperations.length && !competitionOperations.length && !updatedListings) {
+    return res.json({ success: true, message: 'All catalog images already have working replacements.', updatedFests: 0, updatedCompetitions: 0, updatedListings: 0 });
+  }
+
+  let backupPath = '';
+  try {
+    await fs.mkdir(BACKUP_DIR, { recursive: true });
+    backupPath = path.join(BACKUP_DIR, `catalog-images-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+    await fs.writeFile(backupPath, `${JSON.stringify(backup, null, 2)}\n`, 'utf8');
+  } catch (error) {
+    console.warn('[adminCatalogImageRecovery] Could not write file backup:', error.message);
+  }
+  // The server disk is wiped on redeploy, so the database copy is the durable rollback source.
+  const backupRecord = await CatalogImageRecoveryBackup.create({ backup });
 
   try {
     if (festOperations.length) await FestOrganizer.bulkWrite(festOperations, { ordered: false });
     if (competitionOperations.length) await Competition.bulkWrite(competitionOperations, { ordered: false });
+    for (const { Model, operations } of listingOperations.values()) await Model.bulkWrite(operations, { ordered: false });
   } catch (error) {
-    console.error('[adminCatalogImageRecovery] Apply failed; backup retained at:', backupPath, error);
+    console.error('[adminCatalogImageRecovery] Apply failed; backup retained:', String(backupRecord._id), backupPath, error);
     return res.status(500).json({ error: 'Image recovery was interrupted. The pre-change backup is retained for rollback.' });
   }
 
@@ -142,6 +207,8 @@ async function applyRecovery(req, res) {
     success: true,
     updatedFests: festOperations.length,
     updatedCompetitions: competitionOperations.length,
+    updatedListings,
+    backupId: String(backupRecord._id),
     replacedImageFields,
     selectedImages: images.length,
     unmatchedImages: Array.isArray(manifest.failed) ? manifest.failed.length : 0,
@@ -149,4 +216,4 @@ async function applyRecovery(req, res) {
   });
 }
 
-module.exports = { applyRecovery };
+module.exports = { applyRecovery, CatalogImageRecoveryBackup };
