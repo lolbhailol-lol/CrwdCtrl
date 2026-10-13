@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const distAssets = join(process.cwd(), 'dist', 'assets');
-const railway = /crwdctrl-production-9c58\.up\.railway\.app\/api/;
+const railway = /api\.crwdctrl\.in\/api/;
 const devHosts = [
   /http:\/\/localhost:8080\/api/,
   /http:\/\/127\.0\.0\.1:8080\/api/,

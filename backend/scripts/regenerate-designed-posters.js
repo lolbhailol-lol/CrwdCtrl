@@ -14,7 +14,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { renderPoster, SLOT_SIZES, CARD_SIZE, CARD_OPTIONS } = require('./catalog-posters-v2');
 
-const API = 'https://crwdctrl-production-9c58.up.railway.app/api/';
+const API = 'https://api.crwdctrl.in/api/';
 const FRONTEND_PUBLIC = path.resolve(__dirname, '../../frontend/public');
 const FEST_MANIFEST = path.resolve(__dirname, 'data/fest-catalog-images.json');
 const LISTING_MANIFEST = path.resolve(__dirname, 'data/listing-images.json');

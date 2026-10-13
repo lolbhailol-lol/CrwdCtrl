@@ -30,6 +30,10 @@ const corsOrigins = [
   'https://frontend-five-tau-70.vercel.app',
   'https://crwdctrl-730576782394.asia-south2.run.app',
   'https://crwdctrl-production-9c58.up.railway.app',
+  'https://api.crwdctrl.in',
+  // New Railway account (2026-10 migration)
+  'https://frontend-production-f857.up.railway.app',
+  'https://crwdctrl-production-f337.up.railway.app',
   // Frontend static service on Railway (separate project from the API)
   'https://crwdctrl-production-6b47.up.railway.app',
   'https://crwdctrl-mvp-git-main.vercel.app',

@@ -16,7 +16,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const API_URL = 'https://crwdctrl-production-9c58.up.railway.app/api/fests/all?limit=200';
+const API_URL = 'https://api.crwdctrl.in/api/fests/all?limit=200';
 const OPENVERSE_URL = 'https://api.openverse.org/v1/images/';
 const FRONTEND_PUBLIC = path.resolve(__dirname, '../../frontend/public');
 const ASSET_DIR = path.join(FRONTEND_PUBLIC, 'images/catalog-recovery');
@@ -269,7 +269,7 @@ const LISTING_SOURCES = [
   { path: 'home', key: 'runClubs', kind: 'run-club' },
   { path: 'home', key: 'eventShows', kind: 'event-show' },
 ];
-const LISTING_API_BASE = 'https://crwdctrl-production-9c58.up.railway.app/api/';
+const LISTING_API_BASE = 'https://api.crwdctrl.in/api/';
 const LISTING_IMAGE_FIELDS = ['coverImage', 'poster', 'banner', 'images', 'heroImages', 'galleryImages'];
 
 function listingHasDeadImage(item) {

@@ -17,8 +17,8 @@ jobs:
           echo "Pinging backends to keep API warm..."
 
           URLS=(
-            "https://crwdctrl-production-9c58.up.railway.app/api/health"
-            "https://crwdctrl-production-9c58.up.railway.app/api/keep-alive"
+            "https://api.crwdctrl.in/api/health"
+            "https://api.crwdctrl.in/api/keep-alive"
             "https://www.crwdctrl.in/api/health"
           )
 

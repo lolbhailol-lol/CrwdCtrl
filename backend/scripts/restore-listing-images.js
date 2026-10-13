@@ -16,7 +16,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { posterSvg } = require('./fest-catalog-posters');
 
-const API = 'https://crwdctrl-production-9c58.up.railway.app/api/';
+const API = 'https://api.crwdctrl.in/api/';
 const ASSET_DIR = path.resolve(__dirname, '../../frontend/public/images/listings');
 const PUBLIC_BASE = 'https://www.crwdctrl.in/images/listings/';
 const MANIFEST_PATH = path.resolve(__dirname, 'data/listing-images.json');

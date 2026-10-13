@@ -39,7 +39,7 @@
 	# Frontend and backend live in separate Railway projects → public upstream URL.
 	@api path /api /api/*
 	handle @api {
-		reverse_proxy {$API_UPSTREAM:https://crwdctrl-production-9c58.up.railway.app} {
+		reverse_proxy {$API_UPSTREAM:https://api.crwdctrl.in} {
 			header_up Host {http.reverse_proxy.upstream.host}
 			header_up X-Forwarded-Host {host}
 			header_up X-Forwarded-Proto {scheme}
@@ -59,7 +59,7 @@
 	handle @socialbot {
 		handle @sharepath {
 			rewrite * /api/seo/og{uri}
-			reverse_proxy {$API_UPSTREAM:https://crwdctrl-production-9c58.up.railway.app} {
+			reverse_proxy {$API_UPSTREAM:https://api.crwdctrl.in} {
 				header_up Host {http.reverse_proxy.upstream.host}
 				header_up X-Forwarded-Host {host}
 				header_up X-Forwarded-Proto {scheme}

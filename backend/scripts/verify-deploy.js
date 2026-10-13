@@ -2,7 +2,7 @@
 /**
  * Post-deploy verification — run against production/staging API base URL.
  * Usage: node scripts/verify-deploy.js [baseUrl]
- * Example: node scripts/verify-deploy.js https://crwdctrl-production-9c58.up.railway.app
+ * Example: node scripts/verify-deploy.js https://api.crwdctrl.in
  */
 require('dotenv').config();
 
