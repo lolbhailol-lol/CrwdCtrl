@@ -51,33 +51,39 @@ async function startServer() {
         env: process.env.NODE_ENV || 'development',
       });
 
-      try {
-        const { initReminderCron, initPendingPaymentExpiryCron } = require('./services/reminderService');
-        initReminderCron();
-        initPendingPaymentExpiryCron();
-      } catch (cronErr) {
-        logger.warn('Reminder cron failed to start', { error: cronErr.message });
-      }
+      // Set CRON_ENABLED=false on a second backend instance so reminders and syncs run only once.
+      if (process.env.CRON_ENABLED !== 'false') {
+        try {
+          const { initReminderCron, initPendingPaymentExpiryCron } = require('./services/reminderService');
+          initReminderCron();
+          initPendingPaymentExpiryCron();
+        } catch (cronErr) {
+          logger.warn('Reminder cron failed to start', { error: cronErr.message });
+        }
 
-      try {
-        const { initTrekWeekendRollCron } = require('./services/trekWeekendRollService');
-        initTrekWeekendRollCron();
-      } catch (rollErr) {
-        logger.warn('TrekkVede weekend roll failed to start', { error: rollErr.message });
-      }
+        try {
+          const { initTrekWeekendRollCron } = require('./services/trekWeekendRollService');
+          initTrekWeekendRollCron();
+        } catch (rollErr) {
+          logger.warn('TrekkVede weekend roll failed to start', { error: rollErr.message });
+        }
 
-      try {
-        const { initSettlementSyncCron } = require('./services/cashfreeSettlementSync');
-        initSettlementSyncCron();
-      } catch (syncErr) {
-        logger.warn('Cashfree settlement sync cron failed to start', { error: syncErr.message });
-      }
+        try {
+          const { initSettlementSyncCron } = require('./services/cashfreeSettlementSync');
+          initSettlementSyncCron();
+        } catch (syncErr) {
+          logger.warn('Cashfree settlement sync cron failed to start', { error: syncErr.message });
+        }
 
-      try {
-        const { initHostMaintenanceCron } = require('./modules/college-platform/hostMaintenanceService');
-        initHostMaintenanceCron();
-      } catch (hostMaintenanceErr) {
-        logger.warn('Campus Hunt host maintenance failed to start', { error: hostMaintenanceErr.message });
+        try {
+          const { initHostMaintenanceCron } = require('./modules/college-platform/hostMaintenanceService');
+          initHostMaintenanceCron();
+        } catch (hostMaintenanceErr) {
+          logger.warn('Campus Hunt host maintenance failed to start', { error: hostMaintenanceErr.message });
+        }
+
+      } else {
+        logger.info('Scheduled jobs disabled on this instance (CRON_ENABLED=false)');
       }
 
       try {
