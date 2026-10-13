@@ -1119,10 +1119,6 @@ export default function useFestRegistration() {
       if (Number(prev.team_size) === locked && prevMembers.length === locked) return prev;
       return { ...prev, team_size: locked, team_members: sized };
     });
-<<<<<<< HEAD
-
-=======
->>>>>>> 8dfd6601511bd0bc17b6bc2bfaf76613f56f2114
   }, [competition?._id || competition?.id, competition?.teamSizeMax, competition?.teamSizeMin]);
 
   const handleStepFieldChange = (fieldId, value) => {
