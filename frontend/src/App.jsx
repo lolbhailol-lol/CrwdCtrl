@@ -66,9 +66,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     onProfileClose();
   }, [location.pathname, navigate, onProfileClose, prepareRouteNavigation, startOverlayTransition]);
 
-  const shouldHideMobileBottomNav = hideChrome ||
-    pageContentLoading ||
-    !homeShellReady ||
+  const shouldHideMobileBottomNav = !homeShellReady ||
     location.pathname === '/login' ||
     location.pathname === '/register' ||
     location.pathname === '/verify-email' ||
@@ -269,18 +267,10 @@ function AppContent({
 
       setShowLogin(false);
       setShowRegister(false);
+      setIsProfileOpen(false);
 
       const destination = resolvePostLoginRedirect();
       const here = currentAppPath();
-
-      // Profile Google sheet: stay on Profile, toast “Login successful”, then they tap Hunt.
-      if (stayInProfile || fromProfile) {
-        setIsProfileOpen(true);
-        window.requestAnimationFrame(() => showLoginPopup());
-        return;
-      }
-
-      setIsProfileOpen(false);
 
       if (destination && destination !== here) {
         navigate(destination, { replace: true });
@@ -363,9 +353,9 @@ function App() {
 
   const openLoginFromProfile = useCallback((options = {}) => {
     prepareLogin({
-      fromProfile: true,
-      stayInProfile: options.stayInProfile !== false,
-      returnPath: options.stayInProfile === false ? options.returnPath : undefined,
+      fromProfile: false,
+      stayInProfile: false,
+      returnPath: options.returnPath,
     });
     setShowLogin(true);
   }, []);

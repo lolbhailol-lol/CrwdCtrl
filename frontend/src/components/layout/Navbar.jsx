@@ -27,7 +27,8 @@ const NAV_ITEMS = [
     { id: 'fests',   label: 'Fests',   path: '/fests' },
     { id: 'games',   label: 'Games',   path: '/games' },
     { id: 'sports',  label: 'Sports',  path: '/sports' },
-    { id: 'events', label: 'Events', path: '/events' },
+    { id: 'treks',   label: 'Treks',   path: '/treks' },
+    { id: 'events',  label: 'Events',  path: '/events' },
 ];
 
 const FEST_SECTION_PATH = /^\/(fests|view-details|competitions-view-details|competition\/|fest\/)/;

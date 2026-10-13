@@ -37,8 +37,7 @@
     body {
         overflow-x: clip;
         overscroll-behavior-x: none;
-        overscroll-behavior-y: none;
-        scroll-behavior: smooth;
+        overscroll-behavior-y: auto;
         -webkit-overflow-scrolling: touch;
         /* Reduce accidental double-tap zoom while scrolling on iPhone */
         touch-action: manipulation;
@@ -46,6 +45,13 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         -ms-overflow-style: none;
+    }
+
+    html.dark,
+    .dark body,
+    .dark #root {
+        background-color: var(--chrome-page-bg-dark, #000000) !important;
+        color: #f8fafc;
     }
 
     html::-webkit-scrollbar,
@@ -1724,15 +1730,9 @@ html:not(.dark) .detail-loader-shine,
     }
 }
 
-/* Hide chrome while route overlay or page data is loading — display:none avoids footer flash */
-body.page-transition-active #crwdctrl-bottom-nav,
-body.page-content-loading #crwdctrl-bottom-nav,
-body.page-transition-active .bottom-nav-spacer,
-body.page-content-loading .bottom-nav-spacer,
+/* Hide footer while route overlay or page data is loading — avoid footer flash */
 body.page-transition-active .crwdctrl-footer,
 body.page-content-loading .crwdctrl-footer,
-html[data-home-hub-loading] #crwdctrl-bottom-nav,
-html[data-home-hub-loading] .bottom-nav-spacer,
 html[data-home-hub-loading] .crwdctrl-footer {
     display: none !important;
 }
@@ -2590,12 +2590,12 @@ html.dark .mobile-header-shell {
 }
 
 .mobile-header-inner {
-    --collapse: var(--header-collapse, 0);
     position: relative;
-    padding-top: calc(max(var(--safe-top) - 0.25rem, 0.375rem) + 0.625rem * var(--collapse));
+    padding-top: max(var(--safe-top), 0.5rem);
     padding-bottom: 0.25rem;
     box-shadow: none;
     border-bottom: none;
+    transition: padding 0.25s cubic-bezier(0.2, 0, 0.2, 1);
 }
 
 .mobile-header-shell.is-collapsed .mobile-header-inner {
@@ -2604,33 +2604,32 @@ html.dark .mobile-header-shell {
 
 /*
  * Collapse clip: GPU transform + opacity inside a shrinking clip slot.
- * Clip height uses transform scaleY (compositor) to avoid max-height jank.
  */
 .mobile-header-branding-clip {
-    --collapse: var(--header-collapse, 0);
     --h: var(--header-logo);
     --gap: 0.5rem;
-    height: calc((var(--h) + var(--gap)) * (1 - var(--collapse)));
+    max-height: calc(var(--h) + var(--gap));
+    opacity: 1;
     overflow: hidden;
-    contain: layout style paint;
+    transition: max-height 0.25s cubic-bezier(0.2, 0, 0.2, 1), opacity 0.2s ease;
 }
 
-.mobile-header-shell:not([data-scrolling="true"]):not(.is-collapsed) .mobile-header-branding-clip {
-    overflow: visible;
+.mobile-header-shell.is-collapsed .mobile-header-branding-clip {
+    max-height: 0;
+    opacity: 0;
 }
 
 .mobile-header-branding-row {
-    --collapse: var(--header-collapse, 0);
     --h: var(--header-logo);
     height: var(--h);
-    transform: translate3d(0, calc(var(--h) * -0.15 * var(--collapse)), 0);
-    opacity: calc(1 - var(--collapse));
-    will-change: transform, opacity;
+    opacity: 1;
+    transition: opacity 0.2s ease, transform 0.25s ease;
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
 }
 
-.mobile-header-shell[data-scrolling="true"] .mobile-header-branding-row {
+.mobile-header-shell.is-collapsed .mobile-header-branding-row {
+    opacity: 0;
     pointer-events: none;
 }
 

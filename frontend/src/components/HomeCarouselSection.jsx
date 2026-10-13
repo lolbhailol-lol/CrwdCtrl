@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import { ArrowRight } from 'lucide-react';
 import HomeEventCard from './HomeEventCard';
 import { HomeEventCardSkeleton, CENTERED_SKELETON_COUNT } from './HomeEventCardSkeleton';
 import {
@@ -17,6 +18,7 @@ import { preloadImages } from '../utils/preloadImages';
 import { getImageUrl } from '../utils/imageImports';
 
 const SKELETON_COUNT = CENTERED_SKELETON_COUNT;
+
 
 function resolveSlideCoverPreset({ portraitCard, wideCard, heroCard, tallCard }) {
     if (heroCard) return 'hero';
@@ -476,10 +478,23 @@ export default function HomeCarouselSection({
     }
 
     return (
-        <section className="home-section-block">
-            <h2 className={`home-section-heading ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {title}
-            </h2>
+        <section className="home-section-block my-4 sm:my-6">
+            <div className="flex items-center justify-between mb-3 px-3 sm:px-4">
+                <h2 className={`text-xl sm:text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {title}
+                </h2>
+                <button
+                    type="button"
+                    onClick={() => {
+                        window.location.href = '/events';
+                    }}
+                    className="inline-flex items-center gap-1 text-xs sm:text-sm font-bold text-cyan-400 hover:text-cyan-300 transition-colors"
+                >
+                    <span>View All</span>
+                    <ArrowRight size={14} />
+                </button>
+            </div>
+
             <div
                 ref={scrollRef}
                 className={`${carouselClassName} relative`}

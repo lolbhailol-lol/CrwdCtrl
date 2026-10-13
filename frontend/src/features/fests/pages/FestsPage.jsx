@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Bell, ArrowLeft } from 'lucide-react';
+import HomeEventCard from '../../../components/HomeEventCard';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
 import { useDarkMode } from '../../../context/DarkModeContext';
 import { useFavorites } from '../../../context/FavoritesContext';
@@ -75,55 +76,31 @@ const SubcategoryTile = ({ cat, isDark, onClick }) => (
 const FestEventCard = ({ fest, isDark, isFavorite, onToggleFavorite, onViewDetails }) => {
     const img = pickBestCardImage(fest, 'wide') || fest.coverImage || fest.galleryImages?.[0] || fest.festImages?.[0];
 
-    const handleShare = (e) => {
-        e.stopPropagation();
-        shareContent({
-            title: fest.festName,
-            text: `Check out ${fest.festName}`,
-            url: `${window.location.origin}${festPath(fest)}`,
-        });
-    };
-
     return (
-        <div
-            className="card-surface card-carousel-fest md:w-full rounded-2xl lg:rounded-3xl overflow-hidden cursor-pointer snap-start shrink-0 md:shrink md:max-w-none transition-all duration-200 active:scale-[0.98]"
-            onClick={onViewDetails}
-            onPointerDown={() => prefetchFestDetail(fest)}
-        >
-            {/* Image */}
-            <div className="relative aspect-video lg:aspect-8/5 overflow-hidden">
-                <ContentImage
-                    src={img}
-                    alt={fest.festName}
-                    preset="cardVideo"
-                    className="w-full h-full object-cover"
-                    onError={(e) => handleImageErrorWithFallback(e, 320, 190, '#2A2B2E', fest.festName || 'Fest')}
-                />
-                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
-            </div>
-
-            {/* Info */}
-            <div className="px-3 pt-3 pb-3 lg:px-4 lg:pt-4 lg:pb-4">
-                <div className="flex items-start justify-between gap-2 mb-3">
-                    <div className="min-w-0 flex-1">
-                        <h3 className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {toCardText(fest.festName)}
-                        </h3>
-                        <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                            {toCardText(fest.collegeName)}
-                        </p>
-                    </div>
-                    <CardShareButton onClick={handleShare} isDark={isDark} className="shrink-0" />
-                </div>
-
-                <button
-                    onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
-                    className="w-full py-2.5 lg:py-3 rounded-xl text-sm lg:text-base font-bold text-white bg-blue-500 hover:bg-blue-600 active:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
-                >
-                    View details
-                </button>
-            </div>
-        </div>
+        <HomeEventCard
+            event={{
+                id: fest._id,
+                title: fest.festName,
+                tagline: fest.tagline,
+                subtitle: fest.collegeName,
+                communityName: fest.collegeName,
+                description: fest.description,
+                image: img,
+                displayDate: fest.festDate,
+                date: fest.festDate,
+                city: fest.city || fest.location,
+                category: fest.festType || 'Fest',
+            }}
+            isDark={isDark}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onViewDetails={() => {
+                prefetchFestDetail(fest);
+                onViewDetails();
+            }}
+            shareUrl={`${window.location.origin}${festPath(fest)}`}
+            wideCard
+        />
     );
 };
 

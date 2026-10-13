@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useDarkMode } from '../context/DarkModeContext';
@@ -13,7 +14,7 @@ import { useDarkMode } from '../context/DarkModeContext';
  */
 export default function FaqSection({
   items = [],
-  title = 'Frequently asked questions',
+  title = 'Frequently asked questionss',
   className = '',
 }) {
   const { isDark } = useDarkMode();

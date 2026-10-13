@@ -8,7 +8,9 @@ const { scheduleRegistrationNotification } = require('./helpers');
 const { findByIdOrSlug } = require('../../utils/slug');
 const { resolveFestCompetitionId, extractCompetitionChoice } = require('../../utils/festCompetitionAssignment');
 const { assertCompetitionAcceptsRegistration } = require('../../utils/competitionSlots');
+
 const { assignStallCouponIfEligible } = require('../../utils/assignStallCoupon');
+
 
 // Submit registration for a fest
 // Submit registration for a fest with file uploads
@@ -292,7 +294,13 @@ const submitRegistration = async (req, res) => {
         status: registration.status,
         submittedAt: registration.submittedAt
       },
-      stallCoupon: stallCoupon || null,
+
+      // stallCoupon: stallCoupon
+      //   ? { code: stallCoupon.code, brand: stallCoupon.brand }
+      //   : null,
+
+      // stallCoupon: stallCoupon || null,
+
     });
 
     scheduleRegistrationNotification(userId, {

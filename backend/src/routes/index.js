@@ -46,6 +46,7 @@ const mindsparkPaymentsRoutes = require('../routers/mindsparkPaymentsRoute');
 const communityFollowRoutes = require('../routers/communityFollowRoute');
 const campusHuntRoutes = require('../routers/campusHuntRoute');
 const collegePlatformRoutes = require('../modules/college-platform/routes');
+const mysteryModule = require('../modules/mystery');
 const seoOgRoutes = require('../routers/seoOgRoute');
 const mindsparkBundleRoutes = require('../routers/mindsparkBundleRoute');
 const mindsparkAuditoriumRoutes = require('../routers/mindsparkAuditoriumRoute');
@@ -106,5 +107,6 @@ router.use('/follows', communityFollowRoutes);
 router.use('/campus-hunt', campusHuntRoutes);
 router.use('/games', collegePlatformRoutes.publicRouter);
 router.use('/admin/college-platform', collegePlatformRoutes.adminRouter);
+router.use('/mystery', mysteryModule);
 
 module.exports = router;

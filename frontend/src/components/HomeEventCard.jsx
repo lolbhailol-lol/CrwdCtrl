@@ -1,11 +1,25 @@
+import { MapPin, Calendar, Tag, Activity, Users, Music, Sparkles, Palette, Wand2, Smile } from 'lucide-react';
 import ContentImage from './ContentImage';
 import CardFavoriteButton from './CardFavoriteButton';
 import CardShareButton from './CardShareButton';
 import { handleImageErrorWithFallback } from '../utils/fallbackImageGenerator';
-import { toCardText } from '../utils/cardText';
+import { toCardText, formatCardDate, extractRealPrice, extractCardTags, getCardTheme } from '../utils/cardText';
 import { shareContent } from '../utils/externalLink';
 
-const FALLBACK_BG = '#2A2B2E';
+const FALLBACK_BG = '#070A14';
+
+function TagIcon({ type }) {
+    switch (type) {
+        case 'sports': return <Activity size={12} />;
+        case 'community': return <Users size={12} />;
+        case 'music': return <Music size={12} />;
+        case 'cultural': return <Sparkles size={12} />;
+        case 'workshop': return <Palette size={12} />;
+        case 'creative': return <Wand2 size={12} />;
+        case 'comedy': return <Smile size={12} />;
+        default: return <Sparkles size={12} />;
+    }
+}
 
 function CardCoverImage({
     src,
@@ -24,7 +38,7 @@ function CardCoverImage({
             loading={loading}
             fetchPriority={fetchPriority}
             showPlaceholderUntilLoad
-            placeholderClassName="bg-[#E8EAED] dark:bg-[#1A1B1D]"
+            placeholderClassName="bg-[#0D1222] dark:bg-[#1A1B1D]"
             className={className}
             onError={onError}
         />
@@ -33,7 +47,7 @@ function CardCoverImage({
 
 export default function HomeEventCard({
     event,
-    isDark = false,
+    isDark = true,
     isFavorite = false,
     onToggleFavorite,
     onViewDetails,
@@ -48,15 +62,12 @@ export default function HomeEventCard({
     loading = 'lazy',
     fetchPriority,
 }) {
-    const isWeekendWideCard = wideCard && !heroCard;
-    const isTrendingCard = prominentImage && tallImage && !wideCard && !miniCard && !portraitCard && !heroCard;
-
     const handleShare = (e) => {
         e.stopPropagation();
-        const url = shareUrl || `${window.location.origin}/view-details/${event.id}`;
+        const url = shareUrl || `${window.location.origin}/view-details/${event?.id}`;
         shareContent({
-            title: event.title,
-            text: `Check out ${event.title}`,
+            title: event?.title || 'Event',
+            text: `Check out ${event?.title || 'Event'}`,
             url,
         });
     };
@@ -66,6 +77,100 @@ export default function HomeEventCard({
         onToggleFavorite?.();
     };
 
+    if (!event) return null;
+
+    const isCommunityCard = Boolean(
+        event.isCommunity === true ||
+        event.isClub === true ||
+        event._type === 'community' ||
+        event.type === 'community' ||
+        event._type === 'club' ||
+        event.type === 'club' ||
+        event._type === 'runclub' ||
+        event.type === 'runclub' ||
+        event.section === 'communities' ||
+        event._section === 'communities' ||
+        event.sectionSlug === 'communities' ||
+        (event.category?.toLowerCase() === 'community' && !event.festDate && !event.date && !event.dateTime)
+    );
+
+    // Helper to check if string is a city/location
+    const isLocationString = (str) => {
+        if (!str || typeof str !== 'string') return false;
+        const s = str.trim().toLowerCase();
+        const city = (event.city || '').trim().toLowerCase();
+        const loc = (event.location || '').trim().toLowerCase();
+        const based = (event.basedIn || '').trim().toLowerCase();
+        return s === city || s === loc || s === based || ['pune', 'mumbai', 'delhi', 'bangalore', 'bengaluru', 'nigdi', 'kalyani nagar'].includes(s);
+    };
+
+    const theme = getCardTheme(event);
+    const tags = extractCardTags(event);
+    const realDate = formatCardDate(event);
+    const displayDate = realDate || event.festDate || event.date || event.dateTime || (isCommunityCard ? 'Community' : '27 Sep 2025');
+    const realPrice = extractRealPrice(event);
+    const locationText = (
+        (event.basedIn && !isLocationString(event.basedIn) ? event.basedIn : null) ||
+        (event.subtitle && !isLocationString(event.subtitle) ? event.subtitle : null) ||
+        event.city ||
+        event.location ||
+        event.basedIn ||
+        'Pune'
+    );
+
+    if (isCommunityCard) {
+        return (
+            <div
+                className={`group cursor-pointer overflow-hidden rounded-[1.25rem] border border-white/15 hover:border-white/30 bg-[#09090b] transition-all duration-300 relative flex flex-col min-w-0 w-[150px] sm:w-[170px] lg:w-[185px] shrink-0 shadow-lg ${className}`}
+                onClick={onViewDetails}
+            >
+                {/* Full Poster Cover Image Container */}
+                <div className="relative w-full aspect-[3/4.2] overflow-hidden rounded-[1.25rem] bg-[#0d0d10]">
+                    <CardCoverImage
+                        src={event.image}
+                        alt={event.title}
+                        preset="cardWideFit"
+                        loading={loading}
+                        fetchPriority={fetchPriority}
+                        className="absolute inset-0 h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                        onError={(e) => handleImageErrorWithFallback(e, 200, 260, '#0d0d10', event.title || 'Community')}
+                    />
+
+                    {/* Dark Vignette Overlay for Text Legibility */}
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent z-1" />
+
+                    {/* Top Right Favorite Button */}
+                    {onToggleFavorite && (
+                        <div className="absolute top-2.5 right-2.5 z-10">
+                            <CardFavoriteButton isFavorite={isFavorite} onClick={handleFav} />
+                        </div>
+                    )}
+
+                    {/* Bottom Overlay Info (Directly on top of Image) */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 z-10 flex flex-col gap-0.5 text-white">
+                        <div className="flex items-center justify-between gap-1.5">
+                            <h3 className="font-bold text-white text-sm sm:text-base line-clamp-1 group-hover:text-cyan-400 transition-colors drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                                {toCardText(event.title)}
+                            </h3>
+                            <CardShareButton
+                                onClick={handleShare}
+                                isDark={true}
+                                className="shrink-0 w-7 h-7 rounded-full bg-black/50 backdrop-blur-md border border-white/20 hover:border-cyan-400 flex items-center justify-center text-white transition-all hover:scale-105"
+                                size={13}
+                            />
+                        </div>
+                        {locationText && (
+                            <p className="text-[11px] text-gray-300/90 font-medium line-clamp-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                                {locationText}
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const isWeekendWideCard = wideCard && !heroCard;
     if (isWeekendWideCard) {
         return (
             <div
@@ -110,6 +215,7 @@ export default function HomeEventCard({
         );
     }
 
+    const isTrendingCard = prominentImage && tallImage && !wideCard && !miniCard && !portraitCard && !heroCard;
     const cardRadius = portraitCard || prominentImage ? 'rounded-2xl' : 'rounded-3xl';
     const cardBottomPad = isTrendingCard ? 'pb-5' : prominentImage ? 'pb-2.5' : portraitCard ? '' : 'p-4';
     const titleRowClass = isTrendingCard
@@ -124,6 +230,8 @@ export default function HomeEventCard({
         ? 'card-portrait'
         : miniCard
         ? 'card-carousel-sm'
+        : wideCard
+        ? 'card-carousel-wide'
         : 'card-carousel';
 
     const imagePreset = portraitCard

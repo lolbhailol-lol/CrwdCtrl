@@ -4,10 +4,14 @@
     --font-poppins: "Poppins", ui-sans-serif, system-ui, -apple-system, sans-serif;
 
     /* Device breakpoints — mobile-first */
-    --breakpoint-xs: 20rem;           /* 320px — iPhone SE */
-    --breakpoint-sm375: 23.4375rem;   /* 375px — iPhone 14/15/16 */
-    --breakpoint-sm430: 26.875rem;    /* 430px — iPhone Pro Max */
-    --breakpoint-2xl: 90rem;          /* 1440px — desktop */
+    --breakpoint-xs: 20rem;
+    /* 320px — iPhone SE */
+    --breakpoint-sm375: 23.4375rem;
+    /* 375px — iPhone 14/15/16 */
+    --breakpoint-sm430: 26.875rem;
+    /* 430px — iPhone Pro Max */
+    --breakpoint-2xl: 90rem;
+    /* 1440px — desktop */
 }
 
 /* ── Design tokens ── */
@@ -45,8 +49,8 @@
     --card-carousel-upcoming: clamp(16rem, 76vw, 21rem);
     --card-carousel-fest: clamp(17.5rem, 85vw, 20rem);
 
-    --card-surface-dark: #0a0a0a;
-    --card-surface-dark-border: #141414;
+    --card-surface-dark: #09090b;
+    --card-surface-dark-border: rgba(255, 255, 255, 0.15);
 
     --card-portrait-w: clamp(9rem, 42vw, 10rem);
     --card-wide-w: var(--card-carousel-wide);
@@ -60,11 +64,11 @@
     --footer-nav-clearance: calc(5.25rem + max(var(--safe-bottom), 0.5rem));
 
     --chrome-header-bg-light: #EBEEF3;
-    --chrome-header-bg-dark: #0D0E10;
+    --chrome-header-bg-dark: #000000;
     --chrome-nav-bg-light: var(--chrome-header-bg-light);
-    --chrome-nav-bg-dark: #0A0A0A;
+    --chrome-nav-bg-dark: #09090b;
     --chrome-page-bg-light: #ffffff;
-    --chrome-page-bg-dark: #161718;
+    --chrome-page-bg-dark: #000000;
 
     /* Desktop laptop — navbar + hero align to same horizontal chrome as Pune → profile */
     --desktop-chrome-mx: 1rem;

@@ -18,6 +18,7 @@ import MobileHeroSearchField from '../../../components/MobileHeroSearchField';
 import { useHeroSearch } from '../../../hooks/useHeroSearch';
 import { buildSearchKeywordsFromCatalog } from '../../../utils/buildSearchKeywords';
 import CardFavoriteButton from '../../../components/CardFavoriteButton';
+import HomeEventCard from '../../../components/HomeEventCard';
 import CarouselDotPagination from '../../../components/CarouselDotPagination';
 import HeroBanner from '../../../components/HeroBanner';
 import {
@@ -163,144 +164,75 @@ function TrekCoverImg({ src, alt, preset, eager = false, fallbackW, fallbackH, f
     );
 }
 
-/* ── Community Card — fluid portrait card, heart overlay, Name + Based in + share below ── */
-function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fullWidth = false, eager = false }) {
+/* ── Community Card ── */
+function CommunityCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, fullWidth = false }) {
     const preset = fullWidth ? 'cardLandscape' : 'cardPortrait';
     const imgSrc = getCoverImageUrl(trek, preset);
     return (
-        <div
-            className={`card-surface flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200 ${
-                fullWidth ? 'w-full' : 'card-portrait'
-            }`}
-            onClick={onClick}
-        >
-            <div className={`relative overflow-hidden ${fullWidth ? 'w-full aspect-5/3' : 'card-portrait-image'}`}>
-                {imgSrc ? (
-                    <TrekCoverImg
-                        src={imgSrc}
-                        alt={trek.title}
-                        preset={preset}
-                        eager={eager}
-                        fallbackW={160}
-                        fallbackH={208}
-                        fallbackLabel={trek.title || 'Trek'}
-                    />
-                ) : (
-                    <div className="w-full h-full bg-[#1A1B1D]" />
-                )}
-                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
-            </div>
-
-            <div className={`flex items-start justify-between px-3 pb-3 pt-2 ${fullWidth ? 'w-full' : 'w-full'}`}>
-                <div className="flex-1 min-w-0 pr-1">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {toCardText(trek.title)}
-                    </p>
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(trek.subtitle || 'Based in')}
-                    </p>
-                </div>
-                <CardShareButton
-                    isDark={isDark}
-                    className="mt-0.5 shrink-0"
-                    onClick={() => {
-                        shareContent({ title: trek.title, url: window.location.origin + '/treks' });
-                    }}
-                />
-            </div>
-        </div>
+        <HomeEventCard
+            event={{
+                id: trek.id || trek._id,
+                title: trek.title,
+                subtitle: trek.subtitle || 'Based in',
+                communityName: trek.subtitle || 'Trek Community',
+                image: imgSrc,
+                isCommunity: true,
+                _type: 'community',
+            }}
+            isDark={isDark}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onViewDetails={onClick}
+            shareUrl={`${window.location.origin}/treks`}
+            wideCard={fullWidth}
+            portraitCard={!fullWidth}
+        />
     );
 }
 
-/* ── Weekend Plans Card — fluid wide card, Trek Name + community + share ── */
-function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
+/* ── Weekend Plans Card ── */
+function WeekendCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     const imgSrc = getCoverImageUrl(trek, 'cardWide');
     return (
-        <div
-            className="card-surface card-wide rounded-2xl overflow-hidden cursor-pointer active:scale-[0.98] transition-all duration-200"
-            onClick={onClick}
-        >
-            <div className="card-wide-image relative">
-                {imgSrc ? (
-                    <TrekCoverImg
-                        src={imgSrc}
-                        alt={trek.title}
-                        preset="cardWide"
-                        eager={eager}
-                        fallbackW={320}
-                        fallbackH={224}
-                        fallbackLabel={trek.title || 'Trek'}
-                    />
-                ) : (
-                    <div className="w-full h-full bg-[#1A1B1D]" />
-                )}
-                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
-            </div>
-
-            <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex-1 min-w-0">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {toCardText(trek.title)}
-                    </p>
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(trek.communityName || trek.subtitle || 'Trek')}
-                    </p>
-                </div>
-                <CardShareButton
-                    isDark={isDark}
-                    className="ml-3"
-                    onClick={() => {
-                        shareContent({ title: trek.title, url: window.location.origin + '/treks' });
-                    }}
-                />
-            </div>
-        </div>
+        <HomeEventCard
+            event={{
+                id: trek.id || trek._id,
+                title: trek.title,
+                subtitle: trek.communityName || trek.subtitle || 'Trek',
+                communityName: trek.communityName || trek.subtitle || 'CrwdCtrl Treks',
+                image: imgSrc,
+                displayDate: trek.date || formatTrekCardDate(trek),
+                date: trek.date,
+            }}
+            isDark={isDark}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onViewDetails={onClick}
+            shareUrl={`${window.location.origin}/treks`}
+            wideCard
+        />
     );
 }
 
-/* ── Beginner Card — portrait card, Name + Date + share below ── */
-function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick, eager = false }) {
+/* ── Beginner Card ── */
+function BeginnerCard({ trek, isDark, isFavorite, onToggleFavorite, onClick }) {
     const imgSrc = getCoverImageUrl(trek, 'cardPortrait');
     return (
-        <div
-            className="card-surface card-portrait flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-200"
-            onClick={onClick}
-        >
-            <div className="card-portrait-image relative">
-                {imgSrc ? (
-                    <TrekCoverImg
-                        src={imgSrc}
-                        alt={trek.title}
-                        preset="cardPortrait"
-                        eager={eager}
-                        fallbackW={160}
-                        fallbackH={208}
-                        fallbackLabel={trek.title || 'Trek'}
-                    />
-                ) : (
-                    <div className="w-full h-full bg-[#1A1B1D]" />
-                )}
-                <CardFavoriteButton isFavorite={isFavorite} onClick={onToggleFavorite} />
-            </div>
-
-            <div className="flex items-start justify-between px-3 pb-3 pt-2 w-full">
-                <div className="flex-1 min-w-0 pr-1">
-                    <p className={`card-event-title line-clamp-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                        {toCardText(trek.title)}
-                    </p>
-                    <p className={`card-event-subtitle line-clamp-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {toCardText(formatTrekCardDate(trek))}
-                    </p>
-                </div>
-                <CardShareButton
-                    isDark={isDark}
-                    className="mt-0.5 shrink-0"
-                    onClick={() => {
-                        shareContent({ title: trek.title, url: window.location.origin + '/treks' });
-                    }}
-                />
-            </div>
-        </div>
+        <HomeEventCard
+            event={{
+                id: trek.id || trek._id,
+                title: trek.title,
+                subtitle: formatTrekCardDate(trek) || trek.subtitle,
+                communityName: trek.communityName || trek.subtitle || 'CrwdCtrl Treks',
+                image: imgSrc,
+                displayDate: formatTrekCardDate(trek),
+            }}
+            isDark={isDark}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            onViewDetails={onClick}
+            shareUrl={`${window.location.origin}/treks`}
+        />
     );
 }
 
