@@ -5,8 +5,10 @@ export default function MysteryFinalSubmitForm({ onSubmit, busy }) {
   const [fullExplanation, setFullExplanation] = useState('');
   const [confidenceLevel, setConfidenceLevel] = useState(50);
 
+  const ready = Boolean(identityTheory.trim() && fullExplanation.trim());
+
   const submit = () => {
-    if (!identityTheory.trim()) return;
+    if (!ready) return;
     onSubmit({
       identityTheory: identityTheory.trim(),
       fullExplanation: fullExplanation.trim(),
@@ -41,7 +43,7 @@ export default function MysteryFinalSubmitForm({ onSubmit, busy }) {
       </label>
       <button
         type="button"
-        disabled={busy || !identityTheory.trim()}
+        disabled={busy || !ready}
         onClick={submit}
         className="mt-4 w-full rounded-xl bg-[#0ECCEE] py-3 text-sm font-bold text-black disabled:opacity-40"
       >

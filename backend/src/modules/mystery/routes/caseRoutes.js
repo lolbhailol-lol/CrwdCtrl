@@ -10,6 +10,7 @@ router.post('/:caseId/branches', adminAuth, ctrl.addBranch);
 router.post('/:caseId/fights-back', adminAuth, ctrl.addFightsBackEvent);
 router.post('/:caseId/publish', adminAuth, ctrl.publishCase);
 router.get('/', ctrl.listCases);
+router.get('/admin/all', adminAuth, ctrl.listAllCasesAdmin);
 router.get('/:caseId/admin-detail', adminAuth, ctrl.getCaseAdminDetail);
 
 module.exports = router;

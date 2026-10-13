@@ -19,7 +19,8 @@ const evidenceNodeSchema = new mongoose.Schema(
 
     // Discovery mechanism
     requiresQR: { type: Boolean, default: false },
-    qrSecret: { type: String, default: null },
+    // Left unset (not null) for non-QR evidence — the sparse unique index only skips missing fields.
+    qrSecret: { type: String },
 
     // Prerequisite chain — tabhi available hota hai jab ye evidence already unlocked ho
     unlockedByEvidenceIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' }],

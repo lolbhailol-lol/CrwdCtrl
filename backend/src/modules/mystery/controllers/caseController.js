@@ -36,7 +36,7 @@ const addEvidence = async (req, res) => {
       return res.status(400).json({ error: 'code, world, title, description, reliability required hain' });
     }
 
-    const qrSecret = requiresQR ? generateRandomCode(10) : null;
+    const qrSecret = requiresQR ? generateRandomCode(10) : undefined;
 
     const evidence = await EvidenceNode.create({
       caseId, code, world, title, description, timestampLabel: timestampLabel || '',
@@ -52,6 +52,7 @@ const addEvidence = async (req, res) => {
     });
     res.status(201).json(evidence); // admin view — full data (reliability included) milta hai
   } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'Is case me ye evidence code already hai' });
     res.status(500).json({ error: 'Failed to add evidence', detail: err.message });
   }
 };
@@ -102,7 +103,17 @@ const publishCase = async (req, res) => {
 const listCases = async (req, res) => {
   try {
     const cases = await MysteryCase.find({ status: 'published' })
-      .select('title tagline synopsis difficulty estimatedMinutes campusMode college mysteryIdentityPrompt');
+      .select('title tagline synopsis difficulty estimatedMinutes campusMode college mysteryIdentityPrompt status');
+    res.status(200).json(cases);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch cases' });
+  }
+};
+
+// Admin list — drafts bhi, taaki naya case builder me dikhe
+const listAllCasesAdmin = async (req, res) => {
+  try {
+    const cases = await MysteryCase.find().sort({ createdAt: -1 });
     res.status(200).json(cases);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch cases' });
@@ -124,4 +135,6 @@ const getCaseAdminDetail = async (req, res) => {
   }
 };
 
-module.exports = { createCase, addEvidence, addBranch, addFightsBackEvent, publishCase, listCases, getCaseAdminDetail };
+module.exports = {
+  createCase, addEvidence, addBranch, addFightsBackEvent, publishCase, listCases, listAllCasesAdmin, getCaseAdminDetail,
+};

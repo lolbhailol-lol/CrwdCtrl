@@ -3,7 +3,7 @@ export default function MysteryBranchPicker({ branch, onChoose, busy }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-[#0ECCEE]">Investigation lead</p>
-      <h3 className="mt-1 font-semibold text-white">{branch.question || 'Which lead do you follow?'}</h3>
+      <h3 className="mt-1 font-semibold text-white">{branch.prompt || branch.question || 'Which lead do you follow?'}</h3>
       <div className="mt-3 grid gap-2">
         {(branch.leads || []).map((lead) => (
           <button

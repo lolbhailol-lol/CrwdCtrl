@@ -123,10 +123,10 @@ export async function startMysteryPractice(body) {
   return publicFetchJSON(`${BASE}/teams/practice`, { method: 'POST', body: JSON.stringify(body) });
 }
 export async function fetchPublicLeaderboard(eventId) {
-  return publicFetchJSON(`${BASE}/leaderboard/event/${eventId}`);
+  return publicFetchJSON(`${BASE}/leaderboard/events/${eventId}`);
 }
 export async function fetchCaseLeaderboard(caseId) {
-  return publicFetchJSON(`${BASE}/leaderboard/case/${caseId}`);
+  return publicFetchJSON(`${BASE}/leaderboard/cases/${caseId}`);
 }
 
 /* ============ AUTHENTICATED (mystery token) ============ */
@@ -143,27 +143,30 @@ export async function unlockEvidenceByQr(teamId, qrSecret) {
   return mysteryJson(`${BASE}/investigation/${teamId}/unlock-qr`, { method: 'POST', body: JSON.stringify({ qrSecret }) });
 }
 export async function chooseInvestigationBranch(teamId, branchId, leadId) {
-  return mysteryJson(`${BASE}/investigation/${teamId}/branch`, { method: 'POST', body: JSON.stringify({ branchId, leadId }) });
+  return mysteryJson(`${BASE}/investigation/${teamId}/choose-branch`, { method: 'POST', body: JSON.stringify({ branchId, leadId }) });
 }
 export async function setEvidenceTrust(teamId, evidenceId, decision) {
-  return mysteryJson(`${BASE}/investigation/${teamId}/trust`, { method: 'POST', body: JSON.stringify({ evidenceId, decision }) });
+  return mysteryJson(`${BASE}/investigation/${teamId}/trust-decision`, {
+    method: 'POST',
+    body: JSON.stringify({ evidenceId, trusted: decision === 'reliable' }),
+  });
 }
 export async function connectEvidencePair(teamId, evidenceIdA, evidenceIdB) {
-  return mysteryJson(`${BASE}/investigation/${teamId}/connect`, { method: 'POST', body: JSON.stringify({ evidenceIdA, evidenceIdB }) });
+  return mysteryJson(`${BASE}/investigation/${teamId}/connect-evidence`, { method: 'POST', body: JSON.stringify({ evidenceIdA, evidenceIdB }) });
 }
 export async function fetchPendingFightsBack(teamId) {
-  return mysteryJson(`${BASE}/investigation/${teamId}/fights-back/pending`);
+  return mysteryJson(`${BASE}/investigation/${teamId}/pending-twists`);
 }
-export async function acknowledgeFightsBack(teamId, eventId) {
-  return mysteryJson(`${BASE}/investigation/${teamId}/fights-back/${eventId}/ack`, { method: 'POST', body: JSON.stringify({}) });
+export async function acknowledgeFightsBack(teamId, fightsBackEventId) {
+  return mysteryJson(`${BASE}/investigation/${teamId}/acknowledge-twist`, { method: 'POST', body: JSON.stringify({ fightsBackEventId }) });
 }
 export async function submitFinalCase(teamId, payload) {
-  return mysteryJson(`${BASE}/submissions/${teamId}`, { method: 'POST', body: JSON.stringify(payload) });
+  return mysteryJson(`${BASE}/submissions/${teamId}/submit`, { method: 'POST', body: JSON.stringify(payload) });
 }
 
 /* ============ ADMIN (regular CrwdCtrl admin/organizer token) ============ */
 export async function adminListMysteryCases() {
-  return adminFetchJSON(`${BASE}/cases`);
+  return adminFetchJSON(`${BASE}/cases/admin/all`);
 }
 export async function adminCreateMysteryCase(body) {
   return adminFetchJSON(`${BASE}/cases`, { method: 'POST', body: JSON.stringify(body) });

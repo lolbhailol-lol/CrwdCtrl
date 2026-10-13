@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const MysteryTeam = require('../models/MysteryTeam');
 const MysteryEvent = require('../models/MysteryEvent');
 const MysteryCase = require('../models/MysteryCase');
@@ -6,16 +7,23 @@ const { generateRandomCode } = require('../utils/generateCode');
 const { generateMysteryToken } = require('../utils/mysteryAuth');
 
 /** Reuse an existing platform User by email/phoneNumber, else create a lightweight guest one. */
-async function findOrCreateGuestUser({ name, email, phoneNumberNumber }) {
+async function findOrCreateGuestUser({ name, email, phoneNumber }) {
+  const cleanEmail = email ? String(email).toLowerCase().trim() : '';
+  const cleanPhone = phoneNumber ? String(phoneNumber).trim() : '';
   let user = null;
-  if (email) user = await User.findOne({ email: String(email).toLowerCase().trim() });
-  if (!user && phoneNumber) user = await User.findOne({ phoneNumber: String(phoneNumber).trim() });
+  if (cleanEmail) user = await User.findOne({ email: cleanEmail });
+  if (!user && cleanPhone) user = await User.findOne({ phoneNumber: cleanPhone });
   if (user) return user;
+
+  // User model needs email or phone; solo/practice players often give neither.
+  const fallbackEmail = !cleanEmail && !cleanPhone
+    ? `mystery-guest-${generateRandomCode(12).toLowerCase()}@guest.crwdctrl.invalid`
+    : undefined;
 
   user = await User.create({
     name: name || 'Mystery Player',
-    email: email ? String(email).toLowerCase().trim() : undefined,
-    phoneNumber: phoneNumber ? String(phoneNumber).trim() : undefined,
+    email: cleanEmail || fallbackEmail,
+    phoneNumber: cleanPhone || undefined,
     password: generateRandomCode(16), // never used to log into CrwdCtrl directly
     role: 'student',
   });
@@ -36,12 +44,14 @@ async function uniqueTeamCode() {
 const registerTeam = async (req, res) => {
   try {
     const {
-      eventId, teamName, password,
-      captainName, captainEmail, captainphoneNumber,
+      eventId, password,
+      captainName, captainEmail,
       members,
     } = req.body;
+    const teamName = String(req.body.teamName || '').trim();
+    const captainPhone = req.body.captainPhone || req.body.captainphoneNumber || '';
 
-    if (!eventId || !teamName || !password) {
+    if (!mongoose.isValidObjectId(eventId) || !teamName || !password) {
       return res.status(400).json({ error: 'eventId, teamName aur password required hain' });
     }
     if (String(password).length < 4) {
@@ -53,13 +63,34 @@ const registerTeam = async (req, res) => {
     if (event.status !== 'registration_open') {
       return res.status(400).json({ error: 'Registration abhi open nahi hai' });
     }
+    if (!event.caseId || !(await MysteryCase.exists({ _id: event.caseId, status: 'published' }))) {
+      return res.status(400).json({ error: 'Is event se abhi koi published case linked nahi hai' });
+    }
 
-    const parsedMembers = typeof members === 'string' ? JSON.parse(members) : (members || []);
+    const capacity = event.maxTeams > 0 ? event.maxTeams : event.teamCapacity;
+    if (capacity > 0 && (await MysteryTeam.countDocuments({ eventId, mode: 'competitive' })) >= capacity) {
+      return res.status(409).json({ error: 'Event full ho gaya hai' });
+    }
+
+    let rawMembers = members || [];
+    if (typeof rawMembers === 'string') {
+      try { rawMembers = JSON.parse(rawMembers); } catch { rawMembers = []; }
+    }
+    const parsedMembers = (Array.isArray(rawMembers) ? rawMembers : [])
+      .filter((m) => m && String(m.name || '').trim())
+      .slice(0, Math.max(0, (event.teamSizeMax || 5) - 1))
+      .map((m) => ({
+        name: String(m.name).trim(),
+        email: String(m.email || '').trim(),
+        contactNo: String(m.contactNo || m.phone || '').trim(),
+        collegeStudentId: String(m.collegeStudentId || '').trim(),
+        isCaptain: false,
+      }));
 
     const captainUser = await findOrCreateGuestUser({
       name: captainName || teamName,
       email: captainEmail,
-      phoneNumber: captainphoneNumber,
+      phoneNumber: captainPhone,
     });
 
     const teamCode = await uniqueTeamCode();
@@ -74,7 +105,7 @@ const registerTeam = async (req, res) => {
           userId: captainUser._id,
           name: captainName || teamName,
           email: captainEmail || '',
-          contactNo: captainphoneNumber || '',
+          contactNo: captainPhone || '',
           isCaptain: true,
         },
         ...parsedMembers,
@@ -94,7 +125,9 @@ const registerTeam = async (req, res) => {
       mysteryRole: 'leader',
     });
 
-    res.status(201).json({ team, token });
+    const safeTeam = team.toObject();
+    delete safeTeam.passwordHash;
+    res.status(201).json({ team: safeTeam, token });
   } catch (err) {
     if (err.code === 11000) {
       return res.status(409).json({ error: 'Is event me ek hi captain se ek hi team ban sakti hai, ya team code clash hua — retry karo' });
@@ -135,6 +168,7 @@ const enterTeam = async (req, res) => {
 const startPracticeTeam = async (req, res) => {
   try {
     const { caseId, teamName, playerName, playerEmail } = req.body;
+    if (!mongoose.isValidObjectId(caseId)) return res.status(400).json({ error: 'Valid published case chahiye' });
     const mysteryCase = await MysteryCase.findById(caseId);
     if (!mysteryCase || mysteryCase.status !== 'published') {
       return res.status(400).json({ error: 'Valid published case chahiye' });
@@ -174,7 +208,9 @@ const getMyTeam = async (req, res) => {
     const teamId = req.user.mysteryTeamId;
     if (!teamId) return res.status(401).json({ error: 'Mystery session required' });
 
-    const team = await MysteryTeam.findById(teamId).populate('caseId').populate('eventId');
+    const team = await MysteryTeam.findById(teamId)
+      .populate('caseId', 'title tagline synopsis mysteryIdentityName mysteryIdentityPrompt difficulty estimatedMinutes')
+      .populate('eventId', 'title name college venue dateTime date status');
     if (!team) return res.status(404).json({ error: 'Team not found' });
     res.status(200).json({ team });
   } catch (err) {

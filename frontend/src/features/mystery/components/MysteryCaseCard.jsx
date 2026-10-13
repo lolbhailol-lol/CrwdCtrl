@@ -34,7 +34,7 @@ export default function MysteryCaseCard({ mysteryCase, event }) {
           <div className="mt-4 space-y-2 text-sm text-white/70">
             <div className="flex items-center gap-2"><Calendar size={15} className="text-white/40" /><span>{formatDate(event.dateTime)}</span></div>
             <div className="flex items-center gap-2"><MapPin size={15} className="text-white/40" /><span>{event.venue || 'Venue TBA'}</span></div>
-            <div className="flex items-center gap-2"><Users size={15} className="text-white/40" /><span>{event.minTeamSize}-{event.maxTeamSize} members per team</span></div>
+            <div className="flex items-center gap-2"><Users size={15} className="text-white/40" /><span>{event.teamSizeMin}-{event.teamSizeMax} members per team</span></div>
             <div className="flex items-center gap-2"><Wallet size={15} className="text-white/40" /><span>{event.entryFeePerTeam > 0 ? `₹${event.entryFeePerTeam} per team` : 'Free entry'}</span></div>
           </div>
         )}

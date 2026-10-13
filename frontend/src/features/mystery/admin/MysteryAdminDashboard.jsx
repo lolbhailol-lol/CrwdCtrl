@@ -6,24 +6,28 @@ export default function MysteryAdminDashboard() {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: '', tagline: '', synopsis: '', mysteryIdentityName: '', mysteryIdentityPrompt: '', correctIdentityTheory: '', difficulty: 'medium' });
+  const emptyForm = { title: '', tagline: '', synopsis: '', mysteryIdentityName: '', mysteryIdentityPrompt: '', correctIdentityTheory: '', difficulty: 'detective' };
+  const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const load = () => {
     setLoading(true);
-    adminListMysteryCases().then((res) => setCases(res.data || res || [])).finally(() => setLoading(false));
+    adminListMysteryCases()
+      .then((res) => setCases(Array.isArray(res) ? res : []))
+      .catch((err) => setError(err.message || 'Cases load nahi hue'))
+      .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
   const createCase = async () => {
-    if (!form.title.trim()) { setError('Title chahiye'); return; }
+    if (!form.title.trim() || !form.synopsis.trim()) { setError('Title aur synopsis chahiye'); return; }
     setBusy(true);
     setError('');
     try {
       await adminCreateMysteryCase(form);
       setShowForm(false);
-      setForm({ title: '', tagline: '', synopsis: '', mysteryIdentityName: '', mysteryIdentityPrompt: '', correctIdentityTheory: '', difficulty: 'medium' });
+      setForm(emptyForm);
       load();
     } catch (err) {
       setError(err.message || 'Failed to create case');
@@ -49,12 +53,17 @@ export default function MysteryAdminDashboard() {
             <textarea placeholder="Synopsis" rows={3} value={form.synopsis} onChange={(e) => setForm({ ...form, synopsis: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
             <input placeholder="Mystery identity name (e.g. A-17)" value={form.mysteryIdentityName} onChange={(e) => setForm({ ...form, mysteryIdentityName: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
             <input placeholder="Correct identity theory (answer key)" value={form.correctIdentityTheory} onChange={(e) => setForm({ ...form, correctIdentityTheory: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
-            {error && <p className="text-sm text-rose-300">{error}</p>}
+            <select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white">
+              <option value="rookie">Rookie</option>
+              <option value="detective">Detective</option>
+              <option value="master">Master</option>
+            </select>
             <button type="button" disabled={busy} onClick={createCase} className="w-full rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-black disabled:opacity-40">
               {busy ? 'Creating…' : 'Create case'}
             </button>
           </div>
         )}
+        {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
 
         {loading && <p className="mt-6 text-white/40">Loading…</p>}
 

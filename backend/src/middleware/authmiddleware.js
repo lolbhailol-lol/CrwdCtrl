@@ -79,6 +79,9 @@ const authenticateToken = async (req, res, next) => {
             huntTeamId: decoded.huntTeamId || null,
             huntEventId: decoded.huntEventId || null,
             huntRole: decoded.huntRole || null,
+            mysteryTeamId: decoded.mysteryTeamId || null,
+            mysteryEventId: decoded.mysteryEventId || null,
+            mysteryRole: decoded.mysteryRole || null,
         };
         next();
     } catch (error) {
@@ -157,6 +160,9 @@ const optionalAuthenticateToken = async (req, res, next) => {
             huntTeamId: decoded.huntTeamId || null,
             huntEventId: decoded.huntEventId || null,
             huntRole: decoded.huntRole || null,
+            mysteryTeamId: decoded.mysteryTeamId || null,
+            mysteryEventId: decoded.mysteryEventId || null,
+            mysteryRole: decoded.mysteryRole || null,
         };
         next();
     } catch {

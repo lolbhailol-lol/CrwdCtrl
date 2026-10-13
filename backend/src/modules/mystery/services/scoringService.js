@@ -9,8 +9,7 @@ async function scoreConnections(caseId, connectionsMade) {
   for (const conn of connectionsMade) {
     const a = String(conn.evidenceIdA);
     const b = String(conn.evidenceIdB);
-    const aConnects = truthMap.get(a);
-    if (aConnects && aConnects.has(b)) correct += 1;
+    if (truthMap.get(a)?.has(b) || truthMap.get(b)?.has(a)) correct += 1;
   }
   return correct * 8; // har sahi connection = 8 points
 }

@@ -11,7 +11,7 @@ const getEventLeaderboard = async (req, res) => {
 
     const leaderboard = progressList.map((p, idx) => {
       const team = teams.find((t) => String(t._id) === String(p.teamId));
-      return { rank: idx + 1, teamName: team?.teamName, totalScore: p.totalScore, status: p.status, finishedAt: p.finishedAt };
+      return { rank: idx + 1, teamId: p.teamId, teamName: team?.teamName, totalScore: p.totalScore, status: p.status, finishedAt: p.finishedAt };
     });
     res.status(200).json(leaderboard);
   } catch (err) {

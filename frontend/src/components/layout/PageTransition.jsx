@@ -29,6 +29,7 @@ function shouldSkipPageTransition(pathname) {
         || pathname === '/'
         || pathname === '/dashboard'
         || pathname.startsWith('/campus-hunt')
+        || pathname.startsWith('/mystery')
         || pathname.startsWith('/admin')
         || pathname.startsWith('/trek-organizer')
         || pathname.startsWith('/fest-organizer')
