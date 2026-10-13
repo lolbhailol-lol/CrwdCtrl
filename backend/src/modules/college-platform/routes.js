@@ -69,6 +69,7 @@ adminRouter.post('/colleges', controller.adminCreateCollege);
 adminRouter.put('/colleges/:id', controller.adminUpdateCollege);
 adminRouter.post('/games', controller.adminCreateGame);
 adminRouter.put('/games/:id', controller.adminUpdateGame);
+adminRouter.delete('/games/:id', controller.adminDeleteGame);
 adminRouter.put('/host-requests/:id', controller.adminUpdateHostRequest);
 adminRouter.put('/pre-registrations/:id', controller.adminUpdatePreRegistration);
 adminRouter.post('/registrations/:id/members/:memberId/approve-substitution', controller.adminApproveSubstitution);

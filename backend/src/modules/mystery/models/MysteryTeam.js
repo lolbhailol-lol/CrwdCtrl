@@ -35,6 +35,10 @@ const mysteryTeamSchema = new mongoose.Schema(
 
     gamePassCode: { type: String, unique: true, sparse: true },
     checkedInAt: { type: Date, default: null },
+
+    finalScore: { type: Number, default: 0 },
+    resultFinalized: { type: Boolean, default: false },
+    resultFinalizedAt: { type: Date },
   },
   { timestamps: true },
 );
