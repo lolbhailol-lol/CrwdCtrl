@@ -12,7 +12,8 @@ const createCase = async (req, res) => {
     const mysteryCase = await MysteryCase.create({
       title, tagline, synopsis, mysteryIdentityName, mysteryIdentityPrompt,
       difficulty, estimatedMinutes, campusMode, college, correctIdentityTheory,
-      createdBy: req.user.userId,
+      createdBy: req.user.userId || null,
+      createdByEmail: req.user.email || '',
       createdByRole: req.user.role === 'organizer' ? 'self_serve_organizer' : 'admin',
     });
     res.status(201).json(mysteryCase);

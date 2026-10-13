@@ -8,5 +8,6 @@ router.use('/investigation', require('./investigationRoutes'));
 router.use('/exchange', require('./exchangeRoutes'));
 router.use('/submissions', require('./submissionRoutes'));
 router.use('/leaderboard', require('./leaderboardRoutes'));
+router.use('/admin', require('./admin.routes'));
 
 module.exports = router;

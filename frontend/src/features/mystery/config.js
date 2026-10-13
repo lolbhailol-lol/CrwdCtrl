@@ -11,3 +11,6 @@ export const MYSTERY_PATHS = {
   adminDashboard: '/admin/mystery',
   adminCase: (caseId) => `/admin/mystery/case/${caseId}`,
 };
+
+/** CTRL Mystery pages stay hidden until VITE_ENABLE_MYSTERY=true at build time. */
+export const isMysteryEnabled = () => import.meta.env.VITE_ENABLE_MYSTERY === 'true';

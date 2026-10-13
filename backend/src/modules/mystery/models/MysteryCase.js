@@ -20,7 +20,8 @@ const mysteryCaseSchema = new mongoose.Schema(
     // Final theory verdict evaluate karne ke liye admin ka "correct answer" reference (hidden from players)
     correctIdentityTheory: { type: String, default: '' },
 
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    createdByEmail: { type: String, trim: true, default: '' },
     createdByRole: { type: String, enum: ['admin', 'self_serve_organizer'], default: 'admin' },
     status: { type: String, enum: ['draft', 'published'], default: 'draft' },
   },

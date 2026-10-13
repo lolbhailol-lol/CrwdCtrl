@@ -468,7 +468,7 @@ async function exportOfflinePacks(eventId) {
         organizerStartCode: String(event.organizerStartCode || 'GO').toUpperCase(),
         apiBase: process.env.PUBLIC_API_BASE
           || process.env.API_PUBLIC_URL
-          || 'https://crwdctrl-production-9c58.up.railway.app/api',
+          || 'https://api.crwdctrl.in/api',
       },
       team: {
         id: String(team._id),

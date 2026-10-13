@@ -1,6 +1,6 @@
 /** Canonical production API — used by native builds and as fallback when same-origin proxy fails. */
 export const PRODUCTION_API_BASE_URL =
-  'https://crwdctrl-production-9c58.up.railway.app/api';
+  'https://api.crwdctrl.in/api';
 
 export const LOCAL_DEV_API_BASE_URL = 'http://localhost:8080/api';
 

@@ -17,7 +17,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const API_URL = 'https://crwdctrl-production-9c58.up.railway.app/api/fests/all?limit=200';
+const API_URL = 'https://api.crwdctrl.in/api/fests/all?limit=200';
 const OPENVERSE_URL = 'https://api.openverse.org/v1/images/';
 const ASSET_DIR = path.resolve(__dirname, '../../frontend/public/images/fests/catalog');
 const PUBLIC_BASE = 'https://www.crwdctrl.in/images/fests/catalog/';

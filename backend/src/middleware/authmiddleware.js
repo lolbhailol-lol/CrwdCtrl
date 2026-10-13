@@ -4,6 +4,12 @@ const { getJwtSecret } = require('../config/jwtSecret');
 
 const isDev = process.env.NODE_ENV === 'development';
 
+function isMysteryEnrollmentDecoded(decoded) {
+  if (!decoded?.userId) return false;
+  if (decoded.tokenType === 'mystery' || decoded.aud === 'mystery-case') return true;
+  return !!(decoded.mysteryEventId !== undefined && decoded.mysteryTeamId);
+}
+
 function isHuntEnrollmentDecoded(decoded) {
   if (!decoded?.userId) return false;
   if (decoded.tokenType === 'hunt' || decoded.aud === 'campus-hunt') return true;
@@ -36,7 +42,7 @@ const authenticateToken = async (req, res, next) => {
 
         const requestPath = String(req.originalUrl || req.url || '');
         const isCampusHuntRoute = requestPath.includes('/campus-hunt');
-        const isMysteryRoute = requestPath.includes('/mystery');
+        const isMysteryRoute = /^\/api\/mystery(\/|$)/.test(requestPath.split('?')[0]);
 
         if (isHuntEnrollmentDecoded(decoded) && !isCampusHuntRoute) {
             return res.status(403).json({

@@ -46,6 +46,14 @@ export const DeleteAccount = lazyWithRetry(() => import('../../pages/legal/delet
 export const ProductsAndServices = lazyWithRetry(() => import('../../pages/legal/products-and-services'));
 export const About = lazyWithRetry(() => import('../../pages/legal/about'));
 export const FAQPage = lazyWithRetry(() => import('../../pages/faq/FAQPage'));
+export const MysteryLandingPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryLandingPage'));
+export const MysteryTeamRegisterPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryTeamRegisterPage'));
+export const MysteryTeamEnterPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryTeamEnterPage'));
+export const MysteryPracticePage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryPracticePage'));
+export const MysteryPlayPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryPlayPage'));
+export const MysteryLeaderboardPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryLeaderboardPage'));
+export const MysteryAdminDashboard = lazyWithRetry(() => import('../../features/mystery/admin/MysteryAdminDashboard'));
+export const MysteryCaseBuilder = lazyWithRetry(() => import('../../features/mystery/admin/MysteryCaseBuilder'));
 export const FestsPage = lazyWithRetry(() => import('../../features/fests/pages/FestsPage'));
 export const FestRegistration = lazyWithRetry(() => import('../../features/fests/pages/FestRegistration'));
 export const CompetitionRegistration = lazyWithRetry(() => import('../../features/fests/pages/competitions/CompetitionRegistration'));

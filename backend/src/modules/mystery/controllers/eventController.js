@@ -9,7 +9,8 @@ const createEvent = async (req, res) => {
     }
     const event = await MysteryEvent.create({
       ...req.body,
-      createdBy: req.user.userId,
+      createdBy: req.user.userId || null,
+      createdByEmail: req.user.email || '',
       createdByRole: req.user.role === 'organizer' ? 'self_serve_organizer' : 'admin',
       status: 'pending_approval',
     });
