@@ -104,6 +104,10 @@ router.use('/page-sections', publicHomepageSectionRoutes);
 router.use('/maps', mapsRoutes);
 router.use('/follows', communityFollowRoutes);
 router.use('/campus-hunt', campusHuntRoutes);
+// CTRL Mystery stays off until MYSTERY_ENABLED=true is set on the backend.
+if (process.env.MYSTERY_ENABLED === 'true') {
+  router.use('/mystery', require('../modules/mystery'));
+}
 router.use('/games', collegePlatformRoutes.publicRouter);
 router.use('/admin/college-platform', collegePlatformRoutes.adminRouter);
 

@@ -6,6 +6,7 @@
  *  - creates a database user limited to crwdctrl_test (where the host allows it)
  * The connection string is written to a private file on this PC, never printed.
  * Run from backend/:  node scripts/setup-intern-test-db.js
+ * Set TEST_MONGODB_URI to write into a separate test server instead of the live cluster.
  */
 'use strict';
 
@@ -54,7 +55,14 @@ async function main() {
   await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 15000 });
   const live = mongoose.connection.db;
   if (live.databaseName === TEST_DB) throw new Error('Live database name equals the test database name; refusing');
-  const test = mongoose.connection.client.db(TEST_DB);
+  const targetUri = process.env.TEST_MONGODB_URI?.trim();
+  let targetClient = null;
+  if (targetUri) {
+    const { MongoClient } = require('mongodb');
+    targetClient = new MongoClient(targetUri, { serverSelectionTimeoutMS: 15000 });
+    await targetClient.connect();
+  }
+  const test = (targetClient || mongoose.connection.client).db(TEST_DB);
 
   require('../src/modules/campus-hunt/models').registerModels();
   require('../src/modules/college-platform/models');
@@ -81,11 +89,13 @@ async function main() {
   try {
     try { await test.command({ dropUser: TEST_USER }); } catch { /* user may not exist yet */ }
     await test.command({ createUser: TEST_USER, pwd: password, roles: [{ role: 'readWrite', db: TEST_DB }] });
-    fs.writeFileSync(OUTPUT_FILE, `CrwdCtrl intern test database (games only, dummy personal data)\n\nMONGODB_URI=${testConnectionString(process.env.MONGODB_URI, password)}\n\nCampus Hunt test team password: ${TEST_TEAM_PASSWORD}\nThis login can only read/write the ${TEST_DB} database. Share privately, then delete this file.\n`);
+    fs.writeFileSync(OUTPUT_FILE, `CrwdCtrl intern test database (games only, dummy personal data)\n\nMONGODB_URI=${testConnectionString(targetUri || process.env.MONGODB_URI, password)}\n\nCampus Hunt test team password: ${TEST_TEAM_PASSWORD}\nThis login can only read/write the ${TEST_DB} database. Share privately, then delete this file.\n`);
     console.log(`\nTest database user created. Connection string saved to ${OUTPUT_FILE}`);
   } catch (error) {
     console.log(`\nTest data copied, but this database host does not allow creating users from code (${error.codeName || error.message}).`);
     console.log(`Create user "${TEST_USER}" with readWrite on "${TEST_DB}" in the database dashboard.`);
+  } finally {
+    await targetClient?.close();
   }
 }
 

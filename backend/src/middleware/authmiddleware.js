@@ -4,6 +4,12 @@ const { getJwtSecret } = require('../config/jwtSecret');
 
 const isDev = process.env.NODE_ENV === 'development';
 
+function isMysteryEnrollmentDecoded(decoded) {
+  if (!decoded?.userId) return false;
+  if (decoded.tokenType === 'mystery' || decoded.aud === 'mystery-case') return true;
+  return !!(decoded.mysteryEventId !== undefined && decoded.mysteryTeamId);
+}
+
 function isHuntEnrollmentDecoded(decoded) {
   if (!decoded?.userId) return false;
   if (decoded.tokenType === 'hunt' || decoded.aud === 'campus-hunt') return true;
@@ -46,6 +52,15 @@ const authenticateToken = async (req, res, next) => {
                 success: false,
                 message: 'Hunt session cannot access this part of CrwdCtrl. Sign in with Google for the main app.',
                 code: 'HUNT_SESSION_ONLY',
+            });
+        }
+
+        const isMysteryRoute = /^\/api\/mystery(\/|$)/.test(requestPath.split('?')[0]);
+        if (isMysteryEnrollmentDecoded(decoded) && !isMysteryRoute) {
+            return res.status(403).json({
+                success: false,
+                message: 'Mystery session cannot access this part of CrwdCtrl. Sign in with Google for the main app.',
+                code: 'MYSTERY_SESSION_ONLY',
             });
         }
 

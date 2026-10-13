@@ -1,8 +1,11 @@
 import { Route } from 'react-router-dom';
+import { isMysteryEnabled } from '../../features/mystery/config';
 import {
   AdminLayout,
   AdminDashboardPage,
   CollegePlatformAdminPage,
+  MysteryAdminDashboard,
+  MysteryCaseBuilder,
   AdminFestsPage,
   CompetitionsPage,
   RegistrationsPage,
@@ -41,6 +44,8 @@ export const adminRoutes = (
     >
       <Route index element={<AdminDashboardPage />} />
       <Route path="college-platform" element={<CollegePlatformAdminPage />} />
+      {isMysteryEnabled() ? <Route path="mystery" element={<MysteryAdminDashboard />} /> : null}
+      {isMysteryEnabled() ? <Route path="mystery/case/:caseId" element={<MysteryCaseBuilder />} /> : null}
       <Route path="fests" element={<AdminFestsPage />} />
       <Route path="competitions" element={<CompetitionsPage />} />
       <Route path="registrations" element={<RegistrationsPage />} />

@@ -1,4 +1,5 @@
 import { Route } from 'react-router-dom';
+import { isMysteryEnabled } from '../../features/mystery/config';
 import ConnectionStatus from '../../components/ConnectionStatus';
 import OpenInExternalBrowserPage from '../../pages/OpenInExternalBrowserPage';
 import {
@@ -39,6 +40,12 @@ import {
   ProductsAndServices,
   About,
   FAQPage,
+  MysteryLandingPage,
+  MysteryTeamRegisterPage,
+  MysteryTeamEnterPage,
+  MysteryPracticePage,
+  MysteryPlayPage,
+  MysteryLeaderboardPage,
   FestsPage,
   FestRegistration,
   CompetitionRegistration,
@@ -150,6 +157,16 @@ export const publicRoutes = (
       <Route path="/products-and-services" element={<ProductsAndServices />} />
       <Route path="/about" element={<About />} />
       <Route path="/faq" element={<FAQPage />} />
+      {isMysteryEnabled() ? (
+        <>
+          <Route path="/mystery" element={<MysteryLandingPage />} />
+          <Route path="/mystery/case/:caseId/register" element={<MysteryTeamRegisterPage />} />
+          <Route path="/mystery/case/:caseId/practice" element={<MysteryPracticePage />} />
+          <Route path="/mystery/enter" element={<MysteryTeamEnterPage />} />
+          <Route path="/mystery/play" element={<MysteryPlayPage />} />
+          <Route path="/mystery/leaderboard/:eventId" element={<MysteryLeaderboardPage />} />
+        </>
+      ) : null}
       <Route path="/fest/:festId/register/:competitionSlug" element={<FestRegistration />} />
       <Route path="/fest/:festId/register" element={<FestRegistration />} />
       <Route path="/competition-registration/:competitionId" element={<CompetitionRegistration />} />
