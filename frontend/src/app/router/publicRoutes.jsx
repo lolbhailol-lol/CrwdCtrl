@@ -74,9 +74,6 @@ import {
   MindSparkBundlePaymentPage,
   MindSparkCouponPreviewPage,
   FestStallInterestPage,
-  MysteryLandingPage, MysteryTeamRegisterPage, MysteryTeamEnterPage,
-  MysteryPracticePage, MysteryPlayPage, MysteryLeaderboardPage,
-  MysteryAdminDashboard, MysteryCaseBuilder,
 } from './lazyPages';
 import {
   paymentReturnRedirect,
@@ -176,14 +173,5 @@ export const publicRoutes = (
       <Route path="/registration-details/:registrationId" element={<RegistrationDetails />} />
       <Route path="/qr-ticket/:registrationId" element={<QRTicketPage />} />
       <Route path="/payment-invoice/:id" element={<PaymentInvoicePage />} />
-      {/* CTRL Mystery */}
-      <Route path="/mystery" element={<MysteryLandingPage />} />
-      <Route path="/mystery/case/:caseId/register" element={<MysteryTeamRegisterPage />} />
-      <Route path="/mystery/case/:caseId/practice" element={<MysteryPracticePage />} />
-      <Route path="/mystery/enter" element={<MysteryTeamEnterPage />} />
-      <Route path="/mystery/play" element={<MysteryPlayPage />} />
-      <Route path="/mystery/leaderboard/:eventId" element={<MysteryLeaderboardPage />} />
-      <Route path="/admin/mystery" element={<MysteryAdminDashboard />} />
-      <Route path="/admin/mystery/case/:caseId" element={<MysteryCaseBuilder />} />
   </>
 );
