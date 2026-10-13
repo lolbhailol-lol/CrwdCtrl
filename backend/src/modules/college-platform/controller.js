@@ -457,13 +457,18 @@ function gamePayload(body = {}) {
   for (const field of ['startsAt', 'endsAt', 'registrationOpensAt', 'registrationClosesAt', 'checkInOpensAt', 'checkInClosesAt']) {
     if (body[field] !== undefined) output[field] = body[field] ? new Date(body[field]) : null;
   }
-  for (const field of ['teamSize', 'capacity', 'feePerTeam', 'platformFeePercent']) if (body[field] !== undefined) output[field] = Number(body[field]) || 0;
+  for (const field of ['teamSize', 'capacity', 'reservedSlots', 'feePerTeam', 'platformFeePercent', 'prizeAmount', 'minimumTeams']) {
+    if (body[field] !== undefined) output[field] = Number(body[field]) || 0;
+  }
   if (body.hostCollegeId !== undefined) output.hostCollegeId = body.hostCollegeId || null;
   if (body.allowedCollegeIds !== undefined) output.allowedCollegeIds = cleanStrings(body.allowedCollegeIds);
   if (body.participationMode !== undefined) output.participationMode = body.participationMode === 'on_campus' ? 'on_campus' : 'intercollege';
   if (body.rules !== undefined) output.rules = cleanStrings(body.rules);
   if (body.steps !== undefined) output.steps = cleanStrings(body.steps);
+  if (body.requirements !== undefined) output.requirements = cleanStrings(body.requirements);
+  if (body.safetyNotes !== undefined) output.safetyNotes = cleanStrings(body.safetyNotes);
   if (body.status !== undefined) output.status = ['draft', 'published', 'completed', 'cancelled'].includes(body.status) ? body.status : 'draft';
+  if (body.operationalStatus !== undefined) output.operationalStatus = ['draft', 'published', 'registration_closed', 'ready', 'live', 'completed', 'cancelled'].includes(body.operationalStatus) ? body.operationalStatus : 'draft';
   if (body.engine !== undefined) output.engine = {
     type: body.engine?.type === 'campus_hunt' ? 'campus_hunt' : 'none',
     eventId: body.engine?.eventId || undefined,
@@ -513,8 +518,12 @@ exports.adminUpdateCollege = async (req, res, next) => {
 exports.adminCreateGame = async (req, res, next) => {
   try {
     const payload = gamePayload(req.body);
-    if (!payload.title || !payload.slug) return res.status(400).json({ message: 'Title and slug are required' });
-    return res.status(201).json({ success: true, game: await CollegeGame.create(payload) });
+    if (!payload.title) return res.status(400).json({ message: 'Title is required' });
+    if (!payload.slug) {
+      payload.slug = String(payload.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    }
+    const game = await CollegeGame.create(payload);
+    return res.status(201).json({ success: true, game });
   } catch (err) { return next(err); }
 };
 
@@ -523,6 +532,14 @@ exports.adminUpdateGame = async (req, res, next) => {
     const game = await CollegeGame.findByIdAndUpdate(req.params.id, gamePayload(req.body), { new: true, runValidators: true });
     if (!game) return res.status(404).json({ message: 'Game not found' });
     return res.json({ success: true, game });
+  } catch (err) { return next(err); }
+};
+
+exports.adminDeleteGame = async (req, res, next) => {
+  try {
+    const game = await CollegeGame.findByIdAndDelete(req.params.id);
+    if (!game) return res.status(404).json({ message: 'Game not found' });
+    return res.json({ success: true, message: 'Game deleted successfully' });
   } catch (err) { return next(err); }
 };
 

@@ -1,35 +1,86 @@
 const mongoose = require('mongoose');
-const { EVENT_STATUS } = require('../constants');
 
 const mysteryEventSchema = new mongoose.Schema(
   {
-    caseId: { type: mongoose.Schema.Types.ObjectId, ref: 'MysteryCase', required: true },
-    title: { type: String, required: true, trim: true },
-    college: { type: String, required: true, trim: true },
-    venue: { type: String, default: '', trim: true },
-    dateTime: { type: Date, required: true },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    college: {
+      type: String,
+      trim: true,
+    },
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+    },
+    date: {
+      type: Date,
+    },
+    venue: {
+      type: String,
+      trim: true,
+      default: '',
+    },
 
-    teamSizeMin: { type: Number, default: 2 },
-    teamSizeMax: { type: Number, default: 5 },
-    maxTeams: { type: Number, default: 0 },
+    // Which case this event runs
+    caseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MysteryCase',
+    },
 
-    entryFeePerTeam: { type: Number, default: 0, min: 0 },
-    platformFeeAmount: { type: Number, default: 0, min: 0 },
-    organizerPayoutAmount: { type: Number, default: 0, min: 0 },
+    // Capacity / team config — mirrors CampusHuntEvent naming so admin UI stays consistent
+    teamCapacity: {
+      type: Number,
+      default: 20,
+      min: 1,
+    },
+    teamSize: {
+      type: Number,
+      default: 4,
+      min: 1,
+    },
+    startingScore: {
+      type: Number,
+      default: 100,
+    },
 
-    // Inter-team trading allow karna hai ya nahi is event me
-    allowInterTeamExchange: { type: Boolean, default: true },
+    status: {
+      type: String,
+      enum: ['draft', 'registration_open', 'live', 'completed', 'cancelled'],
+      default: 'draft',
+    },
 
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    createdByRole: { type: String, enum: ['admin', 'self_serve_organizer'], default: 'self_serve_organizer' },
+    // Public visibility toggles (same pattern as Campus Hunt)
+    publicLoginLive: {
+      type: Boolean,
+      default: false,
+    },
+    publicLeaderboardLive: {
+      type: Boolean,
+      default: false,
+    },
 
-    status: { type: String, enum: Object.values(EVENT_STATUS), default: EVENT_STATUS.PENDING_APPROVAL },
-    rejectionReason: { type: String, default: '' },
+    operationsNotes: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
   },
   { timestamps: true },
 );
 
-mysteryEventSchema.index({ status: 1, dateTime: 1 });
-mysteryEventSchema.index({ college: 1, status: 1 });
+mysteryEventSchema.index({ college: 1 });
+mysteryEventSchema.index({ status: 1 });
+mysteryEventSchema.index({ slug: 1 }, { unique: true });
 
-module.exports = mongoose.models.MysteryEvent || mongoose.model('MysteryEvent', mysteryEventSchema);
+module.exports = mongoose.model('MysteryEvent', mysteryEventSchema);
