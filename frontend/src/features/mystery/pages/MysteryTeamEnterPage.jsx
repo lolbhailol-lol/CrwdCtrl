@@ -14,7 +14,7 @@ export default function MysteryTeamEnterPage() {
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    if (!teamCode.trim() || !password.trim()) { setError('Team code aur password dono chahiye'); return; }
+    if (!teamCode.trim() || !password.trim()) { setError('Team code and password are both required'); return; }
     setBusy(true);
     setError('');
     try {

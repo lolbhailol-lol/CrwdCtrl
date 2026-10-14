@@ -9,7 +9,7 @@ const finalSubmissionSchema = new mongoose.Schema(
       { timeLabel: String, eventDescription: String, evidenceId: { type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' } },
     ],
 
-    // Har collect ki hui evidence pe team ka final verdict — ground-truth reliability se compare hoga
+    // The team's final verdict on each collected evidence — compared with ground-truth reliability
     evidenceVerdicts: [
       {
         evidenceId: { type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' },
@@ -17,15 +17,15 @@ const finalSubmissionSchema = new mongoose.Schema(
       },
     ],
 
-    identityTheory: { type: String, required: true }, // "A-17 kaun/kya hai" — team ka theory
+    identityTheory: { type: String, required: true }, // "Who/what is A-17" — the team's theory
     fullExplanation: { type: String, required: true },
-    confidenceLevel: { type: Number, min: 0, max: 100, default: 50 }, // risk/confidence bonus ke liye
+    confidenceLevel: { type: Number, min: 0, max: 100, default: 50 }, // for the risk/confidence bonus
 
     submittedAt: { type: Date, default: Date.now },
 
-    // Scoring breakdown — kuch auto-calculate hota hai, theoryPoints admin manually grade karta hai
+    // Scoring breakdown — mostly auto-calculated; theoryPoints are graded manually by an admin
     scoreBreakdown: {
-      missionPoints: { type: Number, default: 0 }, // evidence discovery se aaya hua total
+      missionPoints: { type: Number, default: 0 }, // total earned from evidence discovery
       connectionPoints: { type: Number, default: 0 },
       timelinePoints: { type: Number, default: 0 },
       verdictPoints: { type: Number, default: 0 },

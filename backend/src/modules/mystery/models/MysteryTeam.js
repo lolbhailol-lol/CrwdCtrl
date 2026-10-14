@@ -26,7 +26,7 @@ const mysteryTeamSchema = new mongoose.Schema(
 
     mode: { type: String, enum: Object.values(TEAM_MODE), required: true },
 
-    // NEW — standalone Mystery login (team-code + password, campus-hunt jaisa)
+    // NEW — standalone Mystery login (team code + password, like campus-hunt)
     teamCode: { type: String, unique: true, sparse: true, uppercase: true, trim: true },
     passwordHash: { type: String, default: null, select: false },
     // Admin-created teams only — encrypted so admin can resend login links; self-registered teams leave it empty

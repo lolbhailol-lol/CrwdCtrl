@@ -3,7 +3,7 @@ const { getJwtSecret } = require('../../../config/jwtSecret');
 
 const MYSTERY_TOKEN_EXPIRY = '12h';
 
-/** Mystery ka apna JWT — campus-hunt ke hunt-token jaisa, alag session. */
+/** Mystery's own JWT — like the campus-hunt hunt token, but a separate session. */
 function generateMysteryToken({ userId, mysteryTeamId, mysteryEventId, mysteryRole }) {
   const secret = getJwtSecret();
   return jwt.sign(

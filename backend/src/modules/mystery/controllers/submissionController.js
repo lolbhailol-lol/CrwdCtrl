@@ -12,7 +12,7 @@ function clamp(value, min, max, fallback) {
   return Math.max(min, Math.min(max, n));
 }
 
-/** Sirf unlocked evidence, har evidence ek hi baar — duplicate entries se points farm nahi honge. */
+/** Only unlocked evidence, each counted once — duplicate entries cannot be used to farm points. */
 function uniqueUnlockedEntries(entries, unlocked) {
   const seen = new Set();
   return (Array.isArray(entries) ? entries : []).filter((entry) => {
@@ -23,19 +23,19 @@ function uniqueUnlockedEntries(entries, unlocked) {
   });
 }
 
-// Final case submit karo — timeline + verdicts + theory + confidence
+// Submit the final case — timeline + verdicts + theory + confidence
 const submitFinalCase = async (req, res) => {
   try {
     const team = req.mysteryTeam;
     const identityTheory = String(req.body.identityTheory || '').trim().slice(0, 500);
     const fullExplanation = String(req.body.fullExplanation || '').trim().slice(0, 5000);
     if (!identityTheory || !fullExplanation) {
-      return res.status(400).json({ error: 'identityTheory aur fullExplanation required hain' });
+      return res.status(400).json({ error: 'identityTheory and fullExplanation are required' });
     }
 
     const progress = await ensureProgress(team);
     if (progress.status !== PROGRESS_STATUS.ACTIVE || await FinalSubmission.exists({ teamId: team._id })) {
-      return res.status(409).json({ error: 'Is team ne already submit kar diya hai' });
+      return res.status(409).json({ error: 'This team has already submitted' });
     }
 
     const unlocked = unlockedIdSet(progress);
@@ -56,7 +56,7 @@ const submitFinalCase = async (req, res) => {
     const timelinePoints = scoreTimeline(reconstructedTimeline, evidenceMap);
     const verdictPoints = scoreVerdicts(evidenceVerdicts, evidenceMap);
 
-    // Theory-accuracy admin manually grade karega (text-based theory automated judge nahi ho sakti)
+    // Theory accuracy is graded manually by an admin (a free-text theory can't be judged automatically)
     const total = missionPoints + connectionPoints + timelinePoints + verdictPoints;
 
     await FinalSubmission.create({
@@ -78,12 +78,12 @@ const submitFinalCase = async (req, res) => {
     const state = await buildPlayerState(team, req.mysteryEvent, progress);
     return res.status(201).json(state);
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Is team ne already submit kar diya hai' });
+    if (err.code === 11000) return res.status(409).json({ error: 'This team has already submitted' });
     return res.status(500).json({ error: 'Failed to submit final case', detail: err.message });
   }
 };
 
-// Admin: theory ko manually grade karta hai (sahi/galat + quality-based points)
+// Admin: manually grade the theory (correct/incorrect + quality-based points)
 const gradeTheory = async (req, res) => {
   try {
     const { teamId } = req.params;

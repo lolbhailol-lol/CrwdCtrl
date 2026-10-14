@@ -106,7 +106,7 @@ export async function printQrSheet({ title, evidence }) {
       @media print { .admin { display: none; } p.note { display: none; } }
     </style></head><body>
     <h1>${escapeHtml(title)} — ${qrItems.length} QR clue${qrItems.length === 1 ? '' : 's'}</h1>
-    <p class="note">Grey line (title + placement) sirf screen pe dikhta hai, print me nahi. Cut along dashed lines.</p>
+    <p class="note">The grey line (title + placement) shows only on screen, not in print. Cut along the dashed lines.</p>
     <div class="grid">${cards.join('')}</div>
     <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
     </body></html>`);

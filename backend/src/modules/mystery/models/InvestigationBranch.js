@@ -1,13 +1,13 @@
 const mongoose = require('mongoose');
 
-// "Teams choose which lead to pursue" — ek decision-point jo evidence-branches unlock karta hai
+// "Teams choose which lead to pursue" — a decision point that unlocks evidence branches
 const investigationBranchSchema = new mongoose.Schema(
   {
     caseId: { type: mongoose.Schema.Types.ObjectId, ref: 'MysteryCase', required: true, index: true },
-    order: { type: Number, required: true }, // kab is branch ka option dikhna chahiye (narrative ke hisaab se)
+    order: { type: Number, required: true }, // when this branch's options should appear (per the narrative)
     prompt: { type: String, required: true }, // "Which lead do you pursue?"
 
-    // Har lead ek "world/direction" hai — CCTV / Witness / Digital / Physical jaisa
+    // Each lead is a "world/direction" — e.g. CCTV / Witness / Digital / Physical
     leads: [
       {
         id: { type: String, required: true }, // "cctv", "witness", "digital", "physical"

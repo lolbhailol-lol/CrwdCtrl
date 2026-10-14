@@ -1,8 +1,8 @@
 const EvidenceNode = require('../models/EvidenceNode');
 
-// ⚠️ CRITICAL: Ground-truth fields (reliability, connectsToEvidenceIds) kabhi
-// player-facing response me nahi jaane chahiye — warna "truth is not given" wala
-// core mechanic hi toot jaayega.
+// ⚠️ CRITICAL: Ground-truth fields (reliability, connectsToEvidenceIds) must never
+// appear in a player-facing response — otherwise the core "truth is not given"
+// mechanic breaks.
 function sanitizeEvidence(evidence) {
   if (!evidence) return null;
   const obj = evidence.toObject ? evidence.toObject() : evidence;
@@ -15,12 +15,12 @@ function sanitizeEvidence(evidence) {
     timestampLabel: obj.timestampLabel,
     imageUrl: obj.imageUrl,
     points: obj.points,
-    // reliability, connectsToEvidenceIds, canonicalOrder — INTENTIONALLY chhupaye
+    // reliability, connectsToEvidenceIds, canonicalOrder — INTENTIONALLY hidden
   };
 }
 
 async function getUnlockableEvidence(caseId, unlockedIds) {
-  // Jo evidence ke saare prerequisites already unlocked hain, aur khud abhi locked hai
+  // Evidence that is still locked but whose prerequisites are all unlocked
   const allEvidence = await EvidenceNode.find({ caseId, unlockedByBranchId: null });
   const unlockedSet = new Set(unlockedIds.map(String));
   return allEvidence.filter((e) => {

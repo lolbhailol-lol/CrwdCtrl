@@ -23,7 +23,7 @@ const mysteryEventSchema = new mongoose.Schema(
     platformFeeAmount: { type: Number, default: 0, min: 0 },
     organizerPayoutAmount: { type: Number, default: 0, min: 0 },
 
-    // Inter-team trading allow karna hai ya nahi is event me
+    // Whether inter-team trading is allowed in this event
     allowInterTeamExchange: { type: Boolean, default: true },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

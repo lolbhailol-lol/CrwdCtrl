@@ -12,10 +12,10 @@ function teamMessage(event, cred) {
     '',
     `Team: ${cred.teamName}`,
     `Team code: ${cred.teamCode}`,
-    cred.password ? `Password: ${cred.password}` : 'Password: jo registration pe set kiya tha',
+    cred.password ? `Password: ${cred.password}` : 'Password: the one you set during registration',
     '',
     `Login: ${mysteryEnterUrl(cred.teamCode)}`,
-    'Sirf team leader ke phone se login karo. Game live hote hi clues scan kar paoge.',
+    'Log in only from the team leader\'s phone. You can start scanning clues as soon as the game goes live.',
   ].filter((line, i, arr) => line || arr[i - 1]).join('\n');
 }
 
@@ -45,14 +45,14 @@ export default function MysteryEventLinks({ eventId, overview, onChanged }) {
 
   const setAll = async () => {
     const pw = commonPassword.trim();
-    if (pw.length < 4) { setError('Password kam se kam 4 characters'); return; }
-    if (!window.confirm(`Sabhi ${credentials.length} teams ka password "${pw}" kar dein?`)) return;
+    if (pw.length < 4) { setError('Password must be at least 4 characters'); return; }
+    if (!window.confirm(`Set the password for all ${credentials.length} teams to "${pw}"?`)) return;
     setBusy('pw');
     setError('');
     try {
       const res = await adminSetAllMysteryPasswords(eventId, pw);
       setCommonPassword('');
-      setMsg(`${res.data?.teamsUpdated || 0} teams ka password update hua`);
+      setMsg(`Password updated for ${res.data?.teamsUpdated || 0} teams`);
       await load();
       await onChanged?.();
     } catch (err) {
@@ -63,11 +63,11 @@ export default function MysteryEventLinks({ eventId, overview, onChanged }) {
   };
 
   const publicLinks = [
-    ['Player landing', mysteryPublicUrl(MYSTERY_PATHS.landing), 'Sab published cases + registration'],
-    caseId && ['Team registration', mysteryPublicUrl(`${MYSTERY_PATHS.register(caseId)}?eventId=${eventId}`), 'Teams khud register karein (status: Registration open)'],
+    ['Player landing', mysteryPublicUrl(MYSTERY_PATHS.landing), 'All published cases + registration'],
+    caseId && ['Team registration', mysteryPublicUrl(`${MYSTERY_PATHS.register(caseId)}?eventId=${eventId}`), 'Teams register themselves (status: Registration open)'],
     ['Team login', mysteryPublicUrl(MYSTERY_PATHS.enter), 'Team code + password'],
-    ['Live leaderboard', mysteryPublicUrl(MYSTERY_PATHS.leaderboard(eventId)), 'Projector pe chalao'],
-    caseId && ['Practice (solo)', mysteryPublicUrl(MYSTERY_PATHS.practice(caseId)), 'Bina event ke try karne ke liye'],
+    ['Live leaderboard', mysteryPublicUrl(MYSTERY_PATHS.leaderboard(eventId)), 'Show it on the projector'],
+    caseId && ['Practice (solo)', mysteryPublicUrl(MYSTERY_PATHS.practice(caseId)), 'Try the case without an event'],
   ].filter(Boolean);
 
   return (
@@ -94,21 +94,21 @@ export default function MysteryEventLinks({ eventId, overview, onChanged }) {
           ))}
         </div>
         {event.status !== 'registration_open' && caseId && (
-          <p className="mt-3 text-xs text-amber-200/80">Registration link tabhi kaam karega jab event status "Registration open" ho.</p>
+          <p className="mt-3 text-xs text-amber-200/80">The registration link works only when the event status is "Registration open".</p>
         )}
       </section>
 
       <section className={cardClass}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-[#0ECCEE]">Team logins — WhatsApp leaders ko bhejo</p>
-            <p className="text-xs text-white/45">Self-registered teams ka password sirf unhe pata hai — zarurat ho to Teams tab se naya password do.</p>
+            <p className="text-sm font-semibold text-[#0ECCEE]">Team logins — send to team leaders on WhatsApp</p>
+            <p className="text-xs text-white/45">Only self-registered teams know their own password — if needed, issue a new one from the Teams tab.</p>
           </div>
           <button type="button" disabled={!credentials.length} className={ghostBtn} onClick={() => copy(credentials.map((c) => teamMessage(event, c)).join('\n\n— — —\n\n'), 'All messages')}>Copy all messages</button>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <input value={commonPassword} onChange={(e) => setCommonPassword(e.target.value)} placeholder="Sab teams ke liye ek password" className={`max-w-xs font-mono ${inputClass}`} />
+          <input value={commonPassword} onChange={(e) => setCommonPassword(e.target.value)} placeholder="One password for all teams" className={`max-w-xs font-mono ${inputClass}`} />
           <button type="button" disabled={Boolean(busy) || !credentials.length} onClick={setAll} className={primaryBtn}>{busy === 'pw' ? 'Saving…' : 'Set for all'}</button>
         </div>
 
@@ -119,7 +119,7 @@ export default function MysteryEventLinks({ eventId, overview, onChanged }) {
               <div key={c._id} className="flex flex-wrap items-center gap-3 rounded-xl bg-black/25 px-3 py-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold">{c.teamName} <span className="font-mono text-[#0ECCEE]">{c.teamCode}</span></p>
-                  <p className="font-mono text-xs text-white/50">{c.password ? `password: ${c.password}` : 'password: team ka apna'}{c.captainPhone ? ` · ${c.captainPhone}` : ''}</p>
+                  <p className="font-mono text-xs text-white/50">{c.password ? `password: ${c.password}` : 'password: set by team'}{c.captainPhone ? ` · ${c.captainPhone}` : ''}</p>
                 </div>
                 <button type="button" className={ghostBtn} onClick={() => copy(mysteryEnterUrl(c.teamCode), 'Login link')}>Link</button>
                 <button type="button" className={ghostBtn} onClick={() => copy(text, `${c.teamName} message`)}>Message</button>
@@ -127,7 +127,7 @@ export default function MysteryEventLinks({ eventId, overview, onChanged }) {
               </div>
             );
           })}
-          {credentials.length === 0 && <p className="text-sm text-white/40">Abhi koi team nahi — Teams tab me banao.</p>}
+          {credentials.length === 0 && <p className="text-sm text-white/40">No teams yet — create them in the Teams tab.</p>}
         </div>
       </section>
     </div>

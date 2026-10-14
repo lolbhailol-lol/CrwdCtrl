@@ -38,7 +38,7 @@ export function MysteryEventLive({ overview }) {
       <section className={cardClass}>
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold">Live progress</p>
-          <p className="text-xs text-white/40">Har 10s refresh</p>
+          <p className="text-xs text-white/40">Refreshes every 10s</p>
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
@@ -85,7 +85,7 @@ export function MysteryEventLive({ overview }) {
               })}
             </tbody>
           </table>
-          {teams.length === 0 && <p className="py-4 text-sm text-white/40">Abhi koi team nahi.</p>}
+          {teams.length === 0 && <p className="py-4 text-sm text-white/40">No teams yet.</p>}
         </div>
       </section>
     </div>
@@ -134,7 +134,7 @@ export function MysteryEventResults({ eventId, overview, onChanged }) {
 
   const finalizeAll = async () => {
     const ready = teams.filter((t) => t.progress);
-    if (!window.confirm(`${ready.length} teams ka current score final karein?`)) return;
+    if (!window.confirm(`Finalize the current score for ${ready.length} teams?`)) return;
     setBusy('all');
     setError('');
     try {
@@ -174,7 +174,7 @@ export function MysteryEventResults({ eventId, overview, onChanged }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-semibold text-[#0ECCEE]">Correct answer</p>
-            <p className="text-sm">{mysteryCase.mysteryIdentityName ? `${mysteryCase.mysteryIdentityName}: ` : ''}{mysteryCase.correctIdentityTheory || 'Case me correct answer set nahi hai'}</p>
+            <p className="text-sm">{mysteryCase.mysteryIdentityName ? `${mysteryCase.mysteryIdentityName}: ` : ''}{mysteryCase.correctIdentityTheory || 'No correct answer set in the case'}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" className={ghostBtn} onClick={() => copyText(leaderboardUrl).then(() => setMsg('Leaderboard link copied'))}>Copy leaderboard link</button>
@@ -212,7 +212,7 @@ export function MysteryEventResults({ eventId, overview, onChanged }) {
           </section>
         );
       })}
-      {submitted.length === 0 && <p className="text-sm text-white/40">Abhi tak kisi team ne final case submit nahi kiya.</p>}
+      {submitted.length === 0 && <p className="text-sm text-white/40">No team has submitted a final case yet.</p>}
     </div>
   );
 }

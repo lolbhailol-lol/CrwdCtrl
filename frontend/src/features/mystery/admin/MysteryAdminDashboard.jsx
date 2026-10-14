@@ -11,16 +11,16 @@ import {
 } from './mysteryAdminUtils';
 
 const FLOW = [
-  ['Case banao', 'Story, suspect (A-17 jaisa) aur sahi answer likho.'],
-  ['Clues add karo', 'Har clue: physical / digital / human / logic. Trust karne layak hai ya nahi — sirf tumhe pata.'],
-  ['Branch + twist', 'Players ko lead choose karne do. Beech game me ek clue ko fake declare karo.'],
-  ['Publish', 'Case publish hote hi practice mode /mystery pe chalu ho jaata hai.'],
-  ['Event banao', 'College, date, venue, capacity — aur published case link karo.'],
-  ['Teams + links', 'Teams admin se banao (code + password) ya registration kholo. WhatsApp links copy karo.'],
-  ['QR print', 'QR sheet print karke venue pe chipkao. Placement note sirf tumhe dikhta hai.'],
-  ['Go live', 'Live dabate hi teams scan kar sakti hain. Pause / end kabhi bhi.'],
-  ['Monitor', 'Live tab me har team ka score, clues aur last activity.'],
-  ['Grade + results', 'Theories grade karo, results finalize karo, leaderboard share karo.'],
+  ['Create a case', 'Write the story, the suspect (like A-17) and the correct answer.'],
+  ['Add clues', 'Each clue is physical, digital, human or logic. Only you know whether it can be trusted.'],
+  ['Branch + twist', 'Let players choose a lead. Mid-game, declare one clue fake.'],
+  ['Publish', 'Once the case is published, practice mode goes live at /mystery.'],
+  ['Create an event', 'Set college, date, venue and capacity, then link a published case.'],
+  ['Teams + links', 'Create teams from admin (code + password) or open registration. Copy the WhatsApp links.'],
+  ['QR print', 'Print the QR sheet and stick the codes around the venue. Only you can see placement notes.'],
+  ['Go live', 'Teams can scan as soon as you go live. Pause or end any time.'],
+  ['Monitor', 'The Live tab shows each team\'s score, clues and last activity.'],
+  ['Grade + results', 'Grade theories, finalize results and share the leaderboard.'],
 ];
 
 const EMPTY_CASE = { title: '', tagline: '', synopsis: '', mysteryIdentityName: '', correctIdentityTheory: '', difficulty: 'detective', estimatedMinutes: 60 };
@@ -57,7 +57,7 @@ export default function MysteryAdminDashboard() {
     try {
       await action();
     } catch (err) {
-      setError(err.message || 'Kuch galat hua');
+      setError(err.message || 'Something went wrong');
     } finally {
       setBusy('');
     }
@@ -70,15 +70,15 @@ export default function MysteryAdminDashboard() {
   });
 
   const createCase = () => run('case', async () => {
-    if (!caseForm.title.trim() || !caseForm.synopsis.trim()) throw new Error('Title aur synopsis chahiye');
+    if (!caseForm.title.trim() || !caseForm.synopsis.trim()) throw new Error('Title and synopsis are required');
     const created = await adminCreateMysteryCase({ ...caseForm, estimatedMinutes: Number(caseForm.estimatedMinutes) || 60 });
     setCaseForm(EMPTY_CASE);
-    setMsg(`Case "${created.title}" bana — ab clues add karo.`);
+    setMsg(`Case "${created.title}" created — now add clues.`);
     await load();
   });
 
   const createEvent = () => run('event', async () => {
-    if (!eventForm.name.trim() || !eventForm.college.trim()) throw new Error('Event name aur college chahiye');
+    if (!eventForm.name.trim() || !eventForm.college.trim()) throw new Error('Event name and college are required');
     const slug = eventForm.slug.trim() || slugify(`${eventForm.college}-${eventForm.name}`);
     const res = await adminCreateMysteryEvent({
       ...eventForm,
@@ -91,12 +91,12 @@ export default function MysteryAdminDashboard() {
     });
     setEventForm(EMPTY_EVENT);
     setSlugTouched(false);
-    setMsg(`Event "${res.data?.event?.name}" draft me bana — open karke teams aur links set karo.`);
+    setMsg(`Event "${res.data?.event?.name}" created as a draft — open it to set up teams and links.`);
     await load();
   });
 
   const deleteEvent = (ev) => {
-    if (!window.confirm(`"${ev.name}" aur uski saari teams / progress delete karein? Undo nahi hoga.`)) return;
+    if (!window.confirm(`Delete "${ev.name}" and all its teams and progress? This can't be undone.`)) return;
     run(`del-${ev._id}`, async () => {
       await adminDeleteMysteryEvent(ev._id);
       await load();
@@ -104,7 +104,7 @@ export default function MysteryAdminDashboard() {
   };
 
   const deleteCase = (c) => {
-    if (!window.confirm(`Case "${c.title}" aur uske saare clues delete karein?`)) return;
+    if (!window.confirm(`Delete case "${c.title}" and all its clues?`)) return;
     run(`del-${c._id}`, async () => {
       await adminDeleteMysteryCase(c._id);
       await load();
@@ -124,7 +124,7 @@ export default function MysteryAdminDashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">CTRL Mystery</h1>
-          <p className="text-sm text-white/50">Cases, events, teams, QR clues aur results — sab yahin se.</p>
+          <p className="text-sm text-white/50">Manage cases, events, teams, QR clues and results — all in one place.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <a href={MYSTERY_PATHS.landing} target="_blank" rel="noreferrer" className={ghostBtn}>Player page ↗</a>
@@ -134,7 +134,7 @@ export default function MysteryAdminDashboard() {
 
       {showGuide && (
         <section className={cardClass}>
-          <p className="text-sm font-semibold text-[#0ECCEE]">Poora flow — 10 steps</p>
+          <p className="text-sm font-semibold text-[#0ECCEE]">Full flow — 10 steps</p>
           <ol className="mt-3 grid gap-2 sm:grid-cols-2">
             {FLOW.map(([title, text], i) => (
               <li key={title} className="flex gap-3 rounded-xl bg-black/20 p-3">
@@ -152,8 +152,8 @@ export default function MysteryAdminDashboard() {
       <section className="rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-emerald-300">Demo — 1 click me poora game try karo</p>
-            <p className="text-xs text-white/50">Sample case (6 clues, 1 branch, 1 twist) + live event + ek team login banega. Baad me delete kar sakte ho.</p>
+            <p className="text-sm font-semibold text-emerald-300">Demo — try the full game in 1 click</p>
+            <p className="text-xs text-white/50">Creates a sample case (6 clues, 1 branch, 1 twist), a live event and one team login. You can delete it later.</p>
           </div>
           <button type="button" disabled={Boolean(busy)} onClick={createDemo} className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-40">
             {busy === 'demo' ? 'Creating…' : 'Create demo'}
@@ -172,7 +172,7 @@ export default function MysteryAdminDashboard() {
               <Link to={MYSTERY_PATHS.adminCase(demo.case._id)} className={ghostBtn}>See case setup</Link>
               <button type="button" className={ghostBtn} onClick={() => copyText(`CTRL Mystery demo\nLink: ${mysteryEnterUrl(demo.team.teamCode)}\nTeam code: ${demo.team.teamCode}\nPassword: ${demo.team.password}`).then(() => setMsg('Demo login copied'))}>Copy login</button>
             </div>
-            <p className="text-xs text-white/40 sm:col-span-2">Tip: phone pe login karo, aur event control ka QR tab kholke screen se QR scan karo.</p>
+            <p className="text-xs text-white/40 sm:col-span-2">Tip: log in on your phone, then open the QR tab in event control and scan the codes off your screen.</p>
           </div>
         )}
       </section>
@@ -191,9 +191,9 @@ export default function MysteryAdminDashboard() {
       {tab === 'events' && (
         <div className="space-y-4">
           <section className={`${cardClass} space-y-3`}>
-            <p className="text-sm font-semibold text-[#0ECCEE]">Naya event</p>
+            <p className="text-sm font-semibold text-[#0ECCEE]">New event</p>
             {publishedCases.length === 0 && (
-              <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Abhi koi published case nahi hai. Event draft me ban jayega — Cases tab me case publish karke link karo.</p>
+              <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">No published cases yet. The event will be saved as a draft — publish a case in the Cases tab, then link it.</p>
             )}
             <div className="grid gap-3 sm:grid-cols-2">
               <label className={labelClass}>College
@@ -204,7 +204,7 @@ export default function MysteryAdminDashboard() {
               </label>
               <label className={labelClass}>Case
                 <select value={eventForm.caseId} onChange={(e) => setEventForm((f) => ({ ...f, caseId: e.target.value }))} className={`mt-1 ${inputClass}`}>
-                  <option value="">— baad me choose karunga —</option>
+                  <option value="">— choose later —</option>
                   {publishedCases.map((c) => <option key={c._id} value={c._id}>{c.title}</option>)}
                 </select>
               </label>
@@ -244,22 +244,22 @@ export default function MysteryAdminDashboard() {
               </div>
             </div>
           ))}
-          {!loading && events.length === 0 && <p className="text-sm text-white/40">Abhi koi event nahi. Upar banao — ya Demo try karo.</p>}
+          {!loading && events.length === 0 && <p className="text-sm text-white/40">No events yet. Create one above, or try the demo.</p>}
         </div>
       )}
 
       {tab === 'cases' && (
         <div className="space-y-4">
           <section className={`${cardClass} space-y-3`}>
-            <p className="text-sm font-semibold text-[#0ECCEE]">Naya case</p>
+            <p className="text-sm font-semibold text-[#0ECCEE]">New case</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className={labelClass}>Title
                 <input value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} placeholder="The 17-Minute Gap" className={`mt-1 ${inputClass}`} />
               </label>
               <label className={labelClass}>Tagline
-                <input value={caseForm.tagline} onChange={(e) => setCaseForm({ ...caseForm, tagline: e.target.value })} placeholder="Ek line hook" className={`mt-1 ${inputClass}`} />
+                <input value={caseForm.tagline} onChange={(e) => setCaseForm({ ...caseForm, tagline: e.target.value })} placeholder="One-line hook" className={`mt-1 ${inputClass}`} />
               </label>
-              <label className={`${labelClass} sm:col-span-2`}>Synopsis (players ko pehli screen pe dikhega)
+              <label className={`${labelClass} sm:col-span-2`}>Synopsis (shown to players on the first screen)
                 <textarea rows={3} value={caseForm.synopsis} onChange={(e) => setCaseForm({ ...caseForm, synopsis: e.target.value })} className={`mt-1 ${inputClass}`} />
               </label>
               <label className={labelClass}>Mystery identity
@@ -272,7 +272,7 @@ export default function MysteryAdminDashboard() {
                   <option value="master">Master</option>
                 </select>
               </label>
-              <label className={`${labelClass} sm:col-span-2`}>Correct answer (sirf admin ko dikhega — grading ke liye)
+              <label className={`${labelClass} sm:col-span-2`}>Correct answer (visible only to admins — used for grading)
                 <input value={caseForm.correctIdentityTheory} onChange={(e) => setCaseForm({ ...caseForm, correctIdentityTheory: e.target.value })} className={`mt-1 ${inputClass}`} />
               </label>
               <label className={labelClass}>Estimated minutes
@@ -293,7 +293,7 @@ export default function MysteryAdminDashboard() {
               <button type="button" disabled={Boolean(busy)} onClick={() => deleteCase(c)} className={dangerBtn}>Delete</button>
             </div>
           ))}
-          {!loading && cases.length === 0 && <p className="text-sm text-white/40">Abhi koi case nahi.</p>}
+          {!loading && cases.length === 0 && <p className="text-sm text-white/40">No cases yet.</p>}
         </div>
       )}
     </div>

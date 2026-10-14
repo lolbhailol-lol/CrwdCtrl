@@ -2,13 +2,13 @@ const MysteryTeam = require('../models/MysteryTeam');
 const MysteryEvent = require('../models/MysteryEvent');
 const { TEAM_MODE, EVENT_STATUS } = require('../constants');
 
-/** Mystery token ki team hi :teamId pe action le sakti hai. req.mysteryTeam / req.mysteryEvent set karta hai. */
+/** Only the Mystery token's own team can act on :teamId. Sets req.mysteryTeam / req.mysteryEvent. */
 async function requireOwnTeam(req, res, next) {
   try {
     const sessionTeamId = req.user?.mysteryTeamId;
     if (!sessionTeamId) return res.status(401).json({ error: 'Mystery session required' });
     if (req.params.teamId && String(req.params.teamId) !== String(sessionTeamId)) {
-      return res.status(403).json({ error: 'Ye tumhari team nahi hai' });
+      return res.status(403).json({ error: 'This is not your team' });
     }
 
     const team = await MysteryTeam.findById(sessionTeamId);
@@ -22,7 +22,7 @@ async function requireOwnTeam(req, res, next) {
   }
 }
 
-/** Practice kabhi bhi; competitive team sirf tab jab event live ho. */
+/** Practice is always playable; competitive teams only while the event is live. */
 function isPlayable(team, event) {
   if (team.mode === TEAM_MODE.PRACTICE) return true;
   return event?.status === EVENT_STATUS.LIVE;
@@ -30,7 +30,7 @@ function isPlayable(team, event) {
 
 function requirePlayable(req, res, next) {
   if (isPlayable(req.mysteryTeam, req.mysteryEvent)) return next();
-  return res.status(403).json({ error: 'Event abhi live nahi hai', code: 'EVENT_NOT_LIVE' });
+  return res.status(403).json({ error: 'The event is not live yet', code: 'EVENT_NOT_LIVE' });
 }
 
 module.exports = { requireOwnTeam, requirePlayable, isPlayable };

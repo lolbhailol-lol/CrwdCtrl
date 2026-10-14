@@ -52,24 +52,24 @@ const registerTeam = async (req, res) => {
     const captainPhone = req.body.captainPhone || req.body.captainphoneNumber || '';
 
     if (!mongoose.isValidObjectId(eventId) || !teamName || !password) {
-      return res.status(400).json({ error: 'eventId, teamName aur password required hain' });
+      return res.status(400).json({ error: 'eventId, teamName and password are required' });
     }
     if (String(password).length < 4) {
-      return res.status(400).json({ error: 'Password kam se kam 4 characters ka ho' });
+      return res.status(400).json({ error: 'Password must be at least 4 characters' });
     }
 
     const event = await MysteryEvent.findById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
     if (event.status !== 'registration_open') {
-      return res.status(400).json({ error: 'Registration abhi open nahi hai' });
+      return res.status(400).json({ error: 'Registration is not open yet' });
     }
     if (!event.caseId || !(await MysteryCase.exists({ _id: event.caseId, status: 'published' }))) {
-      return res.status(400).json({ error: 'Is event se abhi koi published case linked nahi hai' });
+      return res.status(400).json({ error: 'No published case is linked to this event yet' });
     }
 
     const capacity = event.maxTeams > 0 ? event.maxTeams : event.teamCapacity;
     if (capacity > 0 && (await MysteryTeam.countDocuments({ eventId, mode: 'competitive' })) >= capacity) {
-      return res.status(409).json({ error: 'Event full ho gaya hai' });
+      return res.status(409).json({ error: 'This event is full' });
     }
 
     let rawMembers = members || [];
@@ -130,7 +130,7 @@ const registerTeam = async (req, res) => {
     res.status(201).json({ team: safeTeam, token });
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(409).json({ error: 'Is event me ek hi captain se ek hi team ban sakti hai, ya team code clash hua — retry karo' });
+      return res.status(409).json({ error: 'A captain can register only one team per event, or the team code clashed — please try again' });
     }
     res.status(500).json({ error: 'Failed to register team', detail: err.message });
   }
@@ -141,13 +141,13 @@ const enterTeam = async (req, res) => {
   try {
     const { teamCode, password } = req.body;
     if (!teamCode || !password) {
-      return res.status(400).json({ error: 'teamCode aur password required hain' });
+      return res.status(400).json({ error: 'teamCode and password are required' });
     }
     const team = await MysteryTeam.findOne({ teamCode: String(teamCode).toUpperCase().trim() }).select('+passwordHash');
     if (!team) return res.status(404).json({ error: 'Team not found' });
 
     const ok = await team.comparePassword(password);
-    if (!ok) return res.status(401).json({ error: 'Galat password' });
+    if (!ok) return res.status(401).json({ error: 'Incorrect password' });
 
     const token = generateMysteryToken({
       userId: team.captainUserId,
@@ -168,10 +168,10 @@ const enterTeam = async (req, res) => {
 const startPracticeTeam = async (req, res) => {
   try {
     const { caseId, teamName, playerName, playerEmail } = req.body;
-    if (!mongoose.isValidObjectId(caseId)) return res.status(400).json({ error: 'Valid published case chahiye' });
+    if (!mongoose.isValidObjectId(caseId)) return res.status(400).json({ error: 'A valid published case is required' });
     const mysteryCase = await MysteryCase.findById(caseId);
     if (!mysteryCase || mysteryCase.status !== 'published') {
-      return res.status(400).json({ error: 'Valid published case chahiye' });
+      return res.status(400).json({ error: 'A valid published case is required' });
     }
 
     const guestUser = await findOrCreateGuestUser({

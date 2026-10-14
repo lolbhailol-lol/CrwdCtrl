@@ -11,9 +11,9 @@ import MysteryQrPanel from './MysteryQrPanel';
 
 const WORLDS = ['physical', 'digital', 'human', 'logic'];
 const RELIABILITY = [
-  ['reliable', 'Reliable — sach hai'],
+  ['reliable', 'Reliable — true'],
   ['unreliable', 'Unreliable — fake / misleading'],
-  ['ambiguous', 'Ambiguous — aadha sach'],
+  ['ambiguous', 'Ambiguous — half true'],
 ];
 const TABS = [['clues', 'Clues'], ['branches', 'Branches'], ['twists', 'Twists'], ['qr', 'QR print'], ['test', 'Test']];
 
@@ -78,7 +78,7 @@ export default function MysteryCaseBuilder() {
   const [fb, setFb] = useState({ triggerAfterEvidenceCount: 3, invalidatedEvidenceId: '', systemMessage: '' });
 
   const load = useCallback(
-    () => adminGetCaseDetail(caseId).then(setDetail).catch((err) => setError(err.message || 'Case load nahi hua')),
+    () => adminGetCaseDetail(caseId).then(setDetail).catch((err) => setError(err.message || 'Could not load case')),
     [caseId],
   );
   useEffect(() => { load(); }, [load]);
@@ -93,7 +93,7 @@ export default function MysteryCaseBuilder() {
       await load();
       return true;
     } catch (err) {
-      setError(err.message || 'Kuch galat hua');
+      setError(err.message || 'Something went wrong');
       return false;
     } finally {
       setBusy(false);
@@ -121,8 +121,8 @@ export default function MysteryCaseBuilder() {
   });
 
   const submitEvidence = async () => {
-    if (!ev.code.trim() || !ev.title.trim() || !ev.description.trim()) { setError('Code, title aur description chahiye'); return; }
-    if (ev.unlockedByBranchId && !ev.unlockedByLeadId) { setError('Branch choose kiya hai to lead bhi choose karo'); return; }
+    if (!ev.code.trim() || !ev.title.trim() || !ev.description.trim()) { setError('Code, title and description are required'); return; }
+    if (ev.unlockedByBranchId && !ev.unlockedByLeadId) { setError('You picked a branch — choose a lead too'); return; }
     const ok = editingId
       ? await run(() => adminUpdateMysteryEvidence(caseId, editingId, evidencePayload()), 'Clue updated ✓')
       : await run(() => adminAddMysteryEvidence(caseId, evidencePayload()), 'Clue added ✓');
@@ -150,15 +150,15 @@ export default function MysteryCaseBuilder() {
   const cancelEdit = () => { setEditingId(''); setEv(emptyEvidence); };
 
   const deleteEvidence = (e) => {
-    if (!window.confirm(`Clue ${e.code} delete karein? Isse jude twists bhi hatenge.`)) return;
+    if (!window.confirm(`Delete clue ${e.code}? Twists linked to it will also be removed.`)) return;
     run(() => adminDeleteMysteryEvidence(caseId, e._id), 'Clue deleted');
   };
 
   const submitBranch = async () => {
     const leads = branch.leads.filter((l) => l.id.trim() && l.label.trim());
-    if (!branch.prompt.trim() || leads.length < 2) { setError('Question aur kam se kam 2 leads (id + label) chahiye'); return; }
+    if (!branch.prompt.trim() || leads.length < 2) { setError('A question and at least 2 leads (id + label) are required'); return; }
     const order = (branches.reduce((max, b) => Math.max(max, b.order), 0)) + 1;
-    const ok = await run(() => adminAddMysteryBranch(caseId, { order, prompt: branch.prompt, leads }), 'Branch added ✓ — ab clues ko kisi lead se lock karo');
+    const ok = await run(() => adminAddMysteryBranch(caseId, { order, prompt: branch.prompt, leads }), 'Branch added ✓ — now lock clues to a lead');
     if (ok) setBranch({ prompt: '', leads: [emptyLead(), emptyLead()] });
   };
   const updateLead = (i, field, value) => {
@@ -167,17 +167,17 @@ export default function MysteryCaseBuilder() {
   };
 
   const submitTwist = async () => {
-    if (!fb.invalidatedEvidenceId || !fb.systemMessage.trim()) { setError('Clue aur message chahiye'); return; }
+    if (!fb.invalidatedEvidenceId || !fb.systemMessage.trim()) { setError('Clue and message are required'); return; }
     const ok = await run(() => adminAddFightsBack(caseId, { ...fb, triggerAfterEvidenceCount: Number(fb.triggerAfterEvidenceCount) || 1 }), 'Twist added ✓');
     if (ok) setFb({ triggerAfterEvidenceCount: 3, invalidatedEvidenceId: '', systemMessage: '' });
   };
 
   const togglePublish = () => (isPublished
-    ? run(() => adminUpdateMysteryCase(caseId, { status: 'draft' }), 'Case draft me wapas gaya')
-    : run(() => adminPublishMysteryCase(caseId), 'Case published ✓ — ab event me link kar sakte ho'));
+    ? run(() => adminUpdateMysteryCase(caseId, { status: 'draft' }), 'Case moved back to draft')
+    : run(() => adminPublishMysteryCase(caseId), 'Case published ✓ — you can now link it to an event'));
 
   const deleteCase = async () => {
-    if (!window.confirm(`Case "${mysteryCase.title}" delete karein?`)) return;
+    if (!window.confirm(`Delete case "${mysteryCase.title}"?`)) return;
     const ok = await run(() => adminDeleteMysteryCase(caseId), 'Deleted');
     if (ok) navigate(MYSTERY_PATHS.adminDashboard);
   };
@@ -205,7 +205,7 @@ export default function MysteryCaseBuilder() {
         </div>
       </div>
       {isPublished && usage.teams > 0 && (
-        <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">{usage.teams} teams is case pe khel chuki/rahi hain — clue edit karne se unke game pe asar padega.</p>
+        <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">{usage.teams} teams have played or are playing this case — editing clues will affect their game.</p>
       )}
 
       {showHeader && <CaseHeaderForm key={mysteryCase.updatedAt} mysteryCase={mysteryCase} busy={busy} onSave={(body) => run(() => adminUpdateMysteryCase(caseId, body), 'Story saved ✓')} />}
@@ -222,13 +222,13 @@ export default function MysteryCaseBuilder() {
       {tab === 'clues' && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <section className={`${cardClass} space-y-3`}>
-            <p className="text-sm font-semibold text-[#0ECCEE]">{editingId ? `Edit ${ev.code}` : 'Naya clue'}</p>
+            <p className="text-sm font-semibold text-[#0ECCEE]">{editingId ? `Edit ${ev.code}` : 'New clue'}</p>
             <div className="grid grid-cols-2 gap-2">
               <input placeholder="Code (e.g. PHY-01)" value={ev.code} onChange={(e) => setEv({ ...ev, code: e.target.value.toUpperCase() })} className={`font-mono ${inputClass}`} />
               <input placeholder="Time label (e.g. 17:03)" value={ev.timestampLabel} onChange={(e) => setEv({ ...ev, timestampLabel: e.target.value })} className={inputClass} />
             </div>
             <input placeholder="Title" value={ev.title} onChange={(e) => setEv({ ...ev, title: e.target.value })} className={inputClass} />
-            <textarea rows={3} placeholder="Description (player ko dikhega)" value={ev.description} onChange={(e) => setEv({ ...ev, description: e.target.value })} className={inputClass} />
+            <textarea rows={3} placeholder="Description (shown to players)" value={ev.description} onChange={(e) => setEv({ ...ev, description: e.target.value })} className={inputClass} />
             <div className="grid grid-cols-2 gap-2">
               <label className={labelClass}>World
                 <select value={ev.world} onChange={(e) => setEv({ ...ev, world: e.target.value })} className={`mt-1 ${inputClass}`}>
@@ -246,15 +246,15 @@ export default function MysteryCaseBuilder() {
 
             <label className="flex items-center gap-2 text-sm text-white/70">
               <input type="checkbox" checked={ev.requiresQR} onChange={(e) => setEv({ ...ev, requiresQR: e.target.checked })} />
-              QR scan se khulega (print karke venue pe lagana hoga)
+              Unlocks by QR scan (print it and place it at the venue)
             </label>
             {ev.requiresQR && (
-              <input placeholder="Placement note — QR kahan lagana hai (sirf admin)" value={ev.placementNote} onChange={(e) => setEv({ ...ev, placementNote: e.target.value })} className={inputClass} />
+              <input placeholder="Placement note — where to put the QR (admin only)" value={ev.placementNote} onChange={(e) => setEv({ ...ev, placementNote: e.target.value })} className={inputClass} />
             )}
 
             <div className="rounded-xl bg-black/25 p-3">
-              <p className="text-xs font-semibold text-white/60">🔓 Kab khulega?</p>
-              <p className="mt-1 text-[11px] text-white/40">Kuch select nahi kiya = start se available. QR off ho to conditions puri hote hi apne aap khul jayega.</p>
+              <p className="text-xs font-semibold text-white/60">🔓 When does it unlock?</p>
+              <p className="mt-1 text-[11px] text-white/40">Nothing selected = available from the start. If QR is off, it unlocks automatically once the conditions are met.</p>
               {otherEvidence.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {otherEvidence.map((o) => {
@@ -279,7 +279,7 @@ export default function MysteryCaseBuilder() {
 
             {otherEvidence.length > 0 && (
               <div className="rounded-xl bg-black/25 p-3">
-                <p className="text-xs font-semibold text-white/60">🔗 Sahi connections (hidden) — team ye link banaye to points</p>
+                <p className="text-xs font-semibold text-white/60">🔗 Correct connections (hidden) — teams earn points for linking these</p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {otherEvidence.map((o) => {
                     const on = ev.connectsToEvidenceIds.map(String).includes(String(o._id));
@@ -319,7 +319,7 @@ export default function MysteryCaseBuilder() {
                 </div>
               </div>
             ))}
-            {evidence.length === 0 && <p className="text-sm text-white/40">Pehla clue add karo. Tip: 5–8 clues, 4 worlds me, kam se kam ek unreliable.</p>}
+            {evidence.length === 0 && <p className="text-sm text-white/40">Add your first clue. Tip: use 5–8 clues across all 4 worlds, with at least one unreliable.</p>}
           </section>
         </div>
       )}
@@ -327,9 +327,9 @@ export default function MysteryCaseBuilder() {
       {tab === 'branches' && (
         <div className="space-y-4">
           <section className={`${cardClass} space-y-3`}>
-            <p className="text-sm font-semibold text-[#0ECCEE]">Naya branch (decision point)</p>
-            <p className="text-xs text-white/45">Team ek lead choose karegi. Clues tab me kisi clue ko is lead se lock karo — sirf wahi team usse dekh payegi.</p>
-            <input placeholder="Question (e.g. Pehle kaunsa lead follow karoge?)" value={branch.prompt} onChange={(e) => setBranch({ ...branch, prompt: e.target.value })} className={inputClass} />
+            <p className="text-sm font-semibold text-[#0ECCEE]">New branch (decision point)</p>
+            <p className="text-xs text-white/45">The team picks one lead. In the Clues tab, lock a clue to that lead — only teams that pick it will see the clue.</p>
+            <input placeholder="Question (e.g. Which lead will you follow first?)" value={branch.prompt} onChange={(e) => setBranch({ ...branch, prompt: e.target.value })} className={inputClass} />
             {branch.leads.map((lead, i) => (
               <div key={i} className="grid grid-cols-3 gap-2">
                 <input placeholder="id (e.g. cctv)" value={lead.id} onChange={(e) => updateLead(i, 'id', e.target.value)} className={`font-mono ${inputClass}`} />
@@ -344,12 +344,12 @@ export default function MysteryCaseBuilder() {
             <section key={b._id} className={cardClass}>
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold"><span className="text-white/40">#{b.order}</span> {b.prompt}</p>
-                <button type="button" disabled={busy} onClick={() => window.confirm('Branch delete karein? Isse locked clues unlock ho jayenge.') && run(() => adminDeleteMysteryBranch(caseId, b._id), 'Branch deleted')} className={dangerBtn}>Delete</button>
+                <button type="button" disabled={busy} onClick={() => window.confirm('Delete this branch? Clues locked to it will become unlocked.') && run(() => adminDeleteMysteryBranch(caseId, b._id), 'Branch deleted')} className={dangerBtn}>Delete</button>
               </div>
               <ul className="mt-2 space-y-1 text-xs">
                 {b.leads.map((l) => {
                   const gated = evidence.filter((e) => String(e.unlockedByBranchId) === String(b._id) && e.unlockedByLeadId === l.id);
-                  return <li key={l.id} className="text-white/60"><span className="font-mono text-white/80">{l.id}</span> — {l.label} → {gated.length ? gated.map((g) => g.code).join(', ') : <span className="text-amber-300">koi clue locked nahi</span>}</li>;
+                  return <li key={l.id} className="text-white/60"><span className="font-mono text-white/80">{l.id}</span> — {l.label} → {gated.length ? gated.map((g) => g.code).join(', ') : <span className="text-amber-300">no clues locked</span>}</li>;
                 })}
               </ul>
             </section>
@@ -360,8 +360,8 @@ export default function MysteryCaseBuilder() {
       {tab === 'twists' && (
         <div className="space-y-4">
           <section className={`${cardClass} space-y-3`}>
-            <p className="text-sm font-semibold text-[#0ECCEE]">Mystery Fights Back — beech game twist</p>
-            <p className="text-xs text-white/45">Team N clues khol le, tab ek clue ko invalid declare karo aur message dikhao.</p>
+            <p className="text-sm font-semibold text-[#0ECCEE]">Mystery Fights Back — mid-game twist</p>
+            <p className="text-xs text-white/45">Once a team unlocks N clues, declare one clue invalid and show a message.</p>
             <div className="grid gap-2 sm:grid-cols-2">
               <label className={labelClass}>Trigger after N clues<input type="number" min={1} value={fb.triggerAfterEvidenceCount} onChange={(e) => setFb({ ...fb, triggerAfterEvidenceCount: e.target.value })} className={`mt-1 ${inputClass}`} /></label>
               <label className={labelClass}>Clue to invalidate
@@ -371,7 +371,7 @@ export default function MysteryCaseBuilder() {
                 </select>
               </label>
             </div>
-            <textarea rows={2} placeholder="Message players ko (e.g. UPDATE: CCTV timestamp edited tha)" value={fb.systemMessage} onChange={(e) => setFb({ ...fb, systemMessage: e.target.value })} className={inputClass} />
+            <textarea rows={2} placeholder="Message to players (e.g. UPDATE: The CCTV timestamp was edited)" value={fb.systemMessage} onChange={(e) => setFb({ ...fb, systemMessage: e.target.value })} className={inputClass} />
             <button type="button" disabled={busy} onClick={submitTwist} className={`w-full ${primaryBtn}`}>Add twist</button>
           </section>
           {twists.map((f) => (
@@ -388,32 +388,32 @@ export default function MysteryCaseBuilder() {
           title={mysteryCase.title}
           evidence={evidence}
           branches={branches}
-          onRotate={(e) => run(() => adminRotateMysteryQr(caseId, e._id), `${e.code} ka naya QR bana — dobara print karo`)}
+          onRotate={(e) => run(() => adminRotateMysteryQr(caseId, e._id), `New QR generated for ${e.code} — print it again`)}
         />
       )}
 
       {tab === 'test' && (
         <section className={`${cardClass} space-y-3`}>
-          <p className="text-sm font-semibold text-[#0ECCEE]">Khud khel ke test karo</p>
+          <p className="text-sm font-semibold text-[#0ECCEE]">Play it yourself to test</p>
           {isPublished ? (
             <>
-              <p className="text-sm text-white/60">Practice mode me case turant khulta hai (event ki zarurat nahi). Phone pe kholo, aur QR print tab ke QR screen se scan karo.</p>
+              <p className="text-sm text-white/60">Practice mode opens the case instantly (no event needed). Open it on your phone and scan the codes from the QR print tab on your screen.</p>
               <div className="flex flex-wrap gap-2">
                 <a href={practiceUrl} target="_blank" rel="noreferrer" className={primaryBtn}>Open practice ↗</a>
               </div>
               <p className="font-mono text-xs text-white/40">{practiceUrl}</p>
             </>
           ) : (
-            <p className="text-sm text-amber-200">Test karne ke liye pehle case publish karo.</p>
+            <p className="text-sm text-amber-200">Publish the case first to test it.</p>
           )}
           <div className="rounded-xl bg-black/25 p-3 text-xs text-white/55">
             <p className="font-semibold text-white/70">Checklist</p>
             <ul className="mt-1 list-disc space-y-0.5 pl-4">
-              <li className={evidence.length >= 3 ? 'text-emerald-300' : ''}>Kam se kam 3 clues ({evidence.length})</li>
-              <li className={evidence.some((e) => e.reliability === 'unreliable') ? 'text-emerald-300' : ''}>Ek unreliable clue (trust test)</li>
-              <li className={evidence.some((e) => (e.unlockedByEvidenceIds || []).length === 0 && !e.unlockedByBranchId) ? 'text-emerald-300' : 'text-amber-300'}>Kam se kam ek clue start se available</li>
-              <li className={branches.every((b) => b.leads.every((l) => evidence.some((e) => String(e.unlockedByBranchId) === String(b._id) && e.unlockedByLeadId === l.id))) ? 'text-emerald-300' : 'text-amber-300'}>Har branch lead ke peeche ek clue</li>
-              <li className={mysteryCase.correctIdentityTheory ? 'text-emerald-300' : 'text-amber-300'}>Correct answer set (grading ke liye)</li>
+              <li className={evidence.length >= 3 ? 'text-emerald-300' : ''}>At least 3 clues ({evidence.length})</li>
+              <li className={evidence.some((e) => e.reliability === 'unreliable') ? 'text-emerald-300' : ''}>One unreliable clue (trust test)</li>
+              <li className={evidence.some((e) => (e.unlockedByEvidenceIds || []).length === 0 && !e.unlockedByBranchId) ? 'text-emerald-300' : 'text-amber-300'}>At least one clue available from the start</li>
+              <li className={branches.every((b) => b.leads.every((l) => evidence.some((e) => String(e.unlockedByBranchId) === String(b._id) && e.unlockedByLeadId === l.id))) ? 'text-emerald-300' : 'text-amber-300'}>A clue behind every branch lead</li>
+              <li className={mysteryCase.correctIdentityTheory ? 'text-emerald-300' : 'text-amber-300'}>Correct answer set (for grading)</li>
             </ul>
           </div>
         </section>

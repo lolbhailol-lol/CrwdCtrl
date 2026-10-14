@@ -1,20 +1,20 @@
 const mongoose = require('mongoose');
 const { WORLD, RELIABILITY } = require('../constants');
 
-// Har evidence ek "node" hai jo kisi ek world (Physical/Digital/Human/Logic) ka hissa hai
+// Each piece of evidence is a "node" belonging to one world (Physical/Digital/Human/Logic)
 const evidenceNodeSchema = new mongoose.Schema(
   {
     caseId: { type: mongoose.Schema.Types.ObjectId, ref: 'MysteryCase', required: true, index: true },
-    code: { type: String, required: true, trim: true }, // "EVD-CCTV-1703" — team ko bhi dikhta hai, reference ke liye
+    code: { type: String, required: true, trim: true }, // "EVD-CCTV-1703" — also shown to teams for reference
 
     world: { type: String, enum: Object.values(WORLD), required: true },
     title: { type: String, required: true, trim: true },
-    description: { type: String, required: true }, // evidence ka content
+    description: { type: String, required: true }, // the evidence content
 
-    timestampLabel: { type: String, default: '' }, // "17:03" — timeline-reconstruction ke liye
-    canonicalOrder: { type: Number, default: 0 }, // ground-truth sequence, timeline-scoring ke liye
+    timestampLabel: { type: String, default: '' }, // "17:03" — for timeline reconstruction
+    canonicalOrder: { type: Number, default: 0 }, // ground-truth sequence, for timeline scoring
 
-    // ⚠️ Ground truth — kabhi bhi player-facing response me nahi jaata
+    // ⚠️ Ground truth — never included in a player-facing response
     reliability: { type: String, enum: Object.values(RELIABILITY), required: true },
 
     // Discovery mechanism
@@ -22,23 +22,23 @@ const evidenceNodeSchema = new mongoose.Schema(
     // Left unset (not null) for non-QR evidence — the sparse unique index only skips missing fields.
     qrSecret: { type: String },
 
-    // Prerequisite chain — tabhi available hota hai jab ye evidence already unlocked ho
+    // Prerequisite chain — available only once these evidence are already unlocked
     unlockedByEvidenceIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' }],
-    // Agar kisi branch-choice ke peeche locked hai
+    // Set if this evidence is locked behind a branch choice
     unlockedByBranchId: { type: mongoose.Schema.Types.ObjectId, ref: 'InvestigationBranch', default: null },
-    unlockedByLeadId: { type: String, default: null }, // branch ke andar kaunsa lead option
+    unlockedByLeadId: { type: String, default: null }, // which lead option within the branch
 
-    // Ground truth — kaunse evidence isse "meaningfully connected" hain (connection-scoring ke liye)
+    // Ground truth — which evidence is "meaningfully connected" to this one (for connection scoring)
     connectsToEvidenceIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' }],
 
     points: { type: Number, default: 10 },
 
-    // "Mystery Fights Back" ke liye flag — isko invalidate kiya ja sakta hai beech game me
+    // "Mystery Fights Back" flag — this evidence can be invalidated mid-game
     canBeInvalidated: { type: Boolean, default: false },
 
     imageUrl: { type: String, default: '' },
 
-    // Admin-only — QR kahan chipkana/chhupana hai (printed sheet pe dikhta hai, player ko nahi)
+    // Admin-only — where to stick/hide the QR (shown on the printed sheet, not to players)
     placementNote: { type: String, default: '', trim: true },
   },
   { timestamps: true },

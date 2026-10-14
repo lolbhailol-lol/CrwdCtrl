@@ -32,7 +32,7 @@ export default function MysteryLandingPage() {
           <div className="relative">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">CTRL Mystery</p>
             <h1 className="mt-2 text-3xl font-bold">Crack the case</h1>
-            <p className="mt-2 max-w-md text-sm text-white/60">Evidence unlock karo, leads follow karo, aur sahi theory solve karke apni team ko top pe le jao.</p>
+            <p className="mt-2 max-w-md text-sm text-white/60">Unlock evidence, follow leads, and crack the right theory to take your team to the top.</p>
             <Link to={MYSTERY_PATHS.enter} className="mt-4 inline-block text-sm text-[#0ECCEE] underline">Already have a team? Enter with team code →</Link>
           </div>
         </div>
@@ -40,7 +40,7 @@ export default function MysteryLandingPage() {
         {loading && <p className="mt-8 text-white/40">Loading cases…</p>}
         {error && <p className="mt-8 text-sm text-rose-300">{error}</p>}
         {!loading && !error && cases.length === 0 && (
-          <p className="mt-8 rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/40">Abhi koi case published nahi hai.</p>
+          <p className="mt-8 rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/40">No cases published yet.</p>
         )}
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">

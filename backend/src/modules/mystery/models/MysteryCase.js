@@ -1,13 +1,13 @@
 const mongoose = require('mongoose');
 
-// Ye poore case ka "header" hai — "The 17-Minute Gap" jaisa
+// The "header" for a whole case — e.g. "The 17-Minute Gap"
 const mysteryCaseSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true }, // "CTRL Mystery"
     tagline: { type: String, default: '', trim: true }, // "The 17-Minute Gap"
-    synopsis: { type: String, required: true }, // intro-narrative jo pehli screen pe dikhega
+    synopsis: { type: String, required: true }, // intro narrative shown on the first screen
 
-    // Central mystery-identity jo teams ko figure out karna hai (jaise "A-17")
+    // The central mystery identity teams must figure out (e.g. "A-17")
     mysteryIdentityName: { type: String, default: '' }, // "A-17"
     mysteryIdentityPrompt: { type: String, default: 'Who or what is this identity?' },
 
@@ -17,7 +17,7 @@ const mysteryCaseSchema = new mongoose.Schema(
     campusMode: { type: Boolean, default: true },
     college: { type: String, default: '', trim: true },
 
-    // Final theory verdict evaluate karne ke liye admin ka "correct answer" reference (hidden from players)
+    // Admin's "correct answer" reference for evaluating the final theory (hidden from players)
     correctIdentityTheory: { type: String, default: '' },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

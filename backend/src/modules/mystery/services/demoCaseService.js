@@ -7,18 +7,18 @@ const { generateRandomCode } = require('../utils/generateCode');
 
 const DEMO_PASSWORD = 'demo1234';
 
-/** Ready-to-play sample case — har mechanic (QR, auto-unlock, branch, fights back) ek baar dikhata hai. */
+/** Ready-to-play sample case — shows every mechanic (QR, auto-unlock, branch, fights back) once. */
 async function createDemoCase({ createdByEmail = '' } = {}) {
   const suffix = generateRandomCode(4);
   const mysteryCase = await MysteryCase.create({
     title: `The 17-Minute Gap (demo ${suffix})`,
-    tagline: 'Lab se prototype gayab — 17 minute ka record missing',
-    synopsis: 'Robotics lab ka prototype raat 17:00 se 17:17 ke beech gayab ho gaya. CCTV me 17 minute ka gap hai. Clues scan karo, kis pe trust karna hai decide karo, aur batao A-17 kaun hai.',
+    tagline: 'A prototype vanished from the lab — 17 minutes of footage are missing',
+    synopsis: 'The robotics lab prototype disappeared between 17:00 and 17:17. The CCTV has a 17-minute gap. Scan the clues, decide who to trust, and figure out who A-17 is.',
     mysteryIdentityName: 'A-17',
-    mysteryIdentityPrompt: 'A-17 kaun ya kya hai?',
+    mysteryIdentityPrompt: 'Who or what is A-17?',
     difficulty: 'rookie',
     estimatedMinutes: 20,
-    correctIdentityTheory: 'A-17 lab assistant ka keycard hai — night guard ne usi se lab khola',
+    correctIdentityTheory: 'A-17 is the lab assistant\'s keycard — the night guard used it to open the lab',
     createdByEmail,
     createdByRole: 'admin',
   });
@@ -31,21 +31,21 @@ async function createDemoCase({ createdByEmail = '' } = {}) {
   });
 
   const window = await make({
-    code: 'PHY-01', world: 'physical', title: 'Toota hua lab window',
-    description: 'Window andar ki taraf se khula hai, bahar se nahi toda gaya. Sill pe blue paint ka nishaan.',
+    code: 'PHY-01', world: 'physical', title: 'Broken lab window',
+    description: 'The window was opened from the inside, not broken in from outside. There is a blue paint mark on the sill.',
     timestampLabel: '17:00', canonicalOrder: 1, reliability: 'reliable', requiresQR: true, points: 10,
-    placementNote: 'Start point — registration desk pe',
+    placementNote: 'Starting point — at the registration desk',
   });
   const cctv = await make({
     code: 'DIG-01', world: 'digital', title: 'CCTV still — 17:03',
-    description: 'Still me ek student lab ke bahar dikh raha hai. Timestamp corner me thoda blur hai.',
+    description: 'The still shows a student outside the lab. The timestamp in the corner is slightly blurred.',
     timestampLabel: '17:03', canonicalOrder: 2, reliability: 'unreliable', requiresQR: true, points: 10,
     unlockedByEvidenceIds: [window._id], canBeInvalidated: true,
     placementNote: 'Library entrance notice board',
   });
   const guard = await make({
-    code: 'HUM-01', world: 'human', title: 'Guard ka statement',
-    description: '"Main 17:00 se 17:20 tak gate pe tha, koi andar nahi gaya." Uski shoes pe blue paint hai.',
+    code: 'HUM-01', world: 'human', title: 'Guard\'s statement',
+    description: '"I was at the gate from 17:00 to 17:20, nobody went in." There is blue paint on his shoes.',
     timestampLabel: '17:10', canonicalOrder: 3, reliability: 'ambiguous', requiresQR: false, points: 10,
     unlockedByEvidenceIds: [window._id],
   });
@@ -53,30 +53,30 @@ async function createDemoCase({ createdByEmail = '' } = {}) {
   const branch = await InvestigationBranch.create({
     caseId,
     order: 1,
-    prompt: 'Pehle kaunsa lead follow karoge?',
+    prompt: 'Which lead will you follow first?',
     leads: [
-      { id: 'server', label: 'Server room logs', description: 'Keycard entries check karo' },
-      { id: 'canteen', label: 'Canteen witness', description: 'Jisne raat ko kisi ko dekha' },
+      { id: 'server', label: 'Server room logs', description: 'Check the keycard entries' },
+      { id: 'canteen', label: 'Canteen witness', description: 'Someone who saw a person that evening' },
     ],
   });
 
   const serverLog = await make({
     code: 'DIG-02', world: 'digital', title: 'Keycard log — A-17',
-    description: 'Lab door 17:04 pe keycard A-17 se khula. A-17 lab assistant ke naam pe registered hai, jo us din chutti pe tha.',
+    description: 'The lab door was opened at 17:04 with keycard A-17. A-17 is registered to the lab assistant, who was on leave that day.',
     timestampLabel: '17:04', canonicalOrder: 4, reliability: 'reliable', requiresQR: true, points: 15,
     unlockedByBranchId: branch._id, unlockedByLeadId: 'server',
-    placementNote: 'Computer lab, door ke andar',
+    placementNote: 'Computer lab, just inside the door',
   });
   const canteen = await make({
-    code: 'HUM-02', world: 'human', title: 'Canteen worker ka tip',
-    description: '"17:15 pe guard bhaiya ek bada box le ke parking ki taraf gaye the."',
+    code: 'HUM-02', world: 'human', title: 'Canteen worker\'s tip',
+    description: '"At 17:15 the guard carried a big box toward the parking lot."',
     timestampLabel: '17:15', canonicalOrder: 5, reliability: 'reliable', requiresQR: true, points: 15,
     unlockedByBranchId: branch._id, unlockedByLeadId: 'canteen',
     placementNote: 'Canteen counter',
   });
   const logic = await make({
     code: 'LOG-01', world: 'logic', title: 'Timeline math',
-    description: 'Agar guard gate pe tha to A-17 card kisne use kiya? Paint, keycard aur box — teeno ek hi insaan ki taraf point karte hain.',
+    description: 'If the guard was at the gate, who used the A-17 card? The paint, the keycard and the box all point to the same person.',
     timestampLabel: '17:17', canonicalOrder: 6, reliability: 'reliable', requiresQR: false, points: 20,
     unlockedByEvidenceIds: [window._id, guard._id],
   });
@@ -89,7 +89,7 @@ async function createDemoCase({ createdByEmail = '' } = {}) {
     caseId,
     triggerAfterEvidenceCount: 3,
     invalidatedEvidenceId: cctv._id,
-    systemMessage: 'UPDATE: CCTV still DIG-01 ka timestamp edit kiya gaya tha. Is clue pe ab trust mat karo.',
+    systemMessage: 'UPDATE: The timestamp on CCTV still DIG-01 was edited. Do not trust this clue anymore.',
   });
 
   mysteryCase.status = 'published';

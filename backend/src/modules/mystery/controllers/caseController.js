@@ -10,7 +10,7 @@ const { generateRandomCode } = require('../utils/generateCode');
 const createCase = async (req, res) => {
   try {
     const { title, tagline, synopsis, mysteryIdentityName, mysteryIdentityPrompt, difficulty, estimatedMinutes, campusMode, college, correctIdentityTheory } = req.body;
-    if (!title || !synopsis) return res.status(400).json({ error: 'title aur synopsis required hain' });
+    if (!title || !synopsis) return res.status(400).json({ error: 'title and synopsis are required' });
 
     const mysteryCase = await MysteryCase.create({
       title, tagline, synopsis, mysteryIdentityName, mysteryIdentityPrompt,
@@ -25,7 +25,7 @@ const createCase = async (req, res) => {
   }
 };
 
-// Ek evidence-node add karo (kisi world me)
+// Add an evidence node (in any world)
 const addEvidence = async (req, res) => {
   try {
     const { caseId } = req.params;
@@ -36,7 +36,7 @@ const addEvidence = async (req, res) => {
     } = req.body;
 
     if (!code || !world || !title || !description || !reliability) {
-      return res.status(400).json({ error: 'code, world, title, description, reliability required hain' });
+      return res.status(400).json({ error: 'code, world, title, description and reliability are required' });
     }
 
     const qrSecret = requiresQR ? generateRandomCode(10) : undefined;
@@ -54,20 +54,20 @@ const addEvidence = async (req, res) => {
       imageUrl: imageUrl || '',
       placementNote: placementNote || '',
     });
-    res.status(201).json(evidence); // admin view — full data (reliability included) milta hai
+    res.status(201).json(evidence); // admin view — returns full data (including reliability)
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Is case me ye evidence code already hai' });
+    if (err.code === 11000) return res.status(409).json({ error: 'This evidence code already exists in this case' });
     res.status(500).json({ error: 'Failed to add evidence', detail: err.message });
   }
 };
 
-// "Which lead do you pursue?" wala decision-point add karo
+// Add a "Which lead do you pursue?" decision point
 const addBranch = async (req, res) => {
   try {
     const { caseId } = req.params;
     const { order, prompt, leads } = req.body;
     if (!order || !prompt || !Array.isArray(leads) || leads.length < 2) {
-      return res.status(400).json({ error: 'order, prompt, aur kam se kam 2 leads chahiye' });
+      return res.status(400).json({ error: 'order, prompt and at least 2 leads are required' });
     }
     const branch = await InvestigationBranch.create({ caseId, order, prompt, leads });
     res.status(201).json(branch);
@@ -76,13 +76,13 @@ const addBranch = async (req, res) => {
   }
 };
 
-// "Mystery Fights Back" twist-trigger add karo
+// Add a "Mystery Fights Back" twist trigger
 const addFightsBackEvent = async (req, res) => {
   try {
     const { caseId } = req.params;
     const { triggerAfterEvidenceCount, invalidatedEvidenceId, systemMessage } = req.body;
     if (!triggerAfterEvidenceCount || !invalidatedEvidenceId || !systemMessage) {
-      return res.status(400).json({ error: 'triggerAfterEvidenceCount, invalidatedEvidenceId, systemMessage required hain' });
+      return res.status(400).json({ error: 'triggerAfterEvidenceCount, invalidatedEvidenceId and systemMessage are required' });
     }
     const event = await FightsBackEvent.create({ caseId, triggerAfterEvidenceCount, invalidatedEvidenceId, systemMessage });
     res.status(201).json(event);
@@ -95,7 +95,7 @@ const publishCase = async (req, res) => {
   try {
     const { caseId } = req.params;
     const evidenceCount = await EvidenceNode.countDocuments({ caseId });
-    if (evidenceCount === 0) return res.status(400).json({ error: 'Kam se kam ek evidence chahiye publish se pehle' });
+    if (evidenceCount === 0) return res.status(400).json({ error: 'Add at least one piece of evidence before publishing' });
 
     const mysteryCase = await MysteryCase.findByIdAndUpdate(caseId, { status: 'published' }, { new: true });
     res.status(200).json(mysteryCase);
@@ -114,7 +114,7 @@ const listCases = async (req, res) => {
   }
 };
 
-// Admin list — drafts bhi, taaki naya case builder me dikhe
+// Admin list — includes drafts so new cases show up in the case builder
 const listAllCasesAdmin = async (req, res) => {
   try {
     const cases = await MysteryCase.find().sort({ createdAt: -1 });
@@ -124,7 +124,7 @@ const listAllCasesAdmin = async (req, res) => {
   }
 };
 
-// Admin-detail — poora data (reliability/connections sahit), authoring ke liye
+// Admin detail — full data (including reliability/connections) for authoring
 const getCaseAdminDetail = async (req, res) => {
   try {
     const { caseId } = req.params;
@@ -156,13 +156,13 @@ const updateCase = async (req, res) => {
     for (const field of CASE_EDITABLE) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
     }
-    if (updates.title !== undefined && !String(updates.title).trim()) return res.status(400).json({ error: 'Title khaali nahi ho sakta' });
-    if (updates.synopsis !== undefined && !String(updates.synopsis).trim()) return res.status(400).json({ error: 'Synopsis khaali nahi ho sakta' });
+    if (updates.title !== undefined && !String(updates.title).trim()) return res.status(400).json({ error: 'Title cannot be empty' });
+    if (updates.synopsis !== undefined && !String(updates.synopsis).trim()) return res.status(400).json({ error: 'Synopsis cannot be empty' });
     if (updates.status === 'published' && !(await EvidenceNode.exists({ caseId }))) {
-      return res.status(400).json({ error: 'Kam se kam ek evidence chahiye publish se pehle' });
+      return res.status(400).json({ error: 'Add at least one piece of evidence before publishing' });
     }
     if (updates.status === 'draft' && await MysteryEvent.exists({ caseId, status: { $in: ['registration_open', 'live', 'paused'] } })) {
-      return res.status(409).json({ error: 'Is case pe ek event chal raha hai — pehle event band karo' });
+      return res.status(409).json({ error: 'An event is running on this case — close the event first' });
     }
     const mysteryCase = await MysteryCase.findByIdAndUpdate(caseId, { $set: updates }, { new: true, runValidators: true });
     if (!mysteryCase) return res.status(404).json({ error: 'Case not found' });
@@ -177,7 +177,7 @@ const deleteCase = async (req, res) => {
     const { caseId } = req.params;
     if (!mongoose.isValidObjectId(caseId)) return res.status(400).json({ error: 'Invalid case id' });
     if (await MysteryEvent.exists({ caseId }) || await MysteryTeam.exists({ caseId })) {
-      return res.status(409).json({ error: 'Is case pe events/teams hain — pehle unhe delete karo' });
+      return res.status(409).json({ error: 'This case has events/teams — delete them first' });
     }
     await Promise.all([
       EvidenceNode.deleteMany({ caseId }),
@@ -219,7 +219,7 @@ const updateEvidence = async (req, res) => {
     await evidence.save();
     res.status(200).json(evidence);
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Is case me ye evidence code already hai' });
+    if (err.code === 11000) return res.status(409).json({ error: 'This evidence code already exists in this case' });
     res.status(500).json({ error: 'Failed to update evidence', detail: err.message });
   }
 };

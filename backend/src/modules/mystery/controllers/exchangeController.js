@@ -5,31 +5,31 @@ const EvidenceNode = require('../models/EvidenceNode');
 const MysteryTeam = require('../models/MysteryTeam');
 const { EXCHANGE_STATUS, PROGRESS_STATUS, UNLOCK_SOURCE } = require('../constants');
 
-// Session wali team doosri team ko apna unlocked evidence offer karti hai
+// The session's team offers one of its unlocked evidence to another team
 const offerExchange = async (req, res) => {
   try {
     const fromTeam = req.mysteryTeam;
     const { toTeamId, evidenceId, note } = req.body;
-    if (!fromTeam.eventId) return res.status(400).json({ error: 'Valid event-linked team chahiye' });
+    if (!fromTeam.eventId) return res.status(400).json({ error: 'Your team must be linked to an event' });
     if (req.mysteryEvent?.allowInterTeamExchange === false) {
-      return res.status(403).json({ error: 'Is event me trading band hai' });
+      return res.status(403).json({ error: 'Trading is disabled for this event' });
     }
     if (!mongoose.isValidObjectId(toTeamId) || !mongoose.isValidObjectId(evidenceId)) {
-      return res.status(400).json({ error: 'toTeamId aur evidenceId required hain' });
+      return res.status(400).json({ error: 'toTeamId and evidenceId are required' });
     }
-    if (String(toTeamId) === String(fromTeam._id)) return res.status(400).json({ error: 'Khud ko trade nahi kar sakte' });
+    if (String(toTeamId) === String(fromTeam._id)) return res.status(400).json({ error: 'You cannot trade with your own team' });
 
     const toTeam = await MysteryTeam.findOne({ _id: toTeamId, eventId: fromTeam.eventId });
-    if (!toTeam) return res.status(404).json({ error: 'Target team is event me nahi hai' });
+    if (!toTeam) return res.status(404).json({ error: 'The target team is not in this event' });
 
     const progress = await TeamInvestigationProgress.findOne({ teamId: fromTeam._id });
     const owns = progress?.unlockedEvidence.some((u) => String(u.evidenceId) === String(evidenceId) && !u.invalidatedAt);
-    if (!owns) return res.status(400).json({ error: 'Sirf apna unlocked evidence offer kar sakte ho' });
+    if (!owns) return res.status(400).json({ error: 'You can only offer evidence your team has unlocked' });
 
     const duplicate = await InterTeamExchange.exists({
       fromTeamId: fromTeam._id, toTeamId, evidenceId, status: EXCHANGE_STATUS.OFFERED,
     });
-    if (duplicate) return res.status(409).json({ error: 'Ye offer already pending hai' });
+    if (duplicate) return res.status(409).json({ error: 'This offer is already pending' });
 
     const exchange = await InterTeamExchange.create({
       caseId: fromTeam.caseId,
@@ -45,7 +45,7 @@ const offerExchange = async (req, res) => {
   }
 };
 
-// Sirf receiving team accept/decline kar sakti hai
+// Only the receiving team can accept/decline
 const respondToExchange = async (req, res) => {
   try {
     const { exchangeId } = req.params;
@@ -62,7 +62,7 @@ const respondToExchange = async (req, res) => {
         TeamInvestigationProgress.findOne({ teamId: req.mysteryTeam._id }),
       ]);
       if (!progress || progress.status !== PROGRESS_STATUS.ACTIVE) {
-        return res.status(409).json({ error: 'Pehle investigation start karo' });
+        return res.status(409).json({ error: 'Start the investigation first' });
       }
       const already = progress.unlockedEvidence.some((u) => String(u.evidenceId) === String(exchange.evidenceId));
       if (evidence && !already) {

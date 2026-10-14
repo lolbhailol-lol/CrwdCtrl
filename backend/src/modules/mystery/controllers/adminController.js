@@ -28,12 +28,12 @@ function randomPassword() {
 }
 
 async function assertPublishedCase(caseId) {
-  if (!caseId || !mongoose.isValidObjectId(caseId)) return 'Pehle ek case select karo';
+  if (!caseId || !mongoose.isValidObjectId(caseId)) return 'Select a case first';
   const ok = await MysteryCase.exists({ _id: caseId, status: 'published' });
-  return ok ? null : 'Selected case published nahi hai — case builder me publish karo';
+  return ok ? null : 'The selected case is not published — publish it in the case builder';
 }
 
-/** Ek team ke saare game records hata do (progress, submission, trades). */
+/** Delete all game records for the given teams (progress, submissions, trades). */
 async function wipeTeamGameData(teamIds) {
   if (!teamIds.length) return;
   await Promise.all([
@@ -95,14 +95,14 @@ async function createEvent(req, res, next) {
     } = req.body;
 
     if (!String(name || '').trim() || !String(slug || '').trim()) {
-      return res.status(400).json({ success: false, message: 'Event name aur slug required hain' });
+      return res.status(400).json({ success: false, message: 'Event name and slug are required' });
     }
     const nextStatus = ADMIN_STATUSES.includes(status) ? status : 'draft';
     if (nextStatus !== 'draft') {
       const caseError = await assertPublishedCase(caseId);
       if (caseError) return res.status(400).json({ success: false, message: caseError });
       if (!String(college || '').trim() || !date) {
-        return res.status(400).json({ success: false, message: 'College aur date chahiye (ya draft me save karo)' });
+        return res.status(400).json({ success: false, message: 'College and date are required (or save as a draft)' });
       }
     }
 
@@ -128,7 +128,7 @@ async function createEvent(req, res, next) {
     return res.status(201).json({ success: true, data: { event } });
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Ye slug pehle se use ho raha hai' });
+      return res.status(409).json({ success: false, message: 'This slug is already in use' });
     }
     return next(err);
   }
@@ -177,7 +177,7 @@ async function updateEvent(req, res, next) {
     }
     if (updates.caseId !== undefined && String(updates.caseId) !== String(event.caseId || '')) {
       if (await MysteryTeam.exists({ eventId })) {
-        return res.status(409).json({ success: false, message: 'Teams ban chuki hain — ab case change nahi ho sakta' });
+        return res.status(409).json({ success: false, message: 'Teams have already been created — the case can no longer be changed' });
       }
     }
 
@@ -187,7 +187,7 @@ async function updateEvent(req, res, next) {
       const caseError = await assertPublishedCase(nextCaseId);
       if (caseError) return res.status(400).json({ success: false, message: caseError });
       if (!String(updates.college ?? event.college ?? '').trim() || !(updates.date ?? event.date)) {
-        return res.status(400).json({ success: false, message: 'Registration/live ke liye college aur date set karo' });
+        return res.status(400).json({ success: false, message: 'Set the college and date before opening registration or going live' });
       }
     }
     if (updates.name !== undefined) updates.title = updates.name;
@@ -226,7 +226,7 @@ async function deleteEvent(req, res, next) {
   }
 }
 
-/** Ek hi call me Setup / Teams / Live / Results tabs ka data. */
+/** Data for the Setup / Teams / Live / Results tabs in a single call. */
 async function getEventOverview(req, res, next) {
   try {
     const { eventId } = req.params;
@@ -336,7 +336,7 @@ async function listRegistrations(req, res, next) {
 
 /* ========== TEAMS ========== */
 
-/** Admin bulk team create — har team ka code + password milta hai (WhatsApp ke liye). */
+/** Admin bulk team create — returns each team's code + password (for sharing on WhatsApp). */
 async function createTeams(req, res, next) {
   try {
     const { eventId } = req.params;
@@ -349,7 +349,7 @@ async function createTeams(req, res, next) {
 
     const commonPassword = String(req.body.password || '').trim();
     if (commonPassword && commonPassword.length < 4) {
-      return res.status(400).json({ success: false, message: 'Password kam se kam 4 characters ka ho' });
+      return res.status(400).json({ success: false, message: 'Password must be at least 4 characters' });
     }
 
     let specs = Array.isArray(req.body.teams) ? req.body.teams : [];
@@ -360,15 +360,15 @@ async function createTeams(req, res, next) {
       specs = Array.from({ length: count }, (_, i) => ({ teamName: `${prefix} ${existing + i + 1}` }));
     }
     specs = specs.filter((s) => String(s?.teamName || '').trim());
-    if (!specs.length) return res.status(400).json({ success: false, message: 'Kitni teams banani hain? (count ya team names do)' });
+    if (!specs.length) return res.status(400).json({ success: false, message: 'How many teams should be created? (provide a count or team names)' });
     if (specs.length > MAX_TEAMS_PER_BATCH) {
-      return res.status(400).json({ success: false, message: `Ek baar me max ${MAX_TEAMS_PER_BATCH} teams` });
+      return res.status(400).json({ success: false, message: `You can create at most ${MAX_TEAMS_PER_BATCH} teams at a time` });
     }
 
     const capacity = event.teamCapacity || 0;
     const current = await MysteryTeam.countDocuments({ eventId, mode: 'competitive' });
     if (capacity > 0 && current + specs.length > capacity) {
-      return res.status(409).json({ success: false, message: `Capacity ${capacity} hai, ${current} teams already hain` });
+      return res.status(409).json({ success: false, message: `Capacity is ${capacity} and ${current} teams already exist` });
     }
 
     const created = [];
@@ -392,7 +392,7 @@ async function createTeams(req, res, next) {
   }
 }
 
-/** Login details for links / WhatsApp — sirf admin-created (ya reset) teams ka password dikhta hai. */
+/** Login details for links / WhatsApp — passwords are shown only for admin-created (or reset) teams. */
 async function listCredentials(req, res, next) {
   try {
     const { eventId } = req.params;
@@ -426,7 +426,7 @@ async function setAllTeamPasswords(req, res, next) {
     if (!mongoose.isValidObjectId(eventId)) return badId(res, 'event id');
     const password = String(req.body.password || '').trim();
     if (password.length < 4) {
-      return res.status(400).json({ success: false, message: 'Password kam se kam 4 characters ka ho' });
+      return res.status(400).json({ success: false, message: 'Password must be at least 4 characters' });
     }
 
     const teams = await MysteryTeam.find({ eventId });
@@ -452,7 +452,7 @@ async function resetTeamPassword(req, res, next) {
 
     const password = String(req.body.password || '').trim() || randomPassword();
     if (password.length < 4) {
-      return res.status(400).json({ success: false, message: 'Password kam se kam 4 characters ka ho' });
+      return res.status(400).json({ success: false, message: 'Password must be at least 4 characters' });
     }
     await team.setPassword(password);
     team.passwordCipher = encryptCredential(password);
@@ -499,7 +499,7 @@ async function deleteTeam(req, res, next) {
   }
 }
 
-/** Test run ke baad team ko fresh start do — login same rehta hai. */
+/** Give a team a fresh start after a test run — the login stays the same. */
 async function resetTeamProgress(req, res, next) {
   try {
     const { teamId } = req.params;
@@ -545,12 +545,12 @@ async function finalizeResult(req, res, next) {
 async function checkInGamePass(req, res, next) {
   try {
     const code = String(req.body.gamePassCode || req.body.teamCode || '').trim().toUpperCase();
-    if (!code) return res.status(400).json({ success: false, message: 'Game pass ya team code do' });
+    if (!code) return res.status(400).json({ success: false, message: 'Provide a game pass or team code' });
 
     const team = await MysteryTeam.findOne({ $or: [{ gamePassCode: code }, { teamCode: code }] });
-    if (!team) return res.status(404).json({ success: false, message: 'Is code se koi team nahi mili' });
+    if (!team) return res.status(404).json({ success: false, message: 'No team found with this code' });
     if (team.checkedInAt) {
-      return res.status(409).json({ success: false, message: `${team.teamName} already checked in hai`, data: { team } });
+      return res.status(409).json({ success: false, message: `${team.teamName} is already checked in`, data: { team } });
     }
 
     team.checkedInAt = new Date();

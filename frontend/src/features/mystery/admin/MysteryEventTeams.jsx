@@ -30,7 +30,7 @@ export default function MysteryEventTeams({ eventId, overview, onChanged }) {
       await action();
       await onChanged?.();
     } catch (err) {
-      setError(err.message || 'Kuch galat hua');
+      setError(err.message || 'Something went wrong');
     } finally {
       setBusy('');
     }
@@ -45,12 +45,12 @@ export default function MysteryEventTeams({ eventId, overview, onChanged }) {
     const list = res.data?.teams || [];
     setCreated(list);
     setNamesText('');
-    setMsg(`${list.length} team${list.length === 1 ? '' : 's'} bani — logins neeche aur Links tab me.`);
+    setMsg(`${list.length} team${list.length === 1 ? '' : 's'} created — logins are below and in the Links tab.`);
   });
 
   const checkIn = () => run('checkin', async () => {
     const code = checkinCode.trim();
-    if (!code) throw new Error('Game pass ya team code daalo');
+    if (!code) throw new Error('Enter a game pass or team code');
     try {
       const res = await adminMysteryCheckIn(code);
       setMsg(`✓ ${res.data?.team?.teamName} checked in`);
@@ -62,24 +62,24 @@ export default function MysteryEventTeams({ eventId, overview, onChanged }) {
   });
 
   const resetPassword = (team) => run(`pw-${team._id}`, async () => {
-    const custom = window.prompt(`${team.teamName} ka naya password (khaali chhodo = random)`, '');
+    const custom = window.prompt(`New password for ${team.teamName} (leave blank for a random one)`, '');
     if (custom === null) return;
     const res = await adminResetMysteryTeamPassword(team._id, custom.trim());
     const pw = res.data?.password;
     await copyText(`Team code: ${team.teamCode}\nPassword: ${pw}\nLogin: ${mysteryEnterUrl(team.teamCode)}`);
-    setMsg(`${team.teamName}: naya password "${pw}" (copied)`);
+    setMsg(`${team.teamName}: new password "${pw}" (copied)`);
   });
 
   const resetProgress = (team) => {
-    if (!window.confirm(`${team.teamName} ka saara progress, score aur submission mita dein? Login same rahega.`)) return;
+    if (!window.confirm(`Erase all progress, score and submission for ${team.teamName}? Their login stays the same.`)) return;
     run(`rp-${team._id}`, async () => {
       await adminResetMysteryTeamProgress(team._id);
-      setMsg(`${team.teamName} fresh start pe hai`);
+      setMsg(`${team.teamName} has been reset to a fresh start`);
     });
   };
 
   const removeTeam = (team) => {
-    if (!window.confirm(`${team.teamName} delete karein? Progress bhi chala jayega.`)) return;
+    if (!window.confirm(`Delete ${team.teamName}? Their progress will be lost too.`)) return;
     run(`del-${team._id}`, () => adminDeleteMysteryTeam(team._id));
   };
 
@@ -97,21 +97,21 @@ export default function MysteryEventTeams({ eventId, overview, onChanged }) {
     <div className="space-y-4">
       <section className={`${cardClass} space-y-3`}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm font-semibold text-[#0ECCEE]">Teams banao</p>
+          <p className="text-sm font-semibold text-[#0ECCEE]">Create teams</p>
           <p className="text-xs text-white/40">{teams.length}/{capacity || '∞'} teams</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className={labelClass}>Kitni teams
+          <label className={labelClass}>Number of teams
             <input type="number" min={1} max={100} value={count} onChange={(e) => setCount(e.target.value)} className={`mt-1 ${inputClass}`} />
           </label>
           <label className={labelClass}>Name prefix
             <input value={prefix} onChange={(e) => setPrefix(e.target.value)} className={`mt-1 ${inputClass}`} />
           </label>
           <label className={labelClass}>Common password (optional)
-            <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Khaali = har team ka random" className={`mt-1 font-mono ${inputClass}`} />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Blank = random per team" className={`mt-1 font-mono ${inputClass}`} />
           </label>
         </div>
-        <label className={labelClass}>Ya exact list paste karo — har line: Team name, Captain name, Phone
+        <label className={labelClass}>Or paste an exact list — one per line: Team name, Captain name, Phone
           <textarea rows={3} value={namesText} onChange={(e) => setNamesText(e.target.value)} placeholder={'Sherlocks, Riya, 9876543210\nByte Busters, Aman, 9123456780'} className={`mt-1 font-mono ${inputClass}`} />
         </label>
         <button type="button" disabled={Boolean(busy)} onClick={createTeams} className={primaryBtn}>{busy === 'create' ? 'Creating…' : 'Create teams'}</button>
@@ -119,7 +119,7 @@ export default function MysteryEventTeams({ eventId, overview, onChanged }) {
         {created.length > 0 && (
           <div className="rounded-xl bg-black/30 p-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-emerald-300">Naye logins</p>
+              <p className="text-xs font-semibold text-emerald-300">New logins</p>
               <button type="button" className={ghostBtn} onClick={() => copyText(created.map((t) => `${t.teamName} — code ${t.teamCode} · password ${t.password}`).join('\n')).then(() => setMsg('Logins copied'))}>Copy all</button>
             </div>
             <ul className="mt-2 space-y-1 font-mono text-xs">
@@ -131,7 +131,7 @@ export default function MysteryEventTeams({ eventId, overview, onChanged }) {
 
       <section className={`${cardClass} space-y-2`}>
         <p className="text-sm font-semibold text-[#0ECCEE]">Check-in desk</p>
-        <p className="text-xs text-white/45">Venue pe aate hi team code ya game pass daalo.</p>
+        <p className="text-xs text-white/45">Enter the team code or game pass as each team arrives at the venue.</p>
         <div className="flex gap-2">
           <input value={checkinCode} onChange={(e) => setCheckinCode(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && checkIn()} placeholder="TEAM CODE / GAME PASS" className={`font-mono ${inputClass}`} />
           <button type="button" disabled={Boolean(busy)} onClick={checkIn} className={primaryBtn}>Check in</button>
@@ -182,7 +182,7 @@ export default function MysteryEventTeams({ eventId, overview, onChanged }) {
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && <p className="py-4 text-sm text-white/40">Koi team nahi. Upar banao, ya registration kholo (Setup tab).</p>}
+          {filtered.length === 0 && <p className="py-4 text-sm text-white/40">No teams yet. Create them above, or open registration (Setup tab).</p>}
         </div>
       </section>
     </div>

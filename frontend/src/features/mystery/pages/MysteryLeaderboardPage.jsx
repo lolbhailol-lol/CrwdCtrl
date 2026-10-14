@@ -11,7 +11,7 @@ export default function MysteryLeaderboardPage() {
   useEffect(() => {
     const load = () => fetchPublicLeaderboard(eventId)
       .then((res) => { setRows(Array.isArray(res) ? res : []); setError(''); })
-      .catch((err) => setError(err.message || 'Leaderboard load nahi hua'))
+      .catch((err) => setError(err.message || 'Could not load leaderboard'))
       .finally(() => setLoading(false));
     load();
     const id = setInterval(load, 15000);
@@ -24,7 +24,7 @@ export default function MysteryLeaderboardPage() {
         <h1 className="text-2xl font-bold">Leaderboard</h1>
         {loading && <p className="mt-6 text-white/40">Loading…</p>}
         {error && <p className="mt-6 text-sm text-rose-300">{error}</p>}
-        {!loading && !error && rows.length === 0 && <p className="mt-6 text-sm text-white/40">Abhi koi team score nahi hai.</p>}
+        {!loading && !error && rows.length === 0 && <p className="mt-6 text-sm text-white/40">No team scores yet.</p>}
         <div className="mt-6 space-y-2">
           {rows.map((row, i) => (
             <div key={row.teamId || i} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">

@@ -12,7 +12,7 @@ const { PROGRESS_STATUS, UNLOCK_SOURCE } = require('../constants');
 async function loadActiveProgress(req, res) {
   const progress = await ensureProgress(req.mysteryTeam);
   if (progress.status !== PROGRESS_STATUS.ACTIVE) {
-    res.status(409).json({ error: 'Case already submit ho chuka hai', code: 'CASE_FINISHED' });
+    res.status(409).json({ error: 'This case has already been submitted', code: 'CASE_FINISHED' });
     return null;
   }
   return progress;
@@ -23,7 +23,7 @@ async function respondWithState(req, res, progress, extra = {}, status = 200) {
   return res.status(status).json({ ...state, ...extra });
 }
 
-// Investigation shuru karo / resume karo — idempotent, poora player-state return karta hai
+// Start or resume the investigation — idempotent, returns the full player state
 const startSession = async (req, res) => {
   try {
     const progress = await ensureProgress(req.mysteryTeam);
@@ -36,11 +36,11 @@ const startSession = async (req, res) => {
 
 const getState = startSession;
 
-// QR scan karke evidence unlock karo
+// Unlock evidence by scanning a QR code
 const unlockViaQR = async (req, res) => {
   try {
     const qrSecret = String(req.body.qrSecret || '').trim();
-    if (!qrSecret) return res.status(400).json({ error: 'qrSecret required hai' });
+    if (!qrSecret) return res.status(400).json({ error: 'qrSecret is required' });
 
     const progress = await loadActiveProgress(req, res);
     if (!progress) return undefined;
@@ -52,7 +52,7 @@ const unlockViaQR = async (req, res) => {
       return respondWithState(req, res, progress, { alreadyUnlocked: true, lastUnlocked: sanitizeEvidence(evidence) });
     }
     if (!isEvidenceReachable(evidence, progress)) {
-      return res.status(400).json({ error: 'Ye clue abhi locked hai — pehle baaki leads follow karo', code: 'EVIDENCE_LOCKED' });
+      return res.status(400).json({ error: 'This clue is still locked — follow the other leads first', code: 'EVIDENCE_LOCKED' });
     }
 
     await addUnlockedEvidence(progress, evidence, UNLOCK_SOURCE.QR);
@@ -64,12 +64,12 @@ const unlockViaQR = async (req, res) => {
   }
 };
 
-// Ek lead (branch-option) choose karo — uske peeche ka evidence unlock hoga
+// Choose a lead (branch option) — unlocks the evidence behind it
 const chooseBranch = async (req, res) => {
   try {
     const { branchId, leadId } = req.body;
     if (!mongoose.isValidObjectId(branchId) || !leadId) {
-      return res.status(400).json({ error: 'branchId aur leadId required hain' });
+      return res.status(400).json({ error: 'branchId and leadId are required' });
     }
 
     const progress = await loadActiveProgress(req, res);
@@ -79,7 +79,7 @@ const chooseBranch = async (req, res) => {
     if (!branch) return res.status(404).json({ error: 'Branch not found' });
     if (!branch.leads.some((l) => l.id === leadId)) return res.status(404).json({ error: 'Invalid lead id' });
     if (progress.branchChoices.some((c) => String(c.branchId) === String(branchId))) {
-      return res.status(409).json({ error: 'Is decision pe lead already choose ho chuka hai' });
+      return res.status(409).json({ error: 'A lead has already been chosen for this decision' });
     }
 
     progress.branchChoices.push({ branchId, chosenLeadId: leadId });
@@ -98,7 +98,7 @@ const chooseBranch = async (req, res) => {
   }
 };
 
-// Team apni trust-decision batati hai ek evidence ke upar (final verdicts ka default yahi banta hai)
+// Team records its trust decision on a piece of evidence (used as the default for final verdicts)
 const setTrustDecision = async (req, res) => {
   try {
     const { evidenceId } = req.body;
@@ -107,7 +107,7 @@ const setTrustDecision = async (req, res) => {
     const progress = await loadActiveProgress(req, res);
     if (!progress) return undefined;
     if (!unlockedIdSet(progress).has(String(evidenceId))) {
-      return res.status(400).json({ error: 'Pehle ye evidence unlock karo' });
+      return res.status(400).json({ error: 'Unlock this evidence first' });
     }
 
     const existing = progress.trustDecisions.find((t) => String(t.evidenceId) === String(evidenceId));
@@ -124,20 +124,20 @@ const setTrustDecision = async (req, res) => {
   }
 };
 
-// Team 2 evidence ko "connected" mark karti hai
+// Team marks two pieces of evidence as "connected"
 const connectEvidence = async (req, res) => {
   try {
     const evidenceIdA = String(req.body.evidenceIdA || '');
     const evidenceIdB = String(req.body.evidenceIdB || '');
     if (!evidenceIdA || !evidenceIdB || evidenceIdA === evidenceIdB) {
-      return res.status(400).json({ error: 'Do alag evidence IDs chahiye' });
+      return res.status(400).json({ error: 'Two different evidence IDs are required' });
     }
 
     const progress = await loadActiveProgress(req, res);
     if (!progress) return undefined;
     const unlocked = unlockedIdSet(progress);
     if (!unlocked.has(evidenceIdA) || !unlocked.has(evidenceIdB)) {
-      return res.status(400).json({ error: 'Dono evidence pehle unlock hone chahiye' });
+      return res.status(400).json({ error: 'Both pieces of evidence must be unlocked first' });
     }
 
     const alreadyConnected = progress.connectionsMade.some(
@@ -154,12 +154,12 @@ const connectEvidence = async (req, res) => {
   }
 };
 
-// Team "Mystery Fights Back" wala update dekh ke acknowledge karti hai
+// Team acknowledges a "Mystery Fights Back" update after seeing it
 const acknowledgeFightsBack = async (req, res) => {
   try {
     const fightsBackEventId = String(req.body.fightsBackEventId || '');
     if (!mongoose.isValidObjectId(fightsBackEventId)) {
-      return res.status(400).json({ error: 'fightsBackEventId required hai' });
+      return res.status(400).json({ error: 'fightsBackEventId is required' });
     }
 
     const progress = await ensureProgress(req.mysteryTeam);
@@ -174,7 +174,7 @@ const acknowledgeFightsBack = async (req, res) => {
   }
 };
 
-// Sirf wahi twists jinhone is team ka koi evidence sach me invalidate kiya aur abhi ack nahi hue
+// Only twists that actually invalidated one of this team's evidence and are not yet acknowledged
 const getPendingFightsBack = async (req, res) => {
   try {
     const progress = await ensureProgress(req.mysteryTeam);

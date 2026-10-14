@@ -31,7 +31,7 @@ export default function MysteryPracticePage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#0b0c0d] px-5 text-white">
       <div className="w-full max-w-sm text-center">
         <h1 className="text-2xl font-bold">Solo practice run</h1>
-        <p className="mt-2 text-sm text-white/55">Jitni baar chaho khelo — har baar naya attempt.</p>
+        <p className="mt-2 text-sm text-white/55">Play as many times as you like — every run is a fresh attempt.</p>
         <input value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Your name" className="mt-6 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/25" />
         {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
         <button type="button" disabled={busy} onClick={submit} className="mt-5 w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black disabled:opacity-40">

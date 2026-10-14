@@ -29,7 +29,7 @@ function chosenLeadSet(progress) {
   return new Set(progress.branchChoices.map((c) => `${c.branchId}:${c.chosenLeadId}`));
 }
 
-/** Prerequisites unlocked hain aur (agar branch-gated hai) team ne wahi lead choose kiya hai. */
+/** Prerequisites are unlocked and (if branch-gated) the team chose the matching lead. */
 function isEvidenceReachable(evidence, progress) {
   const unlocked = unlockedIdSet(progress);
   const prereqsMet = (evidence.unlockedByEvidenceIds || []).every((id) => unlocked.has(String(id)));
@@ -38,7 +38,7 @@ function isEvidenceReachable(evidence, progress) {
   return chosenLeadSet(progress).has(`${evidence.unlockedByBranchId}:${evidence.unlockedByLeadId}`);
 }
 
-/** Evidence add karo + score + "Mystery Fights Back" trigger. Save caller karta hai. */
+/** Add evidence + score + "Mystery Fights Back" trigger. The caller saves. */
 async function addUnlockedEvidence(progress, evidence, source) {
   if (unlockedIdSet(progress).has(String(evidence._id))) return false;
   progress.unlockedEvidence.push({ evidenceId: evidence._id, source });
@@ -58,7 +58,7 @@ async function addUnlockedEvidence(progress, evidence, source) {
   return true;
 }
 
-/** Bina-QR wale evidence jinke prerequisites pure ho gaye, apne aap unlock. */
+/** Automatically unlock non-QR evidence whose prerequisites are met. */
 async function autoUnlockReachable(progress) {
   const candidates = await EvidenceNode.find({ caseId: progress.caseId, requiresQR: false });
   let changed = false;
@@ -82,7 +82,7 @@ async function syncProgress(team, event, progress) {
   return progress;
 }
 
-/** Player ko jo dikhna chahiye — ground truth (reliability, connections, canonicalOrder) kabhi nahi. */
+/** What the player should see — never the ground truth (reliability, connections, canonicalOrder). */
 async function buildPlayerState(team, event, progress) {
   const [mysteryCase, evidence, branches, submission] = await Promise.all([
     MysteryCase.findById(team.caseId).select(CASE_PLAYER_FIELDS).lean(),

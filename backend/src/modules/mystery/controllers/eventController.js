@@ -5,7 +5,7 @@ const createEvent = async (req, res) => {
   try {
     const mysteryCase = await MysteryCase.findById(req.body.caseId);
     if (!mysteryCase || mysteryCase.status !== 'published') {
-      return res.status(400).json({ error: 'Valid published case select karo' });
+      return res.status(400).json({ error: 'Select a valid published case' });
     }
     const event = await MysteryEvent.create({
       ...req.body,

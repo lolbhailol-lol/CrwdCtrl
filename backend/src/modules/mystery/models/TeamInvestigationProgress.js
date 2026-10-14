@@ -12,12 +12,12 @@ const teamInvestigationProgressSchema = new mongoose.Schema(
         evidenceId: { type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' },
         source: { type: String, enum: Object.values(UNLOCK_SOURCE) },
         unlockedAt: { type: Date, default: Date.now },
-        // Agar baad me "Mystery Fights Back" se invalidate ho gaya
+        // Set if later invalidated by "Mystery Fights Back"
         invalidatedAt: { type: Date, default: null },
       },
     ],
 
-    // Team ka khud ka trust-decision — "main is evidence pe believe karta hoon ya nahi"
+    // The team's own trust decision — "do we believe this evidence or not"
     trustDecisions: [
       {
         evidenceId: { type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' },
@@ -34,7 +34,7 @@ const teamInvestigationProgressSchema = new mongoose.Schema(
       },
     ],
 
-    // Team ne khud 2 evidence ko "connected" bola — ground-truth se compare hoga scoring me
+    // Pairs of evidence the team marked as "connected" — compared with the ground truth during scoring
     connectionsMade: [
       {
         evidenceIdA: { type: mongoose.Schema.Types.ObjectId, ref: 'EvidenceNode' },

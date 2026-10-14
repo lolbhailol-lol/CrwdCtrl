@@ -69,7 +69,7 @@ export default function MysteryPlayPage() {
       if (isOnline) {
         const res = await unlockEvidenceByQr(teamId, qrSecret);
         setData(res);
-        setScanMessage(res.alreadyUnlocked ? 'Ye evidence pehle se unlocked hai' : `Unlocked: ${res.lastUnlocked?.title || 'evidence'}`);
+        setScanMessage(res.alreadyUnlocked ? 'This evidence is already unlocked' : `Unlocked: ${res.lastUnlocked?.title || 'evidence'}`);
       } else {
         await queueAction({ type: 'unlock-qr', payload: { qrSecret } });
         setScanMessage('Offline — saved, will unlock when network returns');
@@ -168,7 +168,7 @@ export default function MysteryPlayPage() {
 
         {data && !canPlay && !finished && (
           <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
-            Event abhi live nahi hai — organiser start karte hi investigation khul jayegi.
+            The event isn't live yet — the investigation opens as soon as the organiser starts it.
           </p>
         )}
 
@@ -202,7 +202,7 @@ export default function MysteryPlayPage() {
             );
           })}
           {data && filtered.length === 0 && (
-            <p className="rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/40">Abhi tak koi evidence unlock nahi hua — QR scan karke shuru karo.</p>
+            <p className="rounded-xl border border-dashed border-white/15 p-6 text-center text-sm text-white/40">No evidence unlocked yet — scan a QR code to begin.</p>
           )}
         </div>
 
@@ -228,7 +228,7 @@ export default function MysteryPlayPage() {
                 setManualCode('');
               }}
             >
-              <input value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="Camera nahi chal raha? Code type karo" autoCapitalize="characters" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 font-mono text-sm text-white placeholder:text-white/30" />
+              <input value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="Camera not working? Type the code" autoCapitalize="characters" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 py-2.5 font-mono text-sm text-white placeholder:text-white/30" />
               <button type="submit" disabled={scanBusy || !manualCode.trim()} className="rounded-xl bg-[#0ECCEE] px-4 text-sm font-bold text-black disabled:opacity-40">Unlock</button>
             </form>
             {scanBusy && <p className="mt-2 text-center text-xs text-white/50">Checking…</p>}

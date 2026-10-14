@@ -21,7 +21,7 @@ export default function MysteryTeamRegisterPage() {
 
   const submit = async () => {
     if (!teamName.trim() || !captainName.trim() || !password.trim()) {
-      setError('Team name, your name aur password zaroori hain');
+      setError('Team name, your name and password are required');
       return;
     }
     setBusy(true);
@@ -42,7 +42,7 @@ export default function MysteryTeamRegisterPage() {
     <div className="min-h-screen bg-[#0b0c0d] px-5 py-10 text-white">
       <div className="mx-auto max-w-md">
         <h1 className="text-2xl font-bold">Register your team</h1>
-        <p className="mt-1 text-sm text-white/55">Tum team leader banoge — isi password se baad me login hoga.</p>
+        <p className="mt-1 text-sm text-white/55">You'll be the team leader — use this password to log in later.</p>
         <div className="mt-6 space-y-3">
           <input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder="Team name" className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/25" />
           <input value={captainName} onChange={(e) => setCaptainName(e.target.value)} placeholder="Your name (captain)" className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/25" />

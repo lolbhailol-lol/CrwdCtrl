@@ -52,9 +52,9 @@ function SetupTab({ overview, cases, onSave, busy }) {
 
   const stats = overview.caseStats || {};
   const checks = [
-    [Boolean(overview.case), 'Case linked', overview.case ? overview.case.title : 'Neeche case choose karo'],
-    [overview.case?.status === 'published', 'Case published', overview.case?.status === 'published' ? `${stats.evidence} clues · ${stats.qrEvidence} QR · ${stats.branches} branch · ${stats.twists} twist` : 'Case builder me publish karo'],
-    [Boolean(event.college && (event.date || event.dateTime)), 'College + date set', event.college ? `${event.college}` : 'Neeche bharo'],
+    [Boolean(overview.case), 'Case linked', overview.case ? overview.case.title : 'Choose a case below'],
+    [overview.case?.status === 'published', 'Case published', overview.case?.status === 'published' ? `${stats.evidence} clues · ${stats.qrEvidence} QR · ${stats.branches} branch · ${stats.twists} twist` : 'Publish it in the case builder'],
+    [Boolean(event.college && (event.date || event.dateTime)), 'College + date set', event.college ? `${event.college}` : 'Fill in below'],
     [(overview.counts?.teamsRegistered || 0) > 0, 'Teams ready', `${overview.counts?.teamsRegistered || 0} teams`],
   ];
 
@@ -80,7 +80,7 @@ function SetupTab({ overview, cases, onSave, busy }) {
             </li>
           ))}
         </ul>
-        {stats.qrEvidence > 0 && <p className="mt-3 text-xs text-white/45">Game se pehle: QR clues tab se {stats.qrEvidence} QR print karke venue pe lagao.</p>}
+        {stats.qrEvidence > 0 && <p className="mt-3 text-xs text-white/45">Before the game: print the {stats.qrEvidence} QR codes from the QR clues tab and put them up at the venue.</p>}
         {overview.case && <Link to={MYSTERY_PATHS.adminCase(overview.case._id)} className={`mt-3 inline-block ${ghostBtn}`}>Open case builder</Link>}
       </section>
 
@@ -91,7 +91,7 @@ function SetupTab({ overview, cases, onSave, busy }) {
           <label className={labelClass}>College<input value={form.college} onChange={set('college')} className={`mt-1 ${inputClass}`} /></label>
           <label className={labelClass}>Date & time<input type="datetime-local" value={form.date} onChange={set('date')} className={`mt-1 ${inputClass}`} /></label>
           <label className={labelClass}>Venue<input value={form.venue} onChange={set('venue')} className={`mt-1 ${inputClass}`} /></label>
-          <label className={labelClass}>Case {hasTeams && <span className="text-white/30">(teams ban chuki — lock)</span>}
+          <label className={labelClass}>Case {hasTeams && <span className="text-white/30">(locked — teams already created)</span>}
             <select value={form.caseId} disabled={hasTeams} onChange={set('caseId')} className={`mt-1 ${inputClass} disabled:opacity-50`}>
               <option value="">— select —</option>
               {cases.map((c) => <option key={c._id} value={c._id}>{c.title}{c.status !== 'published' ? ' (draft)' : ''}</option>)}
@@ -101,12 +101,12 @@ function SetupTab({ overview, cases, onSave, busy }) {
             <label className={labelClass}>Max teams<input type="number" min={1} value={form.teamCapacity} onChange={set('teamCapacity')} className={`mt-1 ${inputClass}`} /></label>
             <label className={labelClass}>Per team<input type="number" min={1} value={form.teamSize} onChange={set('teamSize')} className={`mt-1 ${inputClass}`} /></label>
           </div>
-          <label className={`${labelClass} sm:col-span-2`}>Operations notes (sirf admin)
+          <label className={`${labelClass} sm:col-span-2`}>Operations notes (admin only)
             <textarea rows={2} value={form.operationsNotes} onChange={set('operationsNotes')} placeholder="Reporting time, volunteer contacts, emergency number" className={`mt-1 ${inputClass}`} />
           </label>
           <label className="flex items-center gap-2 text-sm text-white/70 sm:col-span-2">
             <input type="checkbox" checked={form.allowInterTeamExchange} onChange={set('allowInterTeamExchange')} />
-            Teams ek dusre se clues trade kar sakti hain
+            Teams can trade clues with each other
           </label>
         </div>
         <button type="button" disabled={busy} onClick={save} className={primaryBtn}>Save details</button>
@@ -141,7 +141,7 @@ export default function MysteryEventControl() {
   useEffect(() => {
     refresh()
       .then((data) => loadCase(data?.case?._id))
-      .catch((err) => setError(err.message || 'Event load nahi hua'));
+      .catch((err) => setError(err.message || 'Could not load the event'));
     adminListMysteryCases().then((c) => setCases(Array.isArray(c) ? c : [])).catch(() => {});
   }, [refresh, loadCase]);
 
@@ -168,7 +168,7 @@ export default function MysteryEventControl() {
   };
 
   const changeStatus = (status, label) => {
-    if (status === 'completed' && !window.confirm('Game end karein? Teams aage play nahi kar payengi.')) return;
+    if (status === 'completed' && !window.confirm('End the game? Teams will no longer be able to play.')) return;
     save({ status }, `${label} ✓`);
   };
 
@@ -214,7 +214,7 @@ export default function MysteryEventControl() {
       </div>
 
       {event.status !== 'live' && (overview.counts?.teamsRegistered || 0) > 0 && (
-        <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100">Teams login kar sakti hain, par clues tabhi khulenge jab tum <b>Go live</b> dabaoge.</p>
+        <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-100">Teams can log in, but clues unlock only after you press <b>Go live</b>.</p>
       )}
       {demoTeam && (
         <p className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
@@ -237,7 +237,7 @@ export default function MysteryEventControl() {
       {tab === 'links' && <MysteryEventLinks eventId={eventId} overview={overview} onChanged={refresh} />}
       {tab === 'clues' && (caseDetail
         ? <MysteryQrPanel title={caseDetail.case?.title || 'Mystery'} evidence={caseDetail.evidence || []} branches={caseDetail.branches || []} onRotate={rotateQr} />
-        : <p className={`${cardClass} text-sm text-white/50`}>Pehle Setup me case link karo.</p>)}
+        : <p className={`${cardClass} text-sm text-white/50`}>Link a case in the Setup tab first.</p>)}
       {tab === 'live' && <MysteryEventLive overview={overview} />}
       {tab === 'results' && <MysteryEventResults eventId={eventId} overview={overview} onChanged={refresh} />}
     </div>

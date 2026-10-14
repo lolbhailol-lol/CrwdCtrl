@@ -19,7 +19,7 @@ function unlockRule(e, evidenceById, branchesById) {
     const lead = branch?.leads?.find((l) => l.id === e.unlockedByLeadId);
     parts.push(`lead "${lead?.label || e.unlockedByLeadId}"`);
   }
-  return parts.length ? parts.join(' · ') : 'start se available';
+  return parts.length ? parts.join(' · ') : 'available from the start';
 }
 
 export default function MysteryQrPanel({ title, evidence = [], branches = [], onRotate }) {
@@ -40,7 +40,7 @@ export default function MysteryQrPanel({ title, evidence = [], branches = [], on
   };
 
   const rotate = async (e) => {
-    if (!window.confirm(`${e.code} ka naya QR banega — purana printed QR kaam nahi karega. Continue?`)) return;
+    if (!window.confirm(`This creates a new QR for ${e.code} — the old printed QR will stop working. Continue?`)) return;
     setBusyId(e._id);
     try {
       await onRotate(e);
@@ -57,7 +57,7 @@ export default function MysteryQrPanel({ title, evidence = [], branches = [], on
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-[#0ECCEE]">{qrClues.length} QR clues to print</p>
-            <p className="text-xs text-white/45">Har QR venue pe chipkao. Team scan kare ya neeche wala manual code type kare. Order lock rehta hai — pehle wale clues ke bina agla nahi khulega.</p>
+            <p className="text-xs text-white/45">Stick each QR up at the venue. Teams can scan it or type the manual code below it. The order is locked — a clue won't unlock until the earlier ones are found.</p>
           </div>
           <button type="button" disabled={!qrClues.length} onClick={print} className={primaryBtn}>Print QR sheet</button>
         </div>
@@ -76,7 +76,7 @@ export default function MysteryQrPanel({ title, evidence = [], branches = [], on
                 <p className="mt-1 font-mono text-xs text-[#0ECCEE]">{e.qrSecret}</p>
               </div>
             </div>
-            <p className="mt-2 text-xs text-white/50">📍 {e.placementNote || 'Placement note nahi — case builder me add karo'}</p>
+            <p className="mt-2 text-xs text-white/50">📍 {e.placementNote || 'No placement note — add one in the case builder'}</p>
             <p className="text-xs text-white/40">🔓 {unlockRule(e, evidenceById, branchesById)}</p>
             {onRotate && <button type="button" disabled={busyId === e._id} onClick={() => rotate(e)} className={`mt-2 ${ghostBtn}`}>New QR</button>}
           </div>
@@ -85,7 +85,7 @@ export default function MysteryQrPanel({ title, evidence = [], branches = [], on
 
       {autoClues.length > 0 && (
         <section className={cardClass}>
-          <p className="text-sm font-semibold">Auto-unlock clues ({autoClues.length}) — print nahi karne</p>
+          <p className="text-sm font-semibold">Auto-unlock clues ({autoClues.length}) — no printing needed</p>
           <ul className="mt-2 space-y-1 text-xs text-white/55">
             {autoClues.map((e) => <li key={e._id}><span className="font-mono text-white/70">{e.code}</span> {e.title} — 🔓 {unlockRule(e, evidenceById, branchesById)}</li>)}
           </ul>
