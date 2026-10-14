@@ -28,8 +28,10 @@ import {
   Activity,
   IndianRupee,
   Database,
+  Fingerprint,
 } from 'lucide-react';
 import { isCampusHuntAdminEnabled } from '../../features/campus-hunt/config';
+import { isMysteryEnabled } from '../../features/mystery/config';
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(() =>
@@ -61,6 +63,9 @@ export default function AdminLayout() {
     { icon: Users2, label: 'College Games', path: '/admin/college-platform' },
     ...(isCampusHuntAdminEnabled()
       ? [{ icon: MapPinned, label: 'Campus Hunt', path: '/admin/campus-hunt' }]
+      : []),
+    ...(isMysteryEnabled()
+      ? [{ icon: Fingerprint, label: 'CTRL Mystery', path: '/admin/mystery' }]
       : []),
     { icon: Dumbbell, label: 'Run Clubs', path: '/admin/sports' },
     { icon: Mountain, label: 'Treks', path: '/admin/treks' },

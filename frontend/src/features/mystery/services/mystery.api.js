@@ -186,9 +186,74 @@ export async function adminAddFightsBack(caseId, body) {
 export async function adminPublishMysteryCase(caseId) {
   return adminFetchJSON(`${BASE}/cases/${caseId}/publish`, { method: 'POST', body: JSON.stringify({}) });
 }
+export async function adminUpdateMysteryCase(caseId, body) {
+  return adminFetchJSON(`${BASE}/cases/${caseId}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+export async function adminDeleteMysteryCase(caseId) {
+  return adminFetchJSON(`${BASE}/cases/${caseId}`, { method: 'DELETE' });
+}
+export async function adminUpdateMysteryEvidence(caseId, evidenceId, body) {
+  return adminFetchJSON(`${BASE}/cases/${caseId}/evidence/${evidenceId}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+export async function adminDeleteMysteryEvidence(caseId, evidenceId) {
+  return adminFetchJSON(`${BASE}/cases/${caseId}/evidence/${evidenceId}`, { method: 'DELETE' });
+}
+export async function adminRotateMysteryQr(caseId, evidenceId) {
+  return adminFetchJSON(`${BASE}/cases/${caseId}/evidence/${evidenceId}/rotate-qr`, { method: 'POST', body: JSON.stringify({}) });
+}
+export async function adminDeleteMysteryBranch(caseId, branchId) {
+  return adminFetchJSON(`${BASE}/cases/${caseId}/branches/${branchId}`, { method: 'DELETE' });
+}
+export async function adminDeleteMysteryFightsBack(caseId, fightsBackId) {
+  return adminFetchJSON(`${BASE}/cases/${caseId}/fights-back/${fightsBackId}`, { method: 'DELETE' });
+}
+
+/* Event control — responses are { success, data } */
 export async function adminListMysteryEvents() {
-  return adminFetchJSON(`${BASE}/events`);
+  return adminFetchJSON(`${BASE}/admin/events`);
 }
 export async function adminCreateMysteryEvent(body) {
-  return adminFetchJSON(`${BASE}/events`, { method: 'POST', body: JSON.stringify(body) });
+  return adminFetchJSON(`${BASE}/admin/events`, { method: 'POST', body: JSON.stringify(body) });
+}
+export async function adminUpdateMysteryEvent(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+export async function adminDeleteMysteryEvent(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}`, { method: 'DELETE' });
+}
+export async function adminGetMysteryEventOverview(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/overview`);
+}
+export async function adminCreateMysteryTeams(eventId, body) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams`, { method: 'POST', body: JSON.stringify(body) });
+}
+export async function adminListMysteryCredentials(eventId) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/credentials`);
+}
+export async function adminSetAllMysteryPasswords(eventId, password) {
+  return adminFetchJSON(`${BASE}/admin/events/${eventId}/teams/password`, { method: 'POST', body: JSON.stringify({ password }) });
+}
+export async function adminUpdateMysteryTeam(teamId, body) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+export async function adminDeleteMysteryTeam(teamId) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}`, { method: 'DELETE' });
+}
+export async function adminResetMysteryTeamPassword(teamId, password = '') {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) });
+}
+export async function adminResetMysteryTeamProgress(teamId) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/reset-progress`, { method: 'POST', body: JSON.stringify({}) });
+}
+export async function adminFinalizeMysteryResult(teamId, points) {
+  return adminFetchJSON(`${BASE}/admin/teams/${teamId}/finalize-result`, { method: 'POST', body: JSON.stringify(points == null ? {} : { points }) });
+}
+export async function adminMysteryCheckIn(code) {
+  return adminFetchJSON(`${BASE}/admin/checkin`, { method: 'POST', body: JSON.stringify({ gamePassCode: code }) });
+}
+export async function adminGradeMysteryTheory(teamId, theoryCorrect, theoryPoints) {
+  return adminFetchJSON(`${BASE}/submissions/${teamId}/grade`, { method: 'POST', body: JSON.stringify({ theoryCorrect, theoryPoints }) });
+}
+export async function adminCreateMysteryDemo() {
+  return adminFetchJSON(`${BASE}/admin/demo`, { method: 'POST', body: JSON.stringify({}) });
 }

@@ -235,6 +235,8 @@ const checkInTeam = async (req, res) => {
 };
 
 module.exports = {
+  findOrCreateGuestUser,
+  uniqueTeamCode,
   registerTeam,
   enterTeam,
   startPracticeTeam,

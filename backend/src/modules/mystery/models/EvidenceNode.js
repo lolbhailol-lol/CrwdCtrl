@@ -37,6 +37,9 @@ const evidenceNodeSchema = new mongoose.Schema(
     canBeInvalidated: { type: Boolean, default: false },
 
     imageUrl: { type: String, default: '' },
+
+    // Admin-only — QR kahan chipkana/chhupana hai (printed sheet pe dikhta hai, player ko nahi)
+    placementNote: { type: String, default: '', trim: true },
   },
   { timestamps: true },
 );

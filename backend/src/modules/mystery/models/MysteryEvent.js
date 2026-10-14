@@ -48,6 +48,9 @@ const mysteryEventSchema = new mongoose.Schema(
     publicLoginLive: { type: Boolean, default: false },
     publicLeaderboardLive: { type: Boolean, default: false },
     operationsNotes: { type: String, trim: true, default: '' },
+    startedAt: { type: Date, default: null },
+    endedAt: { type: Date, default: null },
+    isDemo: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

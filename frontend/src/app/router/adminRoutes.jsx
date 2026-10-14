@@ -6,6 +6,7 @@ import {
   CollegePlatformAdminPage,
   MysteryAdminDashboard,
   MysteryCaseBuilder,
+  MysteryEventControl,
   AdminFestsPage,
   CompetitionsPage,
   RegistrationsPage,
@@ -46,6 +47,7 @@ export const adminRoutes = (
       <Route path="college-platform" element={<CollegePlatformAdminPage />} />
       {isMysteryEnabled() ? <Route path="mystery" element={<MysteryAdminDashboard />} /> : null}
       {isMysteryEnabled() ? <Route path="mystery/case/:caseId" element={<MysteryCaseBuilder />} /> : null}
+      {isMysteryEnabled() ? <Route path="mystery/event/:eventId" element={<MysteryEventControl />} /> : null}
       <Route path="fests" element={<AdminFestsPage />} />
       <Route path="competitions" element={<CompetitionsPage />} />
       <Route path="registrations" element={<RegistrationsPage />} />

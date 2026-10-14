@@ -1,84 +1,301 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { adminListMysteryCases, adminCreateMysteryCase } from '../services/mystery.api';
+import {
+  adminCreateMysteryCase, adminCreateMysteryDemo, adminCreateMysteryEvent,
+  adminDeleteMysteryCase, adminDeleteMysteryEvent, adminListMysteryCases, adminListMysteryEvents,
+} from '../services/mystery.api';
+import { MYSTERY_PATHS, mysteryEnterUrl, mysteryPublicUrl } from '../config';
+import {
+  EVENT_STATUS_LABEL, EVENT_STATUS_TONE, cardClass, copyText, dangerBtn, formatDateTime,
+  ghostBtn, inputClass, labelClass, primaryBtn, slugify,
+} from './mysteryAdminUtils';
+
+const FLOW = [
+  ['Case banao', 'Story, suspect (A-17 jaisa) aur sahi answer likho.'],
+  ['Clues add karo', 'Har clue: physical / digital / human / logic. Trust karne layak hai ya nahi — sirf tumhe pata.'],
+  ['Branch + twist', 'Players ko lead choose karne do. Beech game me ek clue ko fake declare karo.'],
+  ['Publish', 'Case publish hote hi practice mode /mystery pe chalu ho jaata hai.'],
+  ['Event banao', 'College, date, venue, capacity — aur published case link karo.'],
+  ['Teams + links', 'Teams admin se banao (code + password) ya registration kholo. WhatsApp links copy karo.'],
+  ['QR print', 'QR sheet print karke venue pe chipkao. Placement note sirf tumhe dikhta hai.'],
+  ['Go live', 'Live dabate hi teams scan kar sakti hain. Pause / end kabhi bhi.'],
+  ['Monitor', 'Live tab me har team ka score, clues aur last activity.'],
+  ['Grade + results', 'Theories grade karo, results finalize karo, leaderboard share karo.'],
+];
+
+const EMPTY_CASE = { title: '', tagline: '', synopsis: '', mysteryIdentityName: '', correctIdentityTheory: '', difficulty: 'detective', estimatedMinutes: 60 };
+const EMPTY_EVENT = { name: '', college: '', slug: '', date: '', venue: '', caseId: '', teamCapacity: 20, teamSize: 4 };
 
 export default function MysteryAdminDashboard() {
+  const [tab, setTab] = useState('events');
   const [cases, setCases] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const emptyForm = { title: '', tagline: '', synopsis: '', mysteryIdentityName: '', mysteryIdentityPrompt: '', correctIdentityTheory: '', difficulty: 'detective' };
-  const [form, setForm] = useState(emptyForm);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState('');
+  const [showGuide, setShowGuide] = useState(true);
+  const [demo, setDemo] = useState(null);
+  const [caseForm, setCaseForm] = useState(EMPTY_CASE);
+  const [eventForm, setEventForm] = useState(EMPTY_EVENT);
+  const [slugTouched, setSlugTouched] = useState(false);
 
-  const load = () => {
-    setLoading(true);
-    adminListMysteryCases()
-      .then((res) => setCases(Array.isArray(res) ? res : []))
-      .catch((err) => setError(err.message || 'Cases load nahi hue'))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, []);
+  const load = useCallback(async () => {
+    const [c, e] = await Promise.all([adminListMysteryCases(), adminListMysteryEvents()]);
+    setCases(Array.isArray(c) ? c : c?.data || []);
+    setEvents(e?.data?.events || []);
+  }, []);
 
-  const createCase = async () => {
-    if (!form.title.trim() || !form.synopsis.trim()) { setError('Title aur synopsis chahiye'); return; }
-    setBusy(true);
+  useEffect(() => {
+    load().catch((err) => setError(err.message || 'Load failed')).finally(() => setLoading(false));
+  }, [load]);
+
+  const run = async (key, action) => {
+    setBusy(key);
     setError('');
+    setMsg('');
     try {
-      await adminCreateMysteryCase(form);
-      setShowForm(false);
-      setForm(emptyForm);
-      load();
+      await action();
     } catch (err) {
-      setError(err.message || 'Failed to create case');
+      setError(err.message || 'Kuch galat hua');
     } finally {
-      setBusy(false);
+      setBusy('');
     }
   };
 
+  const createDemo = () => run('demo', async () => {
+    const res = await adminCreateMysteryDemo();
+    setDemo(res.data);
+    await load();
+  });
+
+  const createCase = () => run('case', async () => {
+    if (!caseForm.title.trim() || !caseForm.synopsis.trim()) throw new Error('Title aur synopsis chahiye');
+    const created = await adminCreateMysteryCase({ ...caseForm, estimatedMinutes: Number(caseForm.estimatedMinutes) || 60 });
+    setCaseForm(EMPTY_CASE);
+    setMsg(`Case "${created.title}" bana — ab clues add karo.`);
+    await load();
+  });
+
+  const createEvent = () => run('event', async () => {
+    if (!eventForm.name.trim() || !eventForm.college.trim()) throw new Error('Event name aur college chahiye');
+    const slug = eventForm.slug.trim() || slugify(`${eventForm.college}-${eventForm.name}`);
+    const res = await adminCreateMysteryEvent({
+      ...eventForm,
+      slug,
+      date: eventForm.date || undefined,
+      caseId: eventForm.caseId || undefined,
+      teamCapacity: Number(eventForm.teamCapacity) || 20,
+      teamSize: Number(eventForm.teamSize) || 4,
+      status: 'draft',
+    });
+    setEventForm(EMPTY_EVENT);
+    setSlugTouched(false);
+    setMsg(`Event "${res.data?.event?.name}" draft me bana — open karke teams aur links set karo.`);
+    await load();
+  });
+
+  const deleteEvent = (ev) => {
+    if (!window.confirm(`"${ev.name}" aur uski saari teams / progress delete karein? Undo nahi hoga.`)) return;
+    run(`del-${ev._id}`, async () => {
+      await adminDeleteMysteryEvent(ev._id);
+      await load();
+    });
+  };
+
+  const deleteCase = (c) => {
+    if (!window.confirm(`Case "${c.title}" aur uske saare clues delete karein?`)) return;
+    run(`del-${c._id}`, async () => {
+      await adminDeleteMysteryCase(c._id);
+      await load();
+    });
+  };
+
+  const updateEventName = (field, value) => setEventForm((f) => {
+    const next = { ...f, [field]: value };
+    if (!slugTouched && (field === 'name' || field === 'college')) next.slug = slugify(`${next.college}-${next.name}`);
+    return next;
+  });
+
+  const publishedCases = cases.filter((c) => c.status === 'published');
+
   return (
-    <div className="min-h-screen bg-[#0b0c0d] px-6 py-8 text-white">
-      <div className="mx-auto max-w-3xl">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">CTRL Mystery — Admin</h1>
-          <button type="button" onClick={() => setShowForm((v) => !v)} className="rounded-xl bg-[#0ECCEE] px-4 py-2 text-sm font-bold text-black">
-            {showForm ? 'Cancel' : '+ New case'}
-          </button>
+    <div className="space-y-6 p-4 text-white md:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">CTRL Mystery</h1>
+          <p className="text-sm text-white/50">Cases, events, teams, QR clues aur results — sab yahin se.</p>
         </div>
-
-        {showForm && (
-          <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <input placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
-            <input placeholder="Tagline" value={form.tagline} onChange={(e) => setForm({ ...form, tagline: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
-            <textarea placeholder="Synopsis" rows={3} value={form.synopsis} onChange={(e) => setForm({ ...form, synopsis: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
-            <input placeholder="Mystery identity name (e.g. A-17)" value={form.mysteryIdentityName} onChange={(e) => setForm({ ...form, mysteryIdentityName: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
-            <input placeholder="Correct identity theory (answer key)" value={form.correctIdentityTheory} onChange={(e) => setForm({ ...form, correctIdentityTheory: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white placeholder:text-white/25" />
-            <select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })} className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-white">
-              <option value="rookie">Rookie</option>
-              <option value="detective">Detective</option>
-              <option value="master">Master</option>
-            </select>
-            <button type="button" disabled={busy} onClick={createCase} className="w-full rounded-xl bg-[#0ECCEE] py-2.5 text-sm font-bold text-black disabled:opacity-40">
-              {busy ? 'Creating…' : 'Create case'}
-            </button>
-          </div>
-        )}
-        {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
-
-        {loading && <p className="mt-6 text-white/40">Loading…</p>}
-
-        <div className="mt-6 space-y-3">
-          {cases.map((c) => (
-            <Link key={c._id} to={`/admin/mystery/case/${c._id}`} className="block rounded-xl border border-white/10 bg-white/5 p-4 hover:border-[#0ECCEE]/40">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">{c.title}</h3>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${c.status === 'published' ? 'bg-emerald-400/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300'}`}>{c.status}</span>
-              </div>
-              <p className="mt-1 text-sm text-white/50">{c.tagline}</p>
-            </Link>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          <a href={MYSTERY_PATHS.landing} target="_blank" rel="noreferrer" className={ghostBtn}>Player page ↗</a>
+          <button type="button" onClick={() => setShowGuide((v) => !v)} className={ghostBtn}>{showGuide ? 'Hide guide' : 'How it works'}</button>
         </div>
       </div>
+
+      {showGuide && (
+        <section className={cardClass}>
+          <p className="text-sm font-semibold text-[#0ECCEE]">Poora flow — 10 steps</p>
+          <ol className="mt-3 grid gap-2 sm:grid-cols-2">
+            {FLOW.map(([title, text], i) => (
+              <li key={title} className="flex gap-3 rounded-xl bg-black/20 p-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0ECCEE]/15 text-xs font-bold text-[#0ECCEE]">{i + 1}</span>
+                <span>
+                  <span className="block text-sm font-semibold">{title}</span>
+                  <span className="block text-xs text-white/50">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      <section className="rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-emerald-300">Demo — 1 click me poora game try karo</p>
+            <p className="text-xs text-white/50">Sample case (6 clues, 1 branch, 1 twist) + live event + ek team login banega. Baad me delete kar sakte ho.</p>
+          </div>
+          <button type="button" disabled={Boolean(busy)} onClick={createDemo} className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-40">
+            {busy === 'demo' ? 'Creating…' : 'Create demo'}
+          </button>
+        </div>
+        {demo && (
+          <div className="mt-4 grid gap-3 rounded-xl bg-black/30 p-3 text-sm sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-white/40">Team login</p>
+              <p className="font-mono text-lg text-[#0ECCEE]">{demo.team.teamCode}</p>
+              <p className="font-mono text-white/80">password: {demo.team.password}</p>
+            </div>
+            <div className="flex flex-wrap content-start gap-2">
+              <a href={mysteryEnterUrl(demo.team.teamCode)} target="_blank" rel="noreferrer" className={primaryBtn}>Play as team ↗</a>
+              <Link to={MYSTERY_PATHS.adminEvent(demo.event._id)} className={ghostBtn}>Open event control</Link>
+              <Link to={MYSTERY_PATHS.adminCase(demo.case._id)} className={ghostBtn}>See case setup</Link>
+              <button type="button" className={ghostBtn} onClick={() => copyText(`CTRL Mystery demo\nLink: ${mysteryEnterUrl(demo.team.teamCode)}\nTeam code: ${demo.team.teamCode}\nPassword: ${demo.team.password}`).then(() => setMsg('Demo login copied'))}>Copy login</button>
+            </div>
+            <p className="text-xs text-white/40 sm:col-span-2">Tip: phone pe login karo, aur event control ka QR tab kholke screen se QR scan karo.</p>
+          </div>
+        )}
+      </section>
+
+      {msg && <p className="text-sm text-[#0ECCEE]">{msg}</p>}
+      {error && <p className="text-sm text-rose-300">{error}</p>}
+
+      <div className="flex gap-2">
+        {[['events', `Events (${events.length})`], ['cases', `Cases (${cases.length})`]].map(([key, label]) => (
+          <button key={key} type="button" onClick={() => setTab(key)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${tab === key ? 'bg-[#0ECCEE] text-black' : 'bg-white/10 text-white/60'}`}>{label}</button>
+        ))}
+      </div>
+
+      {loading && <p className="text-white/50">Loading…</p>}
+
+      {tab === 'events' && (
+        <div className="space-y-4">
+          <section className={`${cardClass} space-y-3`}>
+            <p className="text-sm font-semibold text-[#0ECCEE]">Naya event</p>
+            {publishedCases.length === 0 && (
+              <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Abhi koi published case nahi hai. Event draft me ban jayega — Cases tab me case publish karke link karo.</p>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={labelClass}>College
+                <input value={eventForm.college} onChange={(e) => updateEventName('college', e.target.value)} placeholder="e.g. MIT WPU" className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Event name
+                <input value={eventForm.name} onChange={(e) => updateEventName('name', e.target.value)} placeholder="e.g. Mystery Night 2026" className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Case
+                <select value={eventForm.caseId} onChange={(e) => setEventForm((f) => ({ ...f, caseId: e.target.value }))} className={`mt-1 ${inputClass}`}>
+                  <option value="">— baad me choose karunga —</option>
+                  {publishedCases.map((c) => <option key={c._id} value={c._id}>{c.title}</option>)}
+                </select>
+              </label>
+              <label className={labelClass}>Date & time
+                <input type="datetime-local" value={eventForm.date} onChange={(e) => setEventForm((f) => ({ ...f, date: e.target.value }))} className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Venue
+                <input value={eventForm.venue} onChange={(e) => setEventForm((f) => ({ ...f, venue: e.target.value }))} placeholder="Main auditorium" className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Slug
+                <input value={eventForm.slug} onChange={(e) => { setSlugTouched(true); setEventForm((f) => ({ ...f, slug: slugify(e.target.value) })); }} className={`mt-1 font-mono ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Max teams
+                <input type="number" min={1} max={500} value={eventForm.teamCapacity} onChange={(e) => setEventForm((f) => ({ ...f, teamCapacity: e.target.value }))} className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>People per team
+                <input type="number" min={1} max={12} value={eventForm.teamSize} onChange={(e) => setEventForm((f) => ({ ...f, teamSize: e.target.value }))} className={`mt-1 ${inputClass}`} />
+              </label>
+            </div>
+            <button type="button" disabled={Boolean(busy)} onClick={createEvent} className={primaryBtn}>{busy === 'event' ? 'Creating…' : 'Create event'}</button>
+          </section>
+
+          {events.map((ev) => (
+            <div key={ev._id} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <Link to={MYSTERY_PATHS.adminEvent(ev._id)} className="min-w-0 flex-1 hover:text-[#0ECCEE]">
+                  <p className="font-semibold">{ev.name || ev.title}{ev.isDemo && <span className="ml-2 rounded bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-300">demo</span>}</p>
+                  <p className="text-sm text-white/50">{ev.college || '—'} · {formatDateTime(ev.date || ev.dateTime)} · {ev.caseId?.title || 'No case linked'}</p>
+                  <p className="mt-1 text-xs text-white/40">{ev.teamsRegistered}/{ev.teamCapacity || '∞'} teams · {ev.teamSize || 4}/team</p>
+                </Link>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${EVENT_STATUS_TONE[ev.status] || 'bg-white/10 text-white/70'}`}>{EVENT_STATUS_LABEL[ev.status] || ev.status}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link to={MYSTERY_PATHS.adminEvent(ev._id)} className={ghostBtn}>Open control</Link>
+                <button type="button" className={ghostBtn} onClick={() => copyText(mysteryPublicUrl(MYSTERY_PATHS.leaderboard(ev._id))).then(() => setMsg('Leaderboard link copied'))}>Copy leaderboard link</button>
+                <button type="button" disabled={Boolean(busy)} onClick={() => deleteEvent(ev)} className={`ml-auto ${dangerBtn}`}>Delete</button>
+              </div>
+            </div>
+          ))}
+          {!loading && events.length === 0 && <p className="text-sm text-white/40">Abhi koi event nahi. Upar banao — ya Demo try karo.</p>}
+        </div>
+      )}
+
+      {tab === 'cases' && (
+        <div className="space-y-4">
+          <section className={`${cardClass} space-y-3`}>
+            <p className="text-sm font-semibold text-[#0ECCEE]">Naya case</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={labelClass}>Title
+                <input value={caseForm.title} onChange={(e) => setCaseForm({ ...caseForm, title: e.target.value })} placeholder="The 17-Minute Gap" className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Tagline
+                <input value={caseForm.tagline} onChange={(e) => setCaseForm({ ...caseForm, tagline: e.target.value })} placeholder="Ek line hook" className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={`${labelClass} sm:col-span-2`}>Synopsis (players ko pehli screen pe dikhega)
+                <textarea rows={3} value={caseForm.synopsis} onChange={(e) => setCaseForm({ ...caseForm, synopsis: e.target.value })} className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Mystery identity
+                <input value={caseForm.mysteryIdentityName} onChange={(e) => setCaseForm({ ...caseForm, mysteryIdentityName: e.target.value })} placeholder="A-17" className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Difficulty
+                <select value={caseForm.difficulty} onChange={(e) => setCaseForm({ ...caseForm, difficulty: e.target.value })} className={`mt-1 ${inputClass}`}>
+                  <option value="rookie">Rookie</option>
+                  <option value="detective">Detective</option>
+                  <option value="master">Master</option>
+                </select>
+              </label>
+              <label className={`${labelClass} sm:col-span-2`}>Correct answer (sirf admin ko dikhega — grading ke liye)
+                <input value={caseForm.correctIdentityTheory} onChange={(e) => setCaseForm({ ...caseForm, correctIdentityTheory: e.target.value })} className={`mt-1 ${inputClass}`} />
+              </label>
+              <label className={labelClass}>Estimated minutes
+                <input type="number" min={5} value={caseForm.estimatedMinutes} onChange={(e) => setCaseForm({ ...caseForm, estimatedMinutes: e.target.value })} className={`mt-1 ${inputClass}`} />
+              </label>
+            </div>
+            <button type="button" disabled={Boolean(busy)} onClick={createCase} className={primaryBtn}>{busy === 'case' ? 'Creating…' : 'Create case'}</button>
+          </section>
+
+          {cases.map((c) => (
+            <div key={c._id} className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+              <Link to={MYSTERY_PATHS.adminCase(c._id)} className="min-w-0 flex-1 hover:text-[#0ECCEE]">
+                <p className="font-semibold">{c.title}</p>
+                <p className="text-sm text-white/50">{c.tagline || '—'} · {c.difficulty}</p>
+              </Link>
+              <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${c.status === 'published' ? 'bg-emerald-400/15 text-emerald-300' : 'bg-amber-400/15 text-amber-300'}`}>{c.status}</span>
+              <Link to={MYSTERY_PATHS.adminCase(c._id)} className={ghostBtn}>Edit clues</Link>
+              <button type="button" disabled={Boolean(busy)} onClick={() => deleteCase(c)} className={dangerBtn}>Delete</button>
+            </div>
+          ))}
+          {!loading && cases.length === 0 && <p className="text-sm text-white/40">Abhi koi case nahi.</p>}
+        </div>
+      )}
     </div>
   );
 }

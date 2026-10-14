@@ -54,6 +54,7 @@ export const MysteryPlayPage = lazyWithRetry(() => import('../../features/myster
 export const MysteryLeaderboardPage = lazyWithRetry(() => import('../../features/mystery/pages/MysteryLeaderboardPage'));
 export const MysteryAdminDashboard = lazyWithRetry(() => import('../../features/mystery/admin/MysteryAdminDashboard'));
 export const MysteryCaseBuilder = lazyWithRetry(() => import('../../features/mystery/admin/MysteryCaseBuilder'));
+export const MysteryEventControl = lazyWithRetry(() => import('../../features/mystery/admin/MysteryEventControl'));
 export const FestsPage = lazyWithRetry(() => import('../../features/fests/pages/FestsPage'));
 export const FestRegistration = lazyWithRetry(() => import('../../features/fests/pages/FestRegistration'));
 export const CompetitionRegistration = lazyWithRetry(() => import('../../features/fests/pages/competitions/CompetitionRegistration'));

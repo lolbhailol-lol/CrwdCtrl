@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { enterMysteryTeam } from '../services/mystery.api';
 import useMysteryAuth from '../hooks/useMysteryAuth';
 import { MYSTERY_PATHS } from '../config';
@@ -7,7 +7,8 @@ import { MYSTERY_PATHS } from '../config';
 export default function MysteryTeamEnterPage() {
   const navigate = useNavigate();
   const { persistMysteryAuth } = useMysteryAuth();
-  const [teamCode, setTeamCode] = useState('');
+  const [params] = useSearchParams();
+  const [teamCode, setTeamCode] = useState(() => String(params.get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, ''));
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
