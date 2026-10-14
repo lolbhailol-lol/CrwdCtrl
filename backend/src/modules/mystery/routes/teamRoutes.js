@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../../middleware/authmiddleware');
-const adminAuth = require('../../../middleware/adminAuth');
+const { mysteryAdminAuth: adminAuth } = require('../../../middleware/internAdminAccess');
 const ctrl = require('../controllers/teamController');
 
 // Public — Mystery has its own login, no CrwdCtrl account needed

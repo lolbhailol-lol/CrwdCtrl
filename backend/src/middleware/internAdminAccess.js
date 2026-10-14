@@ -19,6 +19,13 @@ const CAMPUS_HUNT_INTERN_BLOCKED = [
   /\/users\/lookup/,
 ];
 
+// CTRL Mystery admin: interns run cases and events but cannot delete data or see team credentials.
+const MYSTERY_INTERN_BLOCKED = [
+  /\/credentials/,
+  /\/password/,
+  /\/reset-password/,
+];
+
 function readToken(req) {
   const header = req.headers.authorization || '';
   if (!header.startsWith('Bearer ')) return null;
@@ -34,27 +41,46 @@ function internBlockedFromCampusHunt(req) {
   return req.method === 'DELETE' || CAMPUS_HUNT_INTERN_BLOCKED.some((pattern) => pattern.test(path));
 }
 
-function collegePlatformAdminAuth(req, res, next) {
-  let decoded;
-  try {
-    decoded = readToken(req);
-  } catch (error) {
-    return res.status(401).json({ error: error.name === 'TokenExpiredError' ? 'Token expired' : 'Unauthorized: Invalid admin token' });
-  }
-  if (!decoded) return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
-  if (decoded.type === 'refresh' || ![ 'admin', INTERN_ROLE ].includes(decoded.role)) {
-    return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
-  }
-  if (decoded.role === INTERN_ROLE && internBlockedFromCollegePlatform(req)) {
-    return res.status(403).json({ error: 'Forbidden: Payments, refunds, payouts and emergency stops stay with the CrwdCtrl admin' });
-  }
-  req.user = decoded;
-  return next();
+function internBlockedFromMystery(req) {
+  const path = String(req.originalUrl || req.path || '').split('?')[0];
+  return req.method === 'DELETE' || MYSTERY_INTERN_BLOCKED.some((pattern) => pattern.test(path));
 }
+
+function internAwareAdminAuth(isBlocked, blockedMessage) {
+  return (req, res, next) => {
+    let decoded;
+    try {
+      decoded = readToken(req);
+    } catch (error) {
+      return res.status(401).json({ error: error.name === 'TokenExpiredError' ? 'Token expired' : 'Unauthorized: Invalid admin token' });
+    }
+    if (!decoded) return res.status(401).json({ error: 'Unauthorized: Missing or invalid token' });
+    if (decoded.type === 'refresh' || ![ 'admin', INTERN_ROLE ].includes(decoded.role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+    if (decoded.role === INTERN_ROLE && isBlocked(req)) {
+      return res.status(403).json({ error: blockedMessage });
+    }
+    req.user = decoded;
+    return next();
+  };
+}
+
+const collegePlatformAdminAuth = internAwareAdminAuth(
+  internBlockedFromCollegePlatform,
+  'Forbidden: Payments, refunds, payouts and emergency stops stay with the CrwdCtrl admin',
+);
+
+const mysteryAdminAuth = internAwareAdminAuth(
+  internBlockedFromMystery,
+  'Forbidden: Deleting data and team credentials stay with the CrwdCtrl admin',
+);
 
 module.exports = {
   INTERN_ROLE,
   collegePlatformAdminAuth,
+  mysteryAdminAuth,
+  internBlockedFromMystery,
   internBlockedFromCampusHunt,
   internBlockedFromCollegePlatform,
 };

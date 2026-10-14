@@ -92,6 +92,9 @@ export default function AdminLayout() {
     ? [
       { icon: Users2, label: 'College Games', path: '/admin/college-platform' },
       { icon: MapPinned, label: 'Campus Hunt', path: '/campus-hunt/admin' },
+      ...(isMysteryEnabled()
+        ? [{ icon: Fingerprint, label: 'CTRL Mystery', path: '/admin/mystery' }]
+        : []),
     ]
     : allMenuItems;
 

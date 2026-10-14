@@ -1,6 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const adminAuth = require('../../../middleware/adminAuth');
+const { mysteryAdminAuth: adminAuth } = require('../../../middleware/internAdminAccess');
 const adminController = require('../controllers/adminController');
 
 const router = express.Router();

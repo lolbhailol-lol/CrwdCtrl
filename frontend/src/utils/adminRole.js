@@ -1,7 +1,7 @@
 export const INTERN_ADMIN_ROLE = 'intern_admin';
 export const INTERN_ADMIN_HOME = '/admin/college-platform';
 
-const INTERN_ADMIN_PATHS = ['/admin/college-platform'];
+const INTERN_ADMIN_PATHS = ['/admin/college-platform', '/admin/mystery'];
 
 export function readAdminTokenRole(token) {
   try {

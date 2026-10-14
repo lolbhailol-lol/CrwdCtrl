@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../../../middleware/authmiddleware');
-const adminAuth = require('../../../middleware/adminAuth');
+const { mysteryAdminAuth: adminAuth } = require('../../../middleware/internAdminAccess');
 const { requireOwnTeam, requirePlayable } = require('../middleware/teamSession');
 const ctrl = require('../controllers/submissionController');
 
