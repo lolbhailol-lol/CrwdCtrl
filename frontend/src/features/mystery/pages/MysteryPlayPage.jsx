@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, ScanLine, ShieldCheck, ShieldQuestion } from 'lucide-react';
+import { WORLD_ORDER, WORLD_THEME } from '../worldTheme';
 import useMysteryAuth from '../hooks/useMysteryAuth';
 import { useMysteryTeam } from '../hooks/useMysteryTeam';
 import {
@@ -31,6 +33,7 @@ export default function MysteryPlayPage() {
   const [manualCode, setManualCode] = useState('');
   const [submitBusy, setSubmitBusy] = useState(false);
   const [fightsBack, setFightsBack] = useState(null);
+  const [seenIds, setSeenIds] = useState(null);
 
   useEffect(() => {
     if (!isMysteryAuthenticated) navigate(MYSTERY_PATHS.enter, { replace: true });
@@ -50,6 +53,13 @@ export default function MysteryPlayPage() {
   useEffect(() => {
     if (data && teamId) cacheInvestigationState(teamId, data);
   }, [data, teamId]);
+
+  useEffect(() => {
+    const ids = (data?.unlockedEvidence || []).map((e) => String(e._id));
+    if (!ids.length || (seenIds && ids.every((id) => seenIds.has(id)))) return undefined;
+    const t = setTimeout(() => setSeenIds(new Set(ids)), seenIds ? 6000 : 0);
+    return () => clearTimeout(t);
+  }, [data, seenIds]);
 
   useEffect(() => {
     if (!teamId || !isOnline) return undefined;
@@ -143,15 +153,18 @@ export default function MysteryPlayPage() {
   const caseReadyToSubmit = Boolean(data?.canSubmitFinal);
   const trustById = new Map((data?.trustDecisions || []).map((t) => [String(t.evidenceId), t.trusted]));
   const finished = data?.status === 'finished';
+  const totalClues = evidenceList.length + (data?.lockedEvidenceCount ?? 0);
+  const worldCounts = WORLD_ORDER.reduce((acc, w) => ({ ...acc, [w]: evidenceList.filter((e) => e.world === w).length }), { all: evidenceList.length });
+  const compromisedCount = evidenceList.filter((e) => e.invalidated).length;
 
   return (
-    <div className="min-h-screen bg-[#0b0c0d] pb-28 text-white">
+    <div className="min-h-screen bg-[#0b0c0d] bg-[radial-gradient(ellipse_80%_40%_at_50%_-10%,rgba(167,139,250,0.18),transparent),radial-gradient(ellipse_60%_30%_at_100%_10%,rgba(34,211,238,0.12),transparent)] pb-28 text-white">
       <MysteryOfflineBanner isOnline={isOnline} pendingCount={pendingCount} />
       <div className="mx-auto max-w-2xl px-5 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#0ECCEE]">{data?.team?.teamName || 'Investigation'}</p>
-            <h1 className="mt-1 text-xl font-bold">{data?.case?.title || 'CTRL Mystery'}</h1>
+            <p className="bg-gradient-to-r from-cyan-300 via-violet-300 to-orange-300 bg-clip-text text-xs font-bold uppercase tracking-[0.28em] text-transparent">{data?.team?.teamName || 'Investigation'}</p>
+            <h1 className="mt-1 text-2xl font-black">{data?.case?.title || 'CTRL Mystery'}</h1>
           </div>
           <button type="button" onClick={() => { clearMysteryAuth(); navigate(MYSTERY_PATHS.landing); }} className="text-xs text-white/40 underline">Exit</button>
         </div>
@@ -160,9 +173,31 @@ export default function MysteryPlayPage() {
         {loading && !data && <p className="mt-6 text-white/40">Loading investigation…</p>}
 
         {data && (
-          <div className="mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
-            <span className="text-white/60">{evidenceList.length} found · {data.lockedEvidenceCount ?? 0} still hidden</span>
-            <span className="font-mono font-semibold text-[#0ECCEE]">{data.totalScore ?? 0} pts</span>
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs text-white/50">Clues found</p>
+                <p className="text-2xl font-black">{evidenceList.length}<span className="text-base font-semibold text-white/40"> / {totalClues}</span></p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-white/50">Score</p>
+                <p className="bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text font-mono text-2xl font-black text-transparent">{data.totalScore ?? 0}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex h-2.5 overflow-hidden rounded-full bg-white/10">
+              {WORLD_ORDER.map((w) => (worldCounts[w] > 0 && totalClues > 0 ? (
+                <div key={w} style={{ width: `${(worldCounts[w] / totalClues) * 100}%`, background: WORLD_THEME[w].color }} className="h-full transition-all duration-500" />
+              ) : null))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+              {WORLD_ORDER.map((w) => (
+                <span key={w} className="flex items-center gap-1 text-white/60">
+                  <span className="h-2 w-2 rounded-full" style={{ background: WORLD_THEME[w].color }} />
+                  {WORLD_THEME[w].label} {worldCounts[w]}
+                </span>
+              ))}
+              {compromisedCount > 0 && <span className="text-rose-300">{compromisedCount} compromised</span>}
+            </div>
           </div>
         )}
 
@@ -184,18 +219,18 @@ export default function MysteryPlayPage() {
 
         {activeBranch && <div className="mt-6"><MysteryBranchPicker branch={activeBranch} onChoose={handleBranchChoice} /></div>}
 
-        <div className="mt-6"><MysteryWorldTabs active={worldFilter} onChange={setWorldFilter} /></div>
+        <div className="mt-6"><MysteryWorldTabs active={worldFilter} onChange={setWorldFilter} counts={worldCounts} /></div>
 
-        <div className="mt-4 grid gap-3">
+        <div className="mt-4 grid gap-4">
           {filtered.map((ev) => {
             const trusted = trustById.get(String(ev._id));
             return (
               <div key={ev._id}>
-                <MysteryEvidenceCard evidence={ev} />
+                <MysteryEvidenceCard evidence={ev} trusted={trusted} isNew={Boolean(seenIds) && !seenIds.has(String(ev._id))} />
                 {canPlay && (
-                  <div className="mt-2 flex gap-2 pl-1">
-                    <button type="button" onClick={() => handleTrustDecision(ev._id, 'reliable')} className={`rounded-lg border border-emerald-400/30 px-3 py-1 text-xs ${trusted === true ? 'bg-emerald-400 text-black' : 'text-emerald-300'}`}>Mark reliable</button>
-                    <button type="button" onClick={() => handleTrustDecision(ev._id, 'unreliable')} className={`rounded-lg border border-rose-400/30 px-3 py-1 text-xs ${trusted === false ? 'bg-rose-400 text-black' : 'text-rose-300'}`}>Mark unreliable</button>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => handleTrustDecision(ev._id, 'reliable')} className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${trusted === true ? 'border-emerald-400 bg-emerald-400 text-black' : 'border-emerald-400/30 bg-emerald-400/5 text-emerald-300'}`}><ShieldCheck size={14} /> Trust</button>
+                    <button type="button" onClick={() => handleTrustDecision(ev._id, 'unreliable')} className={`flex items-center justify-center gap-1.5 rounded-xl border py-2 text-xs font-bold transition ${trusted === false ? 'border-amber-400 bg-amber-400 text-black' : 'border-amber-400/30 bg-amber-400/5 text-amber-300'}`}><ShieldQuestion size={14} /> Doubt</button>
                   </div>
                 )}
               </div>
@@ -212,7 +247,7 @@ export default function MysteryPlayPage() {
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#0b0c0d]/95 px-5 py-4 backdrop-blur">
         <div className="mx-auto max-w-2xl">
           {scanMessage && <p className="mb-2 text-center text-xs text-white/60">{scanMessage}</p>}
-          <button type="button" disabled={!canPlay} onClick={() => setScannerOpen(true)} className="w-full rounded-xl bg-[#0ECCEE] py-3.5 text-sm font-bold text-black disabled:opacity-40">Scan evidence QR</button>
+          <button type="button" disabled={!canPlay} onClick={() => setScannerOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 via-violet-400 to-orange-400 py-3.5 text-sm font-black text-black shadow-[0_8px_30px_rgba(167,139,250,0.35)] disabled:opacity-40"><ScanLine size={18} /> Scan evidence QR</button>
         </div>
       </div>
 
@@ -238,8 +273,9 @@ export default function MysteryPlayPage() {
 
       {fightsBack && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/90 px-5">
-          <div className="w-full max-w-sm rounded-2xl border border-rose-400/40 bg-[#1a0d0d] p-5 text-center">
-            <p className="text-xs font-bold uppercase tracking-wide text-rose-300">Mystery Fights Back</p>
+          <div className="w-full max-w-sm rounded-2xl border border-rose-400/50 bg-gradient-to-b from-rose-950 to-[#1a0d0d] p-5 text-center shadow-[0_0_60px_rgba(251,113,133,0.35)]">
+            <span className="mx-auto flex h-12 w-12 animate-pulse items-center justify-center rounded-full bg-rose-500/20 text-rose-300"><AlertTriangle size={24} /></span>
+            <p className="mt-3 text-xs font-black uppercase tracking-widest text-rose-300">Mystery Fights Back</p>
             <p className="mt-2 text-sm text-white/80">{fightsBack.systemMessage || 'One of your evidence pieces has been invalidated.'}</p>
             <button type="button" onClick={handleAckFightsBack} className="mt-4 w-full rounded-xl bg-rose-400 py-2.5 text-sm font-bold text-black">Acknowledge</button>
           </div>

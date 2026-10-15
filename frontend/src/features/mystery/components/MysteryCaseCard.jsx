@@ -1,6 +1,7 @@
 import { Calendar, MapPin, Users, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { MYSTERY_PATHS } from '../config';
+import { difficultyTheme } from '../worldTheme';
 
 function formatDate(iso) {
   if (!iso) return 'Date TBA';
@@ -11,17 +12,19 @@ function formatDate(iso) {
 
 export default function MysteryCaseCard({ mysteryCase, event }) {
   const hasImage = Boolean(mysteryCase.coverImageUrl);
+  const level = mysteryCase.difficulty ? difficultyTheme(mysteryCase.difficulty) : null;
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
       <div
         className="relative h-40 w-full"
         style={hasImage
           ? { backgroundImage: `url(${mysteryCase.coverImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-          : { background: 'radial-gradient(ellipse 100% 100% at 50% 0%, #0ECCEE33, transparent 70%), linear-gradient(135deg, #121416, #0b0c0d)' }}
+          : { background: 'radial-gradient(ellipse 70% 90% at 15% 0%, #22D3EE40, transparent 70%), radial-gradient(ellipse 60% 80% at 85% 10%, #A78BFA45, transparent 70%), radial-gradient(ellipse 60% 70% at 60% 100%, #FB923C30, transparent 70%), linear-gradient(135deg, #121416, #0b0c0d)' }}
       >
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-3 pt-10">
           <div className="flex gap-2">
             <span className="rounded-full bg-[#0ECCEE]/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0ECCEE]">CTRL Mystery</span>
+            {level && <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide" style={{ background: `${level.color}26`, color: level.color }}>{level.label}{mysteryCase.estimatedMinutes ? ` · ${mysteryCase.estimatedMinutes} min` : ''}</span>}
             {event && <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/80">{event.college || 'Live event'}</span>}
           </div>
         </div>

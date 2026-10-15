@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import LocalQRCode from '../../../components/LocalQRCode';
 import { cardClass, ghostBtn, primaryBtn, printQrSheet } from './mysteryAdminUtils';
-
-const WORLD_TONE = {
-  physical: 'text-amber-300',
-  digital: 'text-sky-300',
-  human: 'text-pink-300',
-  logic: 'text-violet-300',
-};
+import { worldSurface, worldTheme } from '../worldTheme';
 
 function unlockRule(e, evidenceById, branchesById) {
   const parts = [];
@@ -65,22 +59,25 @@ export default function MysteryQrPanel({ title, evidence = [], branches = [], on
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {qrClues.map((e) => (
-          <div key={e._id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
-            <div className="flex gap-3">
-              <div className="shrink-0 rounded-lg bg-white p-1"><LocalQRCode data={e.qrSecret} size={96} printSafe /></div>
-              <div className="min-w-0">
-                <p className="font-mono text-sm font-bold">{e.code}</p>
-                <p className="text-sm">{e.title}</p>
-                <p className={`text-xs ${WORLD_TONE[e.world] || 'text-white/50'}`}>{e.world} · {e.points} pts</p>
-                <p className="mt-1 font-mono text-xs text-[#0ECCEE]">{e.qrSecret}</p>
+        {qrClues.map((e) => {
+          const { color, label, Icon } = worldTheme(e.world);
+          return (
+            <div key={e._id} className="rounded-2xl border p-3" style={worldSurface(color)}>
+              <div className="flex gap-3">
+                <div className="shrink-0 rounded-lg bg-white p-1"><LocalQRCode data={e.qrSecret} size={96} printSafe /></div>
+                <div className="min-w-0">
+                  <p className="font-mono text-sm font-bold">{e.code}</p>
+                  <p className="text-sm">{e.title}</p>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold" style={{ color }}><Icon size={12} /> {label} · {e.points} pts</p>
+                  <p className="mt-1 font-mono text-xs text-[#0ECCEE]">{e.qrSecret}</p>
+                </div>
               </div>
+              <p className="mt-2 text-xs text-white/55">📍 {e.placementNote || 'No placement note — add one in the case builder'}</p>
+              <p className="text-xs text-white/45">🔓 {unlockRule(e, evidenceById, branchesById)}</p>
+              {onRotate && <button type="button" disabled={busyId === e._id} onClick={() => rotate(e)} className={`mt-2 ${ghostBtn}`}>New QR</button>}
             </div>
-            <p className="mt-2 text-xs text-white/50">📍 {e.placementNote || 'No placement note — add one in the case builder'}</p>
-            <p className="text-xs text-white/40">🔓 {unlockRule(e, evidenceById, branchesById)}</p>
-            {onRotate && <button type="button" disabled={busyId === e._id} onClick={() => rotate(e)} className={`mt-2 ${ghostBtn}`}>New QR</button>}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {autoClues.length > 0 && (

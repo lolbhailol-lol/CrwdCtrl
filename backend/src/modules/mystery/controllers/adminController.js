@@ -11,7 +11,9 @@ const InterTeamExchange = require('../models/InterTeamExchange');
 const { encryptCredential, decryptCredential } = require('../../campus-hunt/utils/credentialCipher');
 const { generateRandomCode } = require('../utils/generateCode');
 const { findOrCreateGuestUser, uniqueTeamCode } = require('./teamController');
-const { createDemoCase, createDemoEvent, DEMO_PASSWORD } = require('../services/demoCaseService');
+const {
+  createDemoCase, createDemoEvent, DEMO_PASSWORD, DEMO_TEMPLATES, DEMO_TEMPLATE_LIST,
+} = require('../services/demoCaseService');
 
 const PLAYABLE_STATUSES = ['registration_open', 'live', 'paused'];
 const ADMIN_STATUSES = ['draft', 'upcoming', 'registration_open', 'live', 'paused', 'completed', 'cancelled'];
@@ -564,10 +566,18 @@ async function checkInGamePass(req, res, next) {
 /* ========== DEMO ========== */
 
 /** One click: sample case (published) + live demo event + 1 team with known password. */
+function listDemoTemplates(req, res) {
+  return res.json({ success: true, data: { templates: DEMO_TEMPLATE_LIST } });
+}
+
 async function createDemo(req, res, next) {
   try {
+    const template = req.body?.template ? String(req.body.template) : undefined;
+    if (template && !DEMO_TEMPLATES[template]) {
+      return res.status(400).json({ success: false, message: 'Unknown demo case' });
+    }
     const createdByEmail = adminEmail(req);
-    const mysteryCase = await createDemoCase({ createdByEmail });
+    const mysteryCase = await createDemoCase({ createdByEmail, template });
     const event = await createDemoEvent(mysteryCase, { createdByEmail });
     const team = await createTeamWithPassword({
       event,
@@ -605,5 +615,6 @@ module.exports = {
   resetTeamProgress,
   finalizeResult,
   checkInGamePass,
+  listDemoTemplates,
   createDemo,
 };

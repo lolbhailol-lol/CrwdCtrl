@@ -8,8 +8,7 @@ import {
 import { MYSTERY_PATHS, mysteryPublicUrl } from '../config';
 import { cardClass, dangerBtn, ghostBtn, inputClass, labelClass, primaryBtn } from './mysteryAdminUtils';
 import MysteryQrPanel from './MysteryQrPanel';
-
-const WORLDS = ['physical', 'digital', 'human', 'logic'];
+import { WORLD_ORDER as WORLDS, worldSurface, worldTheme } from '../worldTheme';
 const RELIABILITY = [
   ['reliable', 'Reliable — true'],
   ['unreliable', 'Unreliable — fake / misleading'],
@@ -230,11 +229,19 @@ export default function MysteryCaseBuilder() {
             <input placeholder="Title" value={ev.title} onChange={(e) => setEv({ ...ev, title: e.target.value })} className={inputClass} />
             <textarea rows={3} placeholder="Description (shown to players)" value={ev.description} onChange={(e) => setEv({ ...ev, description: e.target.value })} className={inputClass} />
             <div className="grid grid-cols-2 gap-2">
-              <label className={labelClass}>World
-                <select value={ev.world} onChange={(e) => setEv({ ...ev, world: e.target.value })} className={`mt-1 ${inputClass}`}>
-                  {WORLDS.map((w) => <option key={w} value={w}>{w}</option>)}
-                </select>
-              </label>
+              <div className={`col-span-2 ${labelClass}`}>World
+                <div className="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  {WORLDS.map((w) => {
+                    const { color, label, Icon } = worldTheme(w);
+                    const on = ev.world === w;
+                    return (
+                      <button key={w} type="button" onClick={() => setEv({ ...ev, world: w })} style={on ? { background: color, borderColor: color, color: '#0b0c0d' } : { borderColor: `${color}55`, color, background: `${color}12` }} className="flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-bold">
+                        <Icon size={14} /> {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <label className={labelClass}>Truth (hidden)
                 <select value={ev.reliability} onChange={(e) => setEv({ ...ev, reliability: e.target.value })} className={`mt-1 ${inputClass}`}>
                   {RELIABILITY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -296,13 +303,16 @@ export default function MysteryCaseBuilder() {
           </section>
 
           <section className="space-y-2">
-            {[...evidence].sort((a, b) => a.canonicalOrder - b.canonicalOrder).map((e) => (
-              <div key={e._id} className={`rounded-xl border px-3 py-2 text-sm ${String(editingId) === String(e._id) ? 'border-[#0ECCEE]/60 bg-[#0ECCEE]/5' : 'border-white/10 bg-white/5'}`}>
+            {[...evidence].sort((a, b) => a.canonicalOrder - b.canonicalOrder).map((e) => {
+              const theme = worldTheme(e.world);
+              return (
+              <div key={e._id} style={String(editingId) === String(e._id) ? undefined : worldSurface(theme.color)} className={`relative overflow-hidden rounded-xl border py-2 pl-4 pr-3 text-sm ${String(editingId) === String(e._id) ? 'border-[#0ECCEE]/60 bg-[#0ECCEE]/5' : ''}`}>
+                <span className="absolute inset-y-0 left-0 w-1" style={{ background: theme.color }} />
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p><span className="font-mono text-white/40">{e.code}</span> <span className="font-semibold">{e.title}</span></p>
                     <p className="text-xs text-white/40">
-                      #{e.canonicalOrder} · {e.world} · <span className={e.reliability === 'reliable' ? 'text-emerald-300' : e.reliability === 'unreliable' ? 'text-rose-300' : 'text-amber-300'}>{e.reliability}</span> · {e.points} pts · {e.requiresQR ? 'QR' : 'auto'}
+                      #{e.canonicalOrder} · <span className="inline-flex items-center gap-1 font-semibold" style={{ color: theme.color }}><theme.Icon size={11} />{theme.label}</span> · <span className={e.reliability === 'reliable' ? 'text-emerald-300' : e.reliability === 'unreliable' ? 'text-rose-300' : 'text-amber-300'}>{e.reliability}</span> · {e.points} pts · {e.requiresQR ? 'QR' : 'auto'}
                     </p>
                     {(e.unlockedByEvidenceIds?.length > 0 || e.unlockedByBranchId) && (
                       <p className="text-[11px] text-white/35">🔓 {[
@@ -318,7 +328,8 @@ export default function MysteryCaseBuilder() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {evidence.length === 0 && <p className="text-sm text-white/40">Add your first clue. Tip: use 5–8 clues across all 4 worlds, with at least one unreliable.</p>}
           </section>
         </div>

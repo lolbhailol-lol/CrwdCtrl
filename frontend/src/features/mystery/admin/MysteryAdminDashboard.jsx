@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   adminCreateMysteryCase, adminCreateMysteryDemo, adminCreateMysteryEvent,
-  adminDeleteMysteryCase, adminDeleteMysteryEvent, adminListMysteryCases, adminListMysteryEvents,
+  adminDeleteMysteryCase, adminDeleteMysteryEvent, adminListMysteryCases, adminListMysteryDemoTemplates,
+  adminListMysteryEvents,
 } from '../services/mystery.api';
 import { MYSTERY_PATHS, mysteryEnterUrl, mysteryPublicUrl } from '../config';
+import { difficultyTheme } from '../worldTheme';
 import {
   EVENT_STATUS_LABEL, EVENT_STATUS_TONE, cardClass, copyText, dangerBtn, formatDateTime,
   ghostBtn, inputClass, labelClass, primaryBtn, slugify,
@@ -36,6 +38,7 @@ export default function MysteryAdminDashboard() {
   const [busy, setBusy] = useState('');
   const [showGuide, setShowGuide] = useState(true);
   const [demo, setDemo] = useState(null);
+  const [demoTemplates, setDemoTemplates] = useState([]);
   const [caseForm, setCaseForm] = useState(EMPTY_CASE);
   const [eventForm, setEventForm] = useState(EMPTY_EVENT);
   const [slugTouched, setSlugTouched] = useState(false);
@@ -48,6 +51,7 @@ export default function MysteryAdminDashboard() {
 
   useEffect(() => {
     load().catch((err) => setError(err.message || 'Load failed')).finally(() => setLoading(false));
+    adminListMysteryDemoTemplates().then((res) => setDemoTemplates(res.data?.templates || [])).catch(() => {});
   }, [load]);
 
   const run = async (key, action) => {
@@ -63,8 +67,8 @@ export default function MysteryAdminDashboard() {
     }
   };
 
-  const createDemo = () => run('demo', async () => {
-    const res = await adminCreateMysteryDemo();
+  const createDemo = (template) => run(`demo-${template || 'default'}`, async () => {
+    const res = await adminCreateMysteryDemo(template);
     setDemo(res.data);
     await load();
   });
@@ -149,18 +153,50 @@ export default function MysteryAdminDashboard() {
         </section>
       )}
 
-      <section className="rounded-2xl border border-emerald-400/25 bg-emerald-500/5 p-4">
+      <section className="rounded-2xl border border-violet-400/25 bg-gradient-to-br from-cyan-500/10 via-violet-500/10 to-orange-500/10 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-emerald-300">Demo — try the full game in 1 click</p>
-            <p className="text-xs text-white/50">Creates a sample case (6 clues, 1 branch, 1 twist), a live event and one team login. You can delete it later.</p>
+            <p className="text-sm font-bold text-white">Ready-made games — play in 1 click</p>
+            <p className="text-xs text-white/55">Each one creates the case, a live event and a team login. Great for testing and for showing CTRL Mystery to a college. Delete them any time.</p>
           </div>
-          <button type="button" disabled={Boolean(busy)} onClick={createDemo} className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-40">
-            {busy === 'demo' ? 'Creating…' : 'Create demo'}
-          </button>
+          {demoTemplates.length === 0 && (
+            <button type="button" disabled={Boolean(busy)} onClick={() => createDemo()} className="rounded-xl bg-emerald-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-40">
+              {busy === 'demo-default' ? 'Creating…' : 'Create demo'}
+            </button>
+          )}
         </div>
+        {demoTemplates.length > 0 && (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {demoTemplates.map((t) => {
+              const level = difficultyTheme(t.difficulty);
+              return (
+                <div key={t.id} className="flex flex-col rounded-xl border bg-black/30 p-4" style={{ borderColor: `${level.color}55` }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide" style={{ background: `${level.color}26`, color: level.color }}>{level.label}</span>
+                    <span className="text-xs text-white/45">{t.estimatedMinutes} min</span>
+                  </div>
+                  <p className="mt-2 font-bold">{t.title}</p>
+                  <p className="mt-1 flex-1 text-xs text-white/55">{t.tagline}</p>
+                  <p className="mt-3 text-[11px] text-white/45">
+                    {t.clueCount} clues · {t.branchCount ? `${t.branchCount} branch · ` : ''}{t.twistCount} twist{t.twistCount === 1 ? '' : 's'}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={Boolean(busy)}
+                    onClick={() => createDemo(t.id)}
+                    className="mt-3 rounded-xl py-2 text-sm font-bold text-black disabled:opacity-40"
+                    style={{ background: level.color }}
+                  >
+                    {busy === `demo-${t.id}` ? 'Creating…' : 'Create & play'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {demo && (
           <div className="mt-4 grid gap-3 rounded-xl bg-black/30 p-3 text-sm sm:grid-cols-2">
+            <p className="font-semibold text-emerald-300 sm:col-span-2">Ready to play: {demo.case.title}</p>
             <div>
               <p className="text-xs text-white/40">Team login</p>
               <p className="font-mono text-lg text-[#0ECCEE]">{demo.team.teamCode}</p>

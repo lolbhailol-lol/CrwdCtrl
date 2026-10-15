@@ -254,6 +254,10 @@ export async function adminMysteryCheckIn(code) {
 export async function adminGradeMysteryTheory(teamId, theoryCorrect, theoryPoints) {
   return adminFetchJSON(`${BASE}/submissions/${teamId}/grade`, { method: 'POST', body: JSON.stringify({ theoryCorrect, theoryPoints }) });
 }
-export async function adminCreateMysteryDemo() {
-  return adminFetchJSON(`${BASE}/admin/demo`, { method: 'POST', body: JSON.stringify({}) });
+export async function adminListMysteryDemoTemplates() {
+  return adminFetchJSON(`${BASE}/admin/demo/templates`);
+}
+
+export async function adminCreateMysteryDemo(template) {
+  return adminFetchJSON(`${BASE}/admin/demo`, { method: 'POST', body: JSON.stringify(template ? { template } : {}) });
 }

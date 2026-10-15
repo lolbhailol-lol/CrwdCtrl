@@ -39,6 +39,7 @@ router.post('/teams/:teamId/finalize-result', adminController.finalizeResult);
 router.post('/checkin', adminController.checkInGamePass);
 
 // One-click demo (sample case + live event + team)
+router.get('/demo/templates', adminController.listDemoTemplates);
 router.post('/demo', adminController.createDemo);
 
 module.exports = router;
