@@ -21,6 +21,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { useAuth } from '../../context/AuthContext';
 import { useDarkMode } from '../../context/DarkModeContext';
@@ -38,6 +39,13 @@ import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { fetchCampusHuntColleges } from '../campus-hunt/services/campusHunt.api';
 import { API_BASE_URL } from '../../services/api/client';
 import { shareContent } from '../../utils/externalLink';
+import {
+  HuntPageHeader,
+  HuntPageShell,
+  HuntPrimaryButton,
+  HuntSectionLabel,
+  MissionProgress,
+} from '../campus-hunt/components/HuntV2Shell';
 import {
   claimGameInvite,
   createGamePaymentOrder,
@@ -161,7 +169,12 @@ function useComingSoonShare(game) {
   return { share, shareNote };
 }
 
-function PreRegistrationForm({ game, onDone, onCancel }) {
+function PreRegistrationForm({ game, onDone, onCancel, variant = 'college', formId, externalSubmit = false, onSubmittingChange }) {
+  const hunt = variant === 'hunt';
+  const formClass = hunt ? 'hunt-v2-prereg-form' : 'college-form college-prereg-form';
+  const labelClass = hunt ? 'hunt-v2-field' : undefined;
+  const inputClass = hunt ? 'hunt-v2-input' : undefined;
+  const selectClass = hunt ? 'hunt-v2-select' : undefined;
   const emptyForm = { ...EMPTY_PRE_REGISTRATION, collegeName: game.collegeName || '' };
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
@@ -170,6 +183,7 @@ function PreRegistrationForm({ game, onDone, onCancel }) {
   const submit = async (event) => {
     event.preventDefault();
     setSubmitting(true);
+    onSubmittingChange?.(true);
     setError('');
     try {
       await submitPreRegistration({ ...form, gameKey: game.preRegistrationKey });
@@ -180,138 +194,231 @@ function PreRegistrationForm({ game, onDone, onCancel }) {
       setError(err.message);
     } finally {
       setSubmitting(false);
+      onSubmittingChange?.(false);
     }
   };
   return (
-    <form className="college-form college-prereg-form" onSubmit={submit}>
-      <label>Team name *<input value={form.teamName} onChange={updateField('teamName')} maxLength={60} required /></label>
-      <label>Captain name *<input value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" required /></label>
-      <label>Mobile number *<input type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" required /></label>
-      <label>Email *<input type="email" value={form.email} onChange={updateField('email')} autoComplete="email" required /></label>
-      <label>College *<input value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} readOnly={Boolean(game.collegeName)} required /></label>
-      <label>Team size<select value={form.teamSize} onChange={updateField('teamSize')}><option value="">Not sure yet</option>{Array.from({ length: game.teamSize }, (_, index) => index + 1).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
-      {error ? <p className="college-error">{error}</p> : null}
-      <div className="college-prereg-form__actions">
-        <button type="button" className="college-secondary-button" onClick={onCancel}>Cancel</button>
-        <button className="college-primary-button" disabled={submitting}>{submitting ? 'Saving…' : 'Pre-register team'}</button>
-      </div>
+    <form id={formId} className={formClass} onSubmit={submit}>
+      <label className={labelClass}>Team name *<input className={inputClass} value={form.teamName} onChange={updateField('teamName')} maxLength={60} required /></label>
+      <label className={labelClass}>Captain name *<input className={inputClass} value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" required /></label>
+      <label className={labelClass}>Mobile number *<input className={inputClass} type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" required /></label>
+      <label className={labelClass}>Email *<input className={inputClass} type="email" value={form.email} onChange={updateField('email')} autoComplete="email" required /></label>
+      <label className={labelClass}>College *<input className={inputClass} value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} readOnly={Boolean(game.collegeName)} required /></label>
+      <label className={labelClass}>Team size<select className={selectClass} value={form.teamSize} onChange={updateField('teamSize')}><option value="">Not sure yet</option>{Array.from({ length: game.teamSize }, (_, index) => index + 1).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+      {error ? <p className={hunt ? 'hunt-v2-error' : 'college-error'}>{error}</p> : null}
+      {externalSubmit ? (
+        <button type="button" className={hunt ? 'hunt-v2-secondary' : 'college-secondary-button'} onClick={onCancel}>Cancel</button>
+      ) : (
+        <div className={hunt ? 'hunt-v2-prereg-actions' : 'college-prereg-form__actions'}>
+          <button type="button" className={hunt ? 'hunt-v2-secondary' : 'college-secondary-button'} onClick={onCancel}>Cancel</button>
+          <button type="submit" className={hunt ? 'hunt-v2-primary' : 'college-primary-button'} disabled={submitting}>{submitting ? 'Saving…' : 'Pre-register team'}</button>
+        </div>
+      )}
     </form>
   );
 }
 
 function ComingSoonGameCard({ game }) {
-  const [open, setOpen] = useState(false);
-  const [doneTeam, setDoneTeam] = useState(() => readPreRegisteredTeam(game));
   const { share, shareNote } = useComingSoonShare(game);
   return (
     <article className="college-game-card college-game-card--coming-soon">
-      <div className="college-game-card__main">
-        <Link to={comingSoonPath(game)} className="college-card-media" aria-label={`${game.title} details`}>
+      <Link to={comingSoonPath(game)} className="college-game-card__main">
+        <div className="college-card-media">
           <img src={game.coverImage} alt="" />
           <span className="college-status-chip college-status-chip--soon"><Sparkles size={12} />Coming soon</span>
           <span className="college-game-card__teams"><Users size={13} />{game.capacity} teams</span>
           <div className="college-game-card__media-shade" />
-        </Link>
+        </div>
         <div className="college-card-body">
-          <div className="college-game-card__title-row">
-            <Link to={comingSoonPath(game)}><h3>{game.title}</h3></Link>
-            <button type="button" className="college-game-card__share" onClick={share} aria-label={`Share ${game.title}`}>
-              <Share2 size={16} />{shareNote || 'Share'}
-            </button>
-          </div>
+          <h3 className="college-game-card__title--with-share">{game.title}</h3>
           <p className="college-game-card__venue"><MapPin size={14} />{game.venue} · {game.city}</p>
           <div className="college-game-card__facts">
             <span><CalendarDays size={14} />Date coming soon</span>
             <span><Users size={14} />Team of {game.teamSize}</span>
             <strong>Free pre-registration</strong>
           </div>
-          {game.highlights?.length ? (
-            <ul className="college-game-card__highlights">
-              {game.highlights.map((item, index) => (
-                <li key={item}>{index === 0 ? <ShieldCheck size={14} /> : <Trophy size={14} />}{item}</li>
-              ))}
-            </ul>
-          ) : null}
-          <Link to={comingSoonPath(game)} className="college-game-card__details-link">Rounds, prizes &amp; rules<ChevronRight size={15} /></Link>
         </div>
-      </div>
-      {doneTeam ? (
-        <div className="college-game-card__interest"><Check size={16} />{doneTeam} is pre-registered · we will message you when registration opens</div>
-      ) : open ? (
-        <PreRegistrationForm game={game} onDone={(team) => { setDoneTeam(team); setOpen(false); }} onCancel={() => setOpen(false)} />
-      ) : (
-        <button type="button" className="college-game-card__interest college-game-card__interest--button" onClick={() => setOpen(true)}><Sparkles size={16} />Pre-register your team</button>
-      )}
+      </Link>
+      <button type="button" className="college-game-card__share college-game-card__share--floating" onClick={share} aria-label={`Share ${game.title}`}>
+        <Share2 size={16} />{shareNote || 'Share'}
+      </button>
     </article>
   );
 }
 
 function ComingSoonGameDetail({ game }) {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [doneTeam, setDoneTeam] = useState(() => readPreRegisteredTeam(game));
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [doneTeam] = useState(() => readPreRegisteredTeam(game));
   const { share, shareNote } = useComingSoonShare(game);
-  const openForm = () => {
-    setOpen(true);
-    requestAnimationFrame(() => document.getElementById('campus-hunt-prereg')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-  };
   return (
-    <Page>
-      <div className="college-detail-hero">
-        <img src={game.coverImage} alt="" />
-        <button type="button" className="college-hero-action college-hero-back" onClick={() => navigate(-1)} aria-label="Back"><ArrowLeft /></button>
-        <button type="button" className="college-hero-action college-hero-share" onClick={share} aria-label={`Share ${game.title}`}><Share2 /></button>
-      </div>
-      <section className="college-detail-body">
-        <div className="college-chips"><span className="is-active">CrwdCtrl Games</span><span>On campus</span><span>Coming soon</span></div>
-        <h1>{game.title}</h1>
-        <p>{game.tagline}</p>
-        <p className="college-accent-text">{shareNote || 'Pre-registrations open · Free'}</p>
-        <div className="college-detail-list">
-          <div><CalendarDays /><span><strong>Date coming soon</strong><small>Pre-registered teams hear first</small></span></div>
-          <div><MapPin /><span><strong>{game.venueFull || game.venue}</strong><small>{game.city}</small></span></div>
-          <div><ShieldCheck /><span><strong>MIT-WPU students only</strong><small>Valid MIT-WPU ID card needed on hunt day</small></span></div>
-          <div><Users /><span><strong>Teams of up to {game.teamSize}</strong><small>{game.capacity} team slots · captain registers the team</small></span></div>
-        </div>
+    <HuntPageShell>
+      <div className="hunt-v2-page">
+        <section className="hunt-v2-hero">
+          <img src="/campus-hunt/v2/hunt-hero.png" alt="Students solving the campus hunt together" />
+          <div className="hunt-v2-hero-actions">
+            <button type="button" onClick={() => navigate(-1)} aria-label="Go back">‹</button>
+            <button type="button" onClick={() => void share()}>{shareNote || 'Share'}</button>
+          </div>
+          <span className="hunt-v2-open-chip">PRE-REGISTRATION OPEN</span>
+        </section>
 
-        <h2>About the game</h2>
-        <p>{game.description}</p>
+        <div className="hunt-v2-detail">
+          <MissionProgress label="Mission brief" step={1} />
+          <div className="hunt-v2-tags"><span>CAMPUS HUNT</span><span>MIT-WPU ONLY</span></div>
+          <h1 className="hunt-v2-title">{game.title}</h1>
+          <p className="hunt-v2-subtitle">{game.tagline}</p>
+          <p className="hunt-v2-status">Pre-registration open • date drops soon</p>
 
-        <h2>Prizes</h2>
-        <div className="college-detail-list college-detail-list--prizes">
-          {game.prizes.map((prize) => (
-            <div key={prize.label}><Trophy /><span><strong>{prize.label}</strong><small>{prize.text}</small></span></div>
-          ))}
-        </div>
+          <HuntSectionLabel>Mission brief</HuntSectionLabel>
+          <div className="hunt-v2-stats">
+            {[
+              ['Soon', 'Date'],
+              ['1 Round', 'Format'],
+              [`${game.teamSize} players`, 'Team'],
+              ['Free', 'Fee'],
+            ].map(([value, label]) => (
+              <div key={label} className="hunt-v2-card hunt-v2-stat"><strong>{value}</strong><small>{label}</small></div>
+            ))}
+          </div>
 
-        <h2>The round</h2>
-        <div className="college-round-card">
-          <strong>{game.round.title}</strong>
-          <p>{game.round.text}</p>
-          <ul className="college-rules">{game.round.points.map((point) => <li key={point}>{point}</li>)}</ul>
-        </div>
+          <img src="/campus-hunt/v2/route-accent.svg" alt="" className="hunt-v2-route" />
 
-        <h2>How it works</h2>
-        <div className="college-step-list">{game.steps.map((step, index) => <div key={step}><b>{String(index + 1).padStart(2, '0')}</b><span>{step}</span></div>)}</div>
+          <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-info-card">
+            <div className="hunt-v2-info-title"><img src="/campus-hunt/v2/meet-here.svg" alt="" /><span>Meet here</span></div>
+            <p>{game.venueFull || game.venue}, {game.city}</p>
+            <small>Exact spot and reporting time go to pre-registered teams first</small>
+          </section>
 
-        <h2>Keep it fair. Keep it fun.</h2>
-        <ul className="college-rules">{game.rules.map((rule) => <li key={rule}>{rule}</li>)}</ul>
+          <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-info-card">
+            <div className="hunt-v2-info-title"><Trophy size={26} className="hunt-v2-prize-icon" aria-hidden /><span>Prizes</span></div>
+            <div className="hunt-v2-prize-list">
+              {game.prizes.map((prize) => (
+                <div key={prize.label}><strong>{prize.label}</strong><small>{prize.text}</small></div>
+              ))}
+            </div>
+          </section>
 
-        <div id="campus-hunt-prereg" className="college-game-card college-game-card--coming-soon college-detail-prereg">
+          <h2 className="text-lg font-extrabold">How it works</h2>
+          <HuntSectionLabel>Mission path</HuntSectionLabel>
+          <div className="hunt-v2-steps">
+            {[
+              ['01', 'Pre-register', 'Lock your team in free. Date and slots reach you first.'],
+              ['02', 'Solve & move', 'Follow clues, reach each checkpoint and scan the QR.'],
+              ['03', 'Top the board', 'Final live leaderboard rank decides prizes.'],
+            ].map(([number, title, copy]) => (
+              <div key={number} className="hunt-v2-card hunt-v2-step">
+                <b>{number}</b><div><strong>{title}</strong><small>{copy}</small></div>
+              </div>
+            ))}
+          </div>
+
+          <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-expect">
+            <div className="hunt-v2-expect-head">
+              <img src="/campus-hunt/v2/route-icon.svg" alt="" />
+              <div><strong>What to expect</strong><small>One round. Your live rank is your final rank.</small></div>
+            </div>
+            <div className="hunt-v2-expect-grid">
+              {[
+                ['/campus-hunt/v2/campus-map.svg', 'Campus-wide', 'play area'],
+                ['/campus-hunt/v2/puzzle.svg', 'Riddles + QR', 'checkpoints'],
+                ['/campus-hunt/v2/phone.svg', '1 Round', 'live leaderboard'],
+              ].map(([icon, title, copy]) => (
+                <div key={title} className="hunt-v2-card hunt-v2-expect-item"><img src={icon} alt="" /><strong>{title}</strong><small>{copy}</small></div>
+              ))}
+            </div>
+          </section>
+
+          <section className="hunt-v2-card hunt-v2-info-card">
+            <strong>Before you play</strong>
+            <small>Valid MIT-WPU ID • charged phone • one team captain</small>
+          </section>
+          <button type="button" className="hunt-v2-secondary" onClick={() => setRulesOpen((value) => !value)}>
+            {rulesOpen ? 'Hide Rules & Eligibility' : 'View Rules & Eligibility'}
+          </button>
+          {rulesOpen ? (
+            <section className="hunt-v2-card hunt-v2-info-card text-sm text-[color:var(--hunt-muted)]">
+              <strong className="text-[color:var(--hunt-ink)]">Rules & eligibility</strong>
+              <ul className="mt-2 list-disc space-y-1 pl-5">{game.rules.map((rule) => <li key={rule}>{rule}</li>)}</ul>
+            </section>
+          ) : null}
+
           {doneTeam ? (
-            <div className="college-game-card__interest"><Check size={16} />{doneTeam} is pre-registered · we will message you when registration opens</div>
-          ) : open ? (
-            <PreRegistrationForm game={game} onDone={(team) => { setDoneTeam(team); setOpen(false); }} onCancel={() => setOpen(false)} />
+            <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-info-card">
+              <div className="hunt-v2-info-title"><Check size={22} aria-hidden /><span>{doneTeam} is pre-registered</span></div>
+              <small>We will message you when registration opens.</small>
+            </section>
           ) : null}
         </div>
-      </section>
-      <div className="college-sticky-action">
-        <span><small>Entry</small><strong>Free</strong></span>
-        {doneTeam
-          ? <button type="button" className="college-primary-button" disabled><Check size={16} />Pre-registered</button>
-          : <button type="button" className="college-primary-button" onClick={openForm}>Pre-register team</button>}
+
       </div>
-    </Page>
+      <HuntStickyBar>
+        <div className="hunt-v2-price"><strong>Free</strong><small>per team</small></div>
+        {doneTeam
+          ? <HuntPrimaryButton disabled>Pre-registered</HuntPrimaryButton>
+          : <HuntPrimaryButton onClick={() => navigate(`${comingSoonPath(game)}/register`)}>Pre-register Team</HuntPrimaryButton>}
+      </HuntStickyBar>
+    </HuntPageShell>
+  );
+}
+
+function HuntStickyBar({ children }) {
+  return createPortal(
+    <div className="hunt-v2 hunt-v2-portal">
+      <div className="hunt-v2-sticky"><div className="hunt-v2-sticky-inner">{children}</div></div>
+    </div>,
+    document.body,
+  );
+}
+
+function ComingSoonPreRegistrationPage({ game }) {
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const [doneTeam, setDoneTeam] = useState(() => readPreRegisteredTeam(game));
+  const backToDetail = () => navigate(comingSoonPath(game), { replace: true });
+  return (
+    <HuntPageShell>
+      <div className="hunt-v2-page">
+        <HuntPageHeader title="Pre-register" backTo={comingSoonPath(game)} />
+        <div className="hunt-v2-content hunt-v2-prereg-page">
+          <MissionProgress label="Team details" step={doneTeam ? 2 : 1} total={2} />
+          <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-info-card">
+            <div className="hunt-v2-info-title"><img src="/campus-hunt/v2/meet-here.svg" alt="" /><span>{game.title}</span></div>
+            <p>MIT-WPU students only • teams of up to {game.teamSize}</p>
+            <small>Free. Only the team captain fills this form.</small>
+          </section>
+          {doneTeam ? (
+            <section className="hunt-v2-card hunt-v2-info-card">
+              <div className="hunt-v2-info-title"><Check size={22} aria-hidden /><span>{doneTeam} is pre-registered</span></div>
+              <small>We will message you on WhatsApp and email when the date and slots drop.</small>
+            </section>
+          ) : (
+            <section className="hunt-v2-card hunt-v2-info-card">
+              <strong>Team details</strong>
+              <PreRegistrationForm
+                variant="hunt"
+                formId="campus-hunt-prereg-form"
+                externalSubmit
+                game={game}
+                onSubmittingChange={setSubmitting}
+                onDone={setDoneTeam}
+                onCancel={backToDetail}
+              />
+            </section>
+          )}
+        </div>
+      </div>
+      <HuntStickyBar>
+        <div className="hunt-v2-price"><strong>Free</strong><small>per team</small></div>
+        {doneTeam ? (
+          <HuntPrimaryButton onClick={backToDetail}>Back to Campus Hunt</HuntPrimaryButton>
+        ) : (
+          <HuntPrimaryButton type="submit" form="campus-hunt-prereg-form" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Submit Pre-registration'}
+          </HuntPrimaryButton>
+        )}
+      </HuntStickyBar>
+    </HuntPageShell>
   );
 }
 
@@ -591,6 +698,11 @@ function LiveGameDetail({ id }) {
 
 export function TeamRegistrationPage() {
   const { id } = useParams();
+  if (id === MIT_WPU_CAMPUS_HUNT.id) return <ComingSoonPreRegistrationPage game={MIT_WPU_CAMPUS_HUNT} />;
+  return <LiveTeamRegistration id={id} />;
+}
+
+function LiveTeamRegistration({ id }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated } = useAuth();

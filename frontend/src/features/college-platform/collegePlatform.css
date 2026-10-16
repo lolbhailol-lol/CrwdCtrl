@@ -122,22 +122,21 @@
 .college-prereg-form__actions{display:flex;gap:.6rem;justify-content:flex-end}
 .college-prereg-form__actions .college-primary-button{flex:1}
 html.dark .college-prereg-form,.college-page--dark .college-prereg-form{border-color:#353840}
-.college-game-card__title-row>a{color:inherit;min-width:0}
-.college-game-card__details-link{display:inline-flex;align-items:center;gap:.2rem;margin-top:.75rem;color:#087a82;font-size:.78rem;font-weight:700}
-.college-page--dark .college-game-card__details-link{color:#42d6df}
-.college-round-card{display:grid;gap:.5rem;padding:1rem;border-radius:1rem;background:#f5f6fa}
-.college-round-card>strong{font-size:.95rem}
-.college-page--dark .college-round-card{background:#1c1e22}
-.college-detail-list--prizes svg{color:#d89b00}
-.college-detail-prereg{margin-top:1.25rem;scroll-margin:6rem}
-.college-detail-prereg:empty{display:none}
-.college-game-card__title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem}
+.college-game-card--coming-soon{position:relative}
+.college-game-card__title--with-share{padding-right:5.5rem}
+.college-game-card__share--floating{position:absolute;z-index:3;right:1rem;top:calc(13rem + .85rem)}
+@media(min-width:768px){.college-game-card__share--floating{top:calc(14rem + .85rem)}}
+.hunt-v2-prize-icon{color:var(--hunt-blue)}
+.hunt-v2-prize-list{display:grid;gap:8px;margin-top:12px}
+.hunt-v2-prize-list>div{border:1px solid var(--hunt-line);border-radius:14px;background:var(--hunt-surface-strong);padding:10px 12px}
+.hunt-v2-prize-list strong{display:block;font-size:13px}
+.hunt-v2-prize-list small{margin-top:3px}
+.hunt-v2-prereg-form{display:grid;gap:12px;margin-top:12px}
+.hunt-v2-prereg-actions{display:grid;grid-template-columns:1fr 2fr;gap:8px}
+.hunt-v2-prereg-page{display:grid;gap:14px;padding-bottom:110px}
+.hunt-v2.hunt-v2-portal{min-height:0;background:transparent}
+.hunt-v2-portal .hunt-v2-sticky{z-index:60}
 .college-game-card__share{flex-shrink:0;display:inline-flex;align-items:center;gap:.35rem;border:1px solid #dde0e7;border-radius:999px;background:transparent;color:#087a82;padding:.35rem .7rem;font:inherit;font-size:.74rem;font-weight:700;cursor:pointer}
 .college-game-card__share:hover{background:rgba(14,204,238,.08)}
-.college-game-card__highlights{display:grid;gap:.4rem;margin:.75rem 0 0;padding:0;list-style:none}
-.college-game-card__highlights li{display:flex;align-items:flex-start;gap:.45rem;font-size:.78rem;font-weight:600;line-height:1.35}
-.college-game-card__highlights svg{flex-shrink:0;margin-top:.1rem;color:#087a82}
-.college-page--dark .college-game-card__share{border-color:#353840;color:#42d6df}
-.college-page--dark .college-game-card__highlights svg{color:#42d6df}
-html.dark .college-prereg-form input,html.dark .college-prereg-form select{background:#1c1e22;border-color:#33585c}
+.college-page--dark .college-game-card__share{border-color:#353840;color:#42d6df}html.dark .college-prereg-form input,html.dark .college-prereg-form select{background:#1c1e22;border-color:#33585c}
 @media(min-width:768px){.college-prereg-form{grid-template-columns:repeat(2,minmax(0,1fr))}.college-prereg-form .college-error,.college-prereg-form__actions{grid-column:1/-1}}

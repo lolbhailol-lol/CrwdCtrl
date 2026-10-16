@@ -11,12 +11,6 @@ export const MIT_WPU_CAMPUS_HUNT = {
   teamSize: 4,
   capacity: 40,
   collegeName: 'MIT World Peace University (MIT-WPU)',
-  highlights: [
-    'MIT-WPU students only',
-    'One round · Live leaderboard',
-    'Top 5 teams win prizes',
-    'Top 3 qualify for the CrwdCtrl Games Pune Championship',
-  ],
   description: 'Campus Hunt is a one-round live treasure hunt across the MIT-WPU campus, open only to MIT-WPU students. Teams of up to 4 race between real campus spots, crack riddles and scan hidden QR checkpoints to unlock the next clue. Every scan updates the live leaderboard, so you always know who is ahead.',
   steps: [
     'Pre-register your team free. The date and slots reach pre-registered teams first.',
