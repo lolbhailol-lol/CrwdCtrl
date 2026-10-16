@@ -132,7 +132,10 @@ html.dark .college-prereg-form,.college-page--dark .college-prereg-form{border-c
 .hunt-v2-prize-list strong{display:block;font-size:13px}
 .hunt-v2-prize-list small{margin-top:3px}
 .hunt-v2-prereg-form{display:grid;gap:12px;margin-top:12px}
-.hunt-v2-prereg-actions{display:grid;grid-template-columns:1fr 2fr;gap:8px}
+.hunt-v2-success-icon{color:#00a16a}
+.hunt-v2-primary.hunt-v2-primary--done,.hunt-v2-primary.hunt-v2-primary--done:disabled{display:inline-flex;align-items:center;justify-content:center;gap:8px;opacity:1;background:#e3f7ee;color:#00804f;box-shadow:none}
+.dark .hunt-v2-primary.hunt-v2-primary--done{background:#0b2a1f;color:#4ade9a}
+.hunt-v2-input[readonly]{color:var(--hunt-muted)}
 .hunt-v2-prereg-page{display:grid;gap:14px;padding-bottom:110px}
 .hunt-v2.hunt-v2-portal{min-height:0;background:transparent}
 .hunt-v2-portal .hunt-v2-sticky{z-index:60}

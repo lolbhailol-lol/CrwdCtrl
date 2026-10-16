@@ -63,7 +63,12 @@ import {
   submitHostGame,
   submitPreRegistration,
 } from './api';
-import { MIT_WPU_CAMPUS_HUNT } from './comingSoonGames';
+import {
+  MIT_WPU_CAMPUS_HUNT,
+  comingSoonPath,
+  readPreRegisteredTeam,
+  savePreRegisteredTeam,
+} from './comingSoonGames';
 import './collegePlatform.css';
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
@@ -145,13 +150,6 @@ function GameCard({ game }) {
 
 const EMPTY_PRE_REGISTRATION = { teamName: '', captainName: '', phone: '', email: '', collegeName: '', teamSize: '' };
 
-const comingSoonPath = (game) => `/games/${game.id}`;
-const preRegistrationStorageKey = (game) => `crwdctrl_prereg_${game.preRegistrationKey}`;
-
-function readPreRegisteredTeam(game) {
-  try { return localStorage.getItem(preRegistrationStorageKey(game)) || ''; } catch { return ''; }
-}
-
 function useComingSoonShare(game) {
   const [shareNote, setShareNote] = useState('');
   const share = async () => {
@@ -169,51 +167,59 @@ function useComingSoonShare(game) {
   return { share, shareNote };
 }
 
-function PreRegistrationForm({ game, onDone, onCancel, variant = 'college', formId, externalSubmit = false, onSubmittingChange }) {
-  const hunt = variant === 'hunt';
-  const formClass = hunt ? 'hunt-v2-prereg-form' : 'college-form college-prereg-form';
-  const labelClass = hunt ? 'hunt-v2-field' : undefined;
-  const inputClass = hunt ? 'hunt-v2-input' : undefined;
-  const selectClass = hunt ? 'hunt-v2-select' : undefined;
-  const emptyForm = { ...EMPTY_PRE_REGISTRATION, collegeName: game.collegeName || '' };
-  const [form, setForm] = useState(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
+function PreRegistrationForm({ game, onDone, onCancel, formId, onSubmittingChange }) {
+  const { user } = useAuth();
+  const [form, setForm] = useState(() => ({
+    ...EMPTY_PRE_REGISTRATION,
+    captainName: user?.name || '',
+    email: user?.email || '',
+    phone: String(user?.phone || user?.phoneNumber || '').replace(/\D/g, '').slice(-10),
+    collegeName: game.collegeName || '',
+  }));
   const [error, setError] = useState('');
   const updateField = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
   const submit = async (event) => {
     event.preventDefault();
-    setSubmitting(true);
     onSubmittingChange?.(true);
     setError('');
     try {
       await submitPreRegistration({ ...form, gameKey: game.preRegistrationKey });
       const teamName = form.teamName.trim();
-      try { localStorage.setItem(preRegistrationStorageKey(game), teamName); } catch { /* storage unavailable */ }
+      savePreRegisteredTeam(game, teamName);
       onDone(teamName);
     } catch (err) {
-      setError(err.message);
+      setError(/already pre-registered/i.test(err.message)
+        ? 'This mobile number already pre-registered a team, so you are on the priority list. Use another number to add a different team.'
+        : err.message);
     } finally {
-      setSubmitting(false);
       onSubmittingChange?.(false);
     }
   };
   return (
-    <form id={formId} className={formClass} onSubmit={submit}>
-      <label className={labelClass}>Team name *<input className={inputClass} value={form.teamName} onChange={updateField('teamName')} maxLength={60} required /></label>
-      <label className={labelClass}>Captain name *<input className={inputClass} value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" required /></label>
-      <label className={labelClass}>Mobile number *<input className={inputClass} type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" required /></label>
-      <label className={labelClass}>Email *<input className={inputClass} type="email" value={form.email} onChange={updateField('email')} autoComplete="email" required /></label>
-      <label className={labelClass}>College *<input className={inputClass} value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} readOnly={Boolean(game.collegeName)} required /></label>
-      <label className={labelClass}>Team size<select className={selectClass} value={form.teamSize} onChange={updateField('teamSize')}><option value="">Not sure yet</option>{Array.from({ length: game.teamSize }, (_, index) => index + 1).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
-      {error ? <p className={hunt ? 'hunt-v2-error' : 'college-error'}>{error}</p> : null}
-      {externalSubmit ? (
-        <button type="button" className={hunt ? 'hunt-v2-secondary' : 'college-secondary-button'} onClick={onCancel}>Cancel</button>
-      ) : (
-        <div className={hunt ? 'hunt-v2-prereg-actions' : 'college-prereg-form__actions'}>
-          <button type="button" className={hunt ? 'hunt-v2-secondary' : 'college-secondary-button'} onClick={onCancel}>Cancel</button>
-          <button type="submit" className={hunt ? 'hunt-v2-primary' : 'college-primary-button'} disabled={submitting}>{submitting ? 'Saving…' : 'Pre-register team'}</button>
-        </div>
-      )}
+    <form id={formId} className="hunt-v2-prereg-form" onSubmit={submit}>
+      <label className="hunt-v2-field">Team name *
+        <input className="hunt-v2-input" value={form.teamName} onChange={updateField('teamName')} maxLength={60} placeholder="Pick something legendary" required />
+      </label>
+      <label className="hunt-v2-field">Captain name *
+        <input className="hunt-v2-input" value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" placeholder="Full name" required />
+      </label>
+      <label className="hunt-v2-field">WhatsApp number *
+        <input className="hunt-v2-input" type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" placeholder="10-digit mobile" pattern="(\+?91)?[6-9][0-9]{9}" title="Enter a 10-digit Indian mobile number" required />
+      </label>
+      <label className="hunt-v2-field">Email *
+        <input className="hunt-v2-input" type="email" value={form.email} onChange={updateField('email')} autoComplete="email" placeholder="you@example.com" required />
+      </label>
+      <label className="hunt-v2-field">College
+        <input className="hunt-v2-input" value={form.collegeName} readOnly aria-readonly="true" />
+      </label>
+      <label className="hunt-v2-field">Team size
+        <select className="hunt-v2-select" value={form.teamSize} onChange={updateField('teamSize')}>
+          <option value="">Not sure yet</option>
+          {Array.from({ length: Math.max(game.teamSize - 1, 1) }, (_, index) => index + 2).map((size) => <option key={size} value={size}>{size} players</option>)}
+        </select>
+      </label>
+      {error ? <p className="hunt-v2-error" role="alert">{error}</p> : null}
+      <button type="button" className="hunt-v2-secondary" onClick={onCancel}>Cancel</button>
     </form>
   );
 }
@@ -268,7 +274,7 @@ function ComingSoonGameDetail({ game }) {
           <div className="hunt-v2-tags"><span>CAMPUS HUNT</span><span>MIT-WPU ONLY</span></div>
           <h1 className="hunt-v2-title">{game.title}</h1>
           <p className="hunt-v2-subtitle">{game.tagline}</p>
-          <p className="hunt-v2-status">Pre-registration open • date drops soon</p>
+          <p className="hunt-v2-status">Pre-registration open • pre-registered teams get first priority</p>
 
           <HuntSectionLabel>Mission brief</HuntSectionLabel>
           <div className="hunt-v2-stats">
@@ -345,8 +351,8 @@ function ComingSoonGameDetail({ game }) {
 
           {doneTeam ? (
             <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-info-card">
-              <div className="hunt-v2-info-title"><Check size={22} aria-hidden /><span>{doneTeam} is pre-registered</span></div>
-              <small>We will message you when registration opens.</small>
+              <div className="hunt-v2-info-title"><Check size={22} className="hunt-v2-success-icon" aria-hidden /><span>{doneTeam} is pre-registered</span></div>
+              <small>Priority access locked. Your team gets first access to slots when registration goes live.</small>
             </section>
           ) : null}
         </div>
@@ -355,11 +361,18 @@ function ComingSoonGameDetail({ game }) {
       <HuntStickyBar>
         <div className="hunt-v2-price"><strong>Free</strong><small>per team</small></div>
         {doneTeam
-          ? <HuntPrimaryButton disabled>Pre-registered</HuntPrimaryButton>
+          ? <PreRegisteredAction />
           : <HuntPrimaryButton onClick={() => navigate(`${comingSoonPath(game)}/register`)}>Pre-register Team</HuntPrimaryButton>}
       </HuntStickyBar>
     </HuntPageShell>
   );
+}
+
+function PreRegisteredAction({ fallback = null }) {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  if (isAuthenticated) return <HuntPrimaryButton onClick={() => navigate('/booking')}>View in Bookings</HuntPrimaryButton>;
+  return fallback || <HuntPrimaryButton className="hunt-v2-primary--done" disabled><Check size={18} aria-hidden />Pre-registered</HuntPrimaryButton>;
 }
 
 function HuntStickyBar({ children }) {
@@ -385,23 +398,22 @@ function ComingSoonPreRegistrationPage({ game }) {
           <section className="hunt-v2-card hunt-v2-card-accent hunt-v2-info-card">
             <div className="hunt-v2-info-title"><img src="/campus-hunt/v2/meet-here.svg" alt="" /><span>{game.title}</span></div>
             <p>MIT-WPU students only • teams of up to {game.teamSize}</p>
-            <small>Free. Only the team captain fills this form.</small>
+            <small>Free. Only the team captain fills this. Pre-registered teams get first priority when registration goes live.</small>
           </section>
           {doneTeam ? (
             <section className="hunt-v2-card hunt-v2-info-card">
-              <div className="hunt-v2-info-title"><Check size={22} aria-hidden /><span>{doneTeam} is pre-registered</span></div>
-              <small>We will message you on WhatsApp and email when the date and slots drop.</small>
+              <div className="hunt-v2-info-title"><Check size={22} className="hunt-v2-success-icon" aria-hidden /><span>{doneTeam} is pre-registered</span></div>
+              <p>Priority access locked</p>
+              <small>When registration goes live, your team gets first access to slots. We will message you on WhatsApp and email. You can find this anytime in Bookings.</small>
             </section>
           ) : (
             <section className="hunt-v2-card hunt-v2-info-card">
               <strong>Team details</strong>
               <PreRegistrationForm
-                variant="hunt"
                 formId="campus-hunt-prereg-form"
-                externalSubmit
                 game={game}
                 onSubmittingChange={setSubmitting}
-                onDone={setDoneTeam}
+                onDone={(team) => { setDoneTeam(team); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 onCancel={backToDetail}
               />
             </section>
@@ -411,7 +423,7 @@ function ComingSoonPreRegistrationPage({ game }) {
       <HuntStickyBar>
         <div className="hunt-v2-price"><strong>Free</strong><small>per team</small></div>
         {doneTeam ? (
-          <HuntPrimaryButton onClick={backToDetail}>Back to Campus Hunt</HuntPrimaryButton>
+          <PreRegisteredAction fallback={<HuntPrimaryButton onClick={backToDetail}>Back to Campus Hunt</HuntPrimaryButton>} />
         ) : (
           <HuntPrimaryButton type="submit" form="campus-hunt-prereg-form" disabled={submitting}>
             {submitting ? 'Saving…' : 'Submit Pre-registration'}

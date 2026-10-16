@@ -41,3 +41,15 @@ export const MIT_WPU_CAMPUS_HUNT = {
   ],
   shareText: 'MIT-WPU Campus Hunt by CrwdCtrl Games. One round, live leaderboard. Top 5 teams win prizes and the Top 3 qualify for the Pune Championship. Pre-register your team free:',
 };
+
+export const comingSoonPath = (game) => `/games/${game.id}`;
+
+export const preRegistrationStorageKey = (game) => `crwdctrl_prereg_${game.preRegistrationKey}`;
+
+export function readPreRegisteredTeam(game) {
+  try { return localStorage.getItem(preRegistrationStorageKey(game)) || ''; } catch { return ''; }
+}
+
+export function savePreRegisteredTeam(game, teamName) {
+  try { localStorage.setItem(preRegistrationStorageKey(game), teamName); } catch { /* storage unavailable */ }
+}

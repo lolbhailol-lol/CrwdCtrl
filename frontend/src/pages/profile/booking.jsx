@@ -23,6 +23,7 @@ import {
     clearEventPaymentArtifacts,
 } from '../../utils/eventPaymentRecovery';
 import { myGameRegistrations } from '../../features/college-platform/api';
+import PreRegistrationBookingCard from '../../features/college-platform/PreRegistrationBookingCard';
 
 // Lightweight per-user session cache so returning to the bookings page paints
 // instantly (stale-while-revalidate) instead of showing a full skeleton while
@@ -853,6 +854,7 @@ function Booking() {
                                   } bg-white`
                         }`}
                     >
+                        {activeTab === 'upcoming' ? <PreRegistrationBookingCard isDark={isDark} /> : null}
                         {visibleBookings.length > 0 ? (
                             <div className="space-y-4">
                                 {visibleBookings.map((item) => (

@@ -118,16 +118,25 @@ export function submitHostGame(payload) {
 }
 
 export function submitPreRegistration(payload) {
+  const token = resolveAuthToken();
   return fetch(resolveUrl('/games/pre-registrations'), {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(token ? getBearerAuthHeaders(token) : {}),
+    },
     body: JSON.stringify(payload),
   }).then(async (response) => {
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.message || 'Could not pre-register your team');
     return data;
   });
+}
+
+export function listMyPreRegistrations() {
+  return userFetchJSONStrict('/games/me/pre-registrations');
 }
 
 export function createGamePaymentOrder(gameId, registrationId) {

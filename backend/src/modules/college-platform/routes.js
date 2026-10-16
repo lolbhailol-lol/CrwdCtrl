@@ -39,6 +39,7 @@ publicRouter.post('/host/campus-hunts/:gameId/announcements', authenticateToken,
 publicRouter.post('/host/campus-hunts/:gameId/registrations/:registrationId/refunds', authenticateToken, hostController.hostRefundRequest);
 publicRouter.get('/me/profile', authenticateToken, controller.getMyCollegeProfile);
 publicRouter.get('/me/registrations', authenticateToken, controller.myRegistrations);
+publicRouter.get('/me/pre-registrations', authenticateToken, controller.myPreRegistrations);
 publicRouter.post('/me/registrations/:registrationId/refunds', authenticateToken, hostController.participantRefundRequest);
 publicRouter.post('/me/registrations/:registrationId/disputes', authenticateToken, hostController.createDispute);
 publicRouter.post('/:gameId/reports', authenticateToken, hostController.createReport);

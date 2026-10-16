@@ -35,7 +35,7 @@ import CustomPageSectionsRenderer from '../../components/CustomPageSectionsRende
 import AnnouncementBanner from '../../components/AnnouncementBanner';
 import Seo from '../../components/Seo';
 import FaqSection from '../../components/FaqSection';
-import { MIT_WPU_CAMPUS_HUNT } from '../../features/college-platform/comingSoonGames';
+import { MIT_WPU_CAMPUS_HUNT, comingSoonPath } from '../../features/college-platform/comingSoonGames';
 import ReviewsSection from '../../components/ReviewsSection';
 import { faqSchema, itemListSchema, webPageSchema } from '../../utils/seo';
 import { HOME_FAQ } from '../../constants/faqs';
@@ -1172,7 +1172,7 @@ const Dashboard = () => {
             image: MIT_WPU_CAMPUS_HUNT.coverImage,
             _image: MIT_WPU_CAMPUS_HUNT.coverImage,
             _type: 'game',
-            _href: '/games',
+            _href: comingSoonPath(MIT_WPU_CAMPUS_HUNT),
         },
         ...buildSectionItems('trending'),
     ], [buildSectionItems]);

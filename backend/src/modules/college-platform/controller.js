@@ -435,6 +435,34 @@ exports.createPreRegistration = async (req, res, next) => {
   }
 };
 
+exports.myPreRegistrations = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId).select('email').lean();
+    const email = String(user?.email || '').trim().toLowerCase();
+    const rows = await GamePreRegistration.find({
+      $or: [{ submittedByUserId: req.user.userId }, ...(email ? [{ email }] : [])],
+      status: { $ne: 'cancelled' },
+    })
+      .select('gameKey teamName captainName teamSize status createdAt')
+      .sort({ createdAt: -1 })
+      .lean();
+    return res.json({
+      success: true,
+      preRegistrations: rows.map((row) => ({
+        id: String(row._id),
+        gameKey: row.gameKey,
+        teamName: row.teamName,
+        captainName: row.captainName,
+        teamSize: row.teamSize,
+        status: row.status,
+        createdAt: row.createdAt,
+      })),
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 function collegePayload(body = {}, { partial = false } = {}) {
   const output = {};
   const put = (key, value) => { if (!partial || body[key] !== undefined) output[key] = value; };
