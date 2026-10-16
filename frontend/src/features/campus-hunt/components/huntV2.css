@@ -35,7 +35,7 @@
 }
 
 .hunt-v2-page {
-  width: min(100%, 430px);
+  width: 100%;
   min-height: 100dvh;
   margin: 0 auto;
   background: var(--hunt-bg);
@@ -101,10 +101,10 @@
 .hunt-v2-error { border: 1px solid #fb718544; border-radius: 13px; background: #fb718512; padding: 10px 12px; color: #e11d48; font-size: 13px; }
 .dark .hunt-v2-error { color: #fda4af; }
 
-.hunt-v2-hero { position: relative; height: 238px; overflow: hidden; background: #12212a; }
+.hunt-v2-hero { position: relative; aspect-ratio: 390 / 238; min-height: 238px; max-height: 320px; width: 100%; overflow: hidden; background: #12212a; }
 .hunt-v2-hero > img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .hunt-v2-hero::after { content: ""; position: absolute; inset: 42% 0 0; background: linear-gradient(180deg, transparent, rgba(0,0,0,.72)); }
-.hunt-v2-hero-actions { position: absolute; z-index: 2; inset: 14px 16px auto; display: flex; justify-content: space-between; }
+.hunt-v2-hero-actions { position: absolute; z-index: 2; inset: calc(14px + var(--safe-top, 0px)) 16px auto; display: flex; justify-content: space-between; }
 .hunt-v2-hero-actions button { border: 1px solid rgba(219,224,235,.9); border-radius: 15px; background: rgba(244,246,250,.9); color: #171a1f; padding: 9px 14px; font-size: 12px; font-weight: 700; backdrop-filter: blur(8px); }
 .hunt-v2-open-chip { position: absolute; z-index: 2; left: 14px; bottom: 14px; border: 1px solid rgba(0,194,204,.6); border-radius: 999px; background: rgba(5,10,15,.78); color: white; padding: 6px 10px; font-size: 9px; font-weight: 700; }
 .hunt-v2-detail { display: grid; gap: 14px; padding: 16px 16px 96px; }
@@ -140,7 +140,7 @@
 .hunt-v2-expect-item strong { font-size: 9px; }
 .hunt-v2-expect-item small { color: var(--hunt-muted); font-size: 8px; }
 .hunt-v2-sticky { position: fixed; z-index: 8; inset: auto 0 0; background: var(--hunt-sticky); border-top: 1px solid var(--hunt-line); backdrop-filter: blur(14px); }
-.hunt-v2-sticky-inner { width: min(100%, 430px); margin: 0 auto; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 11px 13px calc(11px + var(--safe-bottom, 0px)); }
+.hunt-v2-sticky-inner { width: 100%; margin: 0 auto; display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 11px 13px calc(11px + var(--safe-bottom, 0px)); }
 .hunt-v2-price strong { display: block; font-size: 18px; }.hunt-v2-price small { color: var(--hunt-muted); font-size: 9px; }
 
 .hunt-v2-mode-list { display: grid; gap: 14px; }
@@ -156,7 +156,8 @@
 .hunt-v2-pack-metrics { width: 100%; display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-top: 12px; }.hunt-v2-pack-metrics div { border-radius: 13px; background: var(--hunt-surface-strong); padding: 10px 4px; }.hunt-v2-pack-metrics strong { display: block; font-size: 13px; }.hunt-v2-pack-metrics small { color: var(--hunt-muted); font-size: 8px; text-transform: uppercase; }
 
 @media (min-width: 720px) {
-  .hunt-v2-page { box-shadow: 0 0 70px -40px rgba(10,133,255,.45); }
+  .hunt-v2-page { width: min(100%, 480px); box-shadow: 0 0 70px -40px rgba(10,133,255,.45); }
+  .hunt-v2-sticky-inner { width: min(100%, 480px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
