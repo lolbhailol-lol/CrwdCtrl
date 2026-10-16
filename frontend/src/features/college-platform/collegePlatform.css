@@ -122,5 +122,15 @@
 .college-prereg-form__actions{display:flex;gap:.6rem;justify-content:flex-end}
 .college-prereg-form__actions .college-primary-button{flex:1}
 html.dark .college-prereg-form,.college-page--dark .college-prereg-form{border-color:#353840}
+.college-game-card--coming-soon{scroll-margin-top:12rem}
+@media(min-width:1024px){.college-game-card--coming-soon{scroll-margin-top:5rem}}
+.college-game-card__title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem}
+.college-game-card__share{flex-shrink:0;display:inline-flex;align-items:center;gap:.35rem;border:1px solid #dde0e7;border-radius:999px;background:transparent;color:#087a82;padding:.35rem .7rem;font:inherit;font-size:.74rem;font-weight:700;cursor:pointer}
+.college-game-card__share:hover{background:rgba(14,204,238,.08)}
+.college-game-card__highlights{display:grid;gap:.4rem;margin:.75rem 0 0;padding:0;list-style:none}
+.college-game-card__highlights li{display:flex;align-items:flex-start;gap:.45rem;font-size:.78rem;font-weight:600;line-height:1.35}
+.college-game-card__highlights svg{flex-shrink:0;margin-top:.1rem;color:#087a82}
+.college-page--dark .college-game-card__share{border-color:#353840;color:#42d6df}
+.college-page--dark .college-game-card__highlights svg{color:#42d6df}
 html.dark .college-prereg-form input,html.dark .college-prereg-form select{background:#1c1e22;border-color:#33585c}
 @media(min-width:768px){.college-prereg-form{grid-template-columns:repeat(2,minmax(0,1fr))}.college-prereg-form .college-error,.college-prereg-form__actions{grid-column:1/-1}}

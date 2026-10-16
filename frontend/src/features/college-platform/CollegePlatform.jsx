@@ -37,6 +37,7 @@ import { verifyPaymentWithRetry } from '../../utils/paymentNavigation';
 import { navigateToSearchResult } from '../../utils/searchNavigation';
 import { fetchCampusHuntColleges } from '../campus-hunt/services/campusHunt.api';
 import { API_BASE_URL } from '../../services/api/client';
+import { shareContent } from '../../utils/externalLink';
 import {
   claimGameInvite,
   createGamePaymentOrder,
@@ -138,13 +139,31 @@ const EMPTY_PRE_REGISTRATION = { teamName: '', captainName: '', phone: '', email
 
 function ComingSoonGameCard({ game }) {
   const storageKey = `crwdctrl_prereg_${game.preRegistrationKey}`;
+  const emptyForm = useMemo(() => ({ ...EMPTY_PRE_REGISTRATION, collegeName: game.collegeName || '' }), [game.collegeName]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_PRE_REGISTRATION);
+  const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [shareNote, setShareNote] = useState('');
   const [doneTeam, setDoneTeam] = useState(() => {
     try { return localStorage.getItem(storageKey) || ''; } catch { return ''; }
   });
+  useEffect(() => {
+    if (window.location.hash !== `#${game.id}`) return;
+    document.getElementById(game.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [game.id]);
+  const share = async () => {
+    const result = await shareContent({
+      title: game.title,
+      text: game.shareText,
+      url: `${window.location.origin}/games#${game.id}`,
+      imageUrl: game.shareImage ? `${window.location.origin}${game.shareImage}` : undefined,
+    });
+    if (result === 'copied') {
+      setShareNote('Link copied');
+      setTimeout(() => setShareNote(''), 2000);
+    }
+  };
   const updateField = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
   const submit = async (event) => {
     event.preventDefault();
@@ -155,7 +174,7 @@ function ComingSoonGameCard({ game }) {
       try { localStorage.setItem(storageKey, form.teamName.trim()); } catch { /* storage unavailable */ }
       setDoneTeam(form.teamName.trim());
       setOpen(false);
-      setForm(EMPTY_PRE_REGISTRATION);
+      setForm(emptyForm);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -163,7 +182,7 @@ function ComingSoonGameCard({ game }) {
     }
   };
   return (
-    <article className="college-game-card college-game-card--coming-soon">
+    <article id={game.id} className="college-game-card college-game-card--coming-soon">
       <div className="college-game-card__main">
         <div className="college-card-media">
           <img src={game.coverImage} alt="" />
@@ -172,13 +191,25 @@ function ComingSoonGameCard({ game }) {
           <div className="college-game-card__media-shade" />
         </div>
         <div className="college-card-body">
-          <h3>{game.title}</h3>
+          <div className="college-game-card__title-row">
+            <h3>{game.title}</h3>
+            <button type="button" className="college-game-card__share" onClick={share} aria-label={`Share ${game.title}`}>
+              <Share2 size={16} />{shareNote || 'Share'}
+            </button>
+          </div>
           <p className="college-game-card__venue"><MapPin size={14} />{game.venue} · {game.city}</p>
           <div className="college-game-card__facts">
             <span><CalendarDays size={14} />Date coming soon</span>
             <span><Users size={14} />Team of {game.teamSize}</span>
             <strong>Entry fee TBA</strong>
           </div>
+          {game.highlights?.length ? (
+            <ul className="college-game-card__highlights">
+              {game.highlights.map((item, index) => (
+                <li key={item}>{index === 0 ? <ShieldCheck size={14} /> : <Trophy size={14} />}{item}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </div>
       {doneTeam ? (
@@ -189,7 +220,7 @@ function ComingSoonGameCard({ game }) {
           <label>Captain name *<input value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" required /></label>
           <label>Mobile number *<input type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" required /></label>
           <label>Email *<input type="email" value={form.email} onChange={updateField('email')} autoComplete="email" required /></label>
-          <label>College *<input value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} required /></label>
+          <label>College *<input value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} readOnly={Boolean(game.collegeName)} required /></label>
           <label>Team size<select value={form.teamSize} onChange={updateField('teamSize')}><option value="">Not sure yet</option>{Array.from({ length: game.teamSize }, (_, index) => index + 1).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
           {error ? <p className="college-error">{error}</p> : null}
           <div className="college-prereg-form__actions">
