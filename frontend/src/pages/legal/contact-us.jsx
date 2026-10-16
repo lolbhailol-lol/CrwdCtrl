@@ -34,7 +34,8 @@ import {
     Building2,
     HelpCircle,
     ChevronDown,
-    ExternalLink
+    ExternalLink,
+    AlertCircle
 } from 'lucide-react';
 
 const CONTACT_CHANNELS = [
@@ -120,11 +121,108 @@ export default function ContactUs() {
         phone: '',
         message: ''
     });
+    const [errors, setErrors] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        message: ''
+    });
+    const [touched, setTouched] = useState({
+        name: false,
+        email: false,
+        phone: false,
+        message: false
+    });
     const [formSubmitted, setFormSubmitted] = useState(false);
     const [openFaqIndex, setOpenFaqIndex] = useState(null);
 
     const contactDescription =
         'Get in touch with the CrwdCtrl dispatch team for participant pass support, college fest hosting, sponsor collaborations, and general assistance.';
+
+    const validateField = (field, value) => {
+        switch (field) {
+            case 'name': {
+                const trimmed = (value || '').trim();
+                if (!trimmed) return 'Full Name is required.';
+                if (trimmed.length < 2) return 'Name must be at least 2 characters.';
+                if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return 'Name can only contain letters and spaces.';
+                return '';
+            }
+            case 'email': {
+                const trimmed = (value || '').trim();
+                if (!trimmed) return 'Email Address is required.';
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) {
+                    return 'Please enter a valid email address (e.g. name@example.com).';
+                }
+                return '';
+            }
+            case 'phone': {
+                const trimmed = (value || '').trim();
+                if (!trimmed) return '';
+                if (trimmed.length < 10) {
+                    return 'Please enter a complete 10-digit mobile number.';
+                }
+                return '';
+            }
+            case 'message': {
+                const trimmed = (value || '').trim();
+                if (!trimmed) return 'Message / Query is required.';
+                if (trimmed.length < 10) return 'Message must be at least 10 characters.';
+                return '';
+            }
+            default:
+                return '';
+        }
+    };
+
+    const handleNameKeyDown = (e) => {
+        // Block numbers from being typed in Name
+        if (/[0-9]/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+        }
+    };
+
+    const handlePhoneKeyDown = (e) => {
+        // Allow navigation and editing keys
+        if (
+            e.ctrlKey || e.metaKey || e.altKey ||
+            ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'].includes(e.key)
+        ) {
+            return;
+        }
+        // Block any non-digit key
+        if (!/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+            return;
+        }
+        // Strictly prevent more than 10 digits
+        const input = e.target;
+        const hasSelection = input.selectionStart !== input.selectionEnd;
+        if (formData.phone.length >= 10 && !hasSelection) {
+            e.preventDefault();
+        }
+    };
+
+    const handleChange = (field, val) => {
+        let sanitized = val;
+        if (field === 'name') {
+            // Strictly prevent any numbers or invalid characters
+            sanitized = val.replace(/[^a-zA-Z\s'-]/g, '');
+        } else if (field === 'phone') {
+            // Strictly digits only and maximum 10 digits
+            sanitized = val.replace(/\D/g, '').slice(0, 10);
+        }
+
+        setFormData((prev) => ({ ...prev, [field]: sanitized }));
+        if (touched[field]) {
+            setErrors((prev) => ({ ...prev, [field]: validateField(field, sanitized) }));
+        }
+    };
+
+    const handleBlur = (field) => {
+        setTouched((prev) => ({ ...prev, [field]: true }));
+        setErrors((prev) => ({ ...prev, [field]: validateField(field, formData[field]) }));
+    };
 
     const handleCopy = (text, key) => {
         if (navigator.clipboard) {
@@ -136,13 +234,24 @@ export default function ContactUs() {
 
     const handleFormSubmit = (e) => {
         e.preventDefault();
-        if (!formData.name || !formData.email || !formData.message) return;
+        const newErrors = {
+            name: validateField('name', formData.name),
+            email: validateField('email', formData.email),
+            phone: validateField('phone', formData.phone),
+            message: validateField('message', formData.message),
+        };
+        setErrors(newErrors);
+        setTouched({ name: true, email: true, phone: true, message: true });
+
+        if (Object.values(newErrors).some(Boolean)) {
+            return;
+        }
 
         // Construct mailto URL as reliable direct fallback while showing confirmation
         const topicLabel = INQUIRY_TOPICS.find((t) => t.id === selectedTopic)?.label || selectedTopic;
-        const subject = encodeURIComponent(`[CrwdCtrl Inquiry: ${topicLabel}] from ${formData.name}`);
+        const subject = encodeURIComponent(`[CrwdCtrl Inquiry: ${topicLabel}] from ${formData.name.trim()}`);
         const body = encodeURIComponent(
-            `Name: ${formData.name}\nEmail: ${formData.email}\nPhone: ${formData.phone || 'N/A'}\nTopic: ${topicLabel}\n\nMessage:\n${formData.message}`
+            `Name: ${formData.name.trim()}\nEmail: ${formData.email.trim()}\nPhone: ${formData.phone.trim() || 'N/A'}\nTopic: ${topicLabel}\n\nMessage:\n${formData.message.trim()}`
         );
 
         // Open mail client
@@ -396,6 +505,8 @@ export default function ContactUs() {
                                         onClick={() => {
                                             setFormSubmitted(false);
                                             setFormData({ name: '', email: '', phone: '', message: '' });
+                                            setErrors({ name: '', email: '', phone: '', message: '' });
+                                            setTouched({ name: false, email: false, phone: false, message: false });
                                         }}
                                         className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 transition-all cursor-pointer"
                                     >
@@ -404,7 +515,7 @@ export default function ContactUs() {
                                 </div>
                             </div>
                         ) : (
-                            <form onSubmit={handleFormSubmit} className="space-y-5">
+                            <form onSubmit={handleFormSubmit} noValidate className="space-y-5">
                                 {/* Topic Selectors */}
                                 <div className="space-y-2">
                                     <label className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -437,16 +548,25 @@ export default function ContactUs() {
                                         </label>
                                         <input
                                             type="text"
-                                            required
                                             value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            onKeyDown={handleNameKeyDown}
+                                            onChange={(e) => handleChange('name', e.target.value)}
+                                            onBlur={() => handleBlur('name')}
                                             placeholder="e.g. Rahul Sharma"
                                             className={`w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition-all ${
-                                                isDark
-                                                    ? 'bg-[#050811] border-gray-800 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                                    : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                            }`}
+                                                touched.name && errors.name
+                                                    ? 'border-rose-500 ring-1 ring-rose-500/30'
+                                                    : isDark
+                                                    ? 'border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                    : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                            } ${isDark ? 'bg-[#050811] text-white' : 'bg-gray-50 text-gray-900'}`}
                                         />
+                                        {touched.name && errors.name && (
+                                            <p className="flex items-center gap-1.5 text-[11px] font-medium text-rose-500 mt-1">
+                                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{errors.name}</span>
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="space-y-1.5">
@@ -455,16 +575,24 @@ export default function ContactUs() {
                                         </label>
                                         <input
                                             type="email"
-                                            required
                                             value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            onChange={(e) => handleChange('email', e.target.value)}
+                                            onBlur={() => handleBlur('email')}
                                             placeholder="e.g. rahul@college.edu"
                                             className={`w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition-all ${
-                                                isDark
-                                                    ? 'bg-[#050811] border-gray-800 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                                    : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                            }`}
+                                                touched.email && errors.email
+                                                    ? 'border-rose-500 ring-1 ring-rose-500/30'
+                                                    : isDark
+                                                    ? 'border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                    : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                            } ${isDark ? 'bg-[#050811] text-white' : 'bg-gray-50 text-gray-900'}`}
                                         />
+                                        {touched.email && errors.email && (
+                                            <p className="flex items-center gap-1.5 text-[11px] font-medium text-rose-500 mt-1">
+                                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{errors.email}</span>
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -475,14 +603,24 @@ export default function ContactUs() {
                                     <input
                                         type="tel"
                                         value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                        onKeyDown={handlePhoneKeyDown}
+                                        onChange={(e) => handleChange('phone', e.target.value)}
+                                        onBlur={() => handleBlur('phone')}
                                         placeholder="e.g. +91 9876543210"
                                         className={`w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition-all ${
-                                            isDark
-                                                ? 'bg-[#050811] border-gray-800 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                                : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                        }`}
+                                            touched.phone && errors.phone
+                                                ? 'border-rose-500 ring-1 ring-rose-500/30'
+                                                : isDark
+                                                ? 'border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        } ${isDark ? 'bg-[#050811] text-white' : 'bg-gray-50 text-gray-900'}`}
                                     />
+                                    {touched.phone && errors.phone && (
+                                        <p className="flex items-center gap-1.5 text-[11px] font-medium text-rose-500 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.phone}</span>
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-1.5">
@@ -495,18 +633,26 @@ export default function ContactUs() {
                                         </span>
                                     </div>
                                     <textarea
-                                        required
                                         rows={4}
                                         maxLength={1000}
                                         value={formData.message}
-                                        onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                                        onChange={(e) => handleChange('message', e.target.value)}
+                                        onBlur={() => handleBlur('message')}
                                         placeholder="Provide specific details about your query (event name, transaction ID, college name, etc.)..."
                                         className={`w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition-all resize-none ${
-                                            isDark
-                                                ? 'bg-[#050811] border-gray-800 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                                : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
-                                        }`}
+                                            touched.message && errors.message
+                                                ? 'border-rose-500 ring-1 ring-rose-500/30'
+                                                : isDark
+                                                ? 'border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                                : 'border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
+                                        } ${isDark ? 'bg-[#050811] text-white' : 'bg-gray-50 text-gray-900'}`}
                                     />
+                                    {touched.message && errors.message && (
+                                        <p className="flex items-center gap-1.5 text-[11px] font-medium text-rose-500 mt-1">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{errors.message}</span>
+                                        </p>
+                                    )}
                                 </div>
 
                                 <button
