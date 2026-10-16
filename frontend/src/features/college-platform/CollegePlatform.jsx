@@ -137,26 +137,20 @@ function GameCard({ game }) {
 
 const EMPTY_PRE_REGISTRATION = { teamName: '', captainName: '', phone: '', email: '', collegeName: '', teamSize: '' };
 
-function ComingSoonGameCard({ game }) {
-  const storageKey = `crwdctrl_prereg_${game.preRegistrationKey}`;
-  const emptyForm = useMemo(() => ({ ...EMPTY_PRE_REGISTRATION, collegeName: game.collegeName || '' }), [game.collegeName]);
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+const comingSoonPath = (game) => `/games/${game.id}`;
+const preRegistrationStorageKey = (game) => `crwdctrl_prereg_${game.preRegistrationKey}`;
+
+function readPreRegisteredTeam(game) {
+  try { return localStorage.getItem(preRegistrationStorageKey(game)) || ''; } catch { return ''; }
+}
+
+function useComingSoonShare(game) {
   const [shareNote, setShareNote] = useState('');
-  const [doneTeam, setDoneTeam] = useState(() => {
-    try { return localStorage.getItem(storageKey) || ''; } catch { return ''; }
-  });
-  useEffect(() => {
-    if (window.location.hash !== `#${game.id}`) return;
-    document.getElementById(game.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [game.id]);
   const share = async () => {
     const result = await shareContent({
       title: game.title,
       text: game.shareText,
-      url: `${window.location.origin}/games#${game.id}`,
+      url: `${window.location.origin}${comingSoonPath(game)}`,
       imageUrl: game.shareImage ? `${window.location.origin}${game.shareImage}` : undefined,
     });
     if (result === 'copied') {
@@ -164,6 +158,14 @@ function ComingSoonGameCard({ game }) {
       setTimeout(() => setShareNote(''), 2000);
     }
   };
+  return { share, shareNote };
+}
+
+function PreRegistrationForm({ game, onDone, onCancel }) {
+  const emptyForm = { ...EMPTY_PRE_REGISTRATION, collegeName: game.collegeName || '' };
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
   const updateField = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
   const submit = async (event) => {
     event.preventDefault();
@@ -171,10 +173,9 @@ function ComingSoonGameCard({ game }) {
     setError('');
     try {
       await submitPreRegistration({ ...form, gameKey: game.preRegistrationKey });
-      try { localStorage.setItem(storageKey, form.teamName.trim()); } catch { /* storage unavailable */ }
-      setDoneTeam(form.teamName.trim());
-      setOpen(false);
-      setForm(emptyForm);
+      const teamName = form.teamName.trim();
+      try { localStorage.setItem(preRegistrationStorageKey(game), teamName); } catch { /* storage unavailable */ }
+      onDone(teamName);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -182,17 +183,38 @@ function ComingSoonGameCard({ game }) {
     }
   };
   return (
-    <article id={game.id} className="college-game-card college-game-card--coming-soon">
+    <form className="college-form college-prereg-form" onSubmit={submit}>
+      <label>Team name *<input value={form.teamName} onChange={updateField('teamName')} maxLength={60} required /></label>
+      <label>Captain name *<input value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" required /></label>
+      <label>Mobile number *<input type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" required /></label>
+      <label>Email *<input type="email" value={form.email} onChange={updateField('email')} autoComplete="email" required /></label>
+      <label>College *<input value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} readOnly={Boolean(game.collegeName)} required /></label>
+      <label>Team size<select value={form.teamSize} onChange={updateField('teamSize')}><option value="">Not sure yet</option>{Array.from({ length: game.teamSize }, (_, index) => index + 1).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+      {error ? <p className="college-error">{error}</p> : null}
+      <div className="college-prereg-form__actions">
+        <button type="button" className="college-secondary-button" onClick={onCancel}>Cancel</button>
+        <button className="college-primary-button" disabled={submitting}>{submitting ? 'Saving…' : 'Pre-register team'}</button>
+      </div>
+    </form>
+  );
+}
+
+function ComingSoonGameCard({ game }) {
+  const [open, setOpen] = useState(false);
+  const [doneTeam, setDoneTeam] = useState(() => readPreRegisteredTeam(game));
+  const { share, shareNote } = useComingSoonShare(game);
+  return (
+    <article className="college-game-card college-game-card--coming-soon">
       <div className="college-game-card__main">
-        <div className="college-card-media">
+        <Link to={comingSoonPath(game)} className="college-card-media" aria-label={`${game.title} details`}>
           <img src={game.coverImage} alt="" />
           <span className="college-status-chip college-status-chip--soon"><Sparkles size={12} />Coming soon</span>
           <span className="college-game-card__teams"><Users size={13} />{game.capacity} teams</span>
           <div className="college-game-card__media-shade" />
-        </div>
+        </Link>
         <div className="college-card-body">
           <div className="college-game-card__title-row">
-            <h3>{game.title}</h3>
+            <Link to={comingSoonPath(game)}><h3>{game.title}</h3></Link>
             <button type="button" className="college-game-card__share" onClick={share} aria-label={`Share ${game.title}`}>
               <Share2 size={16} />{shareNote || 'Share'}
             </button>
@@ -201,7 +223,7 @@ function ComingSoonGameCard({ game }) {
           <div className="college-game-card__facts">
             <span><CalendarDays size={14} />Date coming soon</span>
             <span><Users size={14} />Team of {game.teamSize}</span>
-            <strong>Entry fee TBA</strong>
+            <strong>Free pre-registration</strong>
           </div>
           {game.highlights?.length ? (
             <ul className="college-game-card__highlights">
@@ -210,28 +232,86 @@ function ComingSoonGameCard({ game }) {
               ))}
             </ul>
           ) : null}
+          <Link to={comingSoonPath(game)} className="college-game-card__details-link">Rounds, prizes &amp; rules<ChevronRight size={15} /></Link>
         </div>
       </div>
       {doneTeam ? (
         <div className="college-game-card__interest"><Check size={16} />{doneTeam} is pre-registered · we will message you when registration opens</div>
       ) : open ? (
-        <form className="college-form college-prereg-form" onSubmit={submit}>
-          <label>Team name *<input value={form.teamName} onChange={updateField('teamName')} maxLength={60} required /></label>
-          <label>Captain name *<input value={form.captainName} onChange={updateField('captainName')} maxLength={80} autoComplete="name" required /></label>
-          <label>Mobile number *<input type="tel" inputMode="numeric" value={form.phone} onChange={updateField('phone')} autoComplete="tel" required /></label>
-          <label>Email *<input type="email" value={form.email} onChange={updateField('email')} autoComplete="email" required /></label>
-          <label>College *<input value={form.collegeName} onChange={updateField('collegeName')} maxLength={120} readOnly={Boolean(game.collegeName)} required /></label>
-          <label>Team size<select value={form.teamSize} onChange={updateField('teamSize')}><option value="">Not sure yet</option>{Array.from({ length: game.teamSize }, (_, index) => index + 1).map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
-          {error ? <p className="college-error">{error}</p> : null}
-          <div className="college-prereg-form__actions">
-            <button type="button" className="college-secondary-button" onClick={() => { setOpen(false); setError(''); }}>Cancel</button>
-            <button className="college-primary-button" disabled={submitting}>{submitting ? 'Saving…' : 'Pre-register team'}</button>
-          </div>
-        </form>
+        <PreRegistrationForm game={game} onDone={(team) => { setDoneTeam(team); setOpen(false); }} onCancel={() => setOpen(false)} />
       ) : (
-        <button type="button" className="college-game-card__interest college-game-card__interest--button" onClick={() => setOpen(true)}><Sparkles size={16} />Pre-register your team name</button>
+        <button type="button" className="college-game-card__interest college-game-card__interest--button" onClick={() => setOpen(true)}><Sparkles size={16} />Pre-register your team</button>
       )}
     </article>
+  );
+}
+
+function ComingSoonGameDetail({ game }) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [doneTeam, setDoneTeam] = useState(() => readPreRegisteredTeam(game));
+  const { share, shareNote } = useComingSoonShare(game);
+  const openForm = () => {
+    setOpen(true);
+    requestAnimationFrame(() => document.getElementById('campus-hunt-prereg')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
+  return (
+    <Page>
+      <div className="college-detail-hero">
+        <img src={game.coverImage} alt="" />
+        <button type="button" className="college-hero-action college-hero-back" onClick={() => navigate(-1)} aria-label="Back"><ArrowLeft /></button>
+        <button type="button" className="college-hero-action college-hero-share" onClick={share} aria-label={`Share ${game.title}`}><Share2 /></button>
+      </div>
+      <section className="college-detail-body">
+        <div className="college-chips"><span className="is-active">CrwdCtrl Games</span><span>On campus</span><span>Coming soon</span></div>
+        <h1>{game.title}</h1>
+        <p>{game.tagline}</p>
+        <p className="college-accent-text">{shareNote || 'Pre-registrations open · Free'}</p>
+        <div className="college-detail-list">
+          <div><CalendarDays /><span><strong>Date coming soon</strong><small>Pre-registered teams hear first</small></span></div>
+          <div><MapPin /><span><strong>{game.venueFull || game.venue}</strong><small>{game.city}</small></span></div>
+          <div><ShieldCheck /><span><strong>MIT-WPU students only</strong><small>Valid MIT-WPU ID card needed on hunt day</small></span></div>
+          <div><Users /><span><strong>Teams of up to {game.teamSize}</strong><small>{game.capacity} team slots · captain registers the team</small></span></div>
+        </div>
+
+        <h2>About the game</h2>
+        <p>{game.description}</p>
+
+        <h2>Prizes</h2>
+        <div className="college-detail-list college-detail-list--prizes">
+          {game.prizes.map((prize) => (
+            <div key={prize.label}><Trophy /><span><strong>{prize.label}</strong><small>{prize.text}</small></span></div>
+          ))}
+        </div>
+
+        <h2>The round</h2>
+        <div className="college-round-card">
+          <strong>{game.round.title}</strong>
+          <p>{game.round.text}</p>
+          <ul className="college-rules">{game.round.points.map((point) => <li key={point}>{point}</li>)}</ul>
+        </div>
+
+        <h2>How it works</h2>
+        <div className="college-step-list">{game.steps.map((step, index) => <div key={step}><b>{String(index + 1).padStart(2, '0')}</b><span>{step}</span></div>)}</div>
+
+        <h2>Keep it fair. Keep it fun.</h2>
+        <ul className="college-rules">{game.rules.map((rule) => <li key={rule}>{rule}</li>)}</ul>
+
+        <div id="campus-hunt-prereg" className="college-game-card college-game-card--coming-soon college-detail-prereg">
+          {doneTeam ? (
+            <div className="college-game-card__interest"><Check size={16} />{doneTeam} is pre-registered · we will message you when registration opens</div>
+          ) : open ? (
+            <PreRegistrationForm game={game} onDone={(team) => { setDoneTeam(team); setOpen(false); }} onCancel={() => setOpen(false)} />
+          ) : null}
+        </div>
+      </section>
+      <div className="college-sticky-action">
+        <span><small>Entry</small><strong>Free</strong></span>
+        {doneTeam
+          ? <button type="button" className="college-primary-button" disabled><Check size={16} />Pre-registered</button>
+          : <button type="button" className="college-primary-button" onClick={openForm}>Pre-register team</button>}
+      </div>
+    </Page>
   );
 }
 
@@ -464,6 +544,11 @@ export function GamesPage() {
 
 export function GameDetailPage() {
   const { id } = useParams();
+  if (id === MIT_WPU_CAMPUS_HUNT.id) return <ComingSoonGameDetail game={MIT_WPU_CAMPUS_HUNT} />;
+  return <LiveGameDetail id={id} />;
+}
+
+function LiveGameDetail({ id }) {
   const navigate = useNavigate();
   const [game, setGame] = useState(null);
   const [error, setError] = useState('');

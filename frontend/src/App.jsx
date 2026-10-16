@@ -89,6 +89,7 @@ function ConditionalMobileBottomNav({ onShowLogin, isProfileOpen, onProfileClick
     location.pathname.startsWith('/event-community-organizer') ||
     location.pathname.startsWith('/event-organizer') ||
     location.pathname.startsWith('/host-a-game') ||
+    location.pathname.startsWith('/games/') ||
     location.pathname.startsWith('/campus-hunt') ||
     location.pathname.startsWith('/campus-hunt-volunteer') ||
     location.pathname.startsWith('/view-details') ||
